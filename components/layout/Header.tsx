@@ -21,7 +21,7 @@ const navItems = [
 function Logo() {
   return (
     <Link className="site-logo" href="/">
-      <span className="wordmark">build us care</span>
+      <img className="logo-image" src="/builduscare-logo.png" alt="Build us Care" />
     </Link>
   );
 }
@@ -124,7 +124,6 @@ const headerCss = `
     align-items: center;
     gap: var(--space-6);
     margin-inline: auto;
-    padding-inline: var(--space-6);
   }
   .site-logo {
     display: inline-flex;
@@ -132,13 +131,12 @@ const headerCss = `
     color: var(--color-text);
     text-decoration: none;
   }
-  .site-logo .wordmark {
-    color: var(--color-text);
-    font-family: var(--font-brand);
-    font-size: 17px;
-    font-weight: var(--brand-logo-weight);
-    letter-spacing: var(--brand-logo-letter-spacing);
-    line-height: 1;
+  .site-logo .logo-image {
+    display: block;
+    width: auto;
+    height: 40px;
+    object-fit: contain;
+    mix-blend-mode: multiply;
   }
   .desktop-nav {
     display: flex;
@@ -298,9 +296,8 @@ const headerCss = `
     .mobile-kakao-cta {
       display: inline-flex;
     }
-    .site-logo .wordmark {
-      font-size: 15px;
-      letter-spacing: 0.12em;
+    .site-logo .logo-image {
+      height: 34px;
     }
   }
 `;

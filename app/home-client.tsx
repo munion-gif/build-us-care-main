@@ -104,6 +104,7 @@ export function HomeClient({ services, kakaoUrl, faqs }: HomeClientProps) {
             <a className="secondary-action" href={casesHref}>시공 사례 보기</a>
             {kakaoUrl ? (
               <a className="secondary-action kakao-action" href={kakaoUrl} target="_blank" rel="noreferrer">
+                <span className="kakao-mark" aria-hidden="true">TALK</span>
                 카톡 상담
               </a>
             ) : null}
@@ -325,6 +326,26 @@ const homeCss = `
     border: 1px solid rgba(34, 33, 29, 0.16);
     background: rgba(255, 250, 241, 0.72);
     color: var(--charcoal);
+  }
+  .hero-actions .kakao-action {
+    border-color: rgba(34, 33, 29, 0.92);
+    border-radius: 8px;
+    background: rgba(34, 33, 29, 0.92);
+    color: var(--cream);
+    box-shadow: none;
+  }
+  .hero-actions .kakao-mark {
+    display: inline-grid;
+    place-items: center;
+    min-width: 34px;
+    height: 18px;
+    border-radius: 999px;
+    background: #fee500;
+    color: #22211d;
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: 0;
   }
   .quick-picks {
     display: flex;
