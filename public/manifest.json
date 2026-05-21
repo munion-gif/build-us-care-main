@@ -1,0 +1,18 @@
+{
+  "name": "빌드어스",
+  "short_name": "빌드어스",
+  "description": "주거 설비 전문 케어 서비스",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

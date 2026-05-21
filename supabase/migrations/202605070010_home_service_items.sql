@@ -1,0 +1,125 @@
+-- Home page service cards and non-standard consultation items.
+
+insert into public.service_items (
+  service_type_code,
+  display_name,
+  base_price,
+  estimated_minutes,
+  is_active,
+  metadata,
+  category,
+  standardizable,
+  photo_guide,
+  included_items,
+  excluded_items,
+  warranty_policy,
+  standard_material_sku,
+  premium_material_sku,
+  addon_skus
+)
+values
+  (
+    'faucet_replace',
+    '수전 교체',
+    59000,
+    60,
+    true,
+    '{"category":"kitchen"}'::jsonb,
+    'kitchen',
+    true,
+    '수전 전체 / 하부 배관 / 싱크대 아래 연결부 사진',
+    '["기존 철거", "신규 설치", "누수 테스트", "1년 A/S"]'::jsonb,
+    '["싱크볼 교체", "배관 이설"]'::jsonb,
+    '시공 하자 1년 무상 A/S',
+    'faucet_standard',
+    'faucet_premium',
+    '["angle_valve", "silicone_finish"]'::jsonb
+  ),
+  (
+    'outlet_replace',
+    '콘센트 교체',
+    73000,
+    40,
+    true,
+    '{"category":"electric"}'::jsonb,
+    'electric',
+    true,
+    '콘센트 정면 / 주변 벽면 / 차단기 위치 사진',
+    '["기존 철거", "신규 설치", "전원 테스트", "1년 A/S"]'::jsonb,
+    '["전기 배선 증설", "누전 수리"]'::jsonb,
+    '시공 하자 1년 무상 A/S',
+    'outlet_standard',
+    'outlet_premium',
+    '[]'::jsonb
+  ),
+  (
+    'bidet_install',
+    '비데 설치',
+    60000,
+    45,
+    true,
+    '{"category":"bathroom"}'::jsonb,
+    'bathroom',
+    true,
+    '변기 전체 / 급수 밸브 / 콘센트 위치 사진',
+    '["제품 설치", "급수 연결", "작동 테스트", "1년 A/S"]'::jsonb,
+    '["전기 콘센트 신설", "비데 제품 구매"]'::jsonb,
+    '시공 하자 1년 무상 A/S',
+    'bidet_standard',
+    'bidet_premium',
+    '["bidet_hose", "angle_valve"]'::jsonb
+  ),
+  (
+    'drain_clog',
+    '하수구 막힘',
+    0,
+    60,
+    true,
+    '{"category":"plumbing"}'::jsonb,
+    'plumbing',
+    false,
+    '배수구 전체 / 물 고임 상태 / 주변 배관 사진',
+    '["사진 확인", "상담 안내"]'::jsonb,
+    '["현장 장비 작업", "배관 교체"]'::jsonb,
+    '현장 확인 후 안내',
+    null,
+    null,
+    '[]'::jsonb
+  ),
+  (
+    'partial_wallpaper',
+    '부분 도배',
+    250000,
+    240,
+    true,
+    '{"category":"interior"}'::jsonb,
+    'interior',
+    false,
+    '벽면 전체 / 손상 부위 / 방 크기가 보이는 사진',
+    '["사진 확인", "상담 안내"]'::jsonb,
+    '["곰팡이 제거", "대면적 도배"]'::jsonb,
+    '현장 확인 후 안내',
+    null,
+    null,
+    '[]'::jsonb
+  )
+on conflict (service_type_code) do update
+set
+  display_name = excluded.display_name,
+  base_price = excluded.base_price,
+  estimated_minutes = excluded.estimated_minutes,
+  is_active = excluded.is_active,
+  metadata = excluded.metadata,
+  category = excluded.category,
+  standardizable = excluded.standardizable,
+  photo_guide = excluded.photo_guide,
+  included_items = excluded.included_items,
+  excluded_items = excluded.excluded_items,
+  warranty_policy = excluded.warranty_policy,
+  standard_material_sku = excluded.standard_material_sku,
+  premium_material_sku = excluded.premium_material_sku,
+  addon_skus = excluded.addon_skus;
+
+update public.service_items
+set base_price = 48000
+where service_type_code = 'light_replace';

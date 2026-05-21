@@ -1,0 +1,93 @@
+:root {
+  --color-bg: #f7f1e6;
+  --color-surface: #fffaf1;
+  --color-surface-2: #eee7da;
+  --color-border: #d9d2c4;
+  --color-text: #22211d;
+  --color-text-muted: #74736a;
+  --color-text-faint: #aaa89f;
+  --color-primary: #22211d;
+  --color-primary-hover: #3a372f;
+  --color-primary-highlight: #eee7da;
+  --color-accent-orange: #b88a2b;
+  --color-gold: #b88a2b;
+  --color-gold-soft: #e5ca8f;
+  --color-gold-wash: #f4ead4;
+  --color-sage: #a8b0a2;
+  --color-sage-soft: #e4e8df;
+  --color-sage-panel: #d8ded2;
+  --color-cream: #f7f1e6;
+  --color-charcoal-panel: #22211d;
+  --color-alert-soft: #fff4e4;
+  --color-kakao: #22211d;
+  --color-kakao-text: #fffaf1;
+  --brand-letter-spacing: 0.26em;
+  --brand-logo-letter-spacing: 0.18em;
+  --brand-label-weight: 430;
+  --brand-logo-weight: 460;
+  --font-brand: "Quicksand", "Pretendard", "Apple SD Gothic Neo", sans-serif;
+  --font-latin: "Inter", "Pretendard", "Apple SD Gothic Neo", sans-serif;
+  --font-display: "Inter", "Pretendard", "Apple SD Gothic Neo", sans-serif;
+  --font-body: "Inter", "Pretendard", "Apple SD Gothic Neo", sans-serif;
+  --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+  --text-sm: clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
+  --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+  --text-lg: clamp(1.125rem, 1rem + 0.75vw, 1.5rem);
+  --text-xl: clamp(1.5rem, 1.2rem + 1.25vw, 2.25rem);
+  --text-hero: clamp(2rem, 1rem + 3.5vw, 3.25rem);
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-20: 5rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-full: 9999px;
+  --shadow-sm: 0 1px 2px rgba(34, 33, 29, 0.035);
+  --shadow-md: 0 8px 24px rgba(34, 33, 29, 0.055);
+  --shadow-lg: 0 18px 42px rgba(34, 33, 29, 0.075);
+  --transition: 160ms cubic-bezier(0.16, 1, 0.3, 1);
+  --content-wide: 1120px;
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--color-bg);
+}
+
+body {
+  margin: 0;
+  padding-bottom: var(--safe-area-bottom);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+}
+
+a,
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.maintenance-banner {
+  padding: var(--space-3) var(--space-4);
+  background: #fff4ec;
+  color: var(--color-accent-orange);
+  text-align: center;
+  font-size: var(--text-sm);
+  font-weight: 800;
+}

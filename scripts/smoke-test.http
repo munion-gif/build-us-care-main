@@ -1,0 +1,280 @@
+@baseUrl = http://127.0.0.1:3003
+@adminKey = dev-admin-key
+@orderId = replace-after-create
+@accessToken = replace-after-create
+@jobId = replace-from-admin-jobs
+
+### Health
+GET {{baseUrl}}/api/health
+
+### Service items
+GET {{baseUrl}}/api/service-items
+
+### Quote
+POST {{baseUrl}}/api/quote
+Content-Type: application/json
+
+{
+  "items": [
+    {
+      "service_type_code": "toilet_replace",
+      "item_name": "변기 교체",
+      "qty": 1,
+      "unit_price": 80000,
+      "options": [{ "name": "앵글밸브 추가", "price_delta": 15000 }]
+    }
+  ]
+}
+
+### Persisted quote
+POST {{baseUrl}}/api/quote
+Content-Type: application/json
+
+{
+  "order_id": "{{orderId}}",
+  "items": [
+    {
+      "service_type_code": "toilet_replace",
+      "item_name": "변기 교체",
+      "qty": 1,
+      "unit_price": 1,
+      "options": [{ "name": "앵글밸브 추가", "price_delta": 15000 }]
+    }
+  ],
+  "discount": 0
+}
+
+### Accept quote
+POST {{baseUrl}}/api/quotes/{{quoteId}}/accept
+
+### Create order
+POST {{baseUrl}}/api/orders
+Content-Type: application/json
+
+{
+  "customer": { "phone": "01033334444", "name": "스모크테스트", "acquisition_source": "web" },
+  "address": {
+    "road_address": "경기 수원시 테스트로 30",
+    "detail_address": "303호",
+    "postal_code": "16491"
+  },
+  "home": {
+    "address_full": "경기 수원시 테스트로 30 303호",
+    "address_dong": "수원시 테스트동",
+    "address_apt": "",
+    "postal_code": "16491",
+    "size_pyung": 24,
+    "building_type": "apartment",
+    "year_built": 1995,
+    "housing_type": "owner"
+  },
+  "order": {
+    "channel": "web",
+    "reason": "old",
+    "urgency": "within_1w",
+    "self_diagnosis": "스모크 테스트",
+    "skus": [{ "sku": "toilet_replace", "qty": 1, "service_type": "labor_service", "options": [], "material_skus": [] }]
+  },
+  "special_requests": "스모크 테스트",
+  "items": [
+    {
+      "service_type_code": "toilet_replace",
+      "item_name": "변기 교체",
+      "qty": 1,
+      "unit_price": 80000,
+      "options": [{ "name": "앵글밸브 추가", "price_delta": 15000 }]
+    }
+  ]
+}
+
+### Reservation
+POST {{baseUrl}}/api/orders/{{orderId}}/reservation
+Content-Type: application/json
+
+{
+  "reserved_date": "2026-05-13",
+  "time_slot": "morning",
+  "status": "confirmed"
+}
+
+### Toss mock confirm
+POST {{baseUrl}}/api/payments/toss/confirm
+Content-Type: application/json
+
+{
+  "orderId": "{{orderId}}",
+  "paymentKey": "mock-smoke-payment-001",
+  "amount": 110000,
+  "orderName": "변기 교체"
+}
+
+### Toss mock webhook
+POST {{baseUrl}}/api/webhooks/toss
+Content-Type: application/json
+x-toss-event-id: evt-smoke-001
+
+{
+  "eventType": "PAYMENT_STATUS_CHANGED",
+  "paymentKey": "mock-smoke-payment-001",
+  "status": "DONE"
+}
+
+### Duplicate webhook
+POST {{baseUrl}}/api/webhooks/toss
+Content-Type: application/json
+x-toss-event-id: evt-smoke-001
+
+{
+  "eventType": "PAYMENT_STATUS_CHANGED",
+  "paymentKey": "mock-smoke-payment-001",
+  "status": "DONE"
+}
+
+### Order inquiry media upload URL
+POST {{baseUrl}}/api/orders/{{orderId}}/media/upload-url
+Content-Type: application/json
+
+{
+  "fileName": "before-toilet.jpg",
+  "contentType": "image/jpeg",
+  "accessToken": "{{accessToken}}"
+}
+
+### Order inquiry media metadata
+POST {{baseUrl}}/api/orders/{{orderId}}/media
+Content-Type: application/json
+
+{
+  "file_path": "orders/{{orderId}}/inquiry/manual_before-toilet.jpg",
+  "accessToken": "{{accessToken}}"
+}
+
+### Job before media upload URL
+POST {{baseUrl}}/api/admin/jobs/{{jobId}}/media/upload-url
+Content-Type: application/json
+x-admin-key: {{adminKey}}
+
+{
+  "fileName": "job-before.jpg",
+  "contentType": "image/jpeg",
+  "type": "before"
+}
+
+### Job after media metadata
+POST {{baseUrl}}/api/admin/jobs/{{jobId}}/media
+Content-Type: application/json
+x-admin-key: {{adminKey}}
+
+{
+  "file_path": "jobs/{{jobId}}/after/manual_job-after.jpg",
+  "type": "after"
+}
+
+### Invalid media owner shape
+POST {{baseUrl}}/api/orders/{{orderId}}/media
+Content-Type: application/json
+
+{
+  "order_id": "{{orderId}}",
+  "job_id": "{{jobId}}",
+  "file_path": "orders/{{orderId}}/inquiry/manual_invalid.jpg",
+  "accessToken": "{{accessToken}}"
+}
+
+### Guest status
+GET {{baseUrl}}/api/orders/{{orderId}}/status?accessToken={{accessToken}}
+
+### Wrong access token
+GET {{baseUrl}}/api/orders/{{orderId}}/status?accessToken=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+### Admin orders
+GET {{baseUrl}}/api/admin/orders
+x-admin-key: {{adminKey}}
+
+### Wrong admin key
+GET {{baseUrl}}/api/admin/orders
+x-admin-key: wrong-key
+
+### Admin job status
+PATCH {{baseUrl}}/api/admin/jobs/{{jobId}}/status
+Content-Type: application/json
+x-admin-key: {{adminKey}}
+
+{
+  "status": "in_progress",
+  "memo": "스모크 테스트 진행"
+}
+
+### Phase 1 job assign
+POST {{baseUrl}}/api/admin/jobs
+Content-Type: application/json
+x-admin-key: {{adminKey}}
+
+{
+  "order_id": "{{orderId}}",
+  "technician_id": "{{technicianId}}",
+  "scheduled_at": "2026-05-20T09:00:00.000Z"
+}
+
+### Phase 1 job start
+PATCH {{baseUrl}}/api/admin/jobs/{{jobId}}/start
+x-admin-key: {{adminKey}}
+
+### Phase 1 job complete
+PATCH {{baseUrl}}/api/admin/jobs/{{jobId}}/complete
+x-admin-key: {{adminKey}}
+
+### Phase 1 job inspect
+PATCH {{baseUrl}}/api/admin/jobs/{{jobId}}/inspect
+Content-Type: application/json
+x-admin-key: {{adminKey}}
+
+{
+  "passed": true,
+  "inspector_note": "검수 통과",
+  "checklist_results": [{ "key": "clean", "passed": true }]
+}
+
+### Phase 1 admin job detail
+GET {{baseUrl}}/api/admin/jobs/{{jobId}}
+x-admin-key: {{adminKey}}
+
+### Phase 1 admin jobs filtered
+GET {{baseUrl}}/api/admin/jobs?order_id={{orderId}}&technician_id={{technicianId}}&status=inspected&limit=10&offset=0
+x-admin-key: {{adminKey}}
+
+### Review
+POST {{baseUrl}}/api/reviews
+Content-Type: application/json
+
+{
+  "order_id": "{{orderId}}",
+  "access_token": "{{accessToken}}",
+  "rating": 5,
+  "comment": "깔끔했습니다."
+}
+
+### Feedback
+POST {{baseUrl}}/api/orders/{{orderId}}/feedback
+Content-Type: application/json
+
+{
+  "accessToken": "{{accessToken}}",
+  "rating": 5,
+  "nps": 10,
+  "comment": "깔끔하고 친절했습니다.",
+  "categories": {
+    "speed": 5,
+    "kindness": 4,
+    "quality": 5,
+    "cleanliness": 4,
+    "price": 3
+  }
+}
+
+### Get feedback
+GET {{baseUrl}}/api/orders/{{orderId}}/feedback?accessToken={{accessToken}}
+
+### Admin feedbacks
+GET {{baseUrl}}/api/admin/feedbacks?rating=5&nps_min=9&limit=20&offset=0
+x-admin-key: {{adminKey}}

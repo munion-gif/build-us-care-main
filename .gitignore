@@ -1,0 +1,31 @@
+.next/
+node_modules/
+.env
+.env.local
+.env.*.local
+dist/
+coverage/
+npm-debug.log*
+tsconfig.tsbuildinfo
+tsconfig.typecheck.tsbuildinfo
+
+.vercel
+
+# Local runtime artifacts
+*.log
+*.err.log
+*.out.log
+*.live.log
+.next-dev-logs/
+.tmp-*/
+outputs/
+screenshots/
+
+# Codex / local workspace tooling
+.codex/
+.codex-logs/
+.lazyweb/
+
+# Local HTML captures
+local-*.html
+gg*.html
