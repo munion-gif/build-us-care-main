@@ -276,7 +276,7 @@ const homeCss = `
     --sage: var(--color-sage);
     min-height: 100vh;
     padding: 0 clamp(14px, 3vw, 40px) 92px;
-    background: var(--cream);
+    background: #fbf6ee;
     color: var(--charcoal);
   }
   .home-hero,
@@ -300,17 +300,17 @@ const homeCss = `
     position: absolute;
     z-index: -2;
     top: 0;
-    bottom: -1.25rem;
+    bottom: -0.45rem;
     left: calc(50% - 50vw);
     right: calc(50% - 50vw);
     background:
-      linear-gradient(90deg, rgba(244, 237, 225, 0.97) 0%, rgba(244, 237, 225, 0.9) 42%, rgba(244, 237, 225, 0.68) 68%, rgba(244, 237, 225, 0.92) 100%),
-      radial-gradient(circle at 76% 24%, rgba(255, 250, 241, 0.86) 0 9%, transparent 28%),
-      radial-gradient(ellipse at 80% 62%, rgba(62, 58, 51, 0.18), transparent 46%),
-      linear-gradient(125deg, transparent 0 48%, rgba(34, 33, 29, 0.11) 49% 67%, transparent 68% 100%),
+      linear-gradient(90deg, rgba(240, 230, 214, 0.99) 0%, rgba(239, 227, 209, 0.94) 42%, rgba(230, 217, 198, 0.74) 68%, rgba(240, 230, 214, 0.96) 100%),
+      radial-gradient(circle at 76% 24%, rgba(255, 250, 241, 0.78) 0 9%, transparent 28%),
+      radial-gradient(ellipse at 80% 62%, rgba(62, 58, 51, 0.2), transparent 46%),
+      linear-gradient(125deg, transparent 0 48%, rgba(34, 33, 29, 0.13) 49% 67%, transparent 68% 100%),
       repeating-linear-gradient(90deg, rgba(34, 33, 29, 0.038) 0 1px, transparent 1px 72px),
       repeating-linear-gradient(0deg, rgba(34, 33, 29, 0.026) 0 1px, transparent 1px 72px),
-      linear-gradient(135deg, #f7f0e3, #e8dfcf);
+      linear-gradient(135deg, #f0e4d2, #dfd0bb);
   }
   .home-hero::after {
     content: "";
