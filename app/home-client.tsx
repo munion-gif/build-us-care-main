@@ -287,13 +287,49 @@ const homeCss = `
     margin: 0 auto clamp(2rem, 4vw, 3.5rem);
   }
   .home-hero {
+    position: relative;
+    isolation: isolate;
     display: grid;
     grid-template-columns: minmax(0, 1.02fr) minmax(340px, 0.88fr);
     gap: clamp(1.5rem, 5vw, 4rem);
     align-items: center;
-    padding-block: clamp(3rem, 6.2vw, 4.85rem);
+    padding-block: clamp(4rem, 7.5vw, 6.35rem);
+  }
+  .home-hero::before {
+    content: "";
+    position: absolute;
+    z-index: -2;
+    top: 0;
+    bottom: -1.25rem;
+    left: calc(50% - 50vw);
+    right: calc(50% - 50vw);
+    background:
+      linear-gradient(90deg, rgba(244, 237, 225, 0.97) 0%, rgba(244, 237, 225, 0.9) 42%, rgba(244, 237, 225, 0.68) 68%, rgba(244, 237, 225, 0.92) 100%),
+      radial-gradient(circle at 76% 24%, rgba(255, 250, 241, 0.86) 0 9%, transparent 28%),
+      radial-gradient(ellipse at 80% 62%, rgba(62, 58, 51, 0.18), transparent 46%),
+      linear-gradient(125deg, transparent 0 48%, rgba(34, 33, 29, 0.11) 49% 67%, transparent 68% 100%),
+      repeating-linear-gradient(90deg, rgba(34, 33, 29, 0.038) 0 1px, transparent 1px 72px),
+      repeating-linear-gradient(0deg, rgba(34, 33, 29, 0.026) 0 1px, transparent 1px 72px),
+      linear-gradient(135deg, #f7f0e3, #e8dfcf);
+  }
+  .home-hero::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    top: clamp(1rem, 3vw, 2rem);
+    right: calc(50% - 50vw);
+    bottom: clamp(1rem, 3vw, 2rem);
+    width: min(50vw, 760px);
+    background:
+      radial-gradient(ellipse at 48% 38%, rgba(255, 250, 241, 0.32), transparent 28%),
+      radial-gradient(ellipse at 72% 52%, rgba(34, 33, 29, 0.2), transparent 48%),
+      linear-gradient(115deg, transparent 0 28%, rgba(34, 33, 29, 0.12) 50%, rgba(34, 33, 29, 0.03) 100%);
+    mask-image: linear-gradient(90deg, transparent 0%, black 32%, black 100%);
+    pointer-events: none;
   }
   .hero-copy {
+    position: relative;
+    z-index: 1;
     min-width: 0;
   }
   .brand-kicker,
@@ -420,6 +456,7 @@ const homeCss = `
   }
   .hero-visual {
     position: relative;
+    z-index: 1;
     display: flex;
     flex-direction: column;
     gap: 22px;
