@@ -316,15 +316,15 @@ const homeCss = `
     content: "";
     position: absolute;
     z-index: -1;
-    top: clamp(1rem, 3vw, 2rem);
+    top: -1.25rem;
     right: calc(50% - 50vw);
-    bottom: clamp(1rem, 3vw, 2rem);
-    width: min(50vw, 760px);
+    bottom: -2.5rem;
+    width: min(56vw, 860px);
     background:
-      radial-gradient(ellipse at 48% 38%, rgba(255, 250, 241, 0.32), transparent 28%),
-      radial-gradient(ellipse at 72% 52%, rgba(34, 33, 29, 0.2), transparent 48%),
-      linear-gradient(115deg, transparent 0 28%, rgba(34, 33, 29, 0.12) 50%, rgba(34, 33, 29, 0.03) 100%);
-    mask-image: linear-gradient(90deg, transparent 0%, black 32%, black 100%);
+      radial-gradient(ellipse at 78% 50%, rgba(34, 33, 29, 0.18) 0%, rgba(34, 33, 29, 0.1) 24%, transparent 62%),
+      radial-gradient(ellipse at 46% 35%, rgba(255, 250, 241, 0.36) 0%, transparent 34%),
+      radial-gradient(ellipse at 54% 72%, rgba(168, 176, 162, 0.1) 0%, transparent 42%);
+    mask-image: linear-gradient(90deg, transparent 0%, black 34%, black 100%);
     pointer-events: none;
   }
   .hero-copy {
