@@ -19,7 +19,7 @@ export function Footer() {
       <div className="footer-inner">
         <div className="footer-brand">
           <Link href="/" className="footer-logo">
-            <span>build us care</span>
+            <img className="footer-logo-image" src="/builduscare-footer-logo.png" alt="Build us Care" />
           </Link>
           <div className="footer-meta" aria-label="회사 정보">
             <span>운영사: 주식회사 무니온(muniOn)</span>
@@ -69,12 +69,12 @@ const footerCss = `
   .footer-logo {
     display: inline-flex;
     align-items: center;
-    gap: var(--space-2);
-    color: #fff;
     text-decoration: none;
-    font-size: var(--text-lg);
-    font-weight: 500;
-    letter-spacing: 0.14em;
+  }
+  .footer-logo-image {
+    display: block;
+    width: min(340px, 78vw);
+    height: auto;
   }
   .footer-meta {
     max-width: 720px;
