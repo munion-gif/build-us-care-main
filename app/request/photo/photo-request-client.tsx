@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Camera, Check, ChevronLeft, Copy, Loader2, X } from "lucide-react";
 import { EVENT_TYPES } from "@/lib/event-types";
+import { customerErrorMessage } from "@/lib/error-messages";
 import { getKakaoChannelChatUrl } from "@/lib/kakao-channel";
 import { CUSTOMER_PHOTO_SLOTS } from "@/lib/photo-guides";
 import type { QuoteServiceItem } from "@/lib/service-items";
@@ -63,13 +64,17 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
       body: JSON.stringify({ fileName: file.name, contentType: file.type || "image/jpeg" })
     });
     const json = await response.json();
-    if (!response.ok) throw new Error(json?.error?.message ?? "사진 업로드 URL을 만들지 못했어요.");
+    if (!response.ok) throw new Error(customerErrorMessage(json?.error, "사진 업로드 준비를 완료하지 못했어요."));
 
-    await fetch(json.data.uploadUrl, {
+    const uploadResponse = await fetch(json.data.uploadUrl, {
       method: "PUT",
       headers: { "Content-Type": file.type || "image/jpeg" },
       body: file
     });
+
+    if (!uploadResponse.ok) {
+      throw new Error("사진 업로드에 실패했어요. 잠시 후 다시 시도해주세요.");
+    }
 
     return json.data.path as string;
   }
@@ -102,7 +107,7 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
         })
       });
       const json = await response.json();
-      if (!response.ok) throw new Error(json?.error?.message ?? "사진 확인 요청을 다시 확인해주세요.");
+      if (!response.ok) throw new Error(customerErrorMessage(json?.error, "사진 확인 요청을 다시 확인해주세요."));
       setReceipt(json.data);
       setMessage("");
       void track(EVENT_TYPES.DIAGNOSIS_REQUESTED, {
