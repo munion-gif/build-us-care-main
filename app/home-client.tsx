@@ -494,9 +494,10 @@ const homeCss = `
     text-transform: lowercase;
   }
   .diagnosis-label strong {
-    font-family: var(--font-brand);
+    font-family: "Avenir Next", var(--font-latin);
     font-size: clamp(1.66rem, 3.6vw, 2.45rem);
-    font-weight: 360;
+    font-weight: 400;
+    letter-spacing: 0;
     line-height: 1;
   }
   .diagnosis-label small {
