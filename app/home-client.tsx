@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import { EVENT_TYPES } from "@/lib/event-types";
 import type { FAQItem } from "@/lib/faqs";
+import { getKakaoChannelChatUrl } from "@/lib/kakao-channel";
 import type { QuoteServiceItem } from "@/lib/service-items";
 import { appendSourceParams, readClientSourceContext, type SourceContext } from "@/lib/traffic-source";
 import { useTracking } from "@/lib/use-tracking";
@@ -37,6 +38,7 @@ export function HomeClient({ services, kakaoUrl, faqs }: HomeClientProps) {
     trafficSource: "direct",
     isInstagram: false
   });
+  const [floatingCtaVisible, setFloatingCtaVisible] = useState(false);
   const { track } = useTracking();
 
   useEffect(() => {
@@ -53,9 +55,29 @@ export function HomeClient({ services, kakaoUrl, faqs }: HomeClientProps) {
     }
   }, []);
 
+  useEffect(() => {
+    let frame = 0;
+    const updateFloatingCta = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        const threshold = Math.min(560, window.innerHeight * 0.62);
+        setFloatingCtaVisible(window.scrollY > threshold);
+      });
+    };
+
+    updateFloatingCta();
+    window.addEventListener("scroll", updateFloatingCta, { passive: true });
+    window.addEventListener("resize", updateFloatingCta);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", updateFloatingCta);
+      window.removeEventListener("resize", updateFloatingCta);
+    };
+  }, []);
+
   const photoHref = useMemo(() => appendSourceParams("/request/photo", sourceContext), [sourceContext]);
-  const ordersHref = useMemo(() => appendSourceParams("/orders/lookup", sourceContext), [sourceContext]);
   const casesHref = useMemo(() => appendSourceParams("/cases", sourceContext), [sourceContext]);
+  const kakaoChatUrl = useMemo(() => getKakaoChannelChatUrl(kakaoUrl), [kakaoUrl]);
   const representativeServices = useMemo(
     () => services.filter((service) => service.standardizable).slice(0, 6),
     [services]
@@ -214,10 +236,32 @@ export function HomeClient({ services, kakaoUrl, faqs }: HomeClientProps) {
         </section>
       ) : null}
 
-      <nav className="bottom-cta" aria-label="빠른 신청">
-        <a href={photoHref}>사진확인</a>
-        <a href={ordersHref}>주문 조회</a>
-      </nav>
+      {kakaoChatUrl ? (
+        <aside
+          className={floatingCtaVisible ? "floating-kakao-cta visible" : "floating-kakao-cta"}
+          aria-label="카카오톡 상담 바로가기"
+          aria-hidden={!floatingCtaVisible}
+        >
+          <a
+            href={kakaoChatUrl}
+            target="_blank"
+            rel="noreferrer"
+            tabIndex={floatingCtaVisible ? 0 : -1}
+            onClick={() =>
+              void track(EVENT_TYPES.SERVICE_CARD_CLICK, {
+                service_code: "kakao_consult",
+                source: sourceContext.trafficSource,
+                utm_source: sourceContext.source,
+                utm_campaign: sourceContext.campaign,
+                service_flow: "kakao"
+              })
+            }
+          >
+            <span className="floating-kakao-mark" aria-hidden="true">TALK</span>
+            카톡 상담하기
+          </a>
+        </aside>
+      ) : null}
     </main>
   );
 }
@@ -692,38 +736,50 @@ const homeCss = `
     font-size: var(--text-sm);
     line-height: 1.65;
   }
-  .bottom-cta {
+  .floating-kakao-cta {
     position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 20;
-    display: none;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-2);
-    padding: 10px 12px;
-    border-top: 1px solid var(--warm-gray);
-    background: rgba(247, 241, 230, 0.9);
-    backdrop-filter: blur(12px);
+    left: 50%;
+    bottom: calc(22px + var(--safe-area-bottom));
+    z-index: 45;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate3d(-50%, 18px, 0);
+    transition: opacity 180ms ease, transform 180ms ease;
   }
-  .bottom-cta a {
-    min-height: 48px;
+  .floating-kakao-cta.visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate3d(-50%, 0, 0);
+  }
+  .floating-kakao-cta a {
+    min-height: 54px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 10px;
     border-radius: 999px;
+    padding: 0 26px;
+    border: 1px solid rgba(34, 33, 29, 0.86);
+    background: rgba(34, 33, 29, 0.94);
+    color: var(--color-cream);
+    box-shadow: 0 14px 34px rgba(34, 33, 29, 0.18);
     text-decoration: none;
-    font-weight: 680;
+    font-size: var(--text-sm);
+    font-weight: 760;
+    white-space: nowrap;
   }
-  .bottom-cta a:first-child {
-    border: 1px solid var(--charcoal);
-    background: var(--charcoal);
-    color: var(--cream);
-  }
-  .bottom-cta a:last-child {
-    border: 1px solid var(--warm-gray);
-    background: transparent;
-    color: var(--charcoal);
+  .floating-kakao-mark {
+    display: inline-grid;
+    place-items: center;
+    min-width: 38px;
+    height: 20px;
+    border-radius: 999px;
+    background: #fee500;
+    color: #22211d;
+    font-size: 10px;
+    font-weight: 850;
+    line-height: 1;
+    letter-spacing: 0;
   }
   @media (max-width: 860px) {
     .home-hero {
@@ -792,11 +848,15 @@ const homeCss = `
     .service-card {
       min-height: 0;
     }
-    .bottom-cta {
-      display: grid;
-    }
     .home-page ~ .global-footer {
       padding-bottom: 76px;
+    }
+    .floating-kakao-cta {
+      width: min(340px, calc(100vw - 28px));
+      bottom: calc(14px + var(--safe-area-bottom));
+    }
+    .floating-kakao-cta a {
+      width: 100%;
     }
   }
 `;
