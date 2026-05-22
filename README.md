@@ -216,7 +216,7 @@ curl http://localhost:3000/api/admin/jobs -H "x-admin-key: dev-admin-key"
 - `app/api/service-items/route.ts`
 - `supabase/seed.sql`
 
-자세한 설계는 `backend-spec.md`를 참고하세요.
+자세한 설계는 `docs/specs/backend-spec.md`를 참고하세요.
 
 ## 보안/안정성 회귀 테스트 시나리오
 
