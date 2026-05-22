@@ -21,6 +21,10 @@ function isValidKoreanMobile(phone: string) {
   return /^010\d{8}$/.test(normalizePhone(phone));
 }
 
+function selectedPhotoFiles(files: File[]) {
+  return files.filter((file): file is File => file instanceof File);
+}
+
 export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientProps) {
   const [step, setStep] = useState(1);
   const [serviceCode, setServiceCode] = useState("toilet_replace");
@@ -40,7 +44,7 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
       setMessage("작업을 먼저 선택해주세요.");
       return;
     }
-    if (step === 2 && files.length === 0) {
+    if (step === 2 && selectedPhotoFiles(files).length === 0) {
       setMessage("사진을 최소 1장 올려주세요.");
       return;
     }
@@ -76,7 +80,13 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
     setReceipt(null);
     try {
       const paths = [];
-      for (const file of files) {
+      const photos = selectedPhotoFiles(files);
+
+      if (photos.length === 0) {
+        throw new Error("사진을 최소 1장 올려주세요.");
+      }
+
+      for (const file of photos) {
         paths.push(await uploadTempPhoto(file));
       }
 
