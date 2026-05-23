@@ -1,7 +1,13 @@
-import { DEFAULT_VISIT_FEE, TOILET_REPLACE_LABOR_PRICE } from "@/lib/constants";
+import { DEFAULT_VISIT_FEE } from "@/lib/constants";
 import type { QuoteInputItem } from "@/lib/types";
 import type { getSupabaseAdmin } from "@/lib/supabase";
-import { TOILET_PRODUCTS, type ToiletProduct } from "@/lib/toilet-products";
+import {
+  findReplacementProduct,
+  getProductLaborPrice,
+  isProductSelectionService,
+  replacementProductSnapshot,
+  type ReplacementProduct
+} from "@/lib/replacement-products";
 
 type SupabaseAdmin = ReturnType<typeof getSupabaseAdmin>;
 
@@ -33,21 +39,14 @@ function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0) : [];
 }
 
-function findSelectedToiletProduct(metadata: Record<string, unknown> | undefined): ToiletProduct | null {
-  const productId = typeof metadata?.selected_toilet_product_id === "string" ? metadata.selected_toilet_product_id : null;
-  if (!productId) return null;
-  return TOILET_PRODUCTS.find((product) => product.id === productId) ?? null;
-}
-
-function selectedToiletProductSnapshot(product: ToiletProduct) {
-  return {
-    id: product.id,
-    category: product.categoryName,
-    brand: product.brand,
-    model: product.model,
-    sku: product.sku,
-    price: product.price
-  };
+function findSelectedReplacementProduct(serviceCode: string, metadata: Record<string, unknown> | undefined): ReplacementProduct | null {
+  const productId =
+    typeof metadata?.selected_replacement_product_id === "string"
+      ? metadata.selected_replacement_product_id
+      : typeof metadata?.selected_toilet_product_id === "string"
+        ? metadata.selected_toilet_product_id
+        : null;
+  return findReplacementProduct(serviceCode, productId);
 }
 
 export async function calculateServerQuote(
@@ -55,8 +54,8 @@ export async function calculateServerQuote(
   items: QuoteInputItem[],
   options: { visitFee?: number; discount?: number } = {}
 ): Promise<ServerQuoteResult> {
-  const isToiletOnly = items.length > 0 && items.every((item) => item.service_type_code === "toilet_replace");
-  const visitFee = options.visitFee ?? (isToiletOnly ? 0 : DEFAULT_VISIT_FEE);
+  const isProductOnly = items.length > 0 && items.every((item) => isProductSelectionService(item.service_type_code));
+  const visitFee = options.visitFee ?? (isProductOnly ? 0 : DEFAULT_VISIT_FEE);
   const discount = options.discount ?? 0;
 
   const serviceCodes = Array.from(new Set(items.map((item) => item.service_type_code).filter(Boolean))) as string[];
@@ -100,17 +99,17 @@ export async function calculateServerQuote(
     const sku = item.service_type_code ?? "unknown";
     const service = item.service_type_code ? serviceMap.get(item.service_type_code) : undefined;
     const materialCodes = asStringArray(item.metadata?.material_skus);
-    const selectedToiletProduct = sku === "toilet_replace" ? findSelectedToiletProduct(item.metadata) : null;
-    if (sku === "toilet_replace" && (!selectedToiletProduct || typeof selectedToiletProduct.price !== "number")) {
-      throw new Error("Selected toilet product is required.");
+    const selectedReplacementProduct = isProductSelectionService(sku) ? findSelectedReplacementProduct(sku, item.metadata) : null;
+    if (isProductSelectionService(sku) && (!selectedReplacementProduct || typeof selectedReplacementProduct.price !== "number")) {
+      throw new Error("Selected replacement product is required.");
     }
-    const selectedToiletProductPrice = selectedToiletProduct?.price ?? 0;
+    const selectedProductPrice = selectedReplacementProduct?.price ?? 0;
     const materialUnitTotal = materialCodes.reduce((sum, materialSku) => {
       const material = materialMap.get(materialSku);
       return sum + (material?.retail_price ?? 0);
-    }, selectedToiletProductPrice);
+    }, selectedProductPrice);
     const optionTotal = (item.options ?? []).reduce((sum, option) => sum + option.price_delta, 0) * item.qty;
-    const unitLabor = sku === "toilet_replace" ? TOILET_REPLACE_LABOR_PRICE : service?.base_price ?? 0;
+    const unitLabor = isProductSelectionService(sku) ? getProductLaborPrice(sku) : service?.base_price ?? 0;
     const lineLabor = unitLabor * item.qty;
     const lineMaterial = materialUnitTotal * item.qty;
 
@@ -129,7 +128,8 @@ export async function calculateServerQuote(
       metadata: {
         ...(item.metadata ?? {}),
         service_type_code: item.service_type_code ?? null,
-        ...(selectedToiletProduct ? { selected_toilet_product: selectedToiletProductSnapshot(selectedToiletProduct) } : {}),
+        ...(selectedReplacementProduct ? { selected_replacement_product: replacementProductSnapshot(selectedReplacementProduct) } : {}),
+        ...(selectedReplacementProduct?.serviceCode === "toilet_replace" ? { selected_toilet_product: replacementProductSnapshot(selectedReplacementProduct) } : {}),
         client_unit_price_ignored: item.unit_price
       }
     };

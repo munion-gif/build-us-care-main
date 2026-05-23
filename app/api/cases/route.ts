@@ -7,6 +7,7 @@ export const revalidate = 300;
 
 const CASE_CATEGORY_BY_SERVICE: Record<string, string> = {
   toilet_replace: "plumbing",
+  basin_replace: "plumbing",
   faucet_replace: "plumbing",
   kitchen_faucet: "plumbing",
   bidet_install: "plumbing",
@@ -21,6 +22,7 @@ const CASE_CATEGORY_BY_SERVICE: Record<string, string> = {
 
 const SUPPORTED_CASE_SERVICE_CODES = new Set([
   "toilet_replace",
+  "basin_replace",
   "faucet_replace",
   "kitchen_faucet",
   "light_replace",

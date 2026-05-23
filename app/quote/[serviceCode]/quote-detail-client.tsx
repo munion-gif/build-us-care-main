@@ -11,12 +11,17 @@ import { EVENT_TYPES } from "@/lib/event-types";
 import { formatKRDate, formatServiceName } from "@/lib/format";
 import { getKakaoChannelChatUrl } from "@/lib/kakao-channel";
 import { customerPhotoSlot } from "@/lib/photo-guides";
-import { TOILET_REPLACE_LABOR_PRICE } from "@/lib/constants";
 import type { MaterialItem, QuoteServiceItem } from "@/lib/service-items";
 import type { QuotePreset } from "@/lib/quote-preset";
 import { regionLabel } from "@/lib/quote-preset";
+import {
+  getProductLaborPrice,
+  getReplacementProductCatalog,
+  replacementProductSnapshot,
+  type ReplacementProduct,
+  type ReplacementProductGroup
+} from "@/lib/replacement-products";
 import { getSessionId, getUtmParams } from "@/lib/tracking";
-import { TOILET_PRODUCT_GROUPS, TOILET_PRODUCT_MIN_PRICE, TOILET_PRODUCTS, TOILET_PRODUCT_SOURCE_NOTE, type ToiletProduct, type ToiletProductCategoryId, type ToiletProductGroup } from "@/lib/toilet-products";
 import { useTracking } from "@/lib/use-tracking";
 
 type QuoteDetailClientProps = {
@@ -78,8 +83,8 @@ type PreviousOrder = {
 };
 
 const VISIT_FEE = 15000;
-const MAX_TOILET_PRODUCT_QTY = 20;
-const TOILET_PRICE_FILTERS = [
+const MAX_REPLACEMENT_PRODUCT_QTY = 20;
+const PRODUCT_PRICE_FILTERS = [
   { id: "all", label: "전체 가격대", min: 0, max: Number.POSITIVE_INFINITY },
   { id: "under-200000", label: "20만원 미만", min: 0, max: 200000 },
   { id: "200000-300000", label: "20만원대", min: 200000, max: 300000 },
@@ -88,7 +93,7 @@ const TOILET_PRICE_FILTERS = [
   { id: "over-1000000", label: "100만원 이상", min: 1000000, max: Number.POSITIVE_INFINITY }
 ] as const;
 
-type ToiletPriceFilterId = (typeof TOILET_PRICE_FILTERS)[number]["id"];
+type ProductPriceFilterId = (typeof PRODUCT_PRICE_FILTERS)[number]["id"];
 
 function won(value: number) {
   return `${value.toLocaleString("ko-KR")}원`;
@@ -194,25 +199,39 @@ function normalizeDraftCustomer(value: Partial<{ name: string; phone: string }> 
   };
 }
 
-function toiletProductMetadata(product: ToiletProduct) {
+function replacementProductMetadata(product: ReplacementProduct) {
+  const snapshot = replacementProductSnapshot(product);
   return {
-    selected_toilet_product_id: product.id,
-    selected_toilet_product: {
-      id: product.id,
-      category: product.categoryName,
-      brand: product.brand,
-      model: product.model,
-      sku: product.sku,
-      price: product.price
-    }
+    selected_replacement_product_id: product.id,
+    selected_replacement_product_service_code: product.serviceCode,
+    selected_replacement_product: snapshot,
+    ...(product.serviceCode === "toilet_replace"
+      ? {
+          selected_toilet_product_id: product.id,
+          selected_toilet_product: snapshot
+        }
+      : {})
   };
 }
 
+function defaultReplacementProduct(catalog: ReturnType<typeof getReplacementProductCatalog>) {
+  if (!catalog) return null;
+  return (
+    catalog.products
+      .filter((product) => typeof product.price === "number")
+      .sort((a, b) => (a.price ?? Number.POSITIVE_INFINITY) - (b.price ?? Number.POSITIVE_INFINITY))[0] ??
+    catalog.groups[0]?.products[0] ??
+    null
+  );
+}
+
 export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl }: QuoteDetailClientProps) {
+  const initialProductCatalog = getReplacementProductCatalog(service.service_type_code);
+  const initialProduct = defaultReplacementProduct(initialProductCatalog);
   const [productGrade, setProductGrade] = useState<"standard" | "premium">(preset.product);
-  const [toiletCategoryId, setToiletCategoryId] = useState<ToiletProductCategoryId>("two-piece");
-  const [toiletProductQuantities, setToiletProductQuantities] = useState<Record<string, number>>(() => {
-    const firstProductId = TOILET_PRODUCT_GROUPS[0]?.products[0]?.id;
+  const [productCategoryId, setProductCategoryId] = useState<string>(() => initialProduct?.categoryId ?? initialProductCatalog?.groups[0]?.id ?? "");
+  const [productQuantities, setProductQuantities] = useState<Record<string, number>>(() => {
+    const firstProductId = initialProduct?.id;
     return firstProductId ? { [firstProductId]: 1 } : {};
   });
   const [selectedAddons, setSelectedAddons] = useState<string[]>(preset.addons.filter((sku) => addons.some((addon) => addon.sku === sku)));
@@ -244,30 +263,31 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
   const standardMaterial = materials.find((material) => material.sku === service.standard_material_sku) ?? materials[0];
   const premiumMaterial = materials.find((material) => material.sku === service.premium_material_sku) ?? standardMaterial;
   const selectedMaterial = productGrade === "premium" ? premiumMaterial : standardMaterial;
-  const showToiletProducts = service.service_type_code === "toilet_replace";
-  const activeToiletProductGroup = TOILET_PRODUCT_GROUPS.find((group) => group.id === toiletCategoryId) ?? TOILET_PRODUCT_GROUPS[0];
-  const selectedToiletItems = useMemo(
+  const productCatalog = useMemo(() => getReplacementProductCatalog(service.service_type_code), [service.service_type_code]);
+  const showProductCatalog = Boolean(productCatalog);
+  const activeProductGroup = productCatalog?.groups.find((group) => group.id === productCategoryId) ?? productCatalog?.groups[0];
+  const selectedProductItems = useMemo(
     () =>
-      showToiletProducts
-        ? TOILET_PRODUCTS.map((product) => ({
+      productCatalog
+        ? productCatalog.products.map((product) => ({
             product,
-            qty: Math.max(0, Math.min(MAX_TOILET_PRODUCT_QTY, Math.floor(toiletProductQuantities[product.id] ?? 0)))
+            qty: Math.max(0, Math.min(MAX_REPLACEMENT_PRODUCT_QTY, Math.floor(productQuantities[product.id] ?? 0)))
           })).filter((item) => item.qty > 0 && typeof item.product.price === "number")
         : [],
-    [showToiletProducts, toiletProductQuantities]
+    [productCatalog, productQuantities]
   );
-  const totalToiletQty = selectedToiletItems.reduce((sum, item) => sum + item.qty, 0);
+  const totalProductQty = selectedProductItems.reduce((sum, item) => sum + item.qty, 0);
   const selectedAddonItems = addons.filter((addon) => selectedAddons.includes(addon.sku));
-  const addonTotal = showToiletProducts ? 0 : selectedAddonItems.reduce((sum, addon) => sum + addon.retail_price, 0);
-  const selectedProductPrice = showToiletProducts ? selectedToiletItems.reduce((sum, item) => sum + (item.product.price ?? 0) * item.qty, 0) : selectedMaterial?.retail_price ?? 0;
-  const serviceLaborPrice = showToiletProducts ? TOILET_REPLACE_LABOR_PRICE : service.base_price;
-  const quoteVisitFee = showToiletProducts ? 0 : VISIT_FEE;
+  const addonTotal = showProductCatalog ? 0 : selectedAddonItems.reduce((sum, addon) => sum + addon.retail_price, 0);
+  const selectedProductPrice = showProductCatalog ? selectedProductItems.reduce((sum, item) => sum + (item.product.price ?? 0) * item.qty, 0) : selectedMaterial?.retail_price ?? 0;
+  const serviceLaborPrice = showProductCatalog ? getProductLaborPrice(service.service_type_code) : service.base_price;
+  const quoteVisitFee = showProductCatalog ? 0 : VISIT_FEE;
   const startLaborPrice = serviceLaborPrice + quoteVisitFee;
-  const startProductPrice = showToiletProducts ? TOILET_PRODUCT_MIN_PRICE : standardMaterial?.retail_price ?? 0;
+  const startProductPrice = productCatalog ? productCatalog.minPrice : standardMaterial?.retail_price ?? 0;
   const displayedStartPrice = startLaborPrice + startProductPrice;
-  const serviceLaborTotal = showToiletProducts ? serviceLaborPrice * totalToiletQty : serviceLaborPrice;
+  const serviceLaborTotal = showProductCatalog ? serviceLaborPrice * totalProductQty : serviceLaborPrice;
   const total = serviceLaborTotal + selectedProductPrice + addonTotal + quoteVisitFee;
-  const laborPriceHelp = showToiletProducts ? "변기 교체 기본 시공비" : "기본 시공비와 방문비 포함";
+  const laborPriceHelp = showProductCatalog ? `${service.display_name} 기본 시공비` : "기본 시공비와 방문비 포함";
   const todayIso = toIsoDate(new Date());
   const minSelectableDate = minReservationIsoDate();
   const calendarDays = useMemo(() => buildCalendarDays(calendarMonth), [calendarMonth]);
@@ -285,14 +305,14 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
   const customerPhone = String(customer?.phone ?? "");
   const hasRequiredBasicInfo = Boolean(address.road_address && customerName.trim() && isValidKoreanMobile(customerPhone));
   const materialSkus = useMemo(
-    () => [...(showToiletProducts ? [] : [selectedMaterial?.sku]), ...selectedAddonItems.map((addon) => addon.sku)].filter(Boolean) as string[],
-    [selectedAddonItems, selectedMaterial?.sku, showToiletProducts]
+    () => [...(showProductCatalog ? [] : [selectedMaterial?.sku]), ...selectedAddonItems.map((addon) => addon.sku)].filter(Boolean) as string[],
+    [selectedAddonItems, selectedMaterial?.sku, showProductCatalog]
   );
-  const selectedToiletSummaryText = selectedToiletItems.length === 0
+  const selectedProductSummaryText = selectedProductItems.length === 0
     ? service.display_name
-    : selectedToiletItems.length === 1
-      ? `${service.display_name} · ${selectedToiletItems[0].product.model}`
-      : `${service.display_name} · ${selectedToiletItems.length}개 제품 / 총 ${totalToiletQty}개`;
+    : selectedProductItems.length === 1
+      ? `${service.display_name} · ${selectedProductItems[0].product.model}`
+      : `${service.display_name} · ${selectedProductItems.length}개 제품 / 총 ${totalProductQty}개`;
   const orderFingerprint = useMemo(
     () =>
       JSON.stringify({
@@ -302,13 +322,13 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
         date,
         slot,
         productGrade,
-        toiletProductQuantities,
+        productQuantities,
         selectedAddons: [...selectedAddons].sort(),
         materialSkus,
         requestNote,
         files: files.map((file) => `${file.name}:${file.size}:${file.lastModified}`)
       }),
-    [address, customerName, customerPhone, date, files, materialSkus, productGrade, requestNote, selectedAddons, service.service_type_code, slot, toiletProductQuantities]
+    [address, customerName, customerPhone, date, files, materialSkus, productGrade, productQuantities, requestNote, selectedAddons, service.service_type_code, slot]
   );
   const availableSlotsForDate = (dateText: string): SlotPeriod[] => {
     if (!slotsReady) return [];
@@ -321,17 +341,17 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
     return slotsByDate[dateText] ?? ["morning", "afternoon"];
   };
 
-  function handleToiletCategoryChange(categoryId: ToiletProductCategoryId) {
-    setToiletCategoryId(categoryId);
+  function handleProductCategoryChange(categoryId: string) {
+    setProductCategoryId(categoryId);
   }
 
-  function replaceToiletProduct(productId: string) {
-    setToiletProductQuantities({ [productId]: 1 });
+  function replaceProduct(productId: string) {
+    setProductQuantities({ [productId]: 1 });
   }
 
-  function setToiletProductQty(productId: string, qty: number) {
-    setToiletProductQuantities((current) => {
-      const nextQty = Math.max(0, Math.min(MAX_TOILET_PRODUCT_QTY, Math.floor(qty)));
+  function setProductQty(productId: string, qty: number) {
+    setProductQuantities((current) => {
+      const nextQty = Math.max(0, Math.min(MAX_REPLACEMENT_PRODUCT_QTY, Math.floor(qty)));
       const next = { ...current };
       const currentlySelectedCount = Object.values(current).filter((value) => value > 0).length;
       if (nextQty <= 0) {
@@ -344,10 +364,29 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
     });
   }
 
-  function changeToiletProductQty(productId: string, delta: number) {
-    const currentQty = toiletProductQuantities[productId] ?? 0;
-    setToiletProductQty(productId, currentQty + delta);
+  function changeProductQty(productId: string, delta: number) {
+    const currentQty = productQuantities[productId] ?? 0;
+    setProductQty(productId, currentQty + delta);
   }
+
+  useEffect(() => {
+    if (!productCatalog) return;
+    const defaultProduct = defaultReplacementProduct(productCatalog);
+    const firstGroup = defaultProduct ? productCatalog.groups.find((group) => group.id === defaultProduct.categoryId) : productCatalog.groups[0];
+    if (firstGroup && !productCatalog.groups.some((group) => group.id === productCategoryId)) {
+      setProductCategoryId(firstGroup.id);
+    }
+    setProductQuantities((current) => {
+      const validProductIds = new Set(productCatalog.products.map((product) => product.id));
+      const next: Record<string, number> = {};
+      for (const [productId, qty] of Object.entries(current)) {
+        if (validProductIds.has(productId) && qty > 0) next[productId] = qty;
+      }
+      if (Object.keys(next).length > 0) return next;
+      const firstProductId = defaultProduct?.id ?? firstGroup?.products[0]?.id;
+      return firstProductId ? { [firstProductId]: 1 } : {};
+    });
+  }, [productCatalog, productCategoryId]);
 
   useEffect(() => {
     if (hasRequiredBasicInfo) {
@@ -395,6 +434,8 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
         date?: string;
         slot?: "morning" | "afternoon";
         productGrade?: "standard" | "premium";
+        selectedProductId?: string;
+        productQuantities?: Record<string, number>;
         selectedToiletProductId?: string;
         toiletProductQuantities?: Record<string, number>;
         selectedAddons?: string[];
@@ -405,21 +446,23 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
       if (draft.date && draft.date >= minReservationIsoDate()) setDate(draft.date);
       if (draft.slot) setSlot(draft.slot);
       if (draft.productGrade) setProductGrade(draft.productGrade);
-      if (draft.toiletProductQuantities && Object.keys(draft.toiletProductQuantities).length > 0) {
+      const savedProductQuantities = draft.productQuantities ?? draft.toiletProductQuantities;
+      if (productCatalog && savedProductQuantities && Object.keys(savedProductQuantities).length > 0) {
         const nextQuantities: Record<string, number> = {};
-        for (const [productId, qty] of Object.entries(draft.toiletProductQuantities)) {
-          if (TOILET_PRODUCTS.some((product) => product.id === productId)) {
-            nextQuantities[productId] = Math.max(0, Math.min(MAX_TOILET_PRODUCT_QTY, Math.floor(qty)));
+        for (const [productId, qty] of Object.entries(savedProductQuantities)) {
+          if (productCatalog.products.some((product) => product.id === productId)) {
+            nextQuantities[productId] = Math.max(0, Math.min(MAX_REPLACEMENT_PRODUCT_QTY, Math.floor(qty)));
           }
         }
         if (Object.values(nextQuantities).some((qty) => qty > 0)) {
-          setToiletProductQuantities(nextQuantities);
+          setProductQuantities(nextQuantities);
         }
-      } else if (draft.selectedToiletProductId) {
-        const draftToiletProduct = TOILET_PRODUCTS.find((product) => product.id === draft.selectedToiletProductId);
-        if (draftToiletProduct) {
-          setToiletProductQuantities({ [draftToiletProduct.id]: 1 });
-          setToiletCategoryId(draftToiletProduct.categoryId);
+      } else if (productCatalog && (draft.selectedProductId || draft.selectedToiletProductId)) {
+        const draftProductId = draft.selectedProductId ?? draft.selectedToiletProductId;
+        const draftProduct = productCatalog.products.find((product) => product.id === draftProductId);
+        if (draftProduct) {
+          setProductQuantities({ [draftProduct.id]: 1 });
+          setProductCategoryId(draftProduct.categoryId);
         }
       }
       if (draft.selectedAddons) setSelectedAddons(draft.selectedAddons.filter((sku) => addons.some((addon) => addon.sku === sku)));
@@ -427,12 +470,12 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
     } catch {
       sessionStorage.removeItem(quoteDraftStorageKey(service.service_type_code));
     }
-  }, [addons, service.service_type_code]);
+  }, [addons, productCatalog, service.service_type_code]);
 
   useEffect(() => {
-    const draft = { address, customer: { name: customerName, phone: customerPhone }, date, slot, productGrade, toiletProductQuantities, selectedAddons, requestNote };
+    const draft = { address, customer: { name: customerName, phone: customerPhone }, date, slot, productGrade, productQuantities, selectedAddons, requestNote };
     sessionStorage.setItem(quoteDraftStorageKey(service.service_type_code), JSON.stringify(draft));
-  }, [address, customerName, customerPhone, date, productGrade, requestNote, selectedAddons, service.service_type_code, slot, toiletProductQuantities]);
+  }, [address, customerName, customerPhone, date, productGrade, productQuantities, requestNote, selectedAddons, service.service_type_code, slot]);
 
   useEffect(() => {
     const normalized = normalizePhone(customerPhone);
@@ -567,8 +610,8 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
     }
     setFieldErrors({});
     if (!service.standardizable) throw new Error("상담이 필요한 시공입니다. 카톡 상담으로 이어갈게요.");
-    if (showToiletProducts && selectedToiletItems.length === 0) {
-      throw new Error("교체할 양변기 제품을 1개 이상 선택해주세요.");
+    if (showProductCatalog && selectedProductItems.length === 0) {
+      throw new Error(`교체할 ${productCatalog?.customConsultLabel ?? "제품"}을 1개 이상 선택해주세요.`);
     }
 
     const rawPaymentDraft = sessionStorage.getItem(quotePaymentStorageKey(service.service_type_code));
@@ -586,14 +629,14 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
 
     const source = preset.source;
     const utm = getUtmParams();
-    const orderItems = showToiletProducts
-      ? selectedToiletItems.map(({ product, qty }) => ({
+    const orderItems = showProductCatalog
+      ? selectedProductItems.map(({ product, qty }) => ({
           service_type_code: service.service_type_code,
           item_name: `${service.display_name} · ${product.model}`,
           qty,
           unit_price: serviceLaborPrice + (product.price ?? 0),
           options: [],
-          metadata: { material_skus: materialSkus, product_grade: productGrade, ...toiletProductMetadata(product) }
+          metadata: { material_skus: materialSkus, product_grade: productGrade, ...replacementProductMetadata(product) }
         }))
       : [
           {
@@ -605,13 +648,13 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
             metadata: { material_skus: materialSkus, product_grade: productGrade }
           }
         ];
-    const quoteItems = showToiletProducts
-      ? selectedToiletItems.map(({ product, qty }) => ({
+    const quoteItems = showProductCatalog
+      ? selectedProductItems.map(({ product, qty }) => ({
           service_type_code: service.service_type_code,
           item_name: `${service.display_name} · ${product.model}`,
           qty,
           unit_price: 0,
-          metadata: { material_skus: materialSkus, product_grade: productGrade, ...toiletProductMetadata(product) }
+          metadata: { material_skus: materialSkus, product_grade: productGrade, ...replacementProductMetadata(product) }
         }))
       : [
           {
@@ -622,15 +665,15 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
             metadata: { material_skus: materialSkus, product_grade: productGrade }
           }
         ];
-    const orderSkus = showToiletProducts
-      ? selectedToiletItems.map(({ product, qty }) => ({
+    const orderSkus = showProductCatalog
+      ? selectedProductItems.map(({ product, qty }) => ({
           sku: service.service_type_code,
           qty,
           service_type: "labor_service",
           product_grade: productGrade,
           material_skus: materialSkus,
           options: [],
-          metadata: toiletProductMetadata(product)
+          metadata: replacementProductMetadata(product)
         }))
       : [
           {
@@ -712,7 +755,7 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
       orderId,
       accessToken,
       totalFinal: quote.quote.total_final as number,
-      orderName: showToiletProducts ? selectedToiletSummaryText : service.display_name
+      orderName: showProductCatalog ? selectedProductSummaryText : service.display_name
     };
 
     sessionStorage.setItem(
@@ -844,22 +887,23 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
         )}
       </section>
 
-      {showToiletProducts && activeToiletProductGroup && (
-          <ToiletProductCatalog
-            activeCategoryId={toiletCategoryId}
-            activeGroup={activeToiletProductGroup}
-            selectedQuantities={toiletProductQuantities}
-            onCategoryChange={handleToiletCategoryChange}
-            onProductReplace={replaceToiletProduct}
-            onQuantityChange={setToiletProductQty}
-            onQuantityDelta={changeToiletProductQty}
+      {productCatalog && activeProductGroup && (
+          <ReplacementProductCatalog
+            catalog={productCatalog}
+            activeCategoryId={productCategoryId}
+            activeGroup={activeProductGroup}
+            selectedQuantities={productQuantities}
+            onCategoryChange={handleProductCategoryChange}
+            onProductReplace={replaceProduct}
+            onQuantityChange={setProductQty}
+            onQuantityDelta={changeProductQty}
           />
         )}
 
-      {showToiletProducts && (
+      {productCatalog && (
         <section className="quote-section custom-product-consult">
           <div>
-            <strong>원하시는 다른 양변기 제품이 있나요?</strong>
+            <strong>원하시는 다른 {productCatalog.customConsultLabel} 제품이 있나요?</strong>
             <p>목록에 없는 제품은 브랜드와 품명을 카톡 상담으로 보내주세요. 설치 가능 여부와 제품가를 확인해서 안내드립니다.</p>
           </div>
           {kakaoChatUrl ? (
@@ -880,10 +924,10 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
         <section className="quote-section material-options-panel">
           <div className="section-title-row">
             <strong>자재/추가 옵션</strong>
-            <span>{showToiletProducts ? "제품 선택 반영" : productGrade === "premium" ? "고급 자재" : "일반 자재"} · 선택 입력</span>
+            <span>{showProductCatalog ? "제품 선택 반영" : productGrade === "premium" ? "고급 자재" : "일반 자재"} · 선택 입력</span>
           </div>
           <div className="optional-detail-body">
-            {!showToiletProducts && (
+            {!showProductCatalog && (
               <section className="embedded-section">
                 <div className="section-title-row">
                   <h2>자재 등급</h2>
@@ -1156,7 +1200,7 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
 
           <QuoteStickySummary
             total={won(total)}
-            serviceName={showToiletProducts ? selectedToiletSummaryText : service.display_name}
+            serviceName={showProductCatalog ? selectedProductSummaryText : service.display_name}
             date={date}
             slot={slot}
             photoCount={files.length}
@@ -1166,28 +1210,28 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
             loading={loading}
             onPayment={() => handlePayment()}
             productSelection={
-              showToiletProducts ? (
+              showProductCatalog ? (
                 <div className="sticky-selected-products" aria-label="선택 제품 목록">
                   <div className="sticky-selected-products-title">
                     <span>선택 제품</span>
-                    <strong>총 {totalToiletQty}개</strong>
+                    <strong>총 {totalProductQty}개</strong>
                   </div>
-                  {selectedToiletItems.map(({ product, qty }) => (
+                  {selectedProductItems.map(({ product, qty }) => (
                     <div className="sticky-selected-product-row" key={product.id}>
                       <div>
                         <strong>
                           {product.brand} {product.model}
                         </strong>
                         <small>
-                          {won(product.price ?? 0)} + 시공비 {won(TOILET_REPLACE_LABOR_PRICE)}
+                          {won(product.price ?? 0)} + 시공비 {won(serviceLaborPrice)}
                         </small>
                       </div>
                       <div className="quantity-control" aria-label={`${product.model} 수량`}>
-                        <button type="button" onClick={() => changeToiletProductQty(product.id, -1)} aria-label={`${product.model} 수량 줄이기`}>
+                        <button type="button" onClick={() => changeProductQty(product.id, -1)} aria-label={`${product.model} 수량 줄이기`}>
                           -
                         </button>
                         <span>{qty}</span>
-                        <button type="button" onClick={() => changeToiletProductQty(product.id, 1)} aria-label={`${product.model} 수량 늘리기`}>
+                        <button type="button" onClick={() => changeProductQty(product.id, 1)} aria-label={`${product.model} 수량 늘리기`}>
                           +
                         </button>
                       </div>
@@ -1203,7 +1247,8 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
   );
 }
 
-function ToiletProductCatalog({
+function ReplacementProductCatalog({
+  catalog,
   activeCategoryId,
   activeGroup,
   selectedQuantities,
@@ -1212,23 +1257,24 @@ function ToiletProductCatalog({
   onQuantityChange,
   onQuantityDelta
 }: {
-  activeCategoryId: ToiletProductCategoryId;
-  activeGroup: ToiletProductGroup;
+  catalog: NonNullable<ReturnType<typeof getReplacementProductCatalog>>;
+  activeCategoryId: string;
+  activeGroup: ReplacementProductGroup;
   selectedQuantities: Record<string, number>;
-  onCategoryChange: (categoryId: ToiletProductCategoryId) => void;
+  onCategoryChange: (categoryId: string) => void;
   onProductReplace: (productId: string) => void;
   onQuantityChange: (productId: string, qty: number) => void;
   onQuantityDelta: (productId: string, delta: number) => void;
 }) {
-  const totalCount = TOILET_PRODUCT_GROUPS.reduce((sum, group) => sum + group.count, 0);
+  const totalCount = catalog.groups.reduce((sum, group) => sum + group.count, 0);
   const selectedProductCount = Object.values(selectedQuantities).filter((qty) => qty > 0).length;
   const [brandFilter, setBrandFilter] = useState("all");
-  const [priceFilter, setPriceFilter] = useState<ToiletPriceFilterId>("all");
+  const [priceFilter, setPriceFilter] = useState<ProductPriceFilterId>("all");
   const brandOptions = useMemo(
     () => Array.from(new Set(activeGroup.products.map((product) => product.brand).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ko")),
     [activeGroup.products]
   );
-  const activePriceFilter = TOILET_PRICE_FILTERS.find((filter) => filter.id === priceFilter) ?? TOILET_PRICE_FILTERS[0];
+  const activePriceFilter = PRODUCT_PRICE_FILTERS.find((filter) => filter.id === priceFilter) ?? PRODUCT_PRICE_FILTERS[0];
   const filteredProducts = activeGroup.products.filter((product) => {
     const brandMatches = brandFilter === "all" || product.brand === brandFilter;
     const priceMatches =
@@ -1245,13 +1291,13 @@ function ToiletProductCatalog({
   return (
     <section className="quote-section toilet-product-catalog">
       <div className="section-title-row">
-        <h2>양변기 종류와 제품가</h2>
+        <h2>{catalog.title}</h2>
         <span>제품 {totalCount}개</span>
       </div>
-      <p className="data-guide-text">{TOILET_PRODUCT_SOURCE_NOTE}</p>
+      <p className="data-guide-text">{catalog.sourceNote}</p>
 
-      <div className="toilet-category-grid" role="tablist" aria-label="양변기 종류">
-        {TOILET_PRODUCT_GROUPS.map((group) => (
+      <div className="toilet-category-grid" role="tablist" aria-label={`${catalog.customConsultLabel} 종류`}>
+        {catalog.groups.map((group) => (
           <button
             key={group.id}
             type="button"
@@ -1274,7 +1320,7 @@ function ToiletProductCatalog({
         <p>{activeGroup.summary}</p>
       </div>
 
-      <div className="toilet-filter-row" aria-label="양변기 제품 필터">
+      <div className="toilet-filter-row" aria-label={`${catalog.customConsultLabel} 제품 필터`}>
         <label>
           <span>브랜드</span>
           <select value={brandFilter} onChange={(event) => setBrandFilter(event.target.value)}>
@@ -1288,8 +1334,8 @@ function ToiletProductCatalog({
         </label>
         <label>
           <span>가격대</span>
-          <select value={priceFilter} onChange={(event) => setPriceFilter(event.target.value as ToiletPriceFilterId)}>
-            {TOILET_PRICE_FILTERS.map((filter) => (
+          <select value={priceFilter} onChange={(event) => setPriceFilter(event.target.value as ProductPriceFilterId)}>
+            {PRODUCT_PRICE_FILTERS.map((filter) => (
               <option key={filter.id} value={filter.id}>
                 {filter.label}
               </option>

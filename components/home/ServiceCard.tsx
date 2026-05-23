@@ -13,6 +13,7 @@ type ServiceCardProps = {
 
 const icons: Record<string, LucideIcon> = {
   toilet_replace: Droplets,
+  basin_replace: Droplets,
   faucet_replace: Pipette,
   light_replace: Lightbulb,
   outlet_replace: Plug,
@@ -25,6 +26,7 @@ const icons: Record<string, LucideIcon> = {
 
 const descriptions: Record<string, string> = {
   toilet_replace: "양변기 철거·설치와 누수 테스트까지 진행해요.",
+  basin_replace: "세면대 제품 선택부터 철거·설치까지 확인해요.",
   faucet_replace: "주방·욕실 수전 교체를 정찰가로 확인해요.",
   light_replace: "등기구 교체와 점등 확인까지 처리해요.",
   outlet_replace: "콘센트 교체와 전기 안전 확인을 함께 해요.",

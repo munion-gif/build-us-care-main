@@ -30,6 +30,7 @@ const STANDARDIZABLE_CODES = SUPPORTED_SERVICE_CODES;
 
 const FALLBACK_GUIDES: Record<string, string> = {
   toilet_replace: "변기 전체 / 문제 부위 / 배관·규격이 보이는 사진",
+  basin_replace: "세면대 전체 / 하부 배관 / 벽 배관·상판 타공이 보이는 사진",
   faucet_replace: "수전 전체 / 하부 배관 / 싱크대 아래 연결부 사진",
   kitchen_faucet: "수전 전체 / 하부 배관 / 싱크대 아래 연결부 사진",
   light_replace: "등기구 전체 / 스위치 / 천장 고정부 사진",
@@ -118,6 +119,21 @@ const HOME_FALLBACK_ITEMS: QuoteServiceItem[] = [
     warranty_policy: "시공 하자 1년 무상 A/S",
     standard_material_sku: "toilet_standard",
     premium_material_sku: "toilet_premium",
+    addon_skus: []
+  },
+  {
+    service_type_code: "basin_replace",
+    display_name: "세면대 교체",
+    base_price: 100000,
+    estimated_minutes: 120,
+    category: "bathroom",
+    standardizable: true,
+    photo_guide: FALLBACK_GUIDES.basin_replace,
+    included_items: ["기존 철거", "신규 설치", "누수 테스트", "1년 A/S"],
+    excluded_items: [],
+    warranty_policy: "시공 하자 1년 무상 A/S",
+    standard_material_sku: "basin_standard",
+    premium_material_sku: "basin_premium",
     addon_skus: []
   },
   {

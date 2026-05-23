@@ -15,6 +15,7 @@ const hiddenServiceCodes = new Set<string>(["drain_clog", "partial_wallpaper"]);
 
 const categoryByCode: Record<string, (typeof tabs)[number]> = {
   toilet_replace: "욕실",
+  basin_replace: "욕실",
   faucet_replace: "욕실",
   bidet_install: "욕실",
   light_replace: "전기·조명",
@@ -25,6 +26,7 @@ const categoryByCode: Record<string, (typeof tabs)[number]> = {
 
 const icons: Record<string, LucideIcon> = {
   toilet_replace: Droplets,
+  basin_replace: Droplets,
   faucet_replace: Pipette,
   light_replace: Lightbulb,
   outlet_replace: Plug,

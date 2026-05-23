@@ -2,6 +2,9 @@ import type { ServiceItem } from "@/lib/types";
 
 export const DEFAULT_VISIT_FEE = 15000;
 export const TOILET_REPLACE_LABOR_PRICE = 80000;
+export const FAUCET_REPLACE_LABOR_PRICE = 59000;
+export const VENTILATOR_REPLACE_LABOR_PRICE = 70000;
+export const BASIN_REPLACE_LABOR_PRICE = 100000;
 
 export const FALLBACK_SERVICE_ITEMS: ServiceItem[] = [
   {
@@ -36,6 +39,13 @@ export const FALLBACK_SERVICE_ITEMS: ServiceItem[] = [
     service_type_code: "toilet_replace",
     display_name: "변기 교체",
     base_price: 80000,
+    estimated_minutes: 120,
+    metadata: { category: "bathroom" }
+  },
+  {
+    service_type_code: "basin_replace",
+    display_name: "세면대 교체",
+    base_price: 100000,
     estimated_minutes: 120,
     metadata: { category: "bathroom" }
   },

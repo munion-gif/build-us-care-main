@@ -992,6 +992,7 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
 
 const RELATED_SERVICES: Record<string, string[]> = {
   toilet_replace: ["faucet_replace", "bidet_install"],
+  basin_replace: ["faucet_replace", "toilet_replace"],
   faucet_replace: ["toilet_replace", "drain_clog"],
   kitchen_faucet: ["drain_clog", "toilet_replace"],
   light_replace: ["outlet_replace", "ventilator_replace"],

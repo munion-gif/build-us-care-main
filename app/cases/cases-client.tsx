@@ -40,6 +40,7 @@ type Facets = {
 const TABS = [
   { key: "all", label: "전체" },
   { key: "toilet_replace", label: "변기" },
+  { key: "basin_replace", label: "세면대" },
   { key: "faucet_replace", label: "수전" },
   { key: "light_replace", label: "전등" },
   { key: "outlet_replace", label: "콘센트" },
@@ -50,6 +51,7 @@ const TABS = [
 
 const TAB_LABEL_BY_SERVICE: Record<string, string> = {
   toilet_replace: "변기",
+  basin_replace: "세면대",
   faucet_replace: "수전",
   kitchen_faucet: "수전",
   light_replace: "전등",

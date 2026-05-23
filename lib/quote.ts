@@ -1,9 +1,10 @@
 import { DEFAULT_VISIT_FEE } from "@/lib/constants";
+import { isProductSelectionService } from "@/lib/replacement-products";
 import type { QuoteInputItem, QuoteResult } from "@/lib/types";
 
 function defaultVisitFeeForItems(items: QuoteInputItem[]) {
-  const isToiletOnly = items.length > 0 && items.every((item) => item.service_type_code === "toilet_replace");
-  return isToiletOnly ? 0 : DEFAULT_VISIT_FEE;
+  const isProductOnly = items.length > 0 && items.every((item) => isProductSelectionService(item.service_type_code));
+  return isProductOnly ? 0 : DEFAULT_VISIT_FEE;
 }
 
 export function calculateQuote(items: QuoteInputItem[], visitFee?: number): QuoteResult {
