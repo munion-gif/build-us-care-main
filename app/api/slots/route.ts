@@ -85,6 +85,7 @@ function mockSlotPayload(year: number, month: number) {
     {
       date: string;
       blocked: boolean;
+      hasReservation: boolean;
       beforeMinDate: boolean;
       allFull: boolean;
       slots: Record<SlotPeriod, { used: number; cap: number; usedCount: number; maxCount: number; isFull: boolean; available: boolean }>;
@@ -100,6 +101,7 @@ function mockSlotPayload(year: number, month: number) {
     days[day] = {
       date: day,
       blocked: false,
+      hasReservation: false,
       beforeMinDate,
       allFull: false,
       slots: {
@@ -147,8 +149,7 @@ export async function GET(request: Request) {
   const defaultMonth = Number(kstDateOnly(now).slice(5, 7));
   const year = boundedNumber(searchParams.get("year"), defaultYear, 2026, 2100);
   const month = boundedNumber(searchParams.get("month"), defaultMonth, 1, 12);
-  if (!hasSupabaseEnv() && process.env.NODE_ENV !== "production") return ok(mockSlotPayload(year, month));
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) return ok(mockSlotPayload(year, month));
 
   const defaultCap = maxSlotsPerPeriod();
   const range = monthRange(year, month);
@@ -230,6 +231,7 @@ export async function GET(request: Request) {
     {
       date: string;
       blocked: boolean;
+      hasReservation: boolean;
       beforeMinDate: boolean;
       allFull: boolean;
       slots: Record<SlotPeriod, { used: number; cap: number; usedCount: number; maxCount: number; isFull: boolean; available: boolean }>;
@@ -251,9 +253,11 @@ export async function GET(request: Request) {
     };
     const beforeMinDate = isBeforeMinReservationDate(day);
     const blocked = Boolean(config?.blocked);
+    const hasReservation = dayCounts.morning > 0 || dayCounts.afternoon > 0;
     days[day] = {
       date: day,
       blocked,
+      hasReservation,
       beforeMinDate,
       allFull: morningFull && afternoonFull,
       slots: {
@@ -263,7 +267,7 @@ export async function GET(request: Request) {
           usedCount: dayCounts.morning,
           maxCount: caps.morning,
           isFull: morningFull,
-          available: !beforeMinDate && !blocked && !morningFull
+          available: !beforeMinDate && !blocked && !hasReservation && !morningFull
         },
         afternoon: {
           used: dayCounts.afternoon,
@@ -271,12 +275,12 @@ export async function GET(request: Request) {
           usedCount: dayCounts.afternoon,
           maxCount: caps.afternoon,
           isFull: afternoonFull,
-          available: !beforeMinDate && !blocked && !afternoonFull
+          available: !beforeMinDate && !blocked && !hasReservation && !afternoonFull
         }
       }
     };
 
-    if (beforeMinDate || blocked) {
+    if (beforeMinDate || blocked || hasReservation) {
       slots[day] = [];
       closed[day] = ["morning", "afternoon"];
       continue;

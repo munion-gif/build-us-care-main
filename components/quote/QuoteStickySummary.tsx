@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 type QuoteStickySummaryProps = {
   total: string;
@@ -13,6 +13,7 @@ type QuoteStickySummaryProps = {
   mockPaymentMode: boolean;
   loading: boolean;
   onPayment: () => void;
+  productSelection?: ReactNode;
 };
 
 function slotLabel(slot?: string) {
@@ -31,7 +32,8 @@ export function QuoteStickySummary({
   paymentAvailable,
   mockPaymentMode,
   loading,
-  onPayment
+  onPayment,
+  productSelection
 }: QuoteStickySummaryProps) {
   const [policyAccepted, setPolicyAccepted] = useState(false);
   const visitText = date ? `${date} ${slotLabel(slot)}` : "방문일 선택 전";
@@ -46,6 +48,7 @@ export function QuoteStickySummary({
 
   return (
     <div className="sticky-cta">
+      {productSelection}
       <div className="sticky-cta-head">
         <span>결제 요약</span>
         <strong>{total}</strong>

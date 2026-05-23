@@ -1,6 +1,7 @@
-import { DEFAULT_VISIT_FEE } from "@/lib/constants";
+import { DEFAULT_VISIT_FEE, TOILET_REPLACE_LABOR_PRICE } from "@/lib/constants";
 import type { QuoteInputItem } from "@/lib/types";
 import type { getSupabaseAdmin } from "@/lib/supabase";
+import { TOILET_PRODUCTS, type ToiletProduct } from "@/lib/toilet-products";
 
 type SupabaseAdmin = ReturnType<typeof getSupabaseAdmin>;
 
@@ -32,12 +33,30 @@ function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string" && entry.length > 0) : [];
 }
 
+function findSelectedToiletProduct(metadata: Record<string, unknown> | undefined): ToiletProduct | null {
+  const productId = typeof metadata?.selected_toilet_product_id === "string" ? metadata.selected_toilet_product_id : null;
+  if (!productId) return null;
+  return TOILET_PRODUCTS.find((product) => product.id === productId) ?? null;
+}
+
+function selectedToiletProductSnapshot(product: ToiletProduct) {
+  return {
+    id: product.id,
+    category: product.categoryName,
+    brand: product.brand,
+    model: product.model,
+    sku: product.sku,
+    price: product.price
+  };
+}
+
 export async function calculateServerQuote(
   supabase: SupabaseAdmin,
   items: QuoteInputItem[],
   options: { visitFee?: number; discount?: number } = {}
 ): Promise<ServerQuoteResult> {
-  const visitFee = options.visitFee ?? DEFAULT_VISIT_FEE;
+  const isToiletOnly = items.length > 0 && items.every((item) => item.service_type_code === "toilet_replace");
+  const visitFee = options.visitFee ?? (isToiletOnly ? 0 : DEFAULT_VISIT_FEE);
   const discount = options.discount ?? 0;
 
   const serviceCodes = Array.from(new Set(items.map((item) => item.service_type_code).filter(Boolean))) as string[];
@@ -81,12 +100,17 @@ export async function calculateServerQuote(
     const sku = item.service_type_code ?? "unknown";
     const service = item.service_type_code ? serviceMap.get(item.service_type_code) : undefined;
     const materialCodes = asStringArray(item.metadata?.material_skus);
+    const selectedToiletProduct = sku === "toilet_replace" ? findSelectedToiletProduct(item.metadata) : null;
+    if (sku === "toilet_replace" && (!selectedToiletProduct || typeof selectedToiletProduct.price !== "number")) {
+      throw new Error("Selected toilet product is required.");
+    }
+    const selectedToiletProductPrice = selectedToiletProduct?.price ?? 0;
     const materialUnitTotal = materialCodes.reduce((sum, materialSku) => {
       const material = materialMap.get(materialSku);
       return sum + (material?.retail_price ?? 0);
-    }, 0);
+    }, selectedToiletProductPrice);
     const optionTotal = (item.options ?? []).reduce((sum, option) => sum + option.price_delta, 0) * item.qty;
-    const unitLabor = service?.base_price ?? 0;
+    const unitLabor = sku === "toilet_replace" ? TOILET_REPLACE_LABOR_PRICE : service?.base_price ?? 0;
     const lineLabor = unitLabor * item.qty;
     const lineMaterial = materialUnitTotal * item.qty;
 
@@ -105,6 +129,7 @@ export async function calculateServerQuote(
       metadata: {
         ...(item.metadata ?? {}),
         service_type_code: item.service_type_code ?? null,
+        ...(selectedToiletProduct ? { selected_toilet_product: selectedToiletProductSnapshot(selectedToiletProduct) } : {}),
         client_unit_price_ignored: item.unit_price
       }
     };

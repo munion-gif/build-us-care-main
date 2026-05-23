@@ -16,6 +16,7 @@ function maxSlotsPerPeriod() {
 function reservationError(error: { message?: string } | null) {
   const message = error?.message ?? "";
   if (message.includes("ORDER_NOT_FOUND")) return fail("not_found", "Order not found.", 404);
+  if (message.includes("SLOT_RESERVED_DATE")) return fail("SLOT_RESERVED_DATE", "이미 예약이 있는 날짜입니다. 다른 날짜를 선택해주세요.", 409);
   if (message.includes("SLOT_CLOSED")) return fail("SLOT_CLOSED", "선택한 날짜는 예약이 마감되었습니다.", 409);
   if (message.includes("SLOT_FULL")) return fail("SLOT_FULL", "선택한 시간대는 마감되었습니다. 다른 시간대를 선택해주세요.", 409);
   return fail("conflict", message || "Reservation could not be created.", 409);
@@ -39,6 +40,13 @@ function minReservationDateText() {
   const minDate = new Date();
   minDate.setDate(minDate.getDate() + 3);
   return kstDateOnly(minDate);
+}
+
+function kstDayUtcRange(dateText: string) {
+  const start = new Date(`${dateText}T00:00:00+09:00`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { start: start.toISOString(), end: end.toISOString() };
 }
 
 export async function POST(request: Request, context: Context) {
@@ -98,6 +106,35 @@ export async function POST(request: Request, context: Context) {
 
   if (existingReservation) {
     return ok({ reservation: existingReservation, order_status: order.status, idempotent: true });
+  }
+
+  const range = kstDayUtcRange(parsed.data.reserved_date);
+  const [dateReservationsResult, dateJobsResult] = await Promise.all([
+    supabase
+      .from("reservations")
+      .select("id,order_id,status")
+      .eq("reserved_date", parsed.data.reserved_date)
+      .in("status", ["pending", "confirmed"]),
+    supabase
+      .from("jobs")
+      .select("id,order_id,scheduled_at,status")
+      .not("scheduled_at", "is", null)
+      .neq("status", "cancelled")
+      .gte("scheduled_at", range.start)
+      .lt("scheduled_at", range.end)
+  ]);
+
+  const firstDateError = dateReservationsResult.error ?? dateJobsResult.error;
+  if (firstDateError) {
+    return fail("internal_error", firstDateError.message, 500);
+  }
+
+  const hasExistingDateBooking =
+    (dateReservationsResult.data ?? []).some((reservation) => reservation.order_id !== orderId.data) ||
+    (dateJobsResult.data ?? []).some((job) => job.order_id !== orderId.data);
+
+  if (hasExistingDateBooking) {
+    return fail("SLOT_RESERVED_DATE", "이미 예약이 있는 날짜입니다. 다른 날짜를 선택해주세요.", 409);
   }
 
   const { data: reservation, error } = await supabase

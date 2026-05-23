@@ -127,7 +127,6 @@ async function assertSlotAvailable(params: {
     return fail("INVALID_DATE", "제품과 일정 준비 기간 때문에 예약 변경은 오늘 기준 3일 이후 날짜부터 가능합니다.", 400);
   }
 
-  const defaultCap = await effectiveDefaultCap(supabase);
   const { data: config, error: configError } = await supabase
     .from("slot_configs")
     .select("date,morning_cap,afternoon_cap,blocked,type,cap_value")
@@ -138,7 +137,6 @@ async function assertSlotAvailable(params: {
   if (configError) return fail("INTERNAL_ERROR", configError.message, 500);
   if (config?.blocked) return fail("SLOT_CLOSED", "선택한 날짜는 예약이 마감되었습니다.", 409);
 
-  const cap = Number(config?.[timeSlot === "morning" ? "morning_cap" : "afternoon_cap"] ?? defaultCap);
   const range = kstDayUtcRange(reservedDate);
   const [jobsResult, reservationsResult] = await Promise.all([
     supabase
@@ -152,22 +150,18 @@ async function assertSlotAvailable(params: {
       .from("reservations")
       .select("id,order_id,reserved_date,time_slot,status")
       .eq("reserved_date", reservedDate)
-      .eq("time_slot", timeSlot)
       .neq("status", "cancelled")
   ]);
 
   const firstError = jobsResult.error ?? reservationsResult.error;
   if (firstError) return fail("INTERNAL_ERROR", firstError.message, 500);
 
-  const jobCount = (jobsResult.data ?? []).filter((job) => job.order_id !== orderId && slotFromScheduledAt(job.scheduled_at) === timeSlot).length;
-  const reservationCount = (reservationsResult.data ?? []).filter((reservation) => reservation.order_id !== orderId).length;
-  const used = jobCount + reservationCount;
+  const hasExistingDateBooking =
+    (jobsResult.data ?? []).some((job) => job.order_id !== orderId) ||
+    (reservationsResult.data ?? []).some((reservation) => reservation.order_id !== orderId);
 
-  if (used >= cap) {
-    return fail("SLOT_FULL", "선택한 시간대는 마감되었습니다. 다른 시간대를 선택해주세요.", 409, {
-      used,
-      cap
-    });
+  if (hasExistingDateBooking) {
+    return fail("SLOT_RESERVED_DATE", "이미 예약이 있는 날짜입니다. 다른 날짜를 선택해주세요.", 409);
   }
 
   return null;

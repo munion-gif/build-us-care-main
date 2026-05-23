@@ -1,7 +1,13 @@
 import { DEFAULT_VISIT_FEE } from "@/lib/constants";
 import type { QuoteInputItem, QuoteResult } from "@/lib/types";
 
-export function calculateQuote(items: QuoteInputItem[], visitFee = DEFAULT_VISIT_FEE): QuoteResult {
+function defaultVisitFeeForItems(items: QuoteInputItem[]) {
+  const isToiletOnly = items.length > 0 && items.every((item) => item.service_type_code === "toilet_replace");
+  return isToiletOnly ? 0 : DEFAULT_VISIT_FEE;
+}
+
+export function calculateQuote(items: QuoteInputItem[], visitFee?: number): QuoteResult {
+  const effectiveVisitFee = visitFee ?? defaultVisitFeeForItems(items);
   const lines = items.map((item) => {
     const optionTotal = (item.options ?? []).reduce((sum, option) => sum + option.price_delta, 0) * item.qty;
     const baseTotal = item.unit_price * item.qty;
@@ -31,10 +37,10 @@ export function calculateQuote(items: QuoteInputItem[], visitFee = DEFAULT_VISIT
   const optionTotal = lines.reduce((sum, line) => sum + line.option_total, 0);
 
   return {
-    visit_fee: visitFee,
+    visit_fee: effectiveVisitFee,
     subtotal_amount: subtotalAmount,
     option_total: optionTotal,
-    total_amount: subtotalAmount + visitFee,
+    total_amount: subtotalAmount + effectiveVisitFee,
     items: lines
   };
 }

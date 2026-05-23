@@ -1,6 +1,7 @@
 import type { ServiceItem } from "@/lib/types";
 
 export const DEFAULT_VISIT_FEE = 15000;
+export const TOILET_REPLACE_LABOR_PRICE = 80000;
 
 export const FALLBACK_SERVICE_ITEMS: ServiceItem[] = [
   {
