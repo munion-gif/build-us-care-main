@@ -8,7 +8,9 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
   draft: "문의 접수",
   reservation_pending: "예약 대기",
   payment_pending: "결제대기",
+  pending_product_payment: "제품값 결제대기",
   paid: "결제완료",
+  product_paid: "제품값 결제완료",
   assigned: "기사배정",
   scheduled: "방문확정",
   reservation_confirmed: "방문확정",
@@ -16,13 +18,15 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
   in_progress: "시공중",
   in_service: "시공중",
   completed: "검수대기",
+  installation_completed: "시공완료",
   done: "완료",
   inspected: "검수완료",
   issue: "이슈",
   warranty: "A/S",
   cancel_requested: "취소요청",
   canceled: "취소",
-  cancelled: "취소"
+  cancelled: "취소",
+  refunded: "환불완료"
 };
 
 const CHANNEL_LABELS: Record<string, string> = {

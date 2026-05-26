@@ -15,7 +15,7 @@ export type TossConfirmResult = {
 };
 
 export async function confirmTossPayment(input: TossConfirmInput): Promise<TossConfirmResult> {
-  const mockMode = process.env.PAYMENT_MOCK_MODE === "true" || !process.env.TOSS_SECRET_KEY || input.paymentKey.startsWith("mock-");
+  const mockMode = process.env.PAYMENT_MOCK_MODE === "true";
 
   if (mockMode) {
     return {
@@ -29,6 +29,19 @@ export async function confirmTossPayment(input: TossConfirmInput): Promise<TossC
         orderId: input.orderId,
         amount: input.amount,
         status: "DONE"
+      }
+    };
+  }
+
+  if (!process.env.TOSS_SECRET_KEY) {
+    return {
+      provider: "toss",
+      paymentKey: input.paymentKey,
+      status: "FAILED",
+      approvedAt: null,
+      raw: {
+        code: "TOSS_SECRET_KEY_MISSING",
+        message: "Toss secret key is not configured."
       }
     };
   }
@@ -64,7 +77,7 @@ export async function confirmTossPayment(input: TossConfirmInput): Promise<TossC
 }
 
 export function isPaymentMockMode() {
-  return process.env.PAYMENT_MOCK_MODE === "true" || !process.env.TOSS_SECRET_KEY;
+  return process.env.PAYMENT_MOCK_MODE === "true";
 }
 
 export async function cancelTossPayment(params: {
@@ -72,7 +85,7 @@ export async function cancelTossPayment(params: {
   cancelReason: string;
   refundAmount?: number;
 }) {
-  const mockMode = isPaymentMockMode() || params.paymentKey.startsWith("mock-");
+  const mockMode = isPaymentMockMode();
 
   if (mockMode) {
     return {
@@ -83,6 +96,10 @@ export async function cancelTossPayment(params: {
       cancelAmount: params.refundAmount ?? null,
       canceledAt: new Date().toISOString()
     };
+  }
+
+  if (!process.env.TOSS_SECRET_KEY) {
+    throw new Error("Toss secret key is not configured.");
   }
 
   const response = await fetch(`https://api.tosspayments.com/v1/payments/${params.paymentKey}/cancel`, {

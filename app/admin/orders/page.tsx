@@ -32,7 +32,7 @@ const quickFilters = [
 ] as const;
 
 function badgeClass(status?: string | null) {
-  if (status === "paid" || status === "quoted" || status === "payment_pending") return "adm-badge-blue";
+  if (status === "paid" || status === "product_paid" || status === "quoted" || status === "payment_pending" || status === "pending_product_payment") return "adm-badge-blue";
   if (status === "scheduled") return "adm-badge-sky";
   if (status === "in_progress" || status === "cancel_requested") return "adm-badge-orange";
   if (status === "done" || status === "completed") return "adm-badge-green";
@@ -64,8 +64,8 @@ async function getOrders(params: Record<string, string | undefined>) {
 
   if (params.flow && !params.status) {
     if (params.flow === "intake") query = query.in("status", ["inquiry", "submitted"]);
-    if (params.flow === "quote") query = query.in("status", ["quoted", "payment_pending"]);
-    if (params.flow === "paid") query = query.eq("status", "paid");
+    if (params.flow === "quote") query = query.in("status", ["quoted", "payment_pending", "pending_product_payment"]);
+    if (params.flow === "paid") query = query.in("status", ["paid", "product_paid"]);
     if (params.flow === "visit") query = query.in("status", ["scheduled", "in_progress"]);
     if (params.flow === "complete") query = query.in("status", ["completed", "done"]);
     if (params.flow === "issue") query = query.in("status", ["cancel_requested", "issue", "warranty"]);
@@ -103,8 +103,8 @@ function activeWorkflowKey(status?: string, flow?: string) {
   if (flow) return flow;
   if (!status) return "all";
   if (status === "inquiry") return "intake";
-  if (status === "quoted" || status === "payment_pending") return "quote";
-  if (status === "paid") return "paid";
+  if (status === "quoted" || status === "payment_pending" || status === "pending_product_payment") return "quote";
+  if (status === "paid" || status === "product_paid") return "paid";
   if (status === "scheduled" || status === "in_progress") return "visit";
   if (status === "completed" || status === "done") return "complete";
   if (status === "cancel_requested" || status === "canceled" || status === "warranty" || status === "issue") return "issue";
@@ -127,8 +127,8 @@ function slotLabel(slot?: string | null) {
 
 function paymentState(order: any) {
   const payments = Array.isArray(order.payments) ? order.payments : [];
-  if (payments.some((payment: any) => payment.status === "done") || order.status === "paid") return { label: "결제완료", className: "adm-badge-blue" };
-  if (order.status === "payment_pending" || order.status === "quoted") return { label: "결제대기", className: "adm-badge-orange" };
+  if (payments.some((payment: any) => payment.status === "done") || order.status === "paid" || order.status === "product_paid") return { label: "결제완료", className: "adm-badge-blue" };
+  if (order.status === "payment_pending" || order.status === "pending_product_payment" || order.status === "quoted") return { label: "결제대기", className: "adm-badge-orange" };
   return { label: "미결제", className: "adm-badge-gray" };
 }
 
@@ -146,8 +146,8 @@ function addressPreview(order: any) {
 
 function nextActionLabel(order: any) {
   const status = String(order.status ?? "");
-  if (status === "paid") return assignedTechnician(order) === "미배정" ? "기사 배정" : "방문 전 확인";
-  if (status === "quoted" || status === "payment_pending") return "결제 확인";
+  if (status === "paid" || status === "product_paid") return assignedTechnician(order) === "미배정" ? "기사 배정" : "방문 전 확인";
+  if (status === "quoted" || status === "payment_pending" || status === "pending_product_payment") return "결제 확인";
   if (status === "scheduled") return "방문 준비";
   if (status === "in_progress") return "완료 처리";
   if (status === "completed") return "검수 완료";
@@ -165,7 +165,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
   ]);
   const totalPages = Math.max(Math.ceil(count / limit), 1);
   const visibleSummary = {
-    needsAssign: orders.filter((order: any) => order.status === "paid" && assignedTechnician(order) === "미배정").length,
+    needsAssign: orders.filter((order: any) => ["paid", "product_paid"].includes(String(order.status)) && assignedTechnician(order) === "미배정").length,
     visits: orders.filter((order: any) => ["scheduled", "in_progress"].includes(String(order.status))).length,
     issues: orders.filter((order: any) => ["cancel_requested", "issue", "warranty"].includes(String(order.status))).length
   };
@@ -244,7 +244,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
                   ) : (
                     <>
                       <Link className="adm-btn adm-btn-primary adm-btn-sm" href={`/admin/orders/${order.id}`}>{nextActionLabel(order)}</Link>
-                      {order.status === "paid" && (
+                      {["paid", "product_paid"].includes(String(order.status)) && (
                         <OrderAssignmentButton compact orderId={order.id} orderNumber={order.order_number} orderStatus={order.status} reservations={Array.isArray(order.reservations) ? order.reservations : []} jobs={Array.isArray(order.jobs) ? order.jobs : []} technicians={technicians} />
                       )}
                     </>

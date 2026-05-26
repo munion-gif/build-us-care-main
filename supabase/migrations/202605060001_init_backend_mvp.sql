@@ -95,7 +95,7 @@ create table orders (
   subtotal_amount integer not null default 0,
   total_amount integer not null default 0,
   special_requests text,
-  access_token text not null unique default encode(gen_random_bytes(24), 'hex'),
+  access_token text not null unique default encode(extensions.gen_random_bytes(24), 'hex'),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

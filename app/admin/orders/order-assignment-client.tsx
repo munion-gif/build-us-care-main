@@ -111,7 +111,7 @@ export function OrderAssignmentButton({ orderId, orderNumber, orderStatus, reser
   const [loadingCounts, setLoadingCounts] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
-  const isAssignable = orderStatus === "paid" || orderStatus === "scheduled";
+  const isAssignable = orderStatus === "paid" || orderStatus === "product_paid" || orderStatus === "scheduled";
 
   useEffect(() => {
     if (!open || !date) return;

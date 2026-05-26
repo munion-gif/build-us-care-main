@@ -40,6 +40,9 @@ function normalizeOrderStatusForUi(status?: string | null) {
   if (status === "submitted" || status === "draft") return "inquiry";
   if (status === "reservation_confirmed" || status === "preparing") return "scheduled";
   if (status === "reservation_pending") return "payment_pending";
+  if (status === "pending_product_payment") return "payment_pending";
+  if (status === "product_paid") return "paid";
+  if (status === "installation_completed") return "completed";
   if (status === "in_service") return "in_progress";
   return status ?? "";
 }

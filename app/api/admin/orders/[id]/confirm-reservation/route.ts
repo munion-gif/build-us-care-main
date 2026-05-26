@@ -83,7 +83,7 @@ export async function POST(request: Request, context: Context) {
 
   if (readError) return fail("internal_error", readError.message, 500);
   if (!order) return fail("not_found", "주문을 찾을 수 없습니다.", 404);
-  if (!["paid", "scheduled"].includes(String(order.status))) {
+  if (!["paid", "product_paid", "scheduled"].includes(String(order.status))) {
     return fail("ORDER_NOT_CONFIRMABLE", "결제 완료 이후 주문만 예약 확정할 수 있습니다.", 409);
   }
 

@@ -2,15 +2,19 @@ export const OPERATIONAL_ORDER_STATUSES = [
   "inquiry",
   "quoted",
   "payment_pending",
+  "pending_product_payment",
   "paid",
+  "product_paid",
   "scheduled",
   "in_progress",
+  "installation_completed",
   "completed",
   "done",
   "issue",
   "warranty",
   "cancel_requested",
-  "canceled"
+  "canceled",
+  "refunded"
 ] as const;
 
 export const LEGACY_ORDER_STATUSES = [
@@ -40,7 +44,7 @@ export function normalizeOrderStatusAlias(status: string): OperationalOrderStatu
 
 export type ReservationStatus = "pending" | "confirmed" | "unavailable" | "cancelled";
 export type ReservationTimeSlot = "morning" | "afternoon" | "all_day";
-export type PaymentStatus = "ready" | "pending" | "done" | "failed" | "cancelled";
+export type PaymentStatus = "ready" | "pending" | "done" | "failed" | "cancelled" | "canceled" | "aborted" | "refunded";
 
 export type JobStatus =
   | "received"

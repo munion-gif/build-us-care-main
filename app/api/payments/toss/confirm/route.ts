@@ -3,9 +3,28 @@ import { EVENT_TYPES } from "@/lib/event-types";
 import { readJson, validationError } from "@/lib/errors";
 import { notifyPaymentCompleted } from "@/lib/notify-admin";
 import { createRequestId, logOperation } from "@/lib/operational-log";
+import { isProductSelectionService } from "@/lib/replacement-products";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { confirmTossPayment } from "@/lib/toss";
 import { tossConfirmSchema } from "@/lib/validation";
+
+function quoteServiceCode(item: any) {
+  return item?.sku ?? item?.metadata?.service_type_code ?? item?.metadata?.selected_replacement_product_service_code ?? null;
+}
+
+function expectedPaymentAmount(quote: any) {
+  const items = Array.isArray(quote?.items) ? quote.items : [];
+  const isReplacementQuote = items.length > 0 && items.every((item: Record<string, any>) => {
+    const serviceCode = quoteServiceCode(item);
+    return typeof serviceCode === "string" && isProductSelectionService(serviceCode);
+  });
+
+  if (isReplacementQuote && Number(quote?.total_material ?? 0) > 0) {
+    return Number(quote.total_material);
+  }
+
+  return Number(quote?.total_final ?? 0);
+}
 
 export async function POST(request: Request) {
   const requestId = createRequestId();
@@ -79,17 +98,18 @@ export async function POST(request: Request) {
     return fail("QUOTE_REQUIRED", "Accepted quote is required before payment.", 400);
   }
 
-  if (acceptedQuote.total_final !== parsed.data.amount) {
+  const expectedAmount = expectedPaymentAmount(acceptedQuote);
+  if (expectedAmount !== parsed.data.amount) {
     logOperation({
       requestId,
       endpoint: "/api/payments/toss/confirm",
       method: "POST",
-      identifiers: { order_id: order.id, quote_id: acceptedQuote.id, expected_amount: acceptedQuote.total_final, received_amount: parsed.data.amount },
+      identifiers: { order_id: order.id, quote_id: acceptedQuote.id, expected_amount: expectedAmount, received_amount: parsed.data.amount },
       success: false,
       errorCode: "PAYMENT_AMOUNT_MISMATCH"
     });
     return fail("AMOUNT_MISMATCH", "Payment amount does not match accepted quote total.", 400, {
-      expected: acceptedQuote.total_final,
+      expected: expectedAmount,
       received: parsed.data.amount
     });
   }

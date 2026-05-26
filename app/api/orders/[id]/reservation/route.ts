@@ -152,7 +152,7 @@ export async function POST(request: Request, context: Context) {
     return reservationError(error);
   }
 
-  const protectedStatuses = ["paid", "scheduled", "in_progress", "completed", "done", "canceled", "issue", "warranty"];
+  const protectedStatuses = ["paid", "product_paid", "scheduled", "in_progress", "completed", "done", "canceled", "issue", "warranty"];
   const nextOrderStatus = protectedStatuses.includes(order.status)
     ? order.status
     : parsed.data.status === "confirmed"

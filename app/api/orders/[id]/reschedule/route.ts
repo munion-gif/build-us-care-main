@@ -15,7 +15,7 @@ type JobAction = "kept" | "updated" | "released";
 const DEFAULT_MAX_SLOTS = 3;
 const ACTIVE_RESERVATION_STATUSES = ["pending", "confirmed"];
 const FINAL_JOB_STATUSES = ["in_progress", "done", "inspected"];
-const RESCHEDULABLE_ORDER_STATUSES = ["paid", "scheduled"];
+const RESCHEDULABLE_ORDER_STATUSES = ["paid", "product_paid", "scheduled"];
 
 const rescheduleSchema = z.object({
   accessToken: accessTokenSchema,

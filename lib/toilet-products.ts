@@ -14,6 +14,9 @@ export type ToiletProduct = {
   price: number | null;
   note: string;
   popular: boolean;
+  isRecommended?: boolean;
+  recommendLabel?: string;
+  recommendDescription?: string;
   image: string | null;
   sourceSheet: string;
   sourceRow: number;

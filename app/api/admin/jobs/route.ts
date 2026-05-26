@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     return fail("BAD_REQUEST", "Technician is not active.", 400);
   }
 
-  if (!["paid", "scheduled"].includes(order.status)) {
+  if (!["paid", "product_paid", "scheduled"].includes(order.status)) {
     return fail("ORDER_NOT_ASSIGNABLE", "결제 완료된 주문만 기사 배정이 가능합니다.", 400);
   }
 

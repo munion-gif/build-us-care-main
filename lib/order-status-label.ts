@@ -5,19 +5,23 @@ export type OrderStatus =
   | "draft"
   | "reservation_pending"
   | "payment_pending"
+  | "pending_product_payment"
   | "paid"
+  | "product_paid"
   | "scheduled"
   | "reservation_confirmed"
   | "preparing"
   | "in_progress"
   | "in_service"
+  | "installation_completed"
   | "completed"
   | "done"
   | "issue"
   | "warranty"
   | "cancel_requested"
   | "canceled"
-  | "cancelled";
+  | "cancelled"
+  | "refunded";
 
 export type JobStatus =
   | "pending"
@@ -50,6 +54,9 @@ function normalizeOrderStatus(status?: string | null): OrderStatus {
   if (status === "draft" || status === "submitted") return "inquiry";
   if (status === "reservation_confirmed" || status === "preparing") return "scheduled";
   if (status === "reservation_pending") return "payment_pending";
+  if (status === "pending_product_payment") return "payment_pending";
+  if (status === "product_paid") return "paid";
+  if (status === "installation_completed") return "completed";
   if (status === "in_service") return "in_progress";
   if (status === "canceled") return "canceled";
   return (status ?? "inquiry") as OrderStatus;
@@ -92,6 +99,13 @@ export function getOrderStatusLabel(params: {
     return {
       label: "주문 취소됨",
       description: "주문이 취소되었습니다. 환불은 카드사 기준으로 처리됩니다."
+    };
+  }
+
+  if (orderStatus === "refunded") {
+    return {
+      label: "환불 완료",
+      description: "환불 처리가 완료되었습니다. 카드사 기준으로 환불 반영 시간이 달라질 수 있습니다."
     };
   }
 

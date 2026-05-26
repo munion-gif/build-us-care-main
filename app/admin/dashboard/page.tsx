@@ -141,7 +141,7 @@ function resultLabel(result?: string | null) {
 }
 
 function badgeClass(status?: string | null) {
-  if (status === "quoted" || status === "payment_pending" || status === "paid") return "adm-badge-blue";
+  if (status === "quoted" || status === "payment_pending" || status === "pending_product_payment" || status === "paid" || status === "product_paid") return "adm-badge-blue";
   if (status === "scheduled" || status === "assigned") return "adm-badge-sky";
   if (status === "in_progress" || status === "checked_in") return "adm-badge-orange";
   if (status === "done" || status === "completed" || status === "inspected") return "adm-badge-green";
@@ -202,7 +202,7 @@ async function getUnassignedPaidOrders(supabase: SupabaseAdmin) {
       jobs(id,technician_id,assigned_technician_name,status,scheduled_at,created_at)
     `
     )
-    .eq("status", "paid")
+    .in("status", ["paid", "product_paid"])
     .order("created_at", { ascending: true })
     .limit(80);
 
@@ -230,7 +230,7 @@ async function getTomorrowUnassignedReservations(supabase: SupabaseAdmin, tomorr
   return (data ?? [])
     .filter((reservation: any) => {
       const order = asOne(reservation.orders);
-      return ["paid", "scheduled"].includes(String(order?.status)) && !hasActiveAssignedJob(order?.jobs);
+      return ["paid", "product_paid", "scheduled"].includes(String(order?.status)) && !hasActiveAssignedJob(order?.jobs);
     })
     .slice(0, 10);
 }

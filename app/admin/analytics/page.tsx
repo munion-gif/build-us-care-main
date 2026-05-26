@@ -48,7 +48,7 @@ async function getAnalytics() {
 
   const [orders, paidOrders, diagnoses, events, warrantyJobs] = await Promise.all([
     measure("admin.analytics.countOrders", () => supabase.from("orders").select("id", { count: "exact", head: true }).gte("created_at", since)),
-    measure("admin.analytics.countPaidOrders", () => supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "paid").gte("created_at", since)),
+    measure("admin.analytics.countPaidOrders", () => supabase.from("orders").select("id", { count: "exact", head: true }).in("status", ["paid", "product_paid"]).gte("created_at", since)),
     measure("admin.analytics.fetchDiagnoses", () => supabase.from("diagnoses").select("result").gte("created_at", since)),
     measure("admin.analytics.fetchEvents", () => supabase
       .from("events")

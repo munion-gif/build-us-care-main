@@ -22,6 +22,9 @@ export type ReplacementProduct = {
   price: number | null;
   note: string;
   popular: boolean;
+  isRecommended?: boolean;
+  recommendLabel?: string;
+  recommendDescription?: string;
   image: string | null;
   sourceWorkbook?: string;
   sourceSheet: string;
@@ -94,13 +97,100 @@ const TOILET_AS_REPLACEMENT_PRODUCTS: ReplacementProduct[] = TOILET_PRODUCTS.map
   price: product.price,
   note: product.note,
   popular: product.popular,
+  isRecommended: product.isRecommended,
+  recommendLabel: product.recommendLabel,
+  recommendDescription: product.recommendDescription,
   image: product.image,
   sourceSheet: product.sourceSheet,
   sourceRow: product.sourceRow
 }));
 
 const GENERATED_PRODUCTS = rawReplacementProducts as ReplacementProduct[];
-export const REPLACEMENT_PRODUCTS: ReplacementProduct[] = [...TOILET_AS_REPLACEMENT_PRODUCTS, ...GENERATED_PRODUCTS];
+
+function lowestPricedProduct(products: ReplacementProduct[]) {
+  return products
+    .filter((product) => typeof product.price === "number")
+    .sort((a, b) => (a.price ?? Number.POSITIVE_INFINITY) - (b.price ?? Number.POSITIVE_INFINITY))[0];
+}
+
+function highestPricedProduct(products: ReplacementProduct[]) {
+  const sortedProducts = products
+    .filter((product) => typeof product.price === "number")
+    .sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
+
+  return sortedProducts.find((product) => product.image) ?? sortedProducts[0];
+}
+
+function firstUniqueProduct(products: ReplacementProduct[], usedIds: Set<string>, preferred?: ReplacementProduct) {
+  if (preferred && !usedIds.has(preferred.id)) return preferred;
+  return products.find((product) => !usedIds.has(product.id) && typeof product.price === "number") ?? products.find((product) => !usedIds.has(product.id));
+}
+
+function withRecommendationMetadata(products: ReplacementProduct[]) {
+  const byService = new Map<string, ReplacementProduct[]>();
+  for (const product of products) {
+    const current = byService.get(product.serviceCode) ?? [];
+    current.push(product);
+    byService.set(product.serviceCode, current);
+  }
+
+  const recommendationById = new Map<string, { label: string; description: string }>();
+  for (const serviceProducts of byService.values()) {
+    const usedIds = new Set<string>();
+    const explicit = serviceProducts.filter((product) => product.recommendLabel);
+
+    for (const product of explicit) {
+      usedIds.add(product.id);
+      recommendationById.set(product.id, {
+        label: product.recommendLabel ?? "추천",
+        description: product.recommendDescription ?? "사진 확인 후 가장 먼저 검토할 만한 제품입니다."
+      });
+    }
+
+    const valueProduct = firstUniqueProduct(serviceProducts, usedIds, lowestPricedProduct(serviceProducts));
+    if (valueProduct) {
+      usedIds.add(valueProduct.id);
+      recommendationById.set(valueProduct.id, {
+        label: "가성비",
+        description: "제품가 부담을 낮추면서 기본 교체에 무난한 선택입니다."
+      });
+    }
+
+    const popularProduct = firstUniqueProduct(
+      serviceProducts,
+      usedIds,
+      serviceProducts.find((product) => product.popular && typeof product.price === "number")
+    );
+    if (popularProduct) {
+      usedIds.add(popularProduct.id);
+      recommendationById.set(popularProduct.id, {
+        label: "인기",
+        description: "선택 빈도와 가격 균형을 함께 보기 좋은 대표 모델입니다."
+      });
+    }
+
+    const premiumProduct = firstUniqueProduct(serviceProducts, usedIds, highestPricedProduct(serviceProducts));
+    if (premiumProduct) {
+      recommendationById.set(premiumProduct.id, {
+        label: "프리미엄",
+        description: "기능과 디자인을 우선할 때 비교하기 좋은 상위 옵션입니다."
+      });
+    }
+  }
+
+  return products.map((product) => {
+    const recommendation = recommendationById.get(product.id);
+    if (!recommendation && !product.isRecommended) return product;
+    return {
+      ...product,
+      isRecommended: true,
+      recommendLabel: product.recommendLabel ?? recommendation?.label,
+      recommendDescription: product.recommendDescription ?? recommendation?.description
+    };
+  });
+}
+
+export const REPLACEMENT_PRODUCTS: ReplacementProduct[] = withRecommendationMetadata([...TOILET_AS_REPLACEMENT_PRODUCTS, ...GENERATED_PRODUCTS]);
 
 function buildGroups(products: ReplacementProduct[]) {
   const byCategory = new Map<string, ReplacementProduct[]>();

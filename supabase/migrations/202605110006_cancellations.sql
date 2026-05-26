@@ -39,21 +39,6 @@ ALTER TYPE public.order_status ADD VALUE IF NOT EXISTS 'cancel_requested';
 ALTER TYPE public.order_status ADD VALUE IF NOT EXISTS 'canceled';
 ALTER TYPE public.order_status ADD VALUE IF NOT EXISTS 'cancelled';
 
-ALTER TABLE public.orders
-  DROP CONSTRAINT IF EXISTS orders_status_check;
-
-ALTER TABLE public.orders
-  ADD CONSTRAINT orders_status_check CHECK (
-    status IN (
-      'draft','submitted','inquiry','payment_pending','paid',
-      'scheduled','reservation_confirmed','preparing',
-      'in_progress','in_service',
-      'completed','done',
-      'canceled','cancelled','cancel_requested',
-      'issue','warranty'
-    )
-  );
-
 CREATE INDEX IF NOT EXISTS idx_orders_status ON public.orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_customer_id ON public.orders(customer_id);
 CREATE INDEX IF NOT EXISTS idx_jobs_technician_date ON public.jobs(technician_id, scheduled_at);

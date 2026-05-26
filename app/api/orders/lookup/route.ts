@@ -105,7 +105,7 @@ export async function POST(request: Request) {
         serviceName: formatServiceName(serviceCode),
         serviceCode,
         paymentStatus: payment?.status ?? null,
-        isPaid: payment?.status === "done" || ["paid", "scheduled", "in_progress", "completed", "done", "warranty"].includes(String(order.status)),
+        isPaid: payment?.status === "done" || ["paid", "product_paid", "scheduled", "in_progress", "completed", "done", "warranty"].includes(String(order.status)),
         reservation: reservation ? {
           reservedDate: reservation.reserved_date,
           timeSlot: reservation.time_slot,

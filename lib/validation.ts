@@ -163,6 +163,20 @@ export const tossConfirmSchema = z.object({
   orderName: z.string().min(1).optional()
 });
 
+export const paymentPrepareSchema = z.object({
+  orderId: z.string().uuid().optional(),
+  quoteId: z.string().uuid().optional(),
+  reservationId: z.string().uuid().optional()
+}).refine((value) => Boolean(value.orderId || value.quoteId || value.reservationId), {
+  message: "orderId, quoteId, reservationId 중 하나가 필요합니다."
+});
+
+export const paymentConfirmSchema = z.object({
+  paymentKey: z.string().min(1).max(200),
+  orderId: z.string().min(1).max(80),
+  amount: z.coerce.number().int().min(0)
+});
+
 export const tossWebhookSchema = z
   .object({
     eventType: z

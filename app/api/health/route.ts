@@ -5,7 +5,8 @@ export async function GET() {
   return ok({
     status: "healthy",
     supabaseConfigured: hasSupabaseEnv(),
-    paymentMockMode: process.env.PAYMENT_MOCK_MODE !== "false" || !process.env.TOSS_SECRET_KEY,
+    tossConfigured: Boolean(process.env.TOSS_SECRET_KEY),
+    paymentMockMode: process.env.PAYMENT_MOCK_MODE === "true",
     timestamp: new Date().toISOString()
   });
 }

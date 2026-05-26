@@ -1,37 +1,3 @@
-ALTER TABLE public.slot_configs
-  ADD COLUMN IF NOT EXISTS type text NOT NULL DEFAULT 'date',
-  ADD COLUMN IF NOT EXISTS cap_value int CHECK (cap_value IS NULL OR cap_value >= 0),
-  ADD COLUMN IF NOT EXISTS reason text;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM information_schema.columns
-    WHERE table_schema = 'public'
-      AND table_name = 'slot_configs'
-      AND column_name = 'target_date'
-  ) THEN
-    ALTER TABLE public.slot_configs
-      ADD COLUMN target_date date GENERATED ALWAYS AS (date) STORED;
-  END IF;
-END $$;
-
-ALTER TABLE public.slot_configs
-  DROP CONSTRAINT IF EXISTS slot_configs_type_check;
-
-ALTER TABLE public.slot_configs
-  ADD CONSTRAINT slot_configs_type_check
-  CHECK (type IN ('date', 'cap'));
-
-INSERT INTO public.slot_configs(date, type, cap_value, morning_cap, afternoon_cap, blocked, reason)
-VALUES ('0001-01-01', 'cap', 3, 3, 3, false, 'global default cap')
-ON CONFLICT (date) DO UPDATE
-SET type = 'cap',
-    cap_value = COALESCE(public.slot_configs.cap_value, EXCLUDED.cap_value),
-    blocked = false,
-    updated_at = now();
-
 CREATE OR REPLACE FUNCTION public.reserve_order_slot(
   p_order_id uuid,
   p_reserved_date date,
@@ -99,7 +65,7 @@ BEGIN
 
     SELECT COUNT(*) INTO v_job_count
     FROM public.jobs
-    WHERE status NOT IN ('cancelled', 'canceled')
+    WHERE status <> 'cancelled'
       AND scheduled_at IS NOT NULL
       AND scheduled_at >= v_start
       AND scheduled_at < v_end;
@@ -120,14 +86,13 @@ BEGIN
   RETURNING * INTO v_reservation;
 
   v_next_order_status := CASE
-    WHEN v_order_status IN ('paid', 'preparing', 'in_service', 'completed', 'cancelled', 'canceled') THEN v_order_status
+    WHEN v_order_status IN ('paid', 'product_paid', 'scheduled', 'preparing', 'in_progress', 'in_service', 'completed', 'done', 'cancelled', 'canceled', 'issue', 'warranty') THEN v_order_status
     WHEN p_status = 'confirmed' THEN 'reservation_confirmed'
     ELSE 'reservation_pending'
   END;
 
   UPDATE public.orders
-  SET status = v_next_order_status,
-      scheduled_date = p_reserved_date
+  SET status = v_next_order_status::public.order_status
   WHERE id = p_order_id;
 
   UPDATE public.jobs

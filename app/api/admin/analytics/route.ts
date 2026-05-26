@@ -56,7 +56,7 @@ export async function GET(request: Request) {
 
   const [orders, paidOrders, diagnoses, events, warrantyJobs] = await Promise.all([
     measure("api.admin.analytics.countOrders", () => supabase.from("orders").select("id", { count: "exact", head: true }).gte("created_at", since)),
-    measure("api.admin.analytics.countPaidOrders", () => supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "paid").gte("created_at", since)),
+    measure("api.admin.analytics.countPaidOrders", () => supabase.from("orders").select("id", { count: "exact", head: true }).in("status", ["paid", "product_paid"]).gte("created_at", since)),
     measure("api.admin.analytics.fetchDiagnoses", () => supabase.from("diagnoses").select("result").gte("created_at", since)),
     measure("api.admin.analytics.fetchEvents", () => supabase
       .from("events")

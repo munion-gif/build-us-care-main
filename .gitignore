@@ -25,6 +25,7 @@ screenshots/
 .codex/
 .codex-logs/
 .lazyweb/
+supabase/.temp/
 
 # Local HTML captures
 local-*.html

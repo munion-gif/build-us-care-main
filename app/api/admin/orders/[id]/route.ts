@@ -158,7 +158,7 @@ export async function PATCH(request: Request, context: Context) {
       updates.push(insertJobStatusLog(supabase, activeJob.id, activeJob.status ?? null, nextJobStatus, "관리자 예약 수정"));
     }
 
-    if (!orderPatch.status && ["paid", "scheduled"].includes(String(current.status))) {
+    if (!orderPatch.status && ["paid", "product_paid", "scheduled"].includes(String(current.status))) {
       updates.push(supabase.from("orders").update({ status: current.status }).eq("id", orderId.data));
     }
   }

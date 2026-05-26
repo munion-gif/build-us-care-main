@@ -18,8 +18,7 @@ import {
   getProductLaborPrice,
   getReplacementProductCatalog,
   replacementProductSnapshot,
-  type ReplacementProduct,
-  type ReplacementProductGroup
+  type ReplacementProduct
 } from "@/lib/replacement-products";
 import { getSessionId, getUtmParams } from "@/lib/tracking";
 import { useTracking } from "@/lib/use-tracking";
@@ -34,7 +33,7 @@ type QuoteDetailClientProps = {
 
 type TossPaymentClient = {
   requestPayment: (params: {
-    method: "CARD";
+    method: "CARD" | "TRANSFER";
     amount: { currency: "KRW"; value: number };
     orderId: string;
     orderName: string;
@@ -62,6 +61,7 @@ type AddressForm = {
 };
 
 type SlotPeriod = "morning" | "afternoon";
+type PaymentMethod = "CARD" | "TRANSFER";
 type SlotsByDate = Record<string, SlotPeriod[]>;
 type SlotDay = {
   date: string;
@@ -84,6 +84,8 @@ type PreviousOrder = {
 
 const VISIT_FEE = 15000;
 const MAX_REPLACEMENT_PRODUCT_QTY = 20;
+const PRODUCT_RECOMMEND_LABEL_ORDER = ["가성비", "인기", "프리미엄"];
+const PREFERRED_BRANDS = ["대림", "도비도스", "아메리칸스탠다드", "이누스"];
 const PRODUCT_PRICE_FILTERS = [
   { id: "all", label: "전체 가격대", min: 0, max: Number.POSITIVE_INFINITY },
   { id: "under-200000", label: "20만원 미만", min: 0, max: 200000 },
@@ -181,7 +183,21 @@ type PaymentReady = {
   orderId: string;
   accessToken: string;
   totalFinal: number;
+  paymentAmount: number;
+  onsiteAmount: number;
   orderName: string;
+};
+
+type PreparedPayment = {
+  orderId: string;
+  internalOrderId: string;
+  accessToken?: string;
+  orderName: string;
+  amount: number;
+  productAmount: number;
+  serviceFeeAmount: number;
+  totalAmount: number;
+  onsitePaymentAmount: number;
 };
 
 function normalizeDraftAddress(value: Partial<AddressForm> | undefined): AddressForm {
@@ -214,26 +230,35 @@ function replacementProductMetadata(product: ReplacementProduct) {
   };
 }
 
-function defaultReplacementProduct(catalog: ReturnType<typeof getReplacementProductCatalog>) {
-  if (!catalog) return null;
-  return (
-    catalog.products
-      .filter((product) => typeof product.price === "number")
-      .sort((a, b) => (a.price ?? Number.POSITIVE_INFINITY) - (b.price ?? Number.POSITIVE_INFINITY))[0] ??
-    catalog.groups[0]?.products[0] ??
-    null
-  );
+function matchesProductFilters(product: ReplacementProduct, brandFilter: string, priceFilter: ProductPriceFilterId) {
+  const activePriceFilter = PRODUCT_PRICE_FILTERS.find((filter) => filter.id === priceFilter) ?? PRODUCT_PRICE_FILTERS[0];
+  const brandMatches = brandFilter === "all" || product.brand === brandFilter;
+  const priceMatches =
+    priceFilter === "all" ||
+    (typeof product.price === "number" && product.price >= activePriceFilter.min && product.price < activePriceFilter.max);
+  return brandMatches && priceMatches;
+}
+
+function sortedBrandOptions(products: ReplacementProduct[]) {
+  const brands = Array.from(new Set(products.map((product) => product.brand).filter(Boolean)));
+  return brands.sort((a, b) => {
+    const aIndex = PREFERRED_BRANDS.indexOf(a);
+    const bIndex = PREFERRED_BRANDS.indexOf(b);
+    if (aIndex !== -1 || bIndex !== -1) {
+      return (aIndex === -1 ? Number.POSITIVE_INFINITY : aIndex) - (bIndex === -1 ? Number.POSITIVE_INFINITY : bIndex);
+    }
+    return a.localeCompare(b, "ko");
+  });
+}
+
+function recommendationSortValue(product: ReplacementProduct) {
+  const index = PRODUCT_RECOMMEND_LABEL_ORDER.indexOf(product.recommendLabel ?? "");
+  return index === -1 ? PRODUCT_RECOMMEND_LABEL_ORDER.length : index;
 }
 
 export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl }: QuoteDetailClientProps) {
-  const initialProductCatalog = getReplacementProductCatalog(service.service_type_code);
-  const initialProduct = defaultReplacementProduct(initialProductCatalog);
   const [productGrade, setProductGrade] = useState<"standard" | "premium">(preset.product);
-  const [productCategoryId, setProductCategoryId] = useState<string>(() => initialProduct?.categoryId ?? initialProductCatalog?.groups[0]?.id ?? "");
-  const [productQuantities, setProductQuantities] = useState<Record<string, number>>(() => {
-    const firstProductId = initialProduct?.id;
-    return firstProductId ? { [firstProductId]: 1 } : {};
-  });
+  const [productQuantities, setProductQuantities] = useState<Record<string, number>>({});
   const [selectedAddons, setSelectedAddons] = useState<string[]>(preset.addons.filter((sku) => addons.some((addon) => addon.sku === sku)));
   const [files, setFiles] = useState<File[]>([]);
   const [address, setAddress] = useState<AddressForm>({ road_address: "", detail_address: "", postal_code: "" });
@@ -256,6 +281,7 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [activeFormStep, setActiveFormStep] = useState(0);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CARD");
   const addressSectionRef = useRef<HTMLElement | null>(null);
   const { track } = useTracking();
   const kakaoChatUrl = getKakaoChannelChatUrl(kakaoUrl);
@@ -265,7 +291,6 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
   const selectedMaterial = productGrade === "premium" ? premiumMaterial : standardMaterial;
   const productCatalog = useMemo(() => getReplacementProductCatalog(service.service_type_code), [service.service_type_code]);
   const showProductCatalog = Boolean(productCatalog);
-  const activeProductGroup = productCatalog?.groups.find((group) => group.id === productCategoryId) ?? productCatalog?.groups[0];
   const selectedProductItems = useMemo(
     () =>
       productCatalog
@@ -287,6 +312,8 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
   const displayedStartPrice = startLaborPrice + startProductPrice;
   const serviceLaborTotal = showProductCatalog ? serviceLaborPrice * totalProductQty : serviceLaborPrice;
   const total = serviceLaborTotal + selectedProductPrice + addonTotal + quoteVisitFee;
+  const onlinePaymentTotal = showProductCatalog ? selectedProductPrice : total;
+  const onsitePaymentTotal = showProductCatalog ? serviceLaborTotal : 0;
   const laborPriceHelp = showProductCatalog ? `${service.display_name} 기본 시공비` : "기본 시공비와 방문비 포함";
   const todayIso = toIsoDate(new Date());
   const minSelectableDate = minReservationIsoDate();
@@ -309,10 +336,17 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
     [selectedAddonItems, selectedMaterial?.sku, showProductCatalog]
   );
   const selectedProductSummaryText = selectedProductItems.length === 0
-    ? service.display_name
+    ? `${service.display_name} · 제품 선택 전`
     : selectedProductItems.length === 1
       ? `${service.display_name} · ${selectedProductItems[0].product.model}`
       : `${service.display_name} · ${selectedProductItems.length}개 제품 / 총 ${totalProductQty}개`;
+  const productSelectionReady = !showProductCatalog || selectedProductItems.length > 0;
+  const displayTotal = showProductCatalog && !productSelectionReady ? "제품 선택 후 계산" : won(onlinePaymentTotal);
+  const mobileSummaryLabel = showProductCatalog
+    ? productSelectionReady
+      ? `선택 제품 ${totalProductQty}개`
+      : "제품을 선택해주세요"
+    : service.display_name;
   const orderFingerprint = useMemo(
     () =>
       JSON.stringify({
@@ -341,10 +375,6 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
     return slotsByDate[dateText] ?? ["morning", "afternoon"];
   };
 
-  function handleProductCategoryChange(categoryId: string) {
-    setProductCategoryId(categoryId);
-  }
-
   function replaceProduct(productId: string) {
     setProductQuantities({ [productId]: 1 });
   }
@@ -353,9 +383,7 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
     setProductQuantities((current) => {
       const nextQty = Math.max(0, Math.min(MAX_REPLACEMENT_PRODUCT_QTY, Math.floor(qty)));
       const next = { ...current };
-      const currentlySelectedCount = Object.values(current).filter((value) => value > 0).length;
       if (nextQty <= 0) {
-        if (currentlySelectedCount <= 1 && (current[productId] ?? 0) > 0) return current;
         delete next[productId];
         return next;
       }
@@ -371,22 +399,15 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
 
   useEffect(() => {
     if (!productCatalog) return;
-    const defaultProduct = defaultReplacementProduct(productCatalog);
-    const firstGroup = defaultProduct ? productCatalog.groups.find((group) => group.id === defaultProduct.categoryId) : productCatalog.groups[0];
-    if (firstGroup && !productCatalog.groups.some((group) => group.id === productCategoryId)) {
-      setProductCategoryId(firstGroup.id);
-    }
     setProductQuantities((current) => {
       const validProductIds = new Set(productCatalog.products.map((product) => product.id));
       const next: Record<string, number> = {};
       for (const [productId, qty] of Object.entries(current)) {
         if (validProductIds.has(productId) && qty > 0) next[productId] = qty;
       }
-      if (Object.keys(next).length > 0) return next;
-      const firstProductId = defaultProduct?.id ?? firstGroup?.products[0]?.id;
-      return firstProductId ? { [firstProductId]: 1 } : {};
+      return next;
     });
-  }, [productCatalog, productCategoryId]);
+  }, [productCatalog]);
 
   useEffect(() => {
     if (hasRequiredBasicInfo) {
@@ -462,7 +483,6 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
         const draftProduct = productCatalog.products.find((product) => product.id === draftProductId);
         if (draftProduct) {
           setProductQuantities({ [draftProduct.id]: 1 });
-          setProductCategoryId(draftProduct.categoryId);
         }
       }
       if (draft.selectedAddons) setSelectedAddons(draft.selectedAddons.filter((sku) => addons.some((addon) => addon.sku === sku)));
@@ -611,7 +631,7 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
     setFieldErrors({});
     if (!service.standardizable) throw new Error("상담이 필요한 시공입니다. 카톡 상담으로 이어갈게요.");
     if (showProductCatalog && selectedProductItems.length === 0) {
-      throw new Error(`교체할 ${productCatalog?.customConsultLabel ?? "제품"}을 1개 이상 선택해주세요.`);
+      throw new Error(`${productCatalog?.customConsultLabel ?? "제품"} 제품을 1개 이상 선택해주세요.`);
     }
 
     const rawPaymentDraft = sessionStorage.getItem(quotePaymentStorageKey(service.service_type_code));
@@ -619,7 +639,7 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
       try {
         const paymentDraft = JSON.parse(rawPaymentDraft) as PaymentReady & { fingerprint?: string; updatedAt?: number };
         const isFresh = paymentDraft.updatedAt ? Date.now() - paymentDraft.updatedAt < 60 * 60 * 1000 : false;
-        if (isFresh && paymentDraft.fingerprint === orderFingerprint) {
+        if (isFresh && paymentDraft.fingerprint === orderFingerprint && typeof paymentDraft.paymentAmount === "number") {
           return paymentDraft;
         }
       } catch {
@@ -755,6 +775,8 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
       orderId,
       accessToken,
       totalFinal: quote.quote.total_final as number,
+      paymentAmount: showProductCatalog ? selectedProductPrice : quote.quote.total_final as number,
+      onsiteAmount: showProductCatalog ? serviceLaborTotal : 0,
       orderName: showProductCatalog ? selectedProductSummaryText : service.display_name
     };
 
@@ -766,9 +788,23 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
     return paymentReady;
   }
 
+  async function preparePayment(orderId: string): Promise<PreparedPayment> {
+    const prepared = await requestJson("/api/payments/prepare", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId })
+    }) as PreparedPayment;
+
+    if (Number(prepared.amount) !== Number(prepared.productAmount)) {
+      throw new Error("결제 금액 확인에 실패했어요. 제품값만 결제되도록 다시 시도해주세요.");
+    }
+
+    return prepared;
+  }
+
   async function handlePayment() {
     setLoading(true);
-    setMessage(mockPaymentMode ? "주문과 견적을 준비하고 테스트 결제를 승인하고 있어요." : "주문과 견적을 준비하고 토스 결제창을 열고 있어요.");
+    setMessage(mockPaymentMode ? "제품값 결제 정보를 준비하고 테스트 결제를 승인하고 있어요." : "제품값 결제 정보를 준비하고 토스 결제창을 열고 있어요.");
     try {
       const tossClientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY;
       if (!mockPaymentMode && !tossClientKey) {
@@ -776,21 +812,30 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
       }
 
       const paymentReady = await createOrderAndQuote();
+      const preparedPayment = await preparePayment(paymentReady.orderId);
       void track(
         EVENT_TYPES.PAYMENT_STARTED,
-        { service_code: service.service_type_code, amount: paymentReady.totalFinal, mock: mockPaymentMode },
+        {
+          service_code: service.service_type_code,
+          amount: preparedPayment.amount,
+          product_amount: preparedPayment.productAmount,
+          total_final: preparedPayment.totalAmount,
+          onsite_amount: preparedPayment.onsitePaymentAmount,
+          mock: mockPaymentMode,
+          method: paymentMethod
+        },
         { orderId: paymentReady.orderId }
       );
 
       if (mockPaymentMode) {
-        const response = await fetch("/api/payments/toss/confirm", {
+        const paymentKey = `mock-${preparedPayment.orderId}`;
+        const response = await fetch("/api/payments/confirm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            orderId: paymentReady.orderId,
-            paymentKey: `mock-${paymentReady.orderId}`,
-            amount: paymentReady.totalFinal,
-            orderName: paymentReady.orderName
+            orderId: preparedPayment.orderId,
+            paymentKey,
+            amount: preparedPayment.amount
           })
         });
         const json = await response.json().catch(() => null);
@@ -801,8 +846,14 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
 
         sessionStorage.removeItem(quotePaymentStorageKey(service.service_type_code));
 
-        const params = new URLSearchParams({ accessToken: paymentReady.accessToken });
-        window.location.assign(`/orders/${paymentReady.orderId}?${params.toString()}`);
+        const params = new URLSearchParams({
+          paymentKey,
+          orderId: preparedPayment.orderId,
+          amount: String(preparedPayment.amount),
+          accessToken: paymentReady.accessToken,
+          serviceCode: service.service_type_code
+        });
+        window.location.assign(`/payment/success?${params.toString()}`);
         return;
       }
 
@@ -819,25 +870,27 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
       const tossPayments = window.TossPayments(tossClientKey);
       const payment = tossPayments.payment({ customerKey: paymentReady.orderId });
       const origin = window.location.origin;
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || origin;
       const successParams = new URLSearchParams({
         accessToken: paymentReady.accessToken,
-        toss: "success",
-        orderId: paymentReady.orderId,
-        amount: String(paymentReady.totalFinal),
         serviceCode: service.service_type_code
+      });
+      const failParams = new URLSearchParams({
+        serviceCode: service.service_type_code,
+        internalOrderId: paymentReady.orderId
       });
 
       await payment.requestPayment({
-        method: "CARD",
-        amount: { currency: "KRW", value: paymentReady.totalFinal },
-        orderId: paymentReady.orderId,
-        orderName: paymentReady.orderName,
+        method: paymentMethod,
+        amount: { currency: "KRW", value: preparedPayment.amount },
+        orderId: preparedPayment.orderId,
+        orderName: preparedPayment.orderName,
         customerName: customerName.trim(),
         customerMobilePhone: normalizePhone(customerPhone),
-        successUrl: `${origin}/orders/${paymentReady.orderId}?${successParams.toString()}`,
-        failUrl: `${origin}/quote/${service.service_type_code}?toss=fail&orderId=${paymentReady.orderId}`,
-        windowTarget: /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent) ? "self" : "iframe",
-        card: { flowMode: "DEFAULT" }
+        successUrl: `${baseUrl}/payment/success?${successParams.toString()}`,
+        failUrl: `${baseUrl}/payment/fail?${failParams.toString()}`,
+        windowTarget: "self",
+        ...(paymentMethod === "CARD" ? { card: { flowMode: "DEFAULT" as const } } : {})
       });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "결제에 실패했어요. 다시 시도해주세요.");
@@ -887,13 +940,10 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
         )}
       </section>
 
-      {productCatalog && activeProductGroup && (
+      {productCatalog && (
           <ReplacementProductCatalog
             catalog={productCatalog}
-            activeCategoryId={productCategoryId}
-            activeGroup={activeProductGroup}
             selectedQuantities={productQuantities}
-            onCategoryChange={handleProductCategoryChange}
             onProductReplace={replaceProduct}
             onQuantityChange={setProductQty}
             onQuantityDelta={changeProductQty}
@@ -1199,7 +1249,7 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
           </section>
 
           <QuoteStickySummary
-            total={won(total)}
+            total={displayTotal}
             serviceName={showProductCatalog ? selectedProductSummaryText : service.display_name}
             date={date}
             slot={slot}
@@ -1209,6 +1259,14 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
             mockPaymentMode={mockPaymentMode}
             loading={loading}
             onPayment={() => handlePayment()}
+            selectionReady={productSelectionReady}
+            selectionMessage={`${productCatalog?.customConsultLabel ?? "제품"} 제품을 먼저 선택해주세요.`}
+            mobileSummaryLabel={mobileSummaryLabel}
+            summaryTitle={showProductCatalog ? "제품값 선결제" : "결제 요약"}
+            paymentButtonLabel={showProductCatalog && productSelectionReady ? `제품값 ${won(onlinePaymentTotal)} 결제하기` : `${displayTotal} 결제하기`}
+            paymentReadyMessage={showProductCatalog ? "제품값만 먼저 결제합니다. 시공비는 시공 완료 후 현장에서 결제합니다." : "결제 후 방문 일정이 확정됩니다."}
+            paymentMethod={paymentMethod}
+            onPaymentMethodChange={setPaymentMethod}
             productSelection={
               showProductCatalog ? (
                 <div className="sticky-selected-products" aria-label="선택 제품 목록">
@@ -1216,27 +1274,47 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
                     <span>선택 제품</span>
                     <strong>총 {totalProductQty}개</strong>
                   </div>
-                  {selectedProductItems.map(({ product, qty }) => (
-                    <div className="sticky-selected-product-row" key={product.id}>
-                      <div>
-                        <strong>
-                          {product.brand} {product.model}
-                        </strong>
-                        <small>
-                          {won(product.price ?? 0)} + 시공비 {won(serviceLaborPrice)}
-                        </small>
+                  {selectedProductItems.length === 0 ? (
+                    <p className="sticky-selected-empty">제품을 선택해주세요.</p>
+                  ) : (
+                    selectedProductItems.map(({ product, qty }) => (
+                      <div className="sticky-selected-product-row" key={product.id}>
+                        <div>
+                          <strong>
+                            {product.brand} {product.model}
+                          </strong>
+                          <small>
+                            제품가 {won(product.price ?? 0)} · 시공비 {won(serviceLaborPrice)} · 수량 {qty}
+                          </small>
+                        </div>
+                        <div className="quantity-control" aria-label={`${product.model} 수량`}>
+                          <button type="button" onClick={() => changeProductQty(product.id, -1)} aria-label={`${product.model} 수량 줄이기`}>
+                            -
+                          </button>
+                          <span>{qty}</span>
+                          <button type="button" onClick={() => changeProductQty(product.id, 1)} aria-label={`${product.model} 수량 늘리기`}>
+                            +
+                          </button>
+                        </div>
                       </div>
-                      <div className="quantity-control" aria-label={`${product.model} 수량`}>
-                        <button type="button" onClick={() => changeProductQty(product.id, -1)} aria-label={`${product.model} 수량 줄이기`}>
-                          -
-                        </button>
-                        <span>{qty}</span>
-                        <button type="button" onClick={() => changeProductQty(product.id, 1)} aria-label={`${product.model} 수량 늘리기`}>
-                          +
-                        </button>
+                    ))
+                  )}
+                  {selectedProductItems.length > 0 && (
+                    <div className="sticky-payment-breakdown" aria-label="결제 금액 구분">
+                      <div>
+                        <span>제품값 선결제</span>
+                        <strong>{won(selectedProductPrice)}</strong>
+                      </div>
+                      <div>
+                        <span>시공비 현장결제</span>
+                        <strong>{won(onsitePaymentTotal)}</strong>
+                      </div>
+                      <div>
+                        <span>예상 총액</span>
+                        <strong>{won(total)}</strong>
                       </div>
                     </div>
-                  ))}
+                  )}
                 </div>
               ) : null
             }
@@ -1249,168 +1327,247 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
 
 function ReplacementProductCatalog({
   catalog,
-  activeCategoryId,
-  activeGroup,
   selectedQuantities,
-  onCategoryChange,
   onProductReplace,
   onQuantityChange,
   onQuantityDelta
 }: {
   catalog: NonNullable<ReturnType<typeof getReplacementProductCatalog>>;
-  activeCategoryId: string;
-  activeGroup: ReplacementProductGroup;
   selectedQuantities: Record<string, number>;
-  onCategoryChange: (categoryId: string) => void;
   onProductReplace: (productId: string) => void;
   onQuantityChange: (productId: string, qty: number) => void;
   onQuantityDelta: (productId: string, delta: number) => void;
 }) {
   const totalCount = catalog.groups.reduce((sum, group) => sum + group.count, 0);
   const selectedProductCount = Object.values(selectedQuantities).filter((qty) => qty > 0).length;
+  const [productScope, setProductScope] = useState("all");
   const [brandFilter, setBrandFilter] = useState("all");
   const [priceFilter, setPriceFilter] = useState<ProductPriceFilterId>("all");
-  const brandOptions = useMemo(
-    () => Array.from(new Set(activeGroup.products.map((product) => product.brand).filter(Boolean))).sort((a, b) => a.localeCompare(b, "ko")),
-    [activeGroup.products]
+  const brandOptions = useMemo(() => sortedBrandOptions(catalog.products), [catalog.products]);
+  const recommendedProducts = useMemo(
+    () =>
+      catalog.products
+        .filter((product) => product.isRecommended || product.recommendLabel)
+        .sort((a, b) => recommendationSortValue(a) - recommendationSortValue(b))
+        .slice(0, 3),
+    [catalog.products]
   );
-  const activePriceFilter = PRODUCT_PRICE_FILTERS.find((filter) => filter.id === priceFilter) ?? PRODUCT_PRICE_FILTERS[0];
-  const filteredProducts = activeGroup.products.filter((product) => {
-    const brandMatches = brandFilter === "all" || product.brand === brandFilter;
-    const priceMatches =
-      priceFilter === "all" ||
-      (typeof product.price === "number" && product.price >= activePriceFilter.min && product.price < activePriceFilter.max);
-    return brandMatches && priceMatches;
+  const filteredRecommendedProducts = recommendedProducts.filter((product) => matchesProductFilters(product, brandFilter, priceFilter));
+  const groupViews = catalog.groups.map((group) => {
+    const products = group.products.filter((product) => matchesProductFilters(product, brandFilter, priceFilter));
+    const prices = products.map((product) => product.price).filter((price): price is number => typeof price === "number");
+    return {
+      ...group,
+      products,
+      filteredCount: products.length,
+      filteredMinPrice: prices.length > 0 ? Math.min(...prices) : null
+    };
   });
+  const filteredTotalCount = groupViews.reduce((sum, group) => sum + group.filteredCount, 0);
+  const activeGroupView = groupViews.find((group) => group.id === productScope);
+  const scopedProducts =
+    productScope === "recommended"
+      ? filteredRecommendedProducts
+      : productScope === "all"
+        ? groupViews.flatMap((group) => group.products)
+        : activeGroupView?.products ?? [];
+  const scopedTitle =
+    productScope === "recommended"
+      ? "추천 제품"
+      : productScope === "all"
+        ? "전체 제품"
+        : activeGroupView?.name ?? "제품 목록";
+  const scopedDescription =
+    productScope === "recommended"
+      ? "빠르게 고르기 좋은 대표 제품입니다."
+      : productScope === "all"
+        ? "선택한 브랜드와 가격대 조건에 맞는 전체 제품입니다."
+        : activeGroupView?.summary ?? "선택한 조건에 맞는 제품입니다.";
+
+  function scrollToProductSection(id: string) {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function selectProductScope(scope: string) {
+    setProductScope(scope);
+    window.requestAnimationFrame(() => scrollToProductSection("product-results"));
+  }
 
   useEffect(() => {
+    setProductScope("all");
     setBrandFilter("all");
     setPriceFilter("all");
-  }, [activeCategoryId]);
+  }, [catalog.serviceCode]);
 
   return (
-    <section className="quote-section toilet-product-catalog">
+    <section className="quote-section toilet-product-catalog" id="product-catalog-top">
       <div className="section-title-row">
         <h2>{catalog.title}</h2>
         <span>제품 {totalCount}개</span>
       </div>
       <p className="data-guide-text">{catalog.sourceNote}</p>
 
-      <div className="toilet-category-grid" role="tablist" aria-label={`${catalog.customConsultLabel} 종류`}>
+      <div className="product-index-chips" aria-label={`${catalog.customConsultLabel} 제품 목차`}>
+        <button type="button" className={productScope === "all" ? "active" : ""} onClick={() => selectProductScope("all")}>
+          전체 {filteredTotalCount}개
+        </button>
+        <button type="button" className={productScope === "recommended" ? "active" : ""} onClick={() => selectProductScope("recommended")}>
+          추천 {filteredRecommendedProducts.length}
+        </button>
         {catalog.groups.map((group) => (
-          <button
-            key={group.id}
-            type="button"
-            role="tab"
-            aria-selected={activeCategoryId === group.id}
-            className={activeCategoryId === group.id ? "selected" : ""}
-            onClick={() => onCategoryChange(group.id)}
-          >
-            <span>{group.name}</span>
-            <strong>{group.minPrice ? `${won(group.minPrice)}~` : "가격 확인"}</strong>
-            <small>
-              {group.count}개 모델 · {group.decisionHint}
-            </small>
+          <button key={group.id} type="button" className={productScope === group.id ? "active" : ""} onClick={() => selectProductScope(group.id)}>
+            {group.name} {groupViews.find((view) => view.id === group.id)?.filteredCount ?? group.count}
           </button>
         ))}
       </div>
 
-      <div className="toilet-category-copy">
-        <strong>{activeGroup.name}</strong>
-        <p>{activeGroup.summary}</p>
-      </div>
-
       <div className="toilet-filter-row" aria-label={`${catalog.customConsultLabel} 제품 필터`}>
-        <label>
+        <div className="filter-chip-group" aria-label="브랜드 필터">
           <span>브랜드</span>
-          <select value={brandFilter} onChange={(event) => setBrandFilter(event.target.value)}>
-            <option value="all">전체 브랜드</option>
-            {brandOptions.map((brand) => (
-              <option key={brand} value={brand}>
-                {brand}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
+          <button type="button" className={brandFilter === "all" ? "active" : ""} onClick={() => setBrandFilter("all")}>
+            전체
+          </button>
+          {brandOptions.map((brand) => (
+            <button key={brand} type="button" className={brandFilter === brand ? "active" : ""} onClick={() => setBrandFilter(brand)}>
+              {brand}
+            </button>
+          ))}
+        </div>
+        <div className="filter-chip-group" aria-label="가격대 필터">
           <span>가격대</span>
-          <select value={priceFilter} onChange={(event) => setPriceFilter(event.target.value as ProductPriceFilterId)}>
-            {PRODUCT_PRICE_FILTERS.map((filter) => (
-              <option key={filter.id} value={filter.id}>
-                {filter.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <strong>{filteredProducts.length}개 제품</strong>
+          {PRODUCT_PRICE_FILTERS.map((filter) => (
+            <button key={filter.id} type="button" className={priceFilter === filter.id ? "active" : ""} onClick={() => setPriceFilter(filter.id)}>
+              {filter.label.replace("전체 가격대", "전체")}
+            </button>
+          ))}
+        </div>
+        <strong>{scopedProducts.length}개 제품</strong>
       </div>
 
-      {filteredProducts.length === 0 ? (
-        <div className="toilet-filter-empty">조건에 맞는 제품이 없습니다. 브랜드나 가격대를 다시 선택해주세요.</div>
-      ) : (
-        <div className="toilet-product-grid">
-          {filteredProducts.map((product) => {
-          const qty = selectedQuantities[product.id] ?? 0;
-          const selected = qty > 0;
-          const priceAvailable = typeof product.price === "number";
-          return (
-            <article key={product.id} className={selected ? "toilet-product-card selected" : "toilet-product-card"}>
-              <div className={product.image ? "toilet-product-image" : "toilet-product-image empty"}>
-                {product.image ? (
-                  <img src={product.image} alt={`${product.brand} ${product.model}`} loading="lazy" />
-                ) : (
-                  <span>이미지 확인 필요</span>
-                )}
-              </div>
-              <div className="toilet-product-body">
-                <div className="toilet-product-meta">
-                  <span>{product.brand}</span>
-                  {selected && <b className="selected-badge">선택됨</b>}
-                </div>
-                <h3>{product.model}</h3>
-                <strong className="toilet-product-price">{product.price ? won(product.price) : "가격 확인 필요"}</strong>
-                <p className="toilet-product-sku">
-                  품번 <span>{product.sku}</span>
-                </p>
-                <p>{product.note}</p>
-                <div className="toilet-card-actions">
-                  {selected ? (
-                    <>
-                      {selectedProductCount > 1 && (
-                        <button type="button" className="toilet-replace-button" onClick={() => onProductReplace(product.id)}>
-                          이것만 선택
-                        </button>
-                      )}
-                      <div className="quantity-control" aria-label={`${product.model} 수량`}>
-                        <button type="button" onClick={() => onQuantityDelta(product.id, -1)} aria-label={`${product.model} 수량 줄이기`}>
-                          -
-                        </button>
-                        <span>{qty}</span>
-                        <button type="button" onClick={() => onQuantityDelta(product.id, 1)} aria-label={`${product.model} 수량 늘리기`}>
-                          +
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <button type="button" className="toilet-replace-button primary" disabled={!priceAvailable} onClick={() => onProductReplace(product.id)}>
-                        {priceAvailable ? "선택" : "상담 필요"}
-                      </button>
-                      {priceAvailable && (
-                        <button type="button" className="toilet-add-button" onClick={() => onQuantityChange(product.id, 1)}>
-                          추가
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            </article>
-          );
-          })}
-        </div>
+      {filteredTotalCount === 0 && <div className="toilet-filter-empty">조건에 맞는 제품이 없습니다. 브랜드나 가격대를 다시 선택해주세요.</div>}
+
+      {productScope === "all" && filteredRecommendedProducts.length > 0 && (
+        <section className="recommended-products" id="product-recommendations" aria-label="추천 제품">
+          <div className="product-subsection-title">
+            <strong>추천 제품</strong>
+            <span>사진 확인 전 빠르게 비교하기 좋은 3가지 선택지</span>
+          </div>
+          <div className="recommended-product-grid">
+            {filteredRecommendedProducts.map((product) => (
+              <ReplacementProductCard
+                key={product.id}
+                product={product}
+                qty={selectedQuantities[product.id] ?? 0}
+                selectedProductCount={selectedProductCount}
+                recommended
+                onProductReplace={onProductReplace}
+                onQuantityChange={onQuantityChange}
+                onQuantityDelta={onQuantityDelta}
+              />
+            ))}
+          </div>
+        </section>
       )}
+
+      <section className="product-results" id="product-results" aria-label={`${catalog.customConsultLabel} 제품 목록`}>
+        <div className="product-subsection-title">
+          <strong>{scopedTitle}</strong>
+          <span>{scopedDescription}</span>
+        </div>
+        {scopedProducts.length === 0 ? (
+          <div className="toilet-filter-empty">조건에 맞는 제품이 없습니다. 다른 브랜드나 가격대를 선택해주세요.</div>
+        ) : (
+          <div className="toilet-product-grid">
+            {scopedProducts.map((product) => (
+              <ReplacementProductCard
+                key={product.id}
+                product={product}
+                qty={selectedQuantities[product.id] ?? 0}
+                selectedProductCount={selectedProductCount}
+                recommended={productScope === "recommended"}
+                onProductReplace={onProductReplace}
+                onQuantityChange={onQuantityChange}
+                onQuantityDelta={onQuantityDelta}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
     </section>
+  );
+}
+
+function ReplacementProductCard({
+  product,
+  qty,
+  selectedProductCount,
+  recommended = false,
+  onProductReplace,
+  onQuantityChange,
+  onQuantityDelta
+}: {
+  product: ReplacementProduct;
+  qty: number;
+  selectedProductCount: number;
+  recommended?: boolean;
+  onProductReplace: (productId: string) => void;
+  onQuantityChange: (productId: string, qty: number) => void;
+  onQuantityDelta: (productId: string, delta: number) => void;
+}) {
+  const selected = qty > 0;
+  const priceAvailable = typeof product.price === "number";
+
+  return (
+    <article className={[selected ? "toilet-product-card selected" : "toilet-product-card", recommended ? "recommended" : ""].filter(Boolean).join(" ")}>
+      <div className={product.image ? "toilet-product-image" : "toilet-product-image empty"}>
+        {product.image ? <img src={product.image} alt={`${product.brand} ${product.model}`} loading="lazy" /> : <span>이미지 확인 필요</span>}
+      </div>
+      <div className="toilet-product-body">
+        <div className="toilet-product-meta">
+          <span>{product.brand}</span>
+          {product.recommendLabel && <b className="recommend-badge">{product.recommendLabel}</b>}
+          {selected && <b className="selected-badge">선택됨</b>}
+        </div>
+        <h3>{product.model}</h3>
+        <strong className="toilet-product-price">{priceAvailable ? won(product.price ?? 0) : "가격 확인 필요"}</strong>
+        <p className="toilet-product-sku">
+          품번 <span>{product.sku}</span>
+        </p>
+        <p>{recommended && product.recommendDescription ? product.recommendDescription : product.note}</p>
+        <div className="toilet-card-actions">
+          {selected ? (
+            <>
+              {selectedProductCount > 1 && (
+                <button type="button" className="toilet-replace-button" onClick={() => onProductReplace(product.id)}>
+                  이 제품만 선택
+                </button>
+              )}
+              <div className="quantity-control" aria-label={`${product.model} 수량`}>
+                <button type="button" onClick={() => onQuantityDelta(product.id, -1)} aria-label={`${product.model} 수량 줄이기`}>
+                  -
+                </button>
+                <span>{qty}</span>
+                <button type="button" onClick={() => onQuantityDelta(product.id, 1)} aria-label={`${product.model} 수량 늘리기`}>
+                  +
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <button type="button" className="toilet-replace-button primary" disabled={!priceAvailable} onClick={() => onProductReplace(product.id)}>
+                {priceAvailable ? "이 제품 선택" : "상담 필요"}
+              </button>
+              {priceAvailable && (
+                <button type="button" className="toilet-add-button" onClick={() => onQuantityChange(product.id, 1)}>
+                  같이 선택
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -1861,112 +2018,100 @@ const quoteCss = `
   }
   .toilet-product-catalog {
     display: grid;
-    gap: 14px;
+    gap: 16px;
+    scroll-margin-top: 78px;
   }
   .toilet-product-catalog .data-guide-text {
     margin: -6px 0 0;
   }
-  .toilet-category-grid {
+  .product-index-chips {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 2px 0 8px;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+  }
+  .product-index-chips button,
+  .filter-chip-group button {
+    min-height: 34px;
+    flex: 0 0 auto;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    padding: 0 13px;
+    background: rgba(255, 250, 241, 0.78);
+    color: var(--color-text);
+    font: inherit;
+    font-size: var(--text-xs);
+    font-weight: 900;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .product-index-chips button:hover,
+  .product-index-chips button.active,
+  .filter-chip-group button:hover,
+  .filter-chip-group button.active {
+    border-color: var(--color-sage);
+    background: var(--color-sage-soft);
+    color: var(--color-primary);
+  }
+  .product-subsection-title {
+    display: grid;
+    gap: 4px;
+  }
+  .product-subsection-title strong {
+    font-size: var(--text-lg);
+  }
+  .product-subsection-title span {
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+  }
+  .recommended-products {
+    display: grid;
+    gap: 12px;
+    scroll-margin-top: 78px;
+  }
+  .product-results {
+    display: grid;
+    gap: 12px;
+    scroll-margin-top: 78px;
+  }
+  .recommended-product-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
   }
-  .toilet-category-grid button {
-    display: grid;
-    gap: 6px;
-    min-height: 112px;
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    padding: 14px;
-    background: var(--color-surface);
-    color: var(--color-text);
-    text-align: left;
-    cursor: pointer;
-  }
-  .toilet-category-grid button.selected {
-    border-color: var(--color-sage);
-    background: var(--color-sage-soft);
-  }
-  .toilet-category-grid span,
   .toilet-product-meta span {
     color: var(--color-primary);
     font-size: var(--text-xs);
     font-weight: 900;
   }
-  .toilet-category-grid strong {
-    font-size: var(--text-lg);
-    line-height: 1.2;
-  }
-  .toilet-category-grid small {
-    color: var(--color-text-muted);
-    font-size: var(--text-xs);
-    line-height: 1.45;
-  }
-  .toilet-category-copy {
-    display: grid;
-    grid-template-columns: minmax(110px, auto) minmax(0, 1fr) auto;
-    gap: 10px 14px;
-    align-items: center;
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    padding: 12px 14px;
-    background: rgba(255, 250, 241, 0.74);
-  }
-  .toilet-category-copy strong {
-    font-size: var(--text-lg);
-  }
-  .toilet-category-copy p {
-    margin: 0;
-    color: var(--color-text-muted);
-    line-height: 1.55;
-  }
-  .toilet-category-copy span {
-    border-radius: 999px;
-    padding: 6px 10px;
-    background: var(--color-primary-highlight);
-    color: var(--color-primary);
-    font-size: var(--text-xs);
-    font-weight: 900;
-    white-space: nowrap;
-  }
   .toilet-filter-row {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
     gap: 10px;
-    align-items: end;
     border: 1px solid var(--color-border);
     border-radius: 8px;
     padding: 12px;
     background: rgba(255, 250, 241, 0.74);
   }
-  .toilet-filter-row label {
-    display: grid;
-    gap: 6px;
-    min-width: 0;
+  .filter-chip-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    align-items: center;
   }
-  .toilet-filter-row label span {
+  .filter-chip-group > span {
+    flex: 0 0 auto;
+    min-width: 46px;
     color: var(--color-text-muted);
-    font-size: var(--text-xs);
+    font-size: 11px;
     font-weight: 900;
   }
-  .toilet-filter-row select {
-    width: 100%;
-    min-height: 44px;
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    padding: 0 12px;
-    background: #fff;
-    color: var(--color-text);
-    font: inherit;
-    font-size: var(--text-sm);
-    font-weight: 850;
-  }
   .toilet-filter-row > strong {
-    padding-bottom: 11px;
     color: var(--color-primary);
     font-size: var(--text-sm);
     font-weight: 950;
-    white-space: nowrap;
   }
   .toilet-filter-empty {
     border: 1px solid var(--color-border);
@@ -2052,6 +2197,19 @@ const quoteCss = `
     background: var(--color-sage-soft);
     box-shadow: inset 0 0 0 2px rgba(184, 138, 43, 0.22), var(--shadow-sm);
   }
+  .recommended-product-grid .toilet-product-card {
+    grid-template-columns: 1fr;
+  }
+  .recommended-product-grid .toilet-product-image {
+    min-height: 178px;
+    border-bottom: 1px solid #f0ece3;
+  }
+  .recommended-product-grid .toilet-product-body {
+    border-left: 0;
+  }
+  .toilet-product-card.recommended {
+    background: linear-gradient(180deg, #fff, rgba(255, 250, 241, 0.88));
+  }
   .toilet-product-image {
     display: grid;
     place-items: center;
@@ -2097,6 +2255,10 @@ const quoteCss = `
   .toilet-product-meta .selected-badge {
     background: var(--color-primary);
     color: var(--color-cream);
+  }
+  .toilet-product-meta .recommend-badge {
+    background: var(--color-gold-wash);
+    color: #6d4d11;
   }
   .toilet-product-card h3 {
     margin: 0;
@@ -2840,9 +3002,87 @@ const quoteCss = `
   .sticky-selected-product-row .quantity-control {
     background: var(--color-surface);
   }
+  .sticky-payment-breakdown {
+    display: grid;
+    gap: 0;
+    border-top: 1px solid var(--color-border);
+    padding-top: 8px;
+  }
+  .sticky-payment-breakdown div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    min-height: 30px;
+  }
+  .sticky-payment-breakdown span {
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-weight: 850;
+  }
+  .sticky-payment-breakdown strong {
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    font-weight: 950;
+  }
+  .sticky-payment-breakdown div:first-child strong {
+    color: var(--color-primary);
+  }
   .sticky-cta p {
     grid-column: 1 / -1;
     font-size: 14px;
+  }
+  .payment-method-options {
+    grid-column: 1 / -1;
+    display: grid;
+    gap: 8px;
+  }
+  .payment-method-option {
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1fr);
+    align-items: center;
+    min-height: 54px;
+    border-radius: 12px;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: 0 14px;
+    cursor: pointer;
+    font-size: var(--text-sm);
+    font-weight: 900;
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  }
+  .payment-method-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .payment-method-check {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border: 2px solid var(--color-border-strong);
+    border-radius: 7px;
+    color: transparent;
+    font-size: 14px;
+    line-height: 1;
+    font-weight: 950;
+  }
+  .payment-method-option.active {
+    border-color: var(--color-primary);
+    background: var(--color-primary-highlight);
+    color: var(--color-text);
+    box-shadow: 0 0 0 1px rgba(33, 32, 27, 0.06);
+  }
+  .payment-method-option.active .payment-method-check {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: #fffaf1;
+  }
+  .payment-method-option:focus-within {
+    outline: 3px solid rgba(199, 146, 42, 0.24);
+    outline-offset: 2px;
   }
   .payment-consent {
     grid-column: 1 / -1;
@@ -2903,22 +3143,14 @@ const quoteCss = `
     cursor: wait;
   }
   @media (max-width: 900px) {
+    .recommended-product-grid {
+      grid-template-columns: 1fr;
+    }
     .toilet-product-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-    .toilet-category-copy {
-      grid-template-columns: minmax(0, 1fr);
-      align-items: start;
-    }
-    .toilet-category-copy span {
-      width: fit-content;
-    }
     .toilet-filter-row {
-      grid-template-columns: 1fr;
       align-items: stretch;
-    }
-    .toilet-filter-row > strong {
-      padding-bottom: 0;
     }
   }
   @media (max-width: 720px) {
@@ -2950,7 +3182,7 @@ const quoteCss = `
     .quote-flow-note ol {
       grid-template-columns: repeat(4, minmax(0, 1fr));
     }
-    .toilet-category-grid,
+    .recommended-product-grid,
     .toilet-product-grid {
       grid-template-columns: 1fr;
     }
@@ -2978,9 +3210,6 @@ const quoteCss = `
     }
     .toilet-product-price {
       font-size: var(--text-lg);
-    }
-    .toilet-category-grid button {
-      min-height: 92px;
     }
     .included-list,
     .grade-grid,
@@ -3911,6 +4140,71 @@ const quoteCss = `
       top: 20px;
       left: calc(100% - 7px);
       font-size: 17px;
+    }
+  }
+  .sticky-sheet-content {
+    display: contents;
+  }
+  .sticky-cta .mobile-summary-toggle {
+    display: none;
+  }
+  .sticky-selected-empty {
+    margin: 0;
+    border-top: 1px solid var(--color-border);
+    padding-top: 8px;
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    font-weight: 900;
+  }
+  @media (max-width: 720px) {
+    .sticky-cta {
+      grid-template-columns: 1fr;
+    }
+    .sticky-cta .mobile-summary-toggle {
+      width: 100%;
+      min-height: 58px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+      border: 1px solid rgba(34, 33, 29, 0.92);
+      border-radius: 12px;
+      padding: 0 14px;
+      background: rgba(34, 33, 29, 0.94);
+      color: var(--color-cream);
+      text-align: left;
+      box-shadow: 0 12px 28px rgba(34, 33, 29, 0.16);
+    }
+    .sticky-cta .mobile-summary-toggle span {
+      min-width: 0;
+      font-size: var(--text-sm);
+      font-weight: 900;
+      overflow-wrap: anywhere;
+    }
+    .sticky-cta .mobile-summary-toggle strong {
+      font-size: var(--text-base);
+      font-weight: 950;
+      white-space: nowrap;
+    }
+    .sticky-cta .sticky-sheet-content {
+      display: none;
+    }
+    .sticky-cta.expanded {
+      max-height: calc(88vh - env(safe-area-inset-bottom));
+      overflow: auto;
+      border-radius: 16px 16px 0 0;
+    }
+    .sticky-cta.expanded .sticky-sheet-content {
+      display: grid;
+      gap: 10px;
+    }
+    .sticky-cta.expanded .sticky-cta-head,
+    .sticky-cta.expanded .sticky-summary,
+    .sticky-cta.expanded .sticky-selected-products {
+      display: grid;
+    }
+    .sticky-cta.expanded .sticky-message {
+      display: block;
     }
   }
 `;

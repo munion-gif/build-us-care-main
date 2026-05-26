@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     supabase
     .from("orders")
     .select("id,jobs(id,technician_id,status)")
-      .eq("status", "paid"),
+      .in("status", ["paid", "product_paid"]),
     supabase
       .from("orders")
       .select("id", { count: "exact", head: true })

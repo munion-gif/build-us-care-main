@@ -31,11 +31,25 @@ export const ORDER_STATUS_UX: Record<OrderStatus, OrderStatusUx> = {
     adminSummary: "결제 진행 여부를 확인해야 합니다.",
     warrantyHint: "아직 A/S 대상 단계가 아닙니다."
   },
+  pending_product_payment: {
+    customerLabel: "제품값 결제 대기",
+    adminLabel: "제품값 결제 대기",
+    customerSummary: "제품값 결제가 완료되면 주문 확인과 방문 안내가 시작됩니다.",
+    adminSummary: "제품값 선결제 진행 여부를 확인해야 합니다.",
+    warrantyHint: "아직 A/S 대상 단계가 아닙니다."
+  },
   paid: {
     customerLabel: "결제 완료",
     adminLabel: "결제 완료",
     customerSummary: "결제가 완료되었습니다. 방문 일정을 조율하고 있어요.",
     adminSummary: "방문 일정과 기사 배정이 필요합니다.",
+    warrantyHint: "A/S는 최종 완료 후 가능합니다."
+  },
+  product_paid: {
+    customerLabel: "제품값 결제 완료",
+    adminLabel: "제품값 결제 완료",
+    customerSummary: "제품값 결제가 완료되었습니다. 시공비는 설치 완료 후 현장에서 결제합니다.",
+    adminSummary: "제품값 결제 완료 주문입니다. 방문 일정과 기사 배정이 필요합니다.",
     warrantyHint: "A/S는 최종 완료 후 가능합니다."
   },
   scheduled: {
@@ -51,6 +65,13 @@ export const ORDER_STATUS_UX: Record<OrderStatus, OrderStatusUx> = {
     customerSummary: "기사님이 현장에서 작업을 진행 중입니다.",
     adminSummary: "작업 결과에 따라 작업 완료 또는 이슈를 기록합니다.",
     warrantyHint: "작업 중에는 A/S 접수가 아니라 이슈로 관리합니다."
+  },
+  installation_completed: {
+    customerLabel: "설치 완료",
+    adminLabel: "설치 완료",
+    customerSummary: "설치가 완료되었습니다. 현장 결제와 최종 확인을 진행합니다.",
+    adminSummary: "시공비 현장 결제와 최종 완료 처리가 필요합니다.",
+    warrantyHint: "최종 완료 후 A/S 접수가 가능합니다."
   },
   completed: {
     customerLabel: "작업 완료 확인 중",
@@ -93,6 +114,13 @@ export const ORDER_STATUS_UX: Record<OrderStatus, OrderStatusUx> = {
     customerSummary: "주문이 취소되었습니다. 필요하면 새로 문의해 주세요.",
     adminSummary: "취소 완료 상태입니다. 결제 완료 상태로 되돌릴 수 없습니다.",
     warrantyHint: "취소된 주문은 A/S 대상이 아닙니다."
+  },
+  refunded: {
+    customerLabel: "환불 완료",
+    adminLabel: "환불 완료",
+    customerSummary: "환불 처리가 완료되었습니다.",
+    adminSummary: "환불 완료 상태입니다. 새 문의가 필요하면 별도 주문으로 처리합니다.",
+    warrantyHint: "환불된 주문은 A/S 대상이 아닙니다."
   },
   submitted: {
     customerLabel: "문의 접수",
