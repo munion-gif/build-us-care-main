@@ -49,10 +49,6 @@ CATEGORY_META = {
         "summary": "상판 위에 올리거나 카운터와 조합하는 디자인형 세면대입니다. 하부장·상판 조건 확인이 필요합니다.",
         "decisionHint": "디자인·파우더룸·하부장 조합 우선",
     },
-    "매립·언더카운터": {
-        "summary": "상판에 매립하거나 아래에서 고정하는 형태입니다. 기존 상판 타공 치수와 고정 방식 확인이 중요합니다.",
-        "decisionHint": "하부장·상판 타공 호환 우선",
-    },
     "세면수전": {
         "summary": "세면대에 설치하는 수전입니다. 원홀·투홀·세면샤워 겸용 여부와 기존 타공 수를 확인해야 합니다.",
         "decisionHint": "욕실 세면대 교체 우선",
@@ -102,6 +98,12 @@ def clean_price(value: object) -> int | None:
 
 def is_popular(note: str) -> bool:
     return "★" in note or "인기" in note or "추천" in note
+
+
+def is_excluded_product(service_code: str, category: str, model: str, sku: str, note: str) -> bool:
+    if service_code == "basin_replace" and "매립" in category:
+        return True
+    return False
 
 
 def rel_targets(zip_file: zipfile.ZipFile) -> dict[str, str]:
@@ -209,6 +211,8 @@ def extract_workbook(spec: WorkbookSpec) -> list[dict[str, object]]:
                     note = clean(ws.cell(row_index, 6).value)
 
                 if not brand or not model or price is None:
+                    continue
+                if is_excluded_product(spec.service_code, category, model, sku, note):
                     continue
 
                 sequence = len(rows) + 1

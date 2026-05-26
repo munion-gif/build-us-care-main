@@ -14,6 +14,9 @@ type PhotoRequestClientProps = {
   kakaoUrl: string | null;
 };
 
+const PHOTO_REQUEST_STEPS = ["작업 선택", "사진 업로드", "접수 확인"];
+const PHOTO_REQUEST_TOTAL_STEPS = PHOTO_REQUEST_STEPS.length;
+
 function normalizePhone(phone: string) {
   return phone.replace(/\D/g, "");
 }
@@ -30,6 +33,7 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
   const [step, setStep] = useState(1);
   const [serviceCode, setServiceCode] = useState("toilet_replace");
   const [files, setFiles] = useState<File[]>([]);
+  const [requestDetail, setRequestDetail] = useState("");
   const [customer, setCustomer] = useState({ name: "", phone: "", kakaoNotice: true });
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -49,12 +53,16 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
       setMessage("사진을 최소 1장 올려주세요.");
       return;
     }
-    if (step === 3 && (!customer.name.trim() || !isValidKoreanMobile(customer.phone))) {
+    if (step === 2 && !requestDetail.trim()) {
+      setMessage("수리 내용을 간단히 적어주세요.");
+      return;
+    }
+    if (step === 2 && (!customer.name.trim() || !isValidKoreanMobile(customer.phone))) {
       setMessage("이름과 010 전화번호를 확인해주세요.");
       return;
     }
     setMessage("");
-    setStep((current) => Math.min(current + 1, 4));
+    setStep((current) => Math.min(current + 1, PHOTO_REQUEST_TOTAL_STEPS));
   }
 
   async function uploadTempPhoto(file: File) {
@@ -90,6 +98,12 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
       if (photos.length === 0) {
         throw new Error("사진을 최소 1장 올려주세요.");
       }
+      if (!requestDetail.trim()) {
+        throw new Error("수리 내용을 간단히 적어주세요.");
+      }
+      if (!customer.name.trim() || !isValidKoreanMobile(customer.phone)) {
+        throw new Error("이름과 010 전화번호를 확인해주세요.");
+      }
 
       for (const file of photos) {
         paths.push(await uploadTempPhoto(file));
@@ -103,7 +117,8 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
           serviceTypeCode: serviceCode === "unknown" ? "toilet_replace" : serviceCode,
           imageUrls: paths,
           name: customer.name.trim(),
-          phone: normalizePhone(customer.phone)
+          phone: normalizePhone(customer.phone),
+          requestDetail: requestDetail.trim()
         })
       });
       const json = await response.json();
@@ -127,8 +142,8 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
       <style>{photoRequestCss}</style>
       <section className="photo-flow">
         <div className="step-indicator" aria-label={`사진확인 ${step}단계`}>
-          <span>step {step}/4</span>
-          {["작업 선택", "사진 업로드", "연락처", "접수 확인"].map((label, index) => {
+          <span>step {step}/{PHOTO_REQUEST_TOTAL_STEPS}</span>
+          {PHOTO_REQUEST_STEPS.map((label, index) => {
             const itemStep = index + 1;
             return (
               <p key={label} className={step === itemStep ? "current" : step > itemStep ? "done" : ""}>
@@ -165,31 +180,50 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
               ))}
             </div>
             <PhotoSlots files={files} onChange={setFiles} />
+            <section className="photo-inline-form" aria-label="수리 내용과 연락처">
+              <label className="field-label">
+                <span>
+                  수리 내용 <b aria-hidden="true">*</b>
+                </span>
+                <small>예: 세면수전과 샤워 욕조수전을 교체하고 싶어요·집 전체 조명을 교체하고 싶어요·수전에서 물에 새요</small>
+                <textarea
+                  value={requestDetail}
+                  onChange={(event) => setRequestDetail(event.target.value)}
+                  placeholder="어떤 부분이 문제인지 간단히 알려주세요"
+                  rows={3}
+                />
+              </label>
+              <div className="contact-field-grid">
+                <label className="field-label">
+                  <span>
+                    이름 <b aria-hidden="true">*</b>
+                  </span>
+                  <input value={customer.name} onChange={(event) => setCustomer((current) => ({ ...current, name: event.target.value }))} placeholder="이름" />
+                </label>
+                <label className="field-label">
+                  <span>
+                    연락처 <b aria-hidden="true">*</b>
+                  </span>
+                  <input value={customer.phone} onChange={(event) => setCustomer((current) => ({ ...current, phone: event.target.value }))} placeholder="010-XXXX-XXXX" />
+                </label>
+              </div>
+              <button
+                type="button"
+                className={customer.kakaoNotice ? "notice-choice selected" : "notice-choice"}
+                aria-pressed={customer.kakaoNotice}
+                onClick={() => setCustomer((current) => ({ ...current, kakaoNotice: !current.kakaoNotice }))}
+              >
+                <span className="notice-choice-icon">{customer.kakaoNotice ? <Check size={16} /> : null}</span>
+                <span>
+                  <strong>카톡으로 견적 안내 받기</strong>
+                  <small>사진 확인 후 호환 제품과 견적 가능 여부를 이어서 안내받을게요.</small>
+                </span>
+              </button>
+            </section>
             </>
           )}
 
           {step === 3 && (
-            <>
-            <h1>결과 받을 연락처</h1>
-            <p className="flow-lead">사진 확인 결과와 견적 가능 여부를 안내받을 이름과 전화번호를 남겨주세요.</p>
-            <input value={customer.name} onChange={(event) => setCustomer((current) => ({ ...current, name: event.target.value }))} placeholder="이름" />
-            <input value={customer.phone} onChange={(event) => setCustomer((current) => ({ ...current, phone: event.target.value }))} placeholder="010-XXXX-XXXX" />
-            <button
-              type="button"
-              className={customer.kakaoNotice ? "notice-choice selected" : "notice-choice"}
-              aria-pressed={customer.kakaoNotice}
-              onClick={() => setCustomer((current) => ({ ...current, kakaoNotice: !current.kakaoNotice }))}
-            >
-              <span className="notice-choice-icon">{customer.kakaoNotice ? <Check size={16} /> : null}</span>
-              <span>
-                <strong>카톡으로 견적 안내 받기</strong>
-                <small>사진 확인 후 호환 제품과 견적 가능 여부를 이어서 안내받을게요.</small>
-              </span>
-            </button>
-            </>
-          )}
-
-          {step === 4 && (
             <div className="done-panel">
             {!receipt ? (
               <>
@@ -216,9 +250,9 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
               이전
             </button>
           )}
-          {step < 4 && (
+          {step < PHOTO_REQUEST_TOTAL_STEPS && (
             <button type="button" onClick={goNext}>
-              {step === 3 ? "접수 확인" : "다음"}
+              {step === 2 ? "접수 확인" : "다음"}
             </button>
           )}
         </div>
@@ -330,7 +364,7 @@ const photoRequestCss = `
   }
   .step-indicator {
     display: grid;
-    grid-template-columns: auto repeat(4, minmax(0, 1fr));
+    grid-template-columns: auto repeat(3, minmax(0, 1fr));
     gap: var(--space-2);
     align-items: center;
     margin-bottom: var(--space-4);
@@ -520,16 +554,53 @@ const photoRequestCss = `
     border-radius: var(--radius-full);
     background: rgba(255,255,255,0.92);
   }
+  .photo-inline-form {
+    display: grid;
+    gap: var(--space-4);
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--space-4);
+  }
+  .field-label {
+    display: grid;
+    gap: 8px;
+    color: var(--color-text);
+    font-weight: 800;
+  }
+  .field-label b {
+    color: #dc2626;
+    font-weight: 950;
+  }
+  .field-label small {
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-weight: 650;
+    line-height: 1.45;
+  }
+  .contact-field-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
   .flow-panel input[type="text"],
   .flow-panel input:not([type]) {
     min-height: 52px;
   }
-  .flow-panel input {
+  .flow-panel input,
+  .flow-panel textarea {
     width: 100%;
     border: 1px solid var(--color-border);
     border-radius: 8px;
-    padding: 0 var(--space-4);
     background: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+  }
+  .flow-panel input {
+    padding: 0 var(--space-4);
+  }
+  .flow-panel textarea {
+    min-height: 94px;
+    padding: var(--space-3) var(--space-4);
+    resize: vertical;
   }
   .notice-choice {
     display: flex;
@@ -729,6 +800,9 @@ const photoRequestCss = `
     }
     .photo-slot {
       aspect-ratio: 1.55;
+    }
+    .contact-field-grid {
+      grid-template-columns: 1fr;
     }
     .notice-choice {
       min-height: 80px;

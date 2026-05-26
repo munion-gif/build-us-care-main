@@ -16,7 +16,9 @@ const createDiagnosisSchema = z
     service_code: z.string().min(1).optional(),
     photos: z.array(z.string().min(1)).min(1).max(3).optional(),
     phone: z.string().optional(),
-    name: z.string().optional()
+    name: z.string().optional(),
+    requestDetail: z.string().max(800).optional(),
+    requestMessage: z.string().max(800).optional()
   })
   .strict();
 
@@ -79,6 +81,7 @@ export async function POST(request: Request) {
 
   const serviceTypeCode = parsed.data.serviceTypeCode ?? parsed.data.service_code ?? "toilet_replace";
   const inputImages = parsed.data.imageUrls ?? parsed.data.photos ?? [];
+  const requestDetail = (parsed.data.requestDetail ?? parsed.data.requestMessage ?? "").trim();
 
   if (inputImages.length === 0) {
     return fail("IMAGE_REQUIRED", "이미지를 1장 이상 업로드해주세요.", 400);
@@ -116,7 +119,7 @@ export async function POST(request: Request) {
     confidence: null,
     result_message: "사진 확인 접수가 완료됐습니다.",
     reason: "담당자가 사진과 연락처를 확인할 예정입니다.",
-    details: "호환 가능한 제품과 견적 가능 여부를 확인한 뒤 안내합니다.",
+    details: requestDetail ? `고객 요청: ${requestDetail}` : "호환 가능한 제품과 견적 가능 여부를 확인한 뒤 안내합니다.",
     recommendation: "확인 후 카톡 또는 전화로 안내드릴게요.",
     suggested_service_code: null,
     raw_response: {
@@ -125,6 +128,7 @@ export async function POST(request: Request) {
         name: parsed.data.name?.trim() || null,
         phone: parsed.data.phone?.replace(/\D/g, "") || null
       },
+      request_detail: requestDetail || null,
       order_id: linkedOrderId,
       order_number: photoReceiptNumber,
       receipt_number: photoReceiptNumber
@@ -175,12 +179,13 @@ export async function POST(request: Request) {
       recipient: "admin",
       send_status: "queued",
       payload: {
-        message: `[빌드어스] 사진 확인 접수\n접수번호: ${photoReceiptNumber ?? "-"}\n고객명: ${parsed.data.name?.trim() || "-"}\n연락처: ${parsed.data.phone?.replace(/\D/g, "") || "-"}\n서비스: ${serviceTypeCode}`,
+        message: `[빌드어스] 사진 확인 접수\n접수번호: ${photoReceiptNumber ?? "-"}\n고객명: ${parsed.data.name?.trim() || "-"}\n연락처: ${parsed.data.phone?.replace(/\D/g, "") || "-"}\n서비스: ${serviceTypeCode}\n수리내용: ${requestDetail || "-"}`,
         diagnosis_id: data.id,
         order_id: linkedOrderId,
         order_number: photoReceiptNumber,
         receipt_number: photoReceiptNumber,
         service_code: serviceTypeCode,
+        request_detail: requestDetail || null,
         photos: inputImages,
         image_urls: resolvedUrls
       }

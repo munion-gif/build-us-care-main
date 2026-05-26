@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CheckCircle2, Clock, DoorOpen, Droplets, Lightbulb, Pipette, Plug, Waves, Wind, type LucideIcon } from "lucide-react";
+import { CheckCircle2, Clock, DoorOpen, Droplets, Lightbulb, Paintbrush, PanelsTopLeft, Pipette, Plug, Waves, Wind, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { QuoteServiceItem } from "@/lib/service-items";
 import { appendSourceParams, readClientSourceContext, type SourceContext } from "@/lib/traffic-source";
@@ -21,7 +21,9 @@ const categoryByCode: Record<string, (typeof tabs)[number]> = {
   light_replace: "전기·조명",
   outlet_replace: "전기·조명",
   ventilator_replace: "전기·조명",
-  door_handle: "도어·손잡이"
+  door_handle: "도어·손잡이",
+  sash_handle: "도어·손잡이",
+  silicone_repair: "욕실"
 };
 
 const icons: Record<string, LucideIcon> = {
@@ -32,7 +34,9 @@ const icons: Record<string, LucideIcon> = {
   outlet_replace: Plug,
   door_handle: DoorOpen,
   bidet_install: Waves,
-  ventilator_replace: Wind
+  ventilator_replace: Wind,
+  sash_handle: PanelsTopLeft,
+  silicone_repair: Paintbrush
 };
 
 function priceLabel(service: QuoteServiceItem) {

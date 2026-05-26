@@ -38,7 +38,9 @@ const FALLBACK_GUIDES: Record<string, string> = {
   bidet_install: "변기 전체 / 급수 밸브 / 콘센트 위치 사진",
   door_handle: "문 전체 / 도어핸들 앞뒤 / 잠금장치 측면 사진",
   ventilator_replace: "환풍기 전체 / 천장 타공부 / 전원 스위치 사진",
-  bath_fan: "환풍기 전체 / 천장 타공부 / 전원 스위치 사진"
+  bath_fan: "환풍기 전체 / 천장 타공부 / 전원 스위치 사진",
+  sash_handle: "창 전체 / 손잡이 앞뒤 / 잠금장치·레일이 보이는 사진",
+  silicone_repair: "시공 부위 전체 / 들뜸·곰팡이 부위 / 주변 마감 사진"
 };
 
 function asStringArray(value: unknown, fallback: string[] = []) {
@@ -224,6 +226,36 @@ const HOME_FALLBACK_ITEMS: QuoteServiceItem[] = [
     warranty_policy: "시공 하자 1년 무상 A/S",
     standard_material_sku: "ventilator_standard",
     premium_material_sku: "ventilator_premium",
+    addon_skus: []
+  },
+  {
+    service_type_code: "sash_handle",
+    display_name: "샷시손잡이 교체",
+    base_price: 45000,
+    estimated_minutes: 40,
+    category: "door",
+    standardizable: true,
+    photo_guide: FALLBACK_GUIDES.sash_handle,
+    included_items: ["기존 손잡이 철거", "신규 손잡이 설치", "잠금 테스트", "1년 A/S"],
+    excluded_items: [],
+    warranty_policy: "시공 하자 1년 무상 A/S",
+    standard_material_sku: "sash_handle_standard",
+    premium_material_sku: "sash_handle_premium",
+    addon_skus: []
+  },
+  {
+    service_type_code: "silicone_repair",
+    display_name: "실리콘 재시공",
+    base_price: 70000,
+    estimated_minutes: 90,
+    category: "bathroom",
+    standardizable: true,
+    photo_guide: FALLBACK_GUIDES.silicone_repair,
+    included_items: ["기존 실리콘 제거", "방수 실리콘 재시공", "마감 확인", "1년 A/S"],
+    excluded_items: [],
+    warranty_policy: "시공 하자 1년 무상 A/S",
+    standard_material_sku: "silicone_standard",
+    premium_material_sku: "silicone_premium",
     addon_skus: []
   }
 ];

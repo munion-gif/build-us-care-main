@@ -1,7 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronRight } from "lucide-react";
+import {
+  AirVent,
+  ChevronRight,
+  DoorClosed,
+  LampCeiling,
+  Paintbrush,
+  PanelsTopLeft,
+  PlugZap,
+  ShowerHead,
+  SoapDispenserDroplet,
+  Toilet,
+  type LucideIcon
+} from "lucide-react";
 import { EVENT_TYPES } from "@/lib/event-types";
 import type { FAQItem } from "@/lib/faqs";
 import { getKakaoChannelChatUrl } from "@/lib/kakao-channel";
@@ -15,22 +27,16 @@ type HomeClientProps = {
   faqs: FAQItem[];
 };
 
-const TRUST_ITEMS = [
-  {
-    label: "price",
-    title: "견적 무료",
-    body: "확인 후 결제"
-  },
-  {
-    label: "consent",
-    title: "추가비용 사전동의",
-    body: "작업 전 안내"
-  },
-  {
-    label: "warranty",
-    title: "1년 A/S",
-    body: "주문 링크 접수"
-  }
+const SERVICE_ICON_ITEMS: Array<{ label: string; Icon: LucideIcon; href: string }> = [
+  { label: "양변기", Icon: Toilet, href: "/quote/toilet_replace" },
+  { label: "수전", Icon: ShowerHead, href: "/quote/faucet_replace" },
+  { label: "세면대", Icon: SoapDispenserDroplet, href: "/quote/basin_replace" },
+  { label: "전등", Icon: LampCeiling, href: "/quote/light_replace" },
+  { label: "콘센트&스위치", Icon: PlugZap, href: "/quote/outlet_replace" },
+  { label: "도어핸들", Icon: DoorClosed, href: "/quote/door_handle" },
+  { label: "환풍기", Icon: AirVent, href: "/quote/ventilator_replace" },
+  { label: "샷시손잡이", Icon: PanelsTopLeft, href: "/quote/sash_handle" },
+  { label: "실리콘", Icon: Paintbrush, href: "/quote/silicone_repair" }
 ];
 
 export function HomeClient({ services, kakaoUrl, faqs }: HomeClientProps) {
@@ -151,13 +157,14 @@ export function HomeClient({ services, kakaoUrl, faqs }: HomeClientProps) {
         </div>
       </section>
 
-      <section className="trust-strip" aria-label="빌드어스 케어 신뢰 기준">
-        {TRUST_ITEMS.map((item) => (
-          <article key={item.label}>
-            <span>{item.label}</span>
-            <strong>{item.title}</strong>
-            <p>{item.body}</p>
-          </article>
+      <section className="service-icon-strip" aria-label="교체 가능 항목">
+        {SERVICE_ICON_ITEMS.map(({ label, Icon, href }) => (
+          <a key={label} className="service-icon-item" href={appendSourceParams(href, sourceContext)}>
+            <span aria-hidden="true">
+              <Icon size={36} strokeWidth={2.05} />
+            </span>
+            <strong>{label}</strong>
+          </a>
         ))}
       </section>
 
@@ -280,7 +287,7 @@ const homeCss = `
     color: var(--charcoal);
   }
   .home-hero,
-  .trust-strip,
+  .service-icon-strip,
   .home-section,
   .quick-flow-board {
     width: min(1120px, 100%);
@@ -552,45 +559,48 @@ const homeCss = `
     line-height: 1.35;
     word-break: keep-all;
   }
-  .trust-strip {
+  .service-icon-strip {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--space-2);
+    grid-template-columns: repeat(9, minmax(0, 1fr));
+    gap: 10px;
     margin-top: clamp(-1.35rem, -2vw, -0.75rem);
+    margin-bottom: clamp(0.75rem, 2vw, 1.35rem);
   }
-  .trust-strip article {
-    min-height: 62px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    border: 1px solid rgba(217, 210, 196, 0.95);
-    border-radius: 8px;
-    padding: 12px 14px;
-    background: rgba(255, 250, 241, 0.78);
-    box-shadow: 0 5px 16px rgba(34, 33, 29, 0.025);
+  .service-icon-item {
+    min-width: 0;
+    min-height: 70px;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 7px;
+    padding: 0 2px;
+    color: inherit;
+    text-decoration: none;
   }
-  .trust-strip span {
-    width: 8px;
-    height: 8px;
-    flex: 0 0 auto;
-    overflow: hidden;
-    border-radius: 999px;
-    background: var(--sage);
-    color: transparent;
-    font-size: 0;
+  .service-icon-item span {
+    width: 46px;
+    height: 46px;
+    display: grid;
+    place-items: center;
+    color: rgba(34, 33, 29, 0.78);
   }
-  .trust-strip strong {
+  .service-icon-item strong {
+    color: rgba(34, 33, 29, 0.76);
+    font-size: 12px;
+    font-weight: 720;
+    line-height: 1.22;
+    text-align: center;
+    word-break: keep-all;
+  }
+  .service-icon-item:hover,
+  .service-icon-item:focus-visible {
     color: var(--charcoal);
-    font-size: var(--text-sm);
-    font-weight: 680;
-    line-height: 1.32;
+    outline: 0;
   }
-  .trust-strip p {
-    margin: 0;
-    color: rgba(34, 33, 29, 0.62);
-    font-size: var(--text-xs);
-    font-weight: 520;
-    line-height: 1.3;
+  .service-icon-item:hover span,
+  .service-icon-item:focus-visible span {
+    color: var(--charcoal);
+    transform: translateY(-1px);
   }
   .service-card:hover,
   .service-card:focus-visible {
@@ -833,8 +843,9 @@ const homeCss = `
     .service-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-    .trust-strip {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+    .service-icon-strip {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      margin-top: 0;
     }
     .quick-flow-steps {
       grid-template-columns: 1fr;
@@ -877,11 +888,21 @@ const homeCss = `
     .service-grid {
       grid-template-columns: 1fr;
     }
-    .trust-strip {
-      grid-template-columns: 1fr;
+    .service-icon-strip {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 7px;
+      margin-bottom: var(--space-2);
     }
-    .trust-strip article {
-      min-height: 0;
+    .service-icon-item {
+      min-height: 64px;
+      padding: 0 3px;
+    }
+    .service-icon-item span {
+      width: 42px;
+      height: 42px;
+    }
+    .service-icon-item strong {
+      font-size: 11px;
     }
     .service-card {
       min-height: 0;

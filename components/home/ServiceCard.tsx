@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, DoorOpen, Droplets, Layers, Lightbulb, Pipette, Plug, Waves, Wind, type LucideIcon } from "lucide-react";
+import { AlertTriangle, DoorOpen, Droplets, Layers, Lightbulb, Paintbrush, PanelsTopLeft, Pipette, Plug, Waves, Wind, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import type { QuoteServiceItem } from "@/lib/service-items";
 
@@ -20,6 +20,8 @@ const icons: Record<string, LucideIcon> = {
   door_handle: DoorOpen,
   bidet_install: Waves,
   ventilator_replace: Wind,
+  sash_handle: PanelsTopLeft,
+  silicone_repair: Paintbrush,
   drain_clog: AlertTriangle,
   partial_wallpaper: Layers
 };
@@ -33,6 +35,8 @@ const descriptions: Record<string, string> = {
   door_handle: "문 손잡이 교체와 문 닫힘 상태를 확인해요.",
   bidet_install: "비데 설치와 급수 연결 상태를 점검해요.",
   ventilator_replace: "욕실 환풍기 교체와 작동 테스트를 진행해요.",
+  sash_handle: "샷시 손잡이 교체와 잠금 상태를 확인해요.",
+  silicone_repair: "욕실·주방 실리콘 제거와 재시공을 진행해요.",
   drain_clog: "막힘 정도를 사진으로 확인한 뒤 상담해요.",
   partial_wallpaper: "부분 도배 범위를 확인하고 견적을 안내해요."
 };
