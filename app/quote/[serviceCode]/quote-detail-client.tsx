@@ -4207,4 +4207,244 @@ const quoteCss = `
       display: block;
     }
   }
+  @media (max-width: 640px) {
+    .quote-page {
+      --text-xs: 0.75rem;
+      --text-sm: 0.875rem;
+      --text-base: 1rem;
+      --text-lg: 1.125rem;
+      --text-xl: 1.375rem;
+      padding: 10px 10px 96px;
+    }
+    .quote-section,
+    .quote-hero,
+    .context-banner {
+      margin-bottom: 10px;
+      padding: 12px;
+    }
+    .quote-hero {
+      gap: 10px;
+    }
+    .quote-hero p {
+      margin-bottom: 4px;
+      font-size: 0.8125rem;
+    }
+    .quote-hero h1 {
+      font-size: 1.75rem;
+      line-height: 1.08;
+    }
+    .quote-hero strong {
+      font-size: 1.25rem;
+    }
+    .hero-price-breakdown {
+      gap: 6px;
+      padding: 10px;
+    }
+    .hero-breakdown-item {
+      gap: 4px;
+    }
+    .hero-breakdown-label {
+      font-size: 0.75rem;
+    }
+    .hero-info-icon svg {
+      width: 15px;
+      height: 15px;
+    }
+    .hero-breakdown-item strong {
+      font-size: 1.45rem;
+    }
+    .hero-price-breakdown b {
+      font-size: 1.65rem;
+    }
+    .toilet-product-catalog {
+      gap: 10px;
+      padding: 14px 12px;
+      scroll-margin-top: 72px;
+    }
+    .toilet-product-catalog .section-title-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: end;
+    }
+    .toilet-product-catalog .section-title-row h2 {
+      font-size: 1.25rem;
+      line-height: 1.2;
+    }
+    .toilet-product-catalog .section-title-row span {
+      align-self: end;
+      font-size: 0.8125rem;
+      white-space: nowrap;
+    }
+    .toilet-product-catalog > .data-guide-text {
+      display: none;
+    }
+    .product-index-chips {
+      gap: 6px;
+      margin-inline: -2px;
+      padding: 0 2px 4px;
+    }
+    .product-index-chips button,
+    .filter-chip-group button {
+      min-height: 30px;
+      padding: 0 10px;
+      font-size: 0.75rem;
+    }
+    .toilet-filter-row {
+      gap: 8px;
+      padding: 10px;
+    }
+    .filter-chip-group {
+      gap: 6px;
+    }
+    .filter-chip-group > span {
+      min-width: 40px;
+      font-size: 0.7rem;
+    }
+    .toilet-filter-row > strong {
+      font-size: 0.875rem;
+    }
+    .product-subsection-title {
+      gap: 2px;
+    }
+    .product-subsection-title strong {
+      font-size: 1.2rem;
+      line-height: 1.2;
+    }
+    .product-subsection-title span {
+      font-size: 0.8125rem;
+      line-height: 1.35;
+    }
+    .recommended-products,
+    .product-results {
+      gap: 8px;
+      scroll-margin-top: 72px;
+    }
+    .recommended-product-grid,
+    .toilet-product-grid {
+      gap: 8px;
+    }
+    .recommended-product-grid .toilet-product-card,
+    .toilet-product-card {
+      grid-template-columns: 98px minmax(0, 1fr);
+      min-height: 126px;
+      border-radius: 8px;
+    }
+    .recommended-product-grid .toilet-product-image,
+    .toilet-product-image {
+      height: 126px;
+      min-height: 126px;
+      border-right: 1px solid #f0ece3;
+      border-bottom: 0;
+    }
+    .toilet-product-image img {
+      padding: 6px;
+    }
+    .recommended-product-grid .toilet-product-body,
+    .toilet-product-body {
+      gap: 4px;
+      border-left: 0;
+      padding: 9px 10px;
+    }
+    .toilet-product-meta {
+      gap: 5px;
+    }
+    .toilet-product-meta span {
+      font-size: 0.75rem;
+    }
+    .toilet-product-meta b {
+      padding: 3px 7px;
+      font-size: 0.6875rem;
+    }
+    .toilet-product-card h3 {
+      font-size: 1.05rem;
+      line-height: 1.22;
+    }
+    .toilet-product-price {
+      font-size: 1.35rem;
+      line-height: 1.08;
+    }
+    .toilet-product-sku {
+      gap: 6px;
+      font-size: 0.75rem;
+    }
+    .toilet-product-sku span {
+      font-size: 0.875rem;
+    }
+    .toilet-product-card p:not(.toilet-product-sku) {
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      font-size: 0.78rem;
+      line-height: 1.35;
+    }
+    .toilet-card-actions {
+      gap: 6px;
+      min-height: 34px;
+    }
+    .toilet-add-button,
+    .toilet-replace-button {
+      min-height: 34px;
+      border-radius: 7px;
+      padding: 0 9px;
+      font-size: 0.8125rem;
+    }
+    .toilet-replace-button.primary {
+      min-width: 72px;
+    }
+    .quantity-control {
+      grid-template-columns: 30px minmax(28px, auto) 30px;
+      border-radius: 7px;
+    }
+    .quantity-control button {
+      width: 30px;
+      min-width: 30px;
+      height: 30px;
+      min-height: 30px;
+      font-size: 17px;
+    }
+    .quantity-control span {
+      min-width: 28px;
+      height: 30px;
+      font-size: 0.875rem;
+    }
+    .custom-product-consult {
+      gap: 10px;
+      padding: 12px;
+    }
+    .custom-product-consult strong {
+      margin-bottom: 4px;
+      font-size: 1.05rem;
+    }
+    .custom-product-consult p {
+      font-size: 0.8125rem;
+      line-height: 1.45;
+    }
+    .custom-product-consult a,
+    .custom-product-consult button {
+      min-height: 42px;
+      font-size: 0.875rem;
+    }
+    .sticky-cta {
+      gap: 6px;
+      padding: 8px 10px;
+      padding-bottom: calc(8px + var(--safe-area-bottom));
+    }
+    .sticky-cta .mobile-summary-toggle {
+      min-height: 50px;
+      border-radius: 10px;
+      padding: 0 12px;
+      box-shadow: 0 8px 22px rgba(34, 33, 29, 0.14);
+    }
+    .sticky-cta .mobile-summary-toggle span {
+      font-size: 0.875rem;
+    }
+    .sticky-cta .mobile-summary-toggle strong {
+      font-size: 1rem;
+    }
+    .sticky-cta.expanded {
+      max-height: calc(84vh - env(safe-area-inset-bottom));
+    }
+  }
 `;
