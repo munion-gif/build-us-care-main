@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Gauge,
   LineChart,
+  MessageCircle,
   Settings,
   UserRoundCog,
   Wrench
@@ -17,6 +18,7 @@ import {
 
 const menus = [
   [Gauge, "운영 대시보드", "/admin/dashboard"],
+  [MessageCircle, "상담/예약", "/admin/consultations"],
   [ClipboardList, "주문 관리", "/admin/orders"],
   [Wrench, "현장 관리", "/admin/jobs"],
   [Camera, "사진확인", "/admin/diagnoses"],
