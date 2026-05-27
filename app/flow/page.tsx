@@ -1103,7 +1103,7 @@ const flowCss = `
     top: 0;
     z-index: 4;
   }
-  .app-top span { display: block; font-size: 12px; font-weight: 800; opacity: .78; }
+  .app-top span { display: block; font-size: 12px; font-weight: 700; opacity: .78; }
   .app-top strong { display: block; font-size: 18px; }
   .icon-button {
     min-height: 40px;
@@ -1114,7 +1114,7 @@ const flowCss = `
     background: rgba(255,255,255,.58);
     color: #1c1b18;
     text-decoration: none;
-    font-weight: 900;
+    font-weight: 700;
     font-size: 14px;
   }
   .icon-button:disabled { opacity: .35; }
@@ -1134,7 +1134,7 @@ const flowCss = `
     background: #eee9dd;
     color: #817660;
     font-size: 12px;
-    font-weight: 800;
+    font-weight: 700;
   }
   .progress-step.active { background: #20180b; color: #ffd166; }
   .screen { padding: 16px 14px 8px; }
@@ -1152,7 +1152,7 @@ const flowCss = `
     font-size: 16px;
     line-height: 1.55;
   }
-  .eyebrow { color: #a66f00; font-size: 13px; font-weight: 900; }
+  .eyebrow { color: #a66f00; font-size: 13px; font-weight: 700; }
   .hero-photo {
     min-height: 210px;
     border-radius: 18px;
@@ -1167,7 +1167,7 @@ const flowCss = `
     border-radius: 999px;
     padding: 8px 12px;
     background: rgba(255,255,255,.9);
-    font-weight: 900;
+    font-weight: 700;
   }
   .sku-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .mini-sku, .sku-card {
@@ -1204,7 +1204,7 @@ const flowCss = `
     border: 1px solid #ead7a7;
     border-radius: 999px;
     background: #fff;
-    font-weight: 900;
+    font-weight: 700;
     color: #5e5445;
     white-space: nowrap;
   }
@@ -1278,7 +1278,7 @@ const flowCss = `
     border-radius: 16px;
     background: #fff9e8;
     color: #7a5b0c;
-    font-weight: 900;
+    font-weight: 700;
   }
   .planned-button {
     min-height: 48px;
@@ -1286,7 +1286,7 @@ const flowCss = `
     border-radius: 14px;
     background: #fff;
     color: #7a5b0c;
-    font-weight: 900;
+    font-weight: 700;
   }
   .planned-button:disabled { opacity: 0.7; }
   .postcode-panel {
@@ -1321,13 +1321,13 @@ const flowCss = `
     background: #fff;
     color: #7a5b0c;
     padding: 0 12px;
-    font-weight: 900;
+    font-weight: 700;
   }
   .postcode-embed {
     min-height: 420px;
     height: 420px;
   }
-  .form-list label { display: grid; gap: 6px; color: #4f4638; font-weight: 800; }
+  .form-list label { display: grid; gap: 6px; color: #4f4638; font-weight: 700; }
   .form-list label div, .form-list label span { font-size: 14px; }
   .form-list input, .form-list select, label select {
     width: 100%;
@@ -1354,7 +1354,7 @@ const flowCss = `
     gap: 12px;
   }
   .calendar-head strong { font-size: 18px; }
-  .calendar-head span { color: #7a5b0c; font-size: 14px; font-weight: 900; }
+  .calendar-head span { color: #7a5b0c; font-size: 14px; font-weight: 700; }
   .calendar-week, .calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -1366,7 +1366,7 @@ const flowCss = `
     place-items: center;
     color: #7b7162;
     font-size: 13px;
-    font-weight: 900;
+    font-weight: 700;
   }
   .calendar-day {
     aspect-ratio: 1;
@@ -1376,7 +1376,7 @@ const flowCss = `
     background: #fff;
     color: #1f1d18;
     font-size: 15px;
-    font-weight: 900;
+    font-weight: 700;
   }
   .calendar-day.selected {
     border-color: #1f1d18;
@@ -1398,9 +1398,9 @@ const flowCss = `
     border-radius: 16px;
     background: #fff;
     color: #1f1d18;
-    font-weight: 900;
+    font-weight: 700;
   }
-  .slot span { color: #6b6254; font-size: 13px; font-weight: 800; }
+  .slot span { color: #6b6254; font-size: 13px; font-weight: 700; }
   .slot.active { background: #d7f1d9; border-color: #70b779; }
   .slot.disabled { background: #eee; color: #aaa; }
   .slot.disabled span { color: #aaa; }
@@ -1414,7 +1414,7 @@ const flowCss = `
     color: #fff5db;
     padding: 14px 16px;
   }
-  .reservation-summary span { color: #ffd166; font-weight: 900; }
+  .reservation-summary span { color: #ffd166; font-weight: 700; }
   .reservation-summary strong { font-size: 18px; }
   .pay-box { display: grid; gap: 8px; }
   .pay-box small { color: #6b6254; font-size: 14px; }
@@ -1430,7 +1430,7 @@ const flowCss = `
     border-radius: 14px;
     background: #eee9dd;
     color: #7b7162;
-    font-weight: 900;
+    font-weight: 700;
     font-size: 13px;
   }
   .timeline-step.active { background: #d7f1d9; color: #276a32; }
@@ -1443,7 +1443,7 @@ const flowCss = `
     background: #1f1d18;
     color: #ffd166;
     text-decoration: none;
-    font-weight: 900;
+    font-weight: 700;
   }
   .support-panel {
     display: grid;
@@ -1457,7 +1457,7 @@ const flowCss = `
     background: #fff;
     padding: 12px;
   }
-  .support-panel summary { cursor: pointer; font-weight: 900; }
+  .support-panel summary { cursor: pointer; font-weight: 700; }
   .raw-list { display: grid; gap: 8px; margin-top: 10px; }
   .raw-list pre {
     overflow-x: auto;
@@ -1485,7 +1485,7 @@ const flowCss = `
     border: 0;
     border-radius: 16px;
     font-size: 16px;
-    font-weight: 900;
+    font-weight: 700;
   }
   .primary-cta { background: #ffd166; color: #1f1d18; }
   .ghost-cta { background: #f2ead8; color: #6b6254; }

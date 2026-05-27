@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { Menu } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useIsApp } from "@/hooks/useIsApp";
 import { getKakaoChannelChatUrl } from "@/lib/kakao-channel";
@@ -66,29 +66,23 @@ export function Header({ kakaoUrl }: HeaderProps) {
           )}
         </div>
         {kakaoChatUrl ? (
-          <a className="mobile-kakao-cta" href={kakaoChatUrl} target="_blank" rel="noreferrer">
-            <span className="kakao-dot" aria-hidden="true" />
-            상담
+          <a className="mobile-kakao-cta" href={kakaoChatUrl} target="_blank" rel="noreferrer" aria-label="카카오톡 상담 열기">
+            <span className="kakao-mark" aria-hidden="true">TALK</span>
+            카톡
           </a>
         ) : (
-          <button className="mobile-kakao-cta" type="button" disabled>
-            <span className="kakao-dot" aria-hidden="true" />
-            상담
+          <button className="mobile-kakao-cta" type="button" disabled aria-label="카카오톡 상담 준비 중">
+            <span className="kakao-mark" aria-hidden="true">TALK</span>
+            카톡
           </button>
         )}
-        <button className="mobile-menu-button" type="button" onClick={() => setOpen(true)} aria-label="메뉴 열기">
+        <button className="mobile-menu-button" type="button" onClick={() => setOpen((current) => !current)} aria-label={open ? "메뉴 닫기" : "메뉴 열기"} aria-expanded={open}>
           <Menu size={24} />
         </button>
       </div>
       {open && (
         <div className="mobile-menu-backdrop" onMouseDown={() => setOpen(false)} role="presentation">
           <div className="mobile-menu" onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="모바일 메뉴">
-            <div className="mobile-menu-top">
-              <Logo />
-              <button type="button" onClick={() => setOpen(false)} aria-label="메뉴 닫기">
-                <X size={24} />
-              </button>
-            </div>
             <nav>
               {navItems.map(([label, href]) => (
                 <Link key={href} className={isActive(href) ? "active" : ""} href={href}>
@@ -96,9 +90,6 @@ export function Header({ kakaoUrl }: HeaderProps) {
                 </Link>
               ))}
             </nav>
-            <Link className="mobile-primary-cta" href="/request/photo">
-              사진확인
-            </Link>
           </div>
         </div>
       )}
@@ -147,15 +138,16 @@ const headerCss = `
   .mobile-menu nav a {
     color: var(--color-text-muted);
     text-decoration: none;
-    font-size: var(--text-sm);
-    font-weight: 500;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 600;
     transition: color var(--transition);
   }
   .desktop-nav a:hover,
   .desktop-nav a.active,
   .mobile-menu nav a.active {
     color: var(--color-primary);
-    font-weight: 650;
+    font-weight: 700;
   }
   .desktop-actions {
     display: flex;
@@ -171,8 +163,10 @@ const headerCss = `
     justify-content: center;
     border-radius: 8px;
     padding: var(--space-2) 1.25rem;
-    font-size: var(--text-sm);
-    font-weight: 650;
+    font-size: var(--text-button);
+    line-height: var(--leading-button);
+    font-weight: 700;
+    letter-spacing: -0.005em;
     text-decoration: none;
   }
   .outline-cta {
@@ -200,8 +194,8 @@ const headerCss = `
     border-radius: var(--radius-full);
     background: #fee500;
     color: #22211d;
-    font-size: 9px;
-    font-weight: 800;
+    font-size: var(--text-caption);
+    font-weight: 700;
     line-height: 1;
     letter-spacing: 0;
   }
@@ -225,22 +219,22 @@ const headerCss = `
     display: none;
     align-items: center;
     justify-content: center;
-    gap: 7px;
+    gap: 6px;
     border: 1px solid rgba(34, 33, 29, 0.92);
     border-radius: 8px;
-    padding: 0 var(--space-4);
+    padding: 0 11px;
     background: rgba(34, 33, 29, 0.92);
     color: var(--color-cream);
     text-decoration: none;
-    font-size: var(--text-sm);
-    font-weight: 650;
+    font-size: var(--text-label);
+    line-height: var(--leading-button);
+    font-weight: 700;
     white-space: nowrap;
   }
-  .kakao-dot {
-    width: 9px;
-    height: 9px;
-    border-radius: var(--radius-full);
-    background: #fee500;
+  .mobile-kakao-cta .kakao-mark {
+    min-width: 32px;
+    height: 18px;
+    font-size: 10px;
   }
   .mobile-kakao-cta:disabled {
     opacity: 0.45;
@@ -250,35 +244,36 @@ const headerCss = `
     position: fixed;
     inset: 60px 0 0;
     z-index: 60;
-    background: rgba(26, 25, 22, 0.22);
+    background: rgba(26, 25, 22, 0.12);
   }
   .mobile-menu {
-    display: grid;
-    gap: var(--space-8);
-    padding: var(--space-4);
+    max-height: calc(100vh - 60px);
+    overflow-y: auto;
+    padding: 6px 16px 10px;
     border-bottom: 1px solid var(--color-border);
-    background: rgba(247, 241, 230, 0.98);
-    box-shadow: var(--shadow-md);
-  }
-  .mobile-menu-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-  .mobile-menu-top button {
-    width: 44px;
-    height: 44px;
-    border: 0;
-    border-radius: var(--radius-full);
-    background: var(--color-surface-2);
+    background: var(--color-surface);
+    box-shadow: 0 14px 28px rgba(34, 33, 29, 0.08);
   }
   .mobile-menu nav {
     display: grid;
-    gap: var(--space-4);
+    gap: 0;
   }
   .mobile-menu nav a {
-    font-size: var(--text-xl);
-    font-weight: 650;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid rgba(217, 210, 196, 0.72);
+    color: var(--color-text);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
+    font-weight: 600;
+  }
+  .mobile-menu nav a:last-child {
+    border-bottom: 0;
+  }
+  .mobile-menu nav a.active {
+    color: var(--color-primary);
+    font-weight: 700;
   }
   @media (max-width: 820px) {
     .header-inner {

@@ -345,7 +345,8 @@ const homeCss = `
     margin-bottom: 18px;
     color: rgba(34, 33, 29, 0.68);
     font-family: var(--font-brand);
-    font-size: 12px;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
     font-weight: var(--brand-label-weight);
     letter-spacing: var(--brand-letter-spacing);
     text-transform: lowercase;
@@ -362,12 +363,12 @@ const homeCss = `
     letter-spacing: 0.04em;
   }
   .home-hero h1 {
-    max-width: 16ch;
+    max-width: 720px;
     margin: 0 0 var(--space-3);
-    font-size: clamp(2.65rem, 5.7vw, 5.05rem);
-    font-weight: 500;
-    line-height: 1.07;
-    letter-spacing: 0;
+    font-size: var(--text-hero);
+    line-height: var(--leading-hero);
+    font-weight: 700;
+    letter-spacing: -0.025em;
     word-break: keep-all;
   }
   .home-hero p,
@@ -380,8 +381,9 @@ const homeCss = `
   .home-hero p {
     max-width: 35rem;
     margin: 0;
-    font-size: var(--text-base);
-    font-weight: 520;
+    font-size: var(--text-body-lg);
+    line-height: var(--leading-body-lg);
+    font-weight: 400;
   }
   .hero-actions {
     display: flex;
@@ -400,8 +402,10 @@ const homeCss = `
     border-radius: 999px;
     padding: 0 18px;
     text-decoration: none;
-    font-size: var(--text-sm);
-    font-weight: 680;
+    font-size: var(--text-button);
+    line-height: var(--leading-button);
+    font-weight: 700;
+    letter-spacing: -0.005em;
   }
   .primary-action,
   .empty-service a {
@@ -429,8 +433,8 @@ const homeCss = `
     border-radius: 999px;
     background: #fee500;
     color: #22211d;
-    font-size: 9px;
-    font-weight: 800;
+    font-size: var(--text-caption);
+    font-weight: 700;
     line-height: 1;
     letter-spacing: 0;
   }
@@ -440,8 +444,9 @@ const homeCss = `
     gap: var(--space-2);
     margin-top: var(--space-4);
     color: rgba(34, 33, 29, 0.54);
-    font-size: var(--text-sm);
-    font-weight: 620;
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
+    font-weight: 600;
   }
   .quick-picks > div {
     display: flex;
@@ -458,8 +463,9 @@ const homeCss = `
     background: rgba(255, 250, 241, 0.66);
     color: rgba(34, 33, 29, 0.7);
     text-decoration: none;
-    font-size: var(--text-xs);
-    font-weight: 640;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 600;
   }
   .hero-visual {
     position: relative;
@@ -495,23 +501,25 @@ const homeCss = `
     grid-column: 1 / -1;
     color: rgba(34, 33, 29, 0.6);
     font-family: var(--font-brand);
-    font-size: 12px;
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
     font-weight: var(--brand-label-weight);
     letter-spacing: 0.32em;
     text-transform: lowercase;
   }
   .diagnosis-label strong {
-    font-family: "Avenir Next", var(--font-latin);
-    font-size: clamp(1.66rem, 3.6vw, 2.45rem);
-    font-weight: 400;
-    letter-spacing: 0;
-    line-height: 1;
+    font-family: var(--font-latin);
+    font-size: var(--text-h2);
+    line-height: var(--leading-h2);
+    font-weight: 700;
+    letter-spacing: -0.018em;
   }
   .diagnosis-label small {
     align-self: end;
     color: rgba(34, 33, 29, 0.62);
-    font-size: var(--text-sm);
-    font-weight: 560;
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
+    font-weight: 500;
   }
   .diagnosis-label dl {
     grid-column: 1 / -1;
@@ -528,8 +536,9 @@ const homeCss = `
   .diagnosis-label dt,
   .diagnosis-label dd {
     margin: 0;
-    font-size: 12px;
-    font-weight: 650;
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
+    font-weight: 600;
     text-transform: uppercase;
   }
   .diagnosis-label dt {
@@ -549,14 +558,15 @@ const homeCss = `
   }
   .visual-note span {
     color: rgba(255, 250, 241, 0.64);
-    font-size: 12px;
-    font-weight: 650;
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
+    font-weight: 600;
     letter-spacing: 0.16em;
     text-transform: lowercase;
   }
   .visual-note strong {
-    font-size: var(--text-base);
-    line-height: 1.35;
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
     word-break: keep-all;
   }
   .service-icon-strip {
@@ -586,9 +596,9 @@ const homeCss = `
   }
   .service-icon-item strong {
     color: rgba(34, 33, 29, 0.76);
-    font-size: 12px;
-    font-weight: 720;
-    line-height: 1.22;
+    font-size: var(--text-caption);
+    font-weight: 700;
+    line-height: var(--leading-caption);
     text-align: center;
     word-break: keep-all;
   }
@@ -633,17 +643,22 @@ const homeCss = `
     padding: 0 11px;
     background: rgba(168, 176, 162, 0.18);
     color: rgba(34, 33, 29, 0.7);
-    font-size: var(--text-xs);
-    font-weight: 680;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 600;
   }
   .section-head h2 {
     margin: 0;
-    font-size: var(--text-lg);
-    font-weight: 660;
+    font-size: var(--text-h2);
+    line-height: var(--leading-h2);
+    font-weight: 700;
+    letter-spacing: -0.018em;
   }
   .section-head p {
+    max-width: 640px;
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: var(--text-body-lg);
+    line-height: var(--leading-body-lg);
   }
   .service-grid {
     display: grid;
@@ -664,20 +679,23 @@ const homeCss = `
   }
   .service-card small {
     font-family: var(--font-brand);
-    font-size: var(--text-xs);
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
     font-weight: var(--brand-label-weight);
     letter-spacing: 0.13em;
     text-transform: lowercase;
   }
   .service-card p {
     margin: auto 0 var(--space-1);
-    font-size: var(--text-base);
-    font-weight: 650;
+    font-size: var(--text-card-title);
+    line-height: var(--leading-card-title);
+    font-weight: 700;
   }
   .service-description {
     margin: var(--space-2) 0 var(--space-3);
-    font-size: var(--text-xs);
-    font-weight: 620;
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
+    font-weight: 400;
   }
   .service-meta-row {
     display: flex;
@@ -687,8 +705,9 @@ const homeCss = `
   }
   .service-meta-row span {
     color: #7f8a7b;
-    font-size: var(--text-xs);
-    font-weight: 650;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 600;
   }
   .empty-service {
     display: grid;
@@ -742,17 +761,19 @@ const homeCss = `
     border-radius: 999px;
     background: rgba(168, 176, 162, 0.38);
     color: rgba(34, 33, 29, 0.74);
-    font-size: var(--text-xs);
-    font-weight: 650;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 700;
   }
   .quick-flow-steps strong {
-    font-size: var(--text-sm);
-    font-weight: 650;
+    font-size: var(--text-card-title);
+    line-height: var(--leading-card-title);
+    font-weight: 700;
   }
   .quick-flow-steps span {
     color: rgba(34, 33, 29, 0.62);
-    font-size: var(--text-sm);
-    line-height: 1.55;
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
   }
   .faq-section {
     padding: clamp(18px, 3vw, 26px);
@@ -773,16 +794,17 @@ const homeCss = `
     align-items: center;
     padding: 0 18px;
     color: var(--charcoal);
-    font-size: var(--text-sm);
-    font-weight: 700;
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    font-weight: 600;
     cursor: pointer;
   }
   .faq-list p {
     margin: 0;
     padding: 0 18px 18px;
     color: rgba(34, 33, 29, 0.64);
-    font-size: var(--text-sm);
-    line-height: 1.65;
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
   }
   .floating-kakao-cta {
     position: fixed;
@@ -812,8 +834,10 @@ const homeCss = `
     color: var(--color-cream);
     box-shadow: 0 14px 34px rgba(34, 33, 29, 0.18);
     text-decoration: none;
-    font-size: var(--text-sm);
-    font-weight: 760;
+    font-size: var(--text-button);
+    line-height: var(--leading-button);
+    font-weight: 700;
+    letter-spacing: -0.005em;
     white-space: nowrap;
   }
   .floating-kakao-mark {
@@ -824,8 +848,8 @@ const homeCss = `
     border-radius: 999px;
     background: #fee500;
     color: #22211d;
-    font-size: 10px;
-    font-weight: 850;
+    font-size: var(--text-caption);
+    font-weight: 700;
     line-height: 1;
     letter-spacing: 0;
   }
@@ -867,8 +891,8 @@ const homeCss = `
       padding-block: var(--space-8);
     }
     .home-hero h1 {
-      max-width: 12ch;
-      font-size: clamp(2.5rem, 13vw, 3.25rem);
+      max-width: 13ch;
+      letter-spacing: -0.02em;
     }
     .hero-visual {
       display: none;
@@ -902,7 +926,7 @@ const homeCss = `
       height: 42px;
     }
     .service-icon-item strong {
-      font-size: 11px;
+      font-size: var(--text-caption);
     }
     .service-card {
       min-height: 0;

@@ -64,20 +64,22 @@ const css = `
   .not-found-label small {
     color: var(--color-text-muted);
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 700;
     text-transform: lowercase;
   }
   .not-found-label strong {
     font-family: var(--font-brand);
-    font-size: clamp(2rem, 8vw, 4rem);
-    font-weight: 420;
-    line-height: 1;
+    font-size: var(--text-hero);
+    line-height: var(--leading-hero);
+    font-weight: 700;
     letter-spacing: 0;
   }
   .not-found-page h1 {
     margin: 0;
-    font-size: clamp(1.55rem, 3vw, 2.15rem);
-    line-height: 1.25;
+    font-size: var(--text-h2);
+    line-height: var(--leading-h2);
+    font-weight: 700;
+    letter-spacing: -0.018em;
   }
   .not-found-page p {
     max-width: 34rem;
@@ -99,7 +101,7 @@ const css = `
     padding: 0 var(--space-5);
     text-decoration: none;
     font-size: var(--text-sm);
-    font-weight: 820;
+    font-weight: 700;
   }
   .not-found-page a:first-child {
     border: 1px solid var(--color-gold);

@@ -167,30 +167,32 @@ const servicesCss = `
     margin-bottom: 18px;
     color: var(--color-text);
     font-family: var(--font-brand);
-    font-size: 13px;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
     font-weight: var(--brand-label-weight);
     letter-spacing: var(--brand-letter-spacing);
     text-transform: lowercase;
   }
   .services-hero span {
     color: var(--color-primary);
-    font-size: var(--text-sm);
-    font-weight: 620;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 600;
   }
   .services-hero h1 {
     margin: 0 0 var(--space-3);
     max-width: 760px;
-    font-size: clamp(1.45rem, 2.35vw, 2.08rem);
-    font-weight: 640;
-    letter-spacing: 0;
-    line-height: 1.24;
+    font-size: var(--text-h1);
+    line-height: var(--leading-h1);
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
   .services-hero p {
     max-width: 620px;
     margin: 0;
     color: var(--color-text-muted);
-    font-size: var(--text-sm);
-    line-height: 1.65;
+    font-size: var(--text-body-lg);
+    line-height: var(--leading-body-lg);
   }
   .services-hero-actions {
     display: flex;
@@ -207,8 +209,10 @@ const servicesCss = `
     padding: 0 var(--space-5, 1.25rem);
     background: var(--color-primary);
     color: var(--color-cream);
-    font-size: var(--text-sm);
-    font-weight: 680;
+    font-size: var(--text-button);
+    line-height: var(--leading-button);
+    font-weight: 700;
+    letter-spacing: -0.005em;
     text-decoration: none;
   }
   .services-flow {
@@ -236,13 +240,14 @@ const servicesCss = `
   }
   .services-flow strong {
     color: var(--color-primary);
-    font-size: 0.94rem;
-    font-weight: 660;
+    font-size: var(--text-card-title);
+    line-height: var(--leading-card-title);
+    font-weight: 700;
   }
   .services-flow span {
     color: var(--color-text-muted);
-    font-size: 0.9rem;
-    line-height: 1.45;
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
   }
   .service-tabs {
     display: flex;
@@ -262,7 +267,8 @@ const servicesCss = `
     padding: 0.42rem 1rem;
     background: var(--color-surface-2);
     color: var(--color-text-muted);
-    font-size: 0.92rem;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
     font-weight: 600;
     cursor: pointer;
   }
@@ -319,27 +325,32 @@ const servicesCss = `
   }
   .service-card-top h2 {
     margin: 0 0 var(--space-2);
-    font-size: clamp(1.02rem, 1.22vw, 1.2rem);
-    font-weight: 650;
-    line-height: 1.28;
+    font-size: var(--text-card-title);
+    line-height: var(--leading-card-title);
+    font-weight: 700;
+    letter-spacing: -0.005em;
   }
   .service-card-top span {
     border-radius: var(--radius-full);
     padding: 3px 9px;
     background: var(--color-surface-2);
     color: var(--color-text-muted);
-    font-size: var(--text-xs);
-    font-weight: 620;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 600;
   }
   .service-price strong {
-    font-size: clamp(1.38rem, 1.95vw, 1.78rem);
-    font-weight: 650;
+    font-size: var(--text-price-sub);
+    line-height: var(--leading-price-sub);
+    font-weight: 600;
     letter-spacing: 0;
+    font-variant-numeric: tabular-nums;
   }
   .service-price small {
     margin-left: var(--space-1);
     color: var(--color-text-muted);
-    font-size: 0.9rem;
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
   }
   .service-list-card ul {
     display: grid;
@@ -355,7 +366,8 @@ const servicesCss = `
     align-items: center;
     margin: 0;
     color: var(--color-text-muted);
-    font-size: var(--text-sm);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
   }
   .service-list-card li svg,
   .service-time svg {
@@ -370,8 +382,9 @@ const servicesCss = `
     border: 1.5px solid var(--color-border);
     border-radius: 8px;
     color: var(--color-primary);
-    font-size: var(--text-sm);
-    font-weight: 680;
+    font-size: var(--text-button);
+    line-height: var(--leading-button);
+    font-weight: 700;
   }
   @media (max-width: 640px) {
     .services-page {
@@ -382,7 +395,8 @@ const servicesCss = `
       padding: 1.75rem 1.35rem;
     }
     .services-hero h1 {
-      line-height: 1.3;
+      font-size: var(--text-h1);
+      line-height: var(--leading-h1);
     }
     .services-hero p {
       line-height: 1.7;

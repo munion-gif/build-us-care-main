@@ -57,8 +57,10 @@ const css = `
   }
   .error-card h1 {
     margin: 0;
-    font-size: clamp(1.65rem, 4vw, 2.15rem);
-    line-height: 1.18;
+    font-size: var(--text-h2);
+    line-height: var(--leading-h2);
+    font-weight: 700;
+    letter-spacing: -0.018em;
     word-break: keep-all;
   }
   .error-card p {
@@ -85,7 +87,7 @@ const css = `
     border-radius: var(--radius-full);
     padding: 0 var(--space-6);
     text-decoration: none;
-    font-weight: 900;
+    font-weight: 700;
     cursor: pointer;
   }
   .home-link {

@@ -16,6 +16,11 @@
 
 - 백엔드 기준 스펙: `specs/backend-spec.md`
 - 현재 구조 분석: `specs/PROJECT_ARCHITECTURE_OVERVIEW.md`
+- 웹 타이포그래피 시스템: `specs/builduscare_typography_system_research.md`
 - 로드맵: `specs/ROADMAP.md`
 - 전체 진행 기록: `reports/PROJECT_PROGRESS_FULL.md`
 - Phase 1 변경 로그: `changelog/CHANGES_PHASE1.md`
+
+## 로컬 산출물
+
+개발 서버 로그와 ui-inspector 실행 로그는 `.runtime/logs/` 아래에만 둡니다. 화면 캡처와 문서 생성 결과는 각각 `screenshots/`, `outputs/`를 사용하고, 루트에는 임시 HTML이나 로그 파일을 남기지 않습니다.

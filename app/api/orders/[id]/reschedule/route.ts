@@ -156,12 +156,19 @@ async function assertSlotAvailable(params: {
   const firstError = jobsResult.error ?? reservationsResult.error;
   if (firstError) return fail("INTERNAL_ERROR", firstError.message, 500);
 
-  const hasExistingDateBooking =
-    (jobsResult.data ?? []).some((job) => job.order_id !== orderId) ||
-    (reservationsResult.data ?? []).some((reservation) => reservation.order_id !== orderId);
+  const cap = timeSlot === "morning"
+    ? Number(config?.morning_cap ?? await effectiveDefaultCap(supabase))
+    : Number(config?.afternoon_cap ?? await effectiveDefaultCap(supabase));
+  const sameSlotJobCount = (jobsResult.data ?? []).filter((job) => job.order_id !== orderId && slotFromScheduledAt(job.scheduled_at) === timeSlot).length;
+  const sameSlotReservationCount = (reservationsResult.data ?? []).filter(
+    (reservation) =>
+      reservation.order_id !== orderId &&
+      reservation.time_slot === timeSlot &&
+      ACTIVE_RESERVATION_STATUSES.includes(String(reservation.status))
+  ).length;
 
-  if (hasExistingDateBooking) {
-    return fail("SLOT_RESERVED_DATE", "이미 예약이 있는 날짜입니다. 다른 날짜를 선택해주세요.", 409);
+  if (sameSlotJobCount + sameSlotReservationCount >= cap) {
+    return fail("SLOT_FULL", "선택한 시간대는 마감되었습니다. 다른 시간대를 선택해주세요.", 409);
   }
 
   return null;

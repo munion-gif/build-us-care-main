@@ -10,6 +10,8 @@ const height = Number(process.argv[5] ?? 1800);
 const mobile = process.argv[6] !== "desktop";
 const waitMs = Number(process.env.SCREENSHOT_WAIT_MS ?? 2500);
 const scrollY = Number(process.env.SCREENSHOT_SCROLL_Y ?? 0);
+const clickSelector = process.env.SCREENSHOT_CLICK_SELECTOR;
+const sessionStorageJson = process.env.SCREENSHOT_SESSION_STORAGE_JSON;
 const chromePath = process.env.CHROME_PATH ?? "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 const port = 9900 + Math.floor(Math.random() * 400);
 
@@ -130,12 +132,22 @@ async function main() {
     await send("Runtime.enable");
     await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile });
     await send("Emulation.setTouchEmulationEnabled", { enabled: mobile });
+    if (sessionStorageJson) {
+      const entries = JSON.parse(sessionStorageJson);
+      await send("Page.addScriptToEvaluateOnNewDocument", {
+        source: `for (const [key, value] of Object.entries(${JSON.stringify(entries)})) sessionStorage.setItem(key, value);`
+      });
+    }
     const loadEvent = browser.once("Page.loadEventFired", (payload) => payload.sessionId === sessionId);
     await send("Page.navigate", { url });
     await loadEvent;
     await delay(waitMs);
     if (scrollY > 0) {
       await send("Runtime.evaluate", { expression: `window.scrollTo(0, ${scrollY});` });
+      await delay(500);
+    }
+    if (clickSelector) {
+      await send("Runtime.evaluate", { expression: `document.querySelector(${JSON.stringify(clickSelector)})?.click();` });
       await delay(500);
     }
     const screenshot = await send("Page.captureScreenshot", { format: "png", fromSurface: true });

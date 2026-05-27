@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:local": "next dev -H 127.0.0.1 -p 3000",
+    "dev:lan": "next dev -H 0.0.0.0 -p 3000",
+    "dev:inspect": "node scripts/run-ui-inspector-dev.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

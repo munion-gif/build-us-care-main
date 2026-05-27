@@ -13,6 +13,7 @@ type QuoteStickySummaryProps = {
   mockPaymentMode: boolean;
   loading: boolean;
   onPayment: () => void;
+  onPaymentBlocked?: () => boolean | void;
   productSelection?: ReactNode;
   selectionReady?: boolean;
   selectionMessage?: string;
@@ -41,6 +42,7 @@ export function QuoteStickySummary({
   mockPaymentMode,
   loading,
   onPayment,
+  onPaymentBlocked,
   productSelection,
   selectionReady = true,
   selectionMessage = "필수 선택을 완료해주세요.",
@@ -53,10 +55,12 @@ export function QuoteStickySummary({
 }: QuoteStickySummaryProps) {
   const [policyAccepted, setPolicyAccepted] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const consentInputRef = useRef<HTMLInputElement | null>(null);
   const dragStartYRef = useRef<number | null>(null);
   const dragCurrentYRef = useRef<number | null>(null);
   const visitText = date ? `${date} ${slotLabel(slot)}` : "방문일 선택 전";
-  const paymentDisabled = loading || !selectionReady || !paymentAvailable || !policyAccepted;
+  const paymentBlocked = !selectionReady || !policyAccepted;
+  const paymentDisabled = loading || !paymentAvailable;
   const paymentTitle = !selectionReady
     ? selectionMessage
     : !paymentAvailable
@@ -66,6 +70,15 @@ export function QuoteStickySummary({
       : mockPaymentMode
         ? "테스트 결제 모드입니다"
         : undefined;
+  const hasProductSelection = Boolean(productSelection);
+  const stickyClassName = [
+    "sticky-cta",
+    summaryOpen ? "expanded" : "",
+    hasProductSelection ? "has-product-selection" : "",
+    selectionReady ? "selection-ready" : ""
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   function handleTouchStart(event: TouchEvent<HTMLDivElement>) {
     if (!summaryOpen) return;
@@ -100,9 +113,26 @@ export function QuoteStickySummary({
     dragCurrentYRef.current = null;
   }
 
+  function handlePaymentButtonClick() {
+    if (loading || !paymentAvailable) return;
+    if (!selectionReady) {
+      onPaymentBlocked?.();
+      return;
+    }
+    if (onPaymentBlocked?.()) {
+      return;
+    }
+    if (!policyAccepted) {
+      consentInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      window.setTimeout(() => consentInputRef.current?.focus({ preventScroll: true }), 220);
+      return;
+    }
+    onPayment();
+  }
+
   return (
     <div
-      className={summaryOpen ? "sticky-cta expanded" : "sticky-cta"}
+      className={stickyClassName}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -168,7 +198,7 @@ export function QuoteStickySummary({
           </div>
         )}
         <label className="payment-consent">
-          <input type="checkbox" checked={policyAccepted} onChange={(event) => setPolicyAccepted(event.target.checked)} />
+          <input ref={consentInputRef} type="checkbox" checked={policyAccepted} onChange={(event) => setPolicyAccepted(event.target.checked)} />
           <span>
             주문 내용과 방문 일정, <a href="/privacy" target="_blank" rel="noreferrer">개인정보 처리방침</a>,{" "}
             <a href="/refund-policy" target="_blank" rel="noreferrer">취소·환불 안내</a>를 확인했습니다.
@@ -177,11 +207,20 @@ export function QuoteStickySummary({
         <button
           type="button"
           disabled={paymentDisabled}
+          aria-disabled={paymentDisabled || paymentBlocked}
           title={paymentTitle}
           className="strong payment-button"
-          onClick={onPayment}
+          onClick={handlePaymentButtonClick}
         >
-          {loading ? "결제창 여는 중..." : paymentAvailable ? `${policyAccepted ? (mockPaymentMode ? "테스트 결제하기" : paymentButtonLabel) : "안내 확인 후 결제"}` : "결제 준비 중"}
+          {loading
+            ? "결제창 여는 중..."
+            : !paymentAvailable
+              ? "결제 준비 중"
+              : !selectionReady
+                ? "제품 선택 후 결제"
+                : policyAccepted
+                  ? (mockPaymentMode ? "테스트 결제하기" : paymentButtonLabel)
+                  : "안내 확인 후 결제"}
         </button>
       </div>
     </div>

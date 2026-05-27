@@ -121,24 +121,28 @@ export function PaymentSuccessClient() {
         p {
           margin: 0;
           color: var(--color-muted);
-          font-weight: 750;
+          font-weight: 700;
           letter-spacing: 0.32em;
           text-transform: lowercase;
         }
         h1 {
           margin: 0;
-          font-size: clamp(30px, 6vw, 48px);
-          line-height: 1.08;
-          letter-spacing: 0;
+          font-size: var(--text-h1);
+          line-height: var(--leading-h1);
+          font-weight: 700;
+          letter-spacing: -0.02em;
         }
         strong {
-          font-size: clamp(42px, 8vw, 68px);
-          line-height: 1;
+          font-size: var(--text-price-main);
+          line-height: var(--leading-price-main);
+          font-weight: 700;
+          letter-spacing: -0.015em;
+          font-variant-numeric: tabular-nums;
         }
         span,
         small {
           color: var(--color-muted);
-          font-weight: 750;
+          font-weight: 700;
           line-height: 1.55;
           font-size: 18px;
         }
@@ -150,7 +154,7 @@ export function PaymentSuccessClient() {
           border-radius: 8px;
           background: var(--color-charcoal);
           color: var(--color-cream);
-          font-weight: 900;
+          font-weight: 700;
           text-decoration: none;
           margin-top: 8px;
         }

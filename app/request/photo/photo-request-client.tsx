@@ -372,7 +372,7 @@ const photoRequestCss = `
   .step-indicator span {
     display: none;
     color: var(--color-primary);
-    font-weight: 680;
+    font-weight: 700;
   }
   .step-indicator p {
     display: flex;
@@ -390,7 +390,7 @@ const photoRequestCss = `
     background: rgba(255, 250, 241, 0.72);
     color: var(--color-text-faint);
     font-size: var(--text-xs);
-    font-weight: 620;
+    font-weight: 600;
     line-height: 1;
     white-space: nowrap;
   }
@@ -432,8 +432,10 @@ const photoRequestCss = `
   }
   .flow-panel h1 {
     margin: 0;
-    font-size: clamp(1.45rem, 2.45vw, 2rem);
-    font-weight: 640;
+    font-size: var(--text-h1);
+    line-height: var(--leading-h1);
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
   .flow-lead {
     max-width: 42rem;
@@ -458,7 +460,7 @@ const photoRequestCss = `
     border-radius: 8px;
     background: var(--color-surface);
     color: var(--color-text);
-    font-weight: 650;
+    font-weight: 600;
     text-decoration: none;
   }
   .diagnosis-service-grid button.selected {
@@ -480,7 +482,7 @@ const photoRequestCss = `
     background: rgba(168, 176, 162, 0.18);
     color: var(--color-text);
     font-size: var(--text-xs);
-    font-weight: 650;
+    font-weight: 600;
     line-height: 1.35;
   }
   .photo-guide-cards span:nth-child(2) {
@@ -520,7 +522,7 @@ const photoRequestCss = `
   }
   .photo-slot label span {
     max-width: 13ch;
-    font-size: 0.72rem;
+    font-size: var(--text-caption);
     line-height: 1.35;
   }
   .photo-slot-caption {
@@ -531,8 +533,8 @@ const photoRequestCss = `
     padding: 4px 8px;
     background: rgba(0, 0, 0, 0.62);
     color: #fff;
-    font-size: 0.72rem;
-    font-weight: 650;
+    font-size: var(--text-caption);
+    font-weight: 600;
   }
   .photo-slot input {
     display: none;
@@ -564,16 +566,16 @@ const photoRequestCss = `
     display: grid;
     gap: 8px;
     color: var(--color-text);
-    font-weight: 800;
+    font-weight: 700;
   }
   .field-label b {
     color: #dc2626;
-    font-weight: 950;
+    font-weight: 700;
   }
   .field-label small {
     color: var(--color-text-muted);
     font-size: var(--text-xs);
-    font-weight: 650;
+    font-weight: 600;
     line-height: 1.45;
   }
   .contact-field-grid {
@@ -685,7 +687,7 @@ const photoRequestCss = `
     padding: 4px 10px;
     background: rgba(255,255,255,0.72);
     font-size: var(--text-xs);
-    font-weight: 650;
+    font-weight: 600;
   }
   .diagnosis-result h1,
   .diagnosis-result p {
@@ -705,7 +707,7 @@ const photoRequestCss = `
     background: rgba(184, 138, 43, 0.12);
     color: #6d4d11;
     font-size: var(--text-sm);
-    font-weight: 800;
+    font-weight: 700;
   }
   .result-actions a,
   .result-actions button {
@@ -719,7 +721,7 @@ const photoRequestCss = `
     background: var(--color-primary);
     color: var(--color-cream);
     text-decoration: none;
-    font-weight: 680;
+    font-weight: 700;
   }
   .done-panel a,
   .done-panel button {

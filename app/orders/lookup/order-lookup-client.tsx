@@ -164,39 +164,39 @@ const css = `
   .lookup-card { display: grid; gap: var(--space-4); }
   .lookup-card { background: linear-gradient(135deg, rgba(255, 250, 241, 0.96), rgba(244, 234, 212, 0.78)); }
   .brand-kicker { color: var(--color-text); font-family: var(--font-brand); font-size: 13px; font-weight: var(--brand-label-weight); letter-spacing: var(--brand-letter-spacing); text-transform: lowercase; }
-  .lookup-card p { margin: 0; color: var(--color-primary); font-weight: 900; }
+  .lookup-card p { margin: 0; color: var(--color-primary); font-weight: 700; }
   .lookup-card h1 { margin: 0; font-size: var(--text-xl); font-weight: 700; line-height: 1.25; letter-spacing: 0; }
   .lookup-card span, .lookup-message { color: var(--color-text-muted); line-height: 1.55; }
-  .lookup-instagram-note { border-radius: 8px; background: var(--color-primary-highlight); padding: var(--space-3) var(--space-4); color: var(--color-primary); font-weight: 800; line-height: 1.55; }
+  .lookup-instagram-note { border-radius: 8px; background: var(--color-primary-highlight); padding: var(--space-3) var(--space-4); color: var(--color-primary); font-weight: 700; line-height: 1.55; }
   .lookup-card form { display: grid; gap: var(--space-3); }
   .lookup-form-grid { display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: var(--space-3); }
-  .lookup-card label { display: grid; gap: 8px; font-weight: 800; }
+  .lookup-card label { display: grid; gap: 8px; font-weight: 700; }
   .lookup-card input { min-height: 52px; border: 1px solid var(--color-border); border-radius: 8px; padding: 0 14px; font-size: 16px; }
-  .lookup-card button, .lookup-link { min-height: 52px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; background: var(--color-gold); color: #211c12; text-decoration: none; font-weight: 900; white-space: nowrap; }
+  .lookup-card button, .lookup-link { min-height: 52px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; background: var(--color-gold); color: #211c12; text-decoration: none; font-weight: 700; white-space: nowrap; }
   .lookup-card button:disabled { opacity: 0.55; cursor: not-allowed; }
-  .lookup-message { border-radius: 8px; background: var(--color-primary-highlight); padding: var(--space-3) var(--space-4); font-weight: 800; }
+  .lookup-message { border-radius: 8px; background: var(--color-primary-highlight); padding: var(--space-3) var(--space-4); font-weight: 700; }
   .lookup-message.empty { background: var(--color-alert-soft); color: #7a371f; }
   .lookup-secondary-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-  .lookup-secondary-actions a { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--color-border); border-radius: var(--radius-full); padding: 0 var(--space-4); background: var(--color-surface); color: var(--color-text); text-decoration: none; font-size: var(--text-sm); font-weight: 900; }
+  .lookup-secondary-actions a { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--color-border); border-radius: var(--radius-full); padding: 0 var(--space-4); background: var(--color-surface); color: var(--color-text); text-decoration: none; font-size: var(--text-sm); font-weight: 700; }
   .lookup-secondary-actions a:first-child { border-color: var(--color-gold); background: var(--color-gold); color: #211c12; }
   .lookup-results { display: grid; gap: var(--space-4); }
   .lookup-results-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
   .lookup-results-head h2 { margin: 0; font-size: var(--text-lg); letter-spacing: 0; }
-  .lookup-results-head span { color: var(--color-text-muted); font-weight: 800; }
+  .lookup-results-head span { color: var(--color-text-muted); font-weight: 700; }
   .lookup-order-list { display: grid; gap: var(--space-3); }
   .lookup-order-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-4); border: 1px solid var(--color-border); border-radius: 8px; padding: var(--space-4); background: var(--color-surface); }
-  .lookup-order-number { color: var(--color-primary); font-size: var(--text-sm); font-weight: 900; }
+  .lookup-order-number { color: var(--color-primary); font-size: var(--text-sm); font-weight: 700; }
   .lookup-order-card h3 { margin: var(--space-1) 0 var(--space-2); font-size: var(--text-base); letter-spacing: 0; }
   .lookup-badges { display: flex; flex-wrap: wrap; gap: 6px; }
-  .lookup-badges span { border-radius: var(--radius-full); padding: 4px 9px; background: var(--color-primary-highlight); color: var(--color-primary); font-size: var(--text-xs); font-weight: 900; }
-  .lookup-order-summary { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); font-weight: 800; line-height: 1.5; }
+  .lookup-badges span { border-radius: var(--radius-full); padding: 4px 9px; background: var(--color-primary-highlight); color: var(--color-primary); font-size: var(--text-xs); font-weight: 700; }
+  .lookup-order-summary { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); font-weight: 700; line-height: 1.5; }
   .lookup-kakao-banner { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-4); background: var(--color-sage-soft); }
   .lookup-kakao-banner h2 { margin: 0 0 4px; font-size: var(--text-base); line-height: 1.25; letter-spacing: 0; }
   .lookup-kakao-banner p { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); line-height: 1.55; }
-  .lookup-kakao-banner a, .lookup-kakao-banner button { min-height: 46px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: var(--radius-full); padding: 0 var(--space-5); background: var(--color-gold); color: #211c12; text-decoration: none; font-weight: 900; white-space: nowrap; }
+  .lookup-kakao-banner a, .lookup-kakao-banner button { min-height: 46px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: var(--radius-full); padding: 0 var(--space-5); background: var(--color-gold); color: #211c12; text-decoration: none; font-weight: 700; white-space: nowrap; }
   .lookup-kakao-banner button { background: var(--color-surface-2); color: var(--color-text-faint); cursor: not-allowed; }
   .lookup-kakao-mobile-link { display: none !important; }
-  .lookup-kakao-qr { display: grid; justify-items: center; gap: 6px; color: var(--color-text-muted); font-size: var(--text-xs); font-weight: 800; text-align: center; }
+  .lookup-kakao-qr { display: grid; justify-items: center; gap: 6px; color: var(--color-text-muted); font-size: var(--text-xs); font-weight: 700; text-align: center; }
   .lookup-kakao-qr img { width: 88px; height: 88px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: #fff; }
   @media (max-width: 820px) {
     .lookup-form-grid, .lookup-order-card { grid-template-columns: 1fr; }
