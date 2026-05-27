@@ -912,6 +912,9 @@ const homeCss = `
     .service-grid {
       grid-template-columns: 1fr;
     }
+    .service-section {
+      display: none;
+    }
     .service-icon-strip {
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 7px;
