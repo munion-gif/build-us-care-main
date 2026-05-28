@@ -5,22 +5,43 @@ import "./globals.css";
 
 export const dynamic = "force-dynamic";
 
+const siteTitle = "Build us Care";
+const siteDescription = "집 안의 작은 교체, 먼저 확인하세요";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://builduscare.co.kr";
+
 export const metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://builduscare.co.kr"),
-  title: "Buildus Care — 교체·수리, 지금 바로 예약",
-  description: "정찰가로 투명하게, 검증 기사가 직접 시공합니다. 변기·수전·전등·콘센트 교체 즉시 예약.",
+  metadataBase: new URL(siteUrl),
+  title: siteTitle,
+  description: siteDescription,
   openGraph: {
-    title: "Buildus Care",
-    description: "교체·수리 정찰가 예약 서비스",
-    siteName: "Buildus Care",
-    images: ["/icon.svg"]
+    title: siteTitle,
+    description: siteDescription,
+    siteName: siteTitle,
+    url: siteUrl,
+    locale: "ko_KR",
+    type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: siteDescription,
+        type: "image/png"
+      }
+    ]
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: siteTitle,
+    description: siteDescription,
+    images: ["/og-image.png"]
   },
   icons: {
     icon: "/icon.svg",
     shortcut: "/icon.svg"
   },
   alternates: {
-    canonical: "https://builduscare.co.kr"
+    canonical: siteUrl
   }
 };
 
