@@ -129,17 +129,19 @@ export async function POST(request: Request) {
   const orderName = buildPaymentOrderName(order, acceptedQuote);
   const now = new Date().toISOString();
   const quoteStatus = amounts.isProductSelectionQuote ? "pending_product_payment" : "payment_pending";
+  const provider = parsed.data.provider;
+  const isBankTransfer = provider === "bank_transfer";
 
   const paymentPayload = {
     order_id: order.id,
     quote_id: acceptedQuote.id,
-    provider: "toss",
+    provider,
     provider_order_id: providerOrderId,
-    method: "unknown",
+    method: isBankTransfer ? "transfer" : "unknown",
     order_name: orderName,
     amount: amounts.onlinePaymentAmount,
-    status: "ready",
-    provider_status: "READY",
+    status: isBankTransfer ? "pending" : "ready",
+    provider_status: isBankTransfer ? "WAITING_DEPOSIT" : "READY",
     requested_at: now,
     product_amount: amounts.productAmount,
     service_fee_amount: amounts.serviceFeeAmount,
@@ -164,12 +166,12 @@ export async function POST(request: Request) {
         .insert({
           order_id: order.id,
           quote_id: acceptedQuote.id,
-          provider: "toss",
-          method: "unknown",
+          provider,
+          method: isBankTransfer ? "transfer" : "unknown",
           order_name: orderName,
           amount: amounts.onlinePaymentAmount,
-          status: "ready",
-          provider_status: "READY",
+          status: isBankTransfer ? "pending" : "ready",
+          provider_status: isBankTransfer ? "WAITING_DEPOSIT" : "READY",
           requested_at: now
         })
         .select("*")
@@ -231,6 +233,7 @@ export async function POST(request: Request) {
     properties: {
       payment_id: payment.id,
       provider_order_id: providerOrderId,
+      provider,
       quote_id: acceptedQuote.id,
       product_amount: amounts.productAmount,
       service_fee_amount: amounts.serviceFeeAmount,
@@ -251,6 +254,7 @@ export async function POST(request: Request) {
     internalOrderId: order.id,
     accessToken: order.access_token,
     paymentId: payment.id,
+    provider,
     orderName,
     amount: amounts.onlinePaymentAmount,
     productAmount: amounts.productAmount,

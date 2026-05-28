@@ -212,13 +212,13 @@ export function QuoteStickySummary({
           onClick={handlePaymentButtonClick}
         >
           {loading
-            ? "결제창 여는 중..."
+            ? "계좌이체 안내 준비 중..."
             : !paymentAvailable
               ? "결제 준비 중"
               : !selectionReady
                 ? "제품 선택 후 결제"
                 : policyAccepted && areaAccepted
-                  ? (mockPaymentMode ? "테스트 결제하기" : paymentButtonLabel)
+                  ? paymentButtonLabel
                   : "안내 확인 후 결제"}
         </button>
       </div>

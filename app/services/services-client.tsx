@@ -11,15 +11,17 @@ type ServicesClientProps = {
   services: QuoteServiceItem[];
 };
 
-const tabs = ["전체", "욕실", "도어·손잡이"] as const;
+const tabs = ["전체", "욕실", "주방", "도어·손잡이"] as const;
+type ServiceTab = (typeof tabs)[number];
+type ServiceCategory = Exclude<ServiceTab, "전체">;
 
-const categoryByCode: Record<string, (typeof tabs)[number]> = {
-  toilet_replace: "욕실",
-  basin_replace: "욕실",
-  faucet_replace: "욕실",
-  bidet_install: "욕실",
-  ventilator_replace: "욕실",
-  sash_handle: "도어·손잡이"
+const categoriesByCode: Record<string, ServiceCategory[]> = {
+  toilet_replace: ["욕실"],
+  basin_replace: ["욕실"],
+  faucet_replace: ["욕실", "주방"],
+  bidet_install: ["욕실"],
+  ventilator_replace: ["욕실"],
+  sash_handle: ["도어·손잡이"]
 };
 
 const icons: Record<string, LucideIcon> = {
@@ -37,14 +39,14 @@ function priceLabel(service: QuoteServiceItem) {
 }
 
 export function ServicesClient({ services }: ServicesClientProps) {
-  const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("전체");
+  const [activeTab, setActiveTab] = useState<ServiceTab>("전체");
   const [sourceContext, setSourceContext] = useState<SourceContext>(() => readClientSourceContext());
   const filtered = useMemo(
     () =>
       services.filter(
         (service) =>
           PUBLIC_SERVICE_CODE_SET.has(service.service_type_code) &&
-          (activeTab === "전체" || categoryByCode[service.service_type_code] === activeTab)
+          (activeTab === "전체" || categoriesByCode[service.service_type_code]?.includes(activeTab))
       ),
     [activeTab, services]
   );
@@ -92,7 +94,7 @@ export function ServicesClient({ services }: ServicesClientProps) {
       <section className="service-list-grid" id="service-list">
         {filtered.map((service) => {
           const Icon = icons[service.service_type_code] ?? Droplets;
-          const category = categoryByCode[service.service_type_code] ?? "전체";
+          const category = categoriesByCode[service.service_type_code]?.join("·") ?? "서비스";
           const included = service.included_items.slice(0, 2);
           return (
             <Link key={service.service_type_code} className="service-list-card" href={appendSourceParams(`/quote/${service.service_type_code}`, sourceContext)}>

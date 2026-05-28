@@ -38,6 +38,7 @@ type QuoteSummaryItem = {
 
 function paymentMethodLabel(provider?: string | null) {
   if (provider === "toss") return "카드/간편결제";
+  if (provider === "bank_transfer") return "계좌이체";
   return provider ?? "확인 중";
 }
 
@@ -46,6 +47,7 @@ function quoteItemRows(items: QuoteSummaryItem[] | undefined) {
     const product = item.metadata?.selected_replacement_product ?? null;
     const productName = [product?.brand, product?.model].filter(Boolean).join(" ").trim() || item.item_name || "선택 제품";
     const unitPrice = Number(product?.price ?? item.unit_material ?? 0);
+    const laborPrice = Number(item.unit_labor ?? 0) * Number(item.qty ?? 1);
     const finalPrice = Number(item.line_total ?? (unitPrice + Number(item.unit_labor ?? 0)) * Number(item.qty ?? 1));
 
     return {
@@ -54,6 +56,7 @@ function quoteItemRows(items: QuoteSummaryItem[] | undefined) {
       productName,
       sku: product?.sku ?? item.sku ?? "-",
       unitPrice,
+      laborPrice,
       finalPrice,
       qty: Number(item.qty ?? 1)
     };
@@ -85,6 +88,10 @@ export function QuoteSummary({ quote, payment }: QuoteSummaryProps) {
                   <div>
                     <dt>가격</dt>
                     <dd>{formatKRW(item.unitPrice)}</dd>
+                  </div>
+                  <div>
+                    <dt>시공비</dt>
+                    <dd>{formatKRW(item.laborPrice)}</dd>
                   </div>
                   <div>
                     <dt>최종가격</dt>

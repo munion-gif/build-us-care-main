@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { MapPin, MessageCircle } from "lucide-react";
 import { AddressModal, type AddressSelection } from "@/components/common/AddressModal";
 import { PhotoUploader } from "@/components/quote/PhotoUploader";
@@ -59,7 +60,6 @@ type AddressForm = {
 };
 
 type SlotPeriod = "morning" | "afternoon";
-type PaymentMethod = "CARD" | "TRANSFER";
 type SlotsByDate = Record<string, SlotPeriod[]>;
 type SlotDay = {
   date: string;
@@ -78,6 +78,17 @@ type PreviousOrder = {
   service_type_code?: string | null;
   skus?: Array<{ sku?: string; service_type_code?: string }> | null;
   jobs?: Array<{ assigned_technician_name?: string | null; status?: string | null; completed_at?: string | null }> | null;
+};
+
+type QuoteConfirmRow = {
+  id: string;
+  image: string | null;
+  productName: string;
+  sku: string;
+  qty: number;
+  price: number;
+  labor: number;
+  finalPrice: number;
 };
 
 const VISIT_FEE = 15000;
@@ -109,6 +120,11 @@ function categoryLabel(category: string) {
     service: "서비스"
   };
   return labels[category] ?? category;
+}
+
+function serviceCategoryLabel(service: QuoteServiceItem) {
+  if (service.service_type_code === "faucet_replace") return "욕실·주방";
+  return categoryLabel(service.category);
 }
 
 function minReservationIsoDate() {
@@ -190,6 +206,7 @@ type PreparedPayment = {
   orderId: string;
   internalOrderId: string;
   accessToken?: string;
+  paymentId?: string;
   orderName: string;
   amount: number;
   productAmount: number;
@@ -309,7 +326,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [activeFormStep, setActiveFormStep] = useState(0);
-  const [paymentMethod] = useState<PaymentMethod>("TRANSFER");
+  const [quoteConfirmOpen, setQuoteConfirmOpen] = useState(false);
   const productSectionRef = useRef<HTMLDivElement | null>(null);
   const addressSectionRef = useRef<HTMLElement | null>(null);
   const scheduleSectionRef = useRef<HTMLElement | null>(null);
@@ -347,6 +364,56 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
   const total = serviceLaborTotal + selectedProductPrice + addonTotal + quoteVisitFee;
   const onlinePaymentTotal = showProductCatalog ? selectedProductPrice : total;
   const onsitePaymentTotal = showProductCatalog ? serviceLaborTotal : 0;
+  const quoteConfirmRows = useMemo<QuoteConfirmRow[]>(
+    () => {
+      if (showProductCatalog) {
+        return selectedProductItems.map(({ product, qty }) => {
+          const productPrice = (product.price ?? 0) * qty;
+          const laborPrice = serviceLaborPrice * qty;
+          return {
+            id: product.id,
+            image: product.image ?? null,
+            productName: [product.brand, product.model].filter(Boolean).join(" ").trim() || product.model || product.sku,
+            sku: product.sku.trim() || "-",
+            qty,
+            price: productPrice,
+            labor: laborPrice,
+            finalPrice: productPrice + laborPrice
+          };
+        });
+      }
+
+      const productPrice = selectedMaterial?.retail_price ?? 0;
+      const laborPrice = serviceLaborPrice + quoteVisitFee;
+      return [
+        {
+          id: selectedMaterial?.sku ?? service.service_type_code,
+          image: null,
+          productName: selectedMaterial?.name ?? service.display_name,
+          sku: selectedMaterial?.sku ?? service.service_type_code,
+          qty: 1,
+          price: productPrice,
+          labor: laborPrice,
+          finalPrice: productPrice + laborPrice + addonTotal
+        }
+      ];
+    },
+    [
+      addonTotal,
+      quoteVisitFee,
+      selectedMaterial?.name,
+      selectedMaterial?.retail_price,
+      selectedMaterial?.sku,
+      selectedProductItems,
+      service.display_name,
+      service.service_type_code,
+      serviceLaborPrice,
+      showProductCatalog
+    ]
+  );
+  const quoteConfirmProductTotal = quoteConfirmRows.reduce((sum, row) => sum + row.price, 0);
+  const quoteConfirmLaborTotal = quoteConfirmRows.reduce((sum, row) => sum + row.labor, 0);
+  const quoteConfirmFinalTotal = quoteConfirmRows.reduce((sum, row) => sum + row.finalPrice, 0);
   const todayIso = toIsoDate(new Date());
   const minSelectableDate = minReservationIsoDate();
   const calendarDays = useMemo(() => buildCalendarDays(calendarMonth), [calendarMonth]);
@@ -357,9 +424,8 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
       return !day.beforeMinDate && !day.blocked && !day.allFull;
     }).length;
   }, [calendarMonth, slotDaysByDate, slotsReady]);
-  const mockPaymentMode = process.env.NEXT_PUBLIC_PAYMENT_MOCK_MODE === "true";
-  const tossReady = Boolean(process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY);
-  const paymentAvailable = mockPaymentMode || tossReady;
+  const mockPaymentMode = false;
+  const paymentAvailable = true;
   const customerName = String(customer?.name ?? "");
   const customerPhone = String(customer?.phone ?? "");
   const hasRequiredBasicInfo = Boolean(address.road_address && address.detail_address.trim() && customerName.trim() && isValidKoreanMobile(customerPhone));
@@ -528,11 +594,13 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
     if (date < minSelectableDate) setDate(minSelectableDate);
   }, [date, minSelectableDate]);
 
+  /*
   useEffect(() => {
     if (!mockPaymentMode && tossReady) {
       void loadTossSdk().catch(() => undefined);
     }
   }, [mockPaymentMode, tossReady]);
+  */
 
   useEffect(() => {
     if (preset.source === "instagram") {
@@ -901,7 +969,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
     const prepared = await requestJson("/api/payments/prepare", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId })
+      body: JSON.stringify({ orderId, provider: "bank_transfer" })
     }) as PreparedPayment;
 
     if (Number(prepared.amount) !== Number(prepared.productAmount)) {
@@ -913,13 +981,8 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
 
   async function handlePayment() {
     setLoading(true);
-    setMessage(mockPaymentMode ? "제품값 결제 정보를 준비하고 테스트 결제를 승인하고 있어요." : "제품값 결제 정보를 준비하고 토스 결제창을 열고 있어요.");
+    setMessage("계좌이체 안내를 준비하고 있어요.");
     try {
-      const tossClientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY;
-      if (!mockPaymentMode && !tossClientKey) {
-        throw new Error("결제 모듈이 아직 준비되지 않았어요.");
-      }
-
       const paymentReady = await createOrderAndQuote();
       const preparedPayment = await preparePayment(paymentReady.orderId);
       void track(
@@ -930,42 +993,32 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
           product_amount: preparedPayment.productAmount,
           total_final: preparedPayment.totalAmount,
           onsite_amount: preparedPayment.onsitePaymentAmount,
-          mock: mockPaymentMode,
-          method: paymentMethod
+          mock: false,
+          method: "BANK_TRANSFER"
         },
         { orderId: paymentReady.orderId }
       );
 
-      if (mockPaymentMode) {
-        const paymentKey = `mock-${preparedPayment.orderId}`;
-        const response = await fetch("/api/payments/confirm", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            orderId: preparedPayment.orderId,
-            paymentKey,
-            amount: preparedPayment.amount
-          })
-        });
-        const json = await response.json().catch(() => null);
+      sessionStorage.removeItem(quotePaymentStorageKey(service.service_type_code));
+      const params = new URLSearchParams({
+        orderId: preparedPayment.internalOrderId || paymentReady.orderId,
+        providerOrderId: preparedPayment.orderId,
+        amount: String(preparedPayment.amount),
+        productAmount: String(preparedPayment.productAmount),
+        serviceFeeAmount: String(preparedPayment.serviceFeeAmount),
+        totalAmount: String(preparedPayment.totalAmount),
+        onsiteAmount: String(preparedPayment.onsitePaymentAmount),
+        accessToken: paymentReady.accessToken,
+        serviceCode: service.service_type_code
+      });
+      if (preparedPayment.paymentId) params.set("paymentId", preparedPayment.paymentId);
+      window.location.assign(`/payment/transfer?${params.toString()}`);
+      return;
 
-        if (!response.ok) {
-          throw new Error(customerErrorMessage(json?.error, "테스트 결제 승인에 실패했어요."));
-        }
-
-        sessionStorage.removeItem(quotePaymentStorageKey(service.service_type_code));
-
-        const params = new URLSearchParams({
-          paymentKey,
-          orderId: preparedPayment.orderId,
-          amount: String(preparedPayment.amount),
-          accessToken: paymentReady.accessToken,
-          serviceCode: service.service_type_code
-        });
-        window.location.assign(`/payment/success?${params.toString()}`);
-        return;
-      }
-
+      /*
+      // Toss Payments flow is intentionally parked while the service uses manual bank transfer.
+      // Restore this block when card/easy-pay or Toss virtual account checkout is ready.
+      const tossClientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY;
       await loadTossSdk();
 
       if (!window.TossPayments) {
@@ -1001,11 +1054,17 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
         windowTarget: "self",
         ...(paymentMethod === "CARD" ? { card: { flowMode: "DEFAULT" as const } } : {})
       });
+      */
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "결제에 실패했어요. 다시 시도해주세요.");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleQuoteConfirmPayment() {
+    setQuoteConfirmOpen(false);
+    await handlePayment();
   }
 
   return (
@@ -1020,7 +1079,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
 
       <section className="quote-hero">
         <div>
-          <p>{categoryLabel(service.category)} · 예상 {service.estimated_minutes ?? 60}분</p>
+          <p>{serviceCategoryLabel(service)} · 예상 {service.estimated_minutes ?? 60}분</p>
           <h1>{service.display_name}</h1>
           <strong className="hero-start-price">{service.standardizable ? `시작가 ${won(displayedStartPrice)}` : "상담 후 견적 확정"}</strong>
           <small>{service.standardizable ? "기본 철거와 신규 설치 기준입니다." : "사진 확인 후 필요한 작업 범위를 안내합니다."}</small>
@@ -1343,14 +1402,14 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
             paymentAvailable={paymentAvailable}
             mockPaymentMode={mockPaymentMode}
             loading={loading}
-            onPayment={() => handlePayment()}
+            onPayment={() => setQuoteConfirmOpen(true)}
             onPaymentBlocked={handlePaymentBlocked}
             selectionReady={productSelectionReady}
             selectionMessage={`${productCatalog?.customConsultLabel ?? "제품"} 제품을 먼저 선택해주세요.`}
             mobileSummaryLabel={mobileSummaryLabel}
             summaryTitle={showProductCatalog ? "오늘 결제할 금액" : "결제 요약"}
-            paymentButtonLabel={showProductCatalog && productSelectionReady ? `제품값 ${won(onlinePaymentTotal)} 결제하기` : `${displayTotal} 결제하기`}
-            paymentReadyMessage={showProductCatalog ? "제품값만 먼저 결제합니다. 시공비는 시공 완료 후 현장에서 결제합니다." : "결제 후 방문 일정이 확정됩니다."}
+            paymentButtonLabel="최종 견적 확인하기"
+            paymentReadyMessage={showProductCatalog ? "최종 견적서를 확인한 뒤 제품값 계좌이체로 진행합니다. 시공비는 시공 완료 후 현장에서 결제합니다." : "최종 견적서를 확인한 뒤 계좌이체로 진행합니다."}
             productSelection={
               showProductCatalog ? (
                 <div className="sticky-selected-products" aria-label="선택 제품 요약">
@@ -1387,10 +1446,148 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
               ) : null
             }
           />
+          <QuoteConfirmModal
+            open={quoteConfirmOpen}
+            serviceName={service.display_name}
+            rows={quoteConfirmRows}
+            address={`${address.road_address} ${address.detail_address}`.trim() || "주소 확인 전"}
+            visitText={date ? `${date} ${slot === "morning" ? "오전" : "오후"}` : "방문일 선택 전"}
+            productTotal={quoteConfirmProductTotal}
+            laborTotal={quoteConfirmLaborTotal}
+            finalTotal={quoteConfirmFinalTotal}
+            transferAmount={onlinePaymentTotal}
+            onsiteAmount={onsitePaymentTotal}
+            productCatalogMode={showProductCatalog}
+            loading={loading}
+            onClose={() => setQuoteConfirmOpen(false)}
+            onConfirm={handleQuoteConfirmPayment}
+          />
         </>
       )}
     </main>
   );
+}
+
+function QuoteConfirmModal({
+  open,
+  serviceName,
+  rows,
+  address,
+  visitText,
+  productTotal,
+  laborTotal,
+  finalTotal,
+  transferAmount,
+  onsiteAmount,
+  productCatalogMode,
+  loading,
+  onClose,
+  onConfirm
+}: {
+  open: boolean;
+  serviceName: string;
+  rows: QuoteConfirmRow[];
+  address: string;
+  visitText: string;
+  productTotal: number;
+  laborTotal: number;
+  finalTotal: number;
+  transferAmount: number;
+  onsiteAmount: number;
+  productCatalogMode: boolean;
+  loading: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  if (!open || typeof document === "undefined") return null;
+
+  const modal = (
+    <div className="quote-confirm-backdrop" role="presentation" onMouseDown={onClose}>
+      <section className="quote-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="quote-confirm-title" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="quote-confirm-head">
+          <div>
+            <span className="brand-kicker">build us care</span>
+            <h2 id="quote-confirm-title">최종 견적 확인</h2>
+            <p>선택한 제품과 결제 전 금액을 한 번 더 확인해주세요.</p>
+          </div>
+          <button type="button" className="quote-confirm-close" onClick={onClose} aria-label="최종 견적 확인 닫기">닫기</button>
+        </div>
+
+        <div className="quote-confirm-meta" aria-label="견적 기본 정보">
+          <div>
+            <span>서비스</span>
+            <strong>{serviceName}</strong>
+          </div>
+          <div>
+            <span>방문 주소</span>
+            <strong>{address}</strong>
+          </div>
+          <div>
+            <span>방문 일정</span>
+            <strong>{visitText}</strong>
+          </div>
+        </div>
+
+        <div className="quote-confirm-grid" aria-label="견적서">
+          <div className="quote-confirm-grid-head" aria-hidden="true">
+            <span>견적서 사진</span>
+            <span>제품명</span>
+            <span>품번</span>
+            <span>가격</span>
+            <span>시공비</span>
+            <span>최종가격</span>
+          </div>
+          {rows.map((row) => (
+            <div className="quote-confirm-grid-row" key={row.id}>
+              <div className="quote-confirm-photo" data-label="견적서 사진">
+                {row.image ? <img src={row.image} alt={`${row.productName} 제품 사진`} /> : <span>사진</span>}
+              </div>
+              <strong className="quote-confirm-product" data-label="제품명">
+                {row.productName}
+                {row.qty > 1 && <small>{row.qty}개</small>}
+              </strong>
+              <span data-label="품번">{row.sku}</span>
+              <span data-label="가격">{won(row.price)}</span>
+              <span data-label="시공비">{won(row.labor)}</span>
+              <strong data-label="최종가격">{won(row.finalPrice)}</strong>
+            </div>
+          ))}
+        </div>
+
+        <div className="quote-confirm-summary" aria-label="견적 금액 요약">
+          <div>
+            <span>제품 가격</span>
+            <strong>{won(productTotal)}</strong>
+          </div>
+          <div>
+            <span>{productCatalogMode ? "시공비 현장결제" : "시공비"}</span>
+            <strong>{won(laborTotal)}</strong>
+          </div>
+          <div>
+            <span>예상 총액</span>
+            <strong>{won(finalTotal)}</strong>
+          </div>
+          <div className="quote-confirm-transfer">
+            <span>계좌이체 금액</span>
+            <strong>{won(transferAmount)}</strong>
+          </div>
+        </div>
+
+        {productCatalogMode && onsiteAmount > 0 && (
+          <p className="quote-confirm-note">제품값은 지금 계좌이체로 결제하고, 시공비 {won(onsiteAmount)}은 시공 완료 후 현장에서 결제합니다.</p>
+        )}
+
+        <div className="quote-confirm-actions">
+          <button type="button" className="quote-confirm-secondary" onClick={onClose}>다시 확인하기</button>
+          <button type="button" className="quote-confirm-primary" onClick={onConfirm} disabled={loading}>
+            {loading ? "계좌이체 안내 준비 중..." : "확인 후 계좌이체 진행"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+
+  return createPortal(modal, document.body);
 }
 
 function ReplacementProductCatalog({
@@ -3427,6 +3624,211 @@ const quoteCss = `
   .address-modal-error {
     padding: 18px;
   }
+  .quote-confirm-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: rgba(25, 24, 20, 0.54);
+  }
+  .quote-confirm-dialog {
+    width: min(940px, 100%);
+    max-height: calc(100vh - 36px);
+    overflow: auto;
+    display: grid;
+    gap: 18px;
+    border: 1px solid rgba(34, 33, 29, 0.16);
+    border-radius: 10px;
+    background: #fffaf1;
+    padding: 22px;
+    box-shadow: 0 28px 72px rgba(25, 24, 20, 0.28);
+  }
+  .quote-confirm-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: start;
+  }
+  .quote-confirm-head h2 {
+    margin: 8px 0 6px;
+    color: var(--color-text);
+    font-size: var(--text-h2);
+    line-height: var(--leading-h2);
+    letter-spacing: 0;
+  }
+  .quote-confirm-head p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
+  }
+  .quote-confirm-close,
+  .quote-confirm-secondary {
+    min-height: 42px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: 0 14px;
+    font-weight: 700;
+  }
+  .quote-confirm-meta {
+    display: grid;
+    grid-template-columns: 0.8fr 1.4fr 0.8fr;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.64);
+    overflow: hidden;
+  }
+  .quote-confirm-meta div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    padding: 12px;
+    border-right: 1px solid var(--color-border);
+  }
+  .quote-confirm-meta div:last-child {
+    border-right: 0;
+  }
+  .quote-confirm-meta span,
+  .quote-confirm-grid-head span,
+  .quote-confirm-summary span {
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+  .quote-confirm-meta strong {
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    line-height: 1.35;
+    overflow-wrap: break-word;
+  }
+  .quote-confirm-grid {
+    display: grid;
+    gap: 0;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface);
+    overflow: hidden;
+  }
+  .quote-confirm-grid-head,
+  .quote-confirm-grid-row {
+    display: grid;
+    grid-template-columns: 84px minmax(170px, 1.4fr) minmax(96px, 0.75fr) minmax(96px, 0.75fr) minmax(96px, 0.75fr) minmax(108px, 0.8fr);
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+  }
+  .quote-confirm-grid-head {
+    background: rgba(244, 234, 212, 0.72);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .quote-confirm-grid-row {
+    min-height: 86px;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .quote-confirm-grid-row:last-child {
+    border-bottom: 0;
+  }
+  .quote-confirm-grid-row > span,
+  .quote-confirm-grid-row > strong {
+    min-width: 0;
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    line-height: 1.35;
+    overflow-wrap: break-word;
+  }
+  .quote-confirm-grid-row > span[data-label="품번"] {
+    color: var(--color-text-muted);
+    font-weight: 700;
+  }
+  .quote-confirm-grid-row > strong[data-label="최종가격"] {
+    font-size: var(--text-base);
+    font-variant-numeric: tabular-nums;
+  }
+  .quote-confirm-photo {
+    width: 64px;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+  }
+  .quote-confirm-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .quote-confirm-photo span {
+    color: var(--color-text-faint);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+  .quote-confirm-product {
+    display: grid;
+    gap: 4px;
+    font-weight: 800;
+  }
+  .quote-confirm-product small {
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+  .quote-confirm-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .quote-confirm-summary div {
+    display: grid;
+    gap: 6px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.72);
+    padding: 12px;
+  }
+  .quote-confirm-summary strong {
+    color: var(--color-text);
+    font-size: var(--text-price-sub);
+    line-height: var(--leading-price-sub);
+    font-variant-numeric: tabular-nums;
+  }
+  .quote-confirm-summary .quote-confirm-transfer {
+    border-color: rgba(199, 146, 42, 0.5);
+    background: var(--color-primary-highlight);
+  }
+  .quote-confirm-note {
+    margin: 0;
+    border-radius: 8px;
+    background: rgba(244, 234, 212, 0.78);
+    padding: 12px 14px;
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    font-weight: 700;
+  }
+  .quote-confirm-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 0.72fr) minmax(0, 1fr);
+    gap: 10px;
+  }
+  .quote-confirm-primary {
+    min-height: 52px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--color-text);
+    color: var(--color-cream);
+    padding: 0 18px;
+    font-weight: 800;
+  }
+  .quote-confirm-primary:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
   .sticky-cta {
     box-sizing: border-box;
     position: fixed;
@@ -4735,6 +5137,84 @@ const quoteCss = `
     display: none;
   }
   @media (max-width: 720px) {
+    .quote-confirm-backdrop {
+      align-items: end;
+      padding: 10px;
+    }
+    .quote-confirm-dialog {
+      max-height: calc(100vh - 20px);
+      gap: 14px;
+      border-radius: 16px 16px 0 0;
+      padding: 16px;
+    }
+    .quote-confirm-head {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .quote-confirm-close {
+      justify-self: end;
+      min-height: 38px;
+    }
+    .quote-confirm-meta {
+      grid-template-columns: 1fr;
+    }
+    .quote-confirm-meta div {
+      border-right: 0;
+      border-bottom: 1px solid var(--color-border);
+      padding: 10px 12px;
+    }
+    .quote-confirm-meta div:last-child {
+      border-bottom: 0;
+    }
+    .quote-confirm-grid-head {
+      display: none;
+    }
+    .quote-confirm-grid-row {
+      grid-template-columns: 64px minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+      padding: 12px;
+    }
+    .quote-confirm-photo {
+      width: 58px;
+    }
+    .quote-confirm-product {
+      align-self: center;
+    }
+    .quote-confirm-grid-row > span[data-label],
+    .quote-confirm-grid-row > strong[data-label]:not(.quote-confirm-product) {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: 72px minmax(0, 1fr);
+      gap: 10px;
+      align-items: baseline;
+      font-size: var(--text-sm);
+    }
+    .quote-confirm-grid-row > span[data-label]::before,
+    .quote-confirm-grid-row > strong[data-label]:not(.quote-confirm-product)::before {
+      content: attr(data-label);
+      color: var(--color-text-muted);
+      font-size: var(--text-xs);
+      font-weight: 700;
+    }
+    .quote-confirm-summary {
+      grid-template-columns: 1fr 1fr;
+    }
+    .quote-confirm-summary div:nth-child(3) {
+      order: -1;
+    }
+    .quote-confirm-summary .quote-confirm-transfer {
+      order: -2;
+    }
+    .quote-confirm-actions {
+      grid-template-columns: 1fr;
+      position: sticky;
+      bottom: -16px;
+      margin: 0 -16px -16px;
+      padding: 10px 16px 12px;
+      border-top: 1px solid var(--color-border);
+      background: #fffaf1;
+      z-index: 1;
+    }
     .sticky-cta {
       grid-template-columns: 1fr;
     }
