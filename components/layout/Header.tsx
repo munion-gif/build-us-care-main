@@ -44,15 +44,15 @@ export function Header({ kakaoUrl }: HeaderProps) {
         <Logo />
         <nav className="desktop-nav" aria-label="주요 메뉴">
           {navItems.map(([label, href]) => (
-            <a key={href} className={isActive(href) ? "active" : ""} href={href}>
+            <Link key={href} className={isActive(href) ? "active" : ""} href={href}>
               {label}
-            </a>
+            </Link>
           ))}
         </nav>
         <div className="desktop-actions">
-          <a className="outline-cta" href="/request/photo">
+          <Link className="outline-cta" href="/request/photo">
             사진확인
-          </a>
+          </Link>
           {kakaoUrl ? (
             <a className="filled-cta" href={kakaoUrl} target="_blank" rel="noreferrer">
               <span className="kakao-mark" aria-hidden="true">TALK</span>
@@ -85,9 +85,9 @@ export function Header({ kakaoUrl }: HeaderProps) {
           <div className="mobile-menu" onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="모바일 메뉴">
             <nav>
               {navItems.map(([label, href]) => (
-                <a key={href} className={isActive(href) ? "active" : ""} href={href}>
+                <Link key={href} className={isActive(href) ? "active" : ""} href={href}>
                   {label}
-                </a>
+                </Link>
               ))}
             </nav>
           </div>

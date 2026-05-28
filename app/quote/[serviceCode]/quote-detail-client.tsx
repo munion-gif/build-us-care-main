@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Info, MapPin, MessageCircle } from "lucide-react";
+import { MapPin, MessageCircle } from "lucide-react";
 import { AddressModal, type AddressSelection } from "@/components/common/AddressModal";
 import { PhotoUploader } from "@/components/quote/PhotoUploader";
 import { QuoteStickySummary } from "@/components/quote/QuoteStickySummary";
@@ -347,7 +347,6 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
   const total = serviceLaborTotal + selectedProductPrice + addonTotal + quoteVisitFee;
   const onlinePaymentTotal = showProductCatalog ? selectedProductPrice : total;
   const onsitePaymentTotal = showProductCatalog ? serviceLaborTotal : 0;
-  const laborPriceHelp = showProductCatalog ? `${service.display_name} 기본 시공비` : "기본 시공비와 방문비 포함";
   const todayIso = toIsoDate(new Date());
   const minSelectableDate = minReservationIsoDate();
   const calendarDays = useMemo(() => buildCalendarDays(calendarMonth), [calendarMonth]);
@@ -373,10 +372,11 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
     : selectedProductItems.length === 1
       ? `${service.display_name} · ${selectedProductItems[0].product.model}`
       : `${service.display_name} · ${selectedProductItems.length}개 제품 / 총 ${totalProductQty}개`;
-  const primarySelectedProduct = selectedProductItems[0]?.product;
-  const selectedProductBrief = primarySelectedProduct
-    ? `${primarySelectedProduct.brand} ${primarySelectedProduct.model}${selectedProductItems.length > 1 ? ` 외 ${selectedProductItems.length - 1}개` : ""}`
-    : "제품을 선택해주세요.";
+  const selectedProductSummaryItems = selectedProductItems.slice(0, 2).map(({ product, qty }) => ({
+    id: product.id,
+    label: `${product.brand} ${product.model}${qty > 1 ? ` · ${qty}개` : ""}`
+  }));
+  const hiddenSelectedProductCount = Math.max(0, selectedProductItems.length - selectedProductSummaryItems.length);
   const selectedProductMeta = selectedProductItems.length > 0
     ? `${selectedProductItems.length}개 모델 · 총 ${totalProductQty}개`
     : `${productCatalog?.customConsultLabel ?? "제품"}을 선택하면 결제 금액이 계산됩니다.`;
@@ -1022,29 +1022,17 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
         <div>
           <p>{categoryLabel(service.category)} · 예상 {service.estimated_minutes ?? 60}분</p>
           <h1>{service.display_name}</h1>
-          <strong>{service.standardizable ? `시작가 ${won(displayedStartPrice)}` : "상담 후 견적 확정"}</strong>
+          <strong className="hero-start-price">{service.standardizable ? `시작가 ${won(displayedStartPrice)}` : "상담 후 견적 확정"}</strong>
+          <small>{service.standardizable ? "기본 철거와 신규 설치 기준입니다." : "사진 확인 후 필요한 작업 범위를 안내합니다."}</small>
         </div>
         {service.standardizable && (
-          <div className="hero-price-breakdown" aria-label="시작가 구성">
-            <div className="hero-breakdown-item">
-              <span className="hero-breakdown-label">
-                시공비
-                <span className="hero-info-icon" role="img" aria-label={laborPriceHelp} title={laborPriceHelp}>
-                  <Info size={17} aria-hidden="true" />
-                </span>
-              </span>
-              <strong>{won(startLaborPrice)}</strong>
+          <div className="hero-price-breakdown" aria-label="가격 기준">
+            <div className="hero-breakdown-head">
+              <span>가격 기준</span>
+              <strong>제품 선택 후 자동 계산</strong>
             </div>
-            <b aria-hidden="true">+</b>
-            <div className="hero-breakdown-item">
-              <span className="hero-breakdown-label">
-                제품 가격
-                <span className="hero-info-icon" role="img" aria-label="선택 가능한 제품 중 최저 제품가 기준" title="선택 가능한 제품 중 최저 제품가 기준">
-                  <Info size={17} aria-hidden="true" />
-                </span>
-              </span>
-              <strong>{won(startProductPrice)}</strong>
-            </div>
+            <p>아래에서 제품을 선택하면 결제 금액과 현장 결제 금액이 바로 계산됩니다.</p>
+            <small>현장 상태나 추가 작업 여부에 따라 최종 금액은 달라질 수 있어요.</small>
           </div>
         )}
       </section>
@@ -1373,7 +1361,16 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
                     <strong>{selectedProductItems.length > 0 ? `총 ${totalProductQty}개` : "선택 전"}</strong>
                   </div>
                   <div className={selectedProductItems.length > 0 ? "sticky-selected-product-summary" : "sticky-selected-product-summary empty"}>
-                    <strong>{selectedProductBrief}</strong>
+                    {selectedProductSummaryItems.length > 0 ? (
+                      <ul className="sticky-selected-product-list">
+                        {selectedProductSummaryItems.map((item) => (
+                          <li key={item.id}>{item.label}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <strong>제품을 선택해주세요.</strong>
+                    )}
+                    {hiddenSelectedProductCount > 0 && <b className="sticky-selected-product-more">나머지 {hiddenSelectedProductCount}개 제품은 결제 전 선택 목록에서 확인해주세요.</b>}
                     <small>{selectedProductMeta}</small>
                   </div>
                   {selectedProductItems.length > 0 && (
@@ -1685,7 +1682,7 @@ function ReplacementProductCard({
               <button type="button" className="toilet-replace-button primary" disabled={!priceAvailable} onClick={() => onProductReplace(product.id)}>
                 {priceAvailable ? "이 제품 선택" : "상담 필요"}
               </button>
-              {!recommended && priceAvailable && (
+              {priceAvailable && (
                 <button type="button" className="toilet-add-button" onClick={() => onQuantityChange(product.id, 1)}>
                   같이 선택
                 </button>
@@ -1753,62 +1750,69 @@ const quoteCss = `
     padding: 18px;
   }
   .quote-hero {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+    align-items: stretch;
     gap: 14px;
+    background:
+      linear-gradient(135deg, rgba(255, 250, 241, 0.98), rgba(244, 234, 212, 0.72) 55%, rgba(228, 232, 223, 0.68));
+    box-shadow: var(--shadow-sm);
   }
-  .hero-price-breakdown {
-    min-width: min(420px, 48%);
+  .quote-hero > div:first-child {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    align-items: center;
-    gap: 18px;
-    border-radius: 8px;
-    padding: 16px 18px;
-    background: #f5f6f8;
-    color: #2a2c30;
-  }
-  .hero-breakdown-item {
-    display: grid;
+    align-content: start;
     gap: 8px;
     min-width: 0;
   }
-  .hero-breakdown-label {
+  .hero-price-breakdown {
+    min-width: 0;
+    display: grid;
+    align-content: start;
+    gap: 12px;
+    align-self: stretch;
+    border: 1px solid rgba(207, 197, 181, 0.95);
+    border-radius: 8px;
+    padding: 14px;
+    background: rgba(255, 250, 241, 0.78);
+    color: var(--color-text);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  }
+  .hero-breakdown-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .hero-breakdown-head span {
+    min-height: 24px;
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    color: #555961;
-    font-size: var(--text-label);
-    line-height: var(--leading-label);
+    border-radius: var(--radius-full);
+    padding: 0 9px;
+    background: var(--color-gold-wash);
+    color: #6d4d11;
+    font-size: var(--text-caption);
     font-weight: 700;
-    white-space: nowrap;
   }
-  .hero-info-icon {
-    display: inline-grid;
-    place-items: center;
-    flex: 0 0 auto;
-  }
-  .hero-info-icon svg {
-    flex: 0 0 auto;
-    color: #7d8796;
-    stroke-width: 2.6;
-  }
-  .hero-breakdown-item strong {
-    font-size: var(--text-price-sub);
-    line-height: var(--leading-price-sub);
+  .hero-breakdown-head strong {
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    line-height: var(--leading-sm);
     font-weight: 700;
-    letter-spacing: 0;
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
   }
-  .hero-price-breakdown b {
-    color: #22252a;
-    font-size: var(--text-price-main);
-    line-height: var(--leading-price-main);
-    font-weight: 700;
-    letter-spacing: -0.015em;
-    font-variant-numeric: tabular-nums;
+  .hero-price-breakdown p {
+    margin: 0;
+    padding-top: 10px;
+    border-top: 1px solid rgba(207, 197, 181, 0.86);
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    line-height: 1.55;
+    font-weight: 600;
+  }
+  .hero-price-breakdown small {
+    color: var(--color-text-muted);
+    font-size: var(--text-caption);
+    line-height: 1.45;
   }
   .quote-flow-note {
     display: grid;
@@ -1904,10 +1908,11 @@ const quoteCss = `
     display: grid;
     gap: 6px;
     min-height: 104px;
-    border: 1px solid #dde2d7;
+    border: 1px solid var(--color-border);
     border-radius: 8px;
     padding: 12px;
-    background: #fff;
+    background: rgba(255, 250, 241, 0.9);
+    box-shadow: var(--shadow-sm);
   }
   .quote-scope-cards span {
     width: fit-content;
@@ -1937,19 +1942,25 @@ const quoteCss = `
     line-height: var(--leading-body);
   }
   .quote-hero h1 {
-    margin: 8px 0;
+    margin: 0;
     font-size: var(--text-h1);
     line-height: var(--leading-h1);
     font-weight: 700;
     letter-spacing: -0.02em;
     overflow-wrap: break-word;
   }
-  .quote-hero strong,
+  .quote-hero .hero-start-price,
   .price-total strong {
     font-size: var(--text-price-sub);
     line-height: var(--leading-price-sub);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
+  }
+  .quote-hero small {
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    line-height: var(--leading-sm);
+    font-weight: 600;
   }
   .hero-badge {
     background: var(--color-gold);
@@ -2642,6 +2653,7 @@ const quoteCss = `
     gap: 5px;
     min-height: 32px;
     justify-content: stretch;
+    flex-wrap: nowrap;
   }
   .recommended-product-grid .toilet-add-button,
   .recommended-product-grid .toilet-replace-button {
@@ -2652,7 +2664,11 @@ const quoteCss = `
     line-height: var(--leading-label);
   }
   .recommended-product-grid .toilet-replace-button.primary {
-    width: 100%;
+    flex: 1 1 auto;
+    width: auto;
+  }
+  .recommended-product-grid .toilet-add-button {
+    flex: 0 0 auto;
   }
   .all-product-list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3521,6 +3537,28 @@ const quoteCss = `
   .sticky-selected-product-summary.empty strong {
     color: var(--color-text-muted);
   }
+  .sticky-selected-product-list {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .sticky-selected-product-list li {
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    line-height: 1.35;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+  .sticky-selected-product-more {
+    display: block;
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    line-height: 1.35;
+  }
   .sticky-payment-breakdown {
     display: grid;
     gap: 0;
@@ -3694,17 +3732,8 @@ const quoteCss = `
     .hero-price-breakdown {
       width: 100%;
       min-width: 0;
-      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
       gap: 10px;
       padding: 14px;
-    }
-    .hero-breakdown-label {
-      font-size: var(--text-label);
-      line-height: var(--leading-label);
-    }
-    .hero-breakdown-item strong {
-      font-size: var(--text-price-sub);
-      line-height: var(--leading-price-sub);
     }
     .quote-flow-note {
       grid-template-columns: 1fr;
@@ -4125,7 +4154,7 @@ const quoteCss = `
     font-size: var(--text-h1);
     line-height: var(--leading-h1);
   }
-  .quote-hero strong {
+  .quote-hero .hero-start-price {
     font-size: var(--text-price-sub);
     line-height: var(--leading-price-sub);
     font-weight: 600;
@@ -4759,30 +4788,13 @@ const quoteCss = `
       font-size: var(--text-h1);
       line-height: var(--leading-h1);
     }
-    .quote-hero strong {
+    .quote-hero .hero-start-price {
       font-size: var(--text-price-sub);
       line-height: var(--leading-price-sub);
     }
     .hero-price-breakdown {
       gap: 6px;
       padding: 10px;
-    }
-    .hero-breakdown-item {
-      gap: 4px;
-    }
-    .hero-breakdown-label {
-      font-size: var(--text-label);
-      line-height: var(--leading-label);
-    }
-    .hero-info-icon svg {
-      width: 15px;
-      height: 15px;
-    }
-    .hero-breakdown-item strong {
-      font-size: 1.45rem;
-    }
-    .hero-price-breakdown b {
-      font-size: 1.65rem;
     }
     .toilet-product-catalog {
       gap: 10px;

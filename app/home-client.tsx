@@ -282,8 +282,9 @@ const homeCss = `
     --warm-gray: var(--color-border);
     --sage: var(--color-sage);
     min-height: 100vh;
-    padding: 0 clamp(14px, 3vw, 40px) 92px;
-    background: #fbf6ee;
+    overflow-x: clip;
+    padding: 0 clamp(14px, 3vw, 32px) 84px;
+    background: var(--color-bg);
     color: var(--charcoal);
   }
   .home-hero,
@@ -291,16 +292,16 @@ const homeCss = `
   .home-section,
   .quick-flow-board {
     width: min(1120px, 100%);
-    margin: 0 auto clamp(2rem, 4vw, 3.5rem);
+    margin: 0 auto var(--space-8);
   }
   .home-hero {
     position: relative;
     isolation: isolate;
     display: grid;
     grid-template-columns: minmax(0, 1.02fr) minmax(340px, 0.88fr);
-    gap: clamp(1.5rem, 5vw, 4rem);
+    gap: clamp(1.5rem, 4vw, 3rem);
     align-items: center;
-    padding-block: clamp(4rem, 7.5vw, 6.35rem);
+    padding-block: clamp(3rem, 5vw, 4.5rem);
   }
   .home-hero::before {
     content: "";
@@ -472,10 +473,10 @@ const homeCss = `
     z-index: 1;
     display: flex;
     flex-direction: column;
-    gap: 22px;
-    min-height: 390px;
+    gap: 18px;
+    min-height: 340px;
     overflow: hidden;
-    padding: 22px 18px 18px;
+    padding: 18px;
     border: 1px solid rgba(217, 210, 196, 0.95);
     border-radius: 8px;
     background:
@@ -574,7 +575,7 @@ const homeCss = `
     grid-template-columns: repeat(9, minmax(0, 1fr));
     gap: 10px;
     margin-top: clamp(-1.35rem, -2vw, -0.75rem);
-    margin-bottom: clamp(0.75rem, 2vw, 1.35rem);
+    margin-bottom: var(--space-6);
   }
   .service-icon-item {
     min-width: 0;
@@ -649,16 +650,16 @@ const homeCss = `
   }
   .section-head h2 {
     margin: 0;
-    font-size: var(--text-h2);
-    line-height: var(--leading-h2);
+    font-size: var(--text-h3);
+    line-height: var(--leading-h3);
     font-weight: 700;
     letter-spacing: -0.018em;
   }
   .section-head p {
     max-width: 640px;
     margin: 0;
-    font-size: var(--text-body-lg);
-    line-height: var(--leading-body-lg);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
   }
   .service-grid {
     display: grid;

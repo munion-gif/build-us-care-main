@@ -144,16 +144,16 @@ const servicesCss = `
     min-height: 100vh;
     width: min(var(--content-wide), 100%);
     margin-inline: auto;
-    padding: var(--space-12) var(--space-6);
+    padding: clamp(2rem, 4vw, 2.75rem) var(--space-6) var(--space-12);
     background: var(--color-bg);
   }
   .services-hero {
     position: relative;
     overflow: hidden;
-    margin-bottom: var(--space-8);
+    margin-bottom: var(--space-6);
     border: 1px solid var(--color-border);
     border-radius: 8px;
-    padding: clamp(22px, 4vw, 36px);
+    padding: clamp(22px, 3vw, 30px);
     background:
       linear-gradient(135deg, rgba(255, 250, 241, 0.98) 0%, rgba(247, 241, 230, 0.96) 52%, rgba(228, 232, 223, 0.82) 100%);
     box-shadow: var(--shadow-sm);
@@ -182,17 +182,19 @@ const servicesCss = `
   .services-hero h1 {
     margin: 0 0 var(--space-3);
     max-width: 760px;
-    font-size: var(--text-h1);
-    line-height: var(--leading-h1);
+    font-size: var(--text-xl);
+    line-height: var(--leading-xl);
     font-weight: 700;
     letter-spacing: -0.02em;
+    word-break: keep-all;
+    overflow-wrap: break-word;
   }
   .services-hero p {
     max-width: 620px;
     margin: 0;
     color: var(--color-text-muted);
-    font-size: var(--text-body-lg);
-    line-height: var(--leading-body-lg);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
   }
   .services-hero-actions {
     display: flex;

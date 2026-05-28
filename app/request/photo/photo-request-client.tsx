@@ -352,15 +352,15 @@ const photoRequestCss = `
     min-height: 100vh;
     padding: var(--space-4);
     background:
-      linear-gradient(90deg, rgba(34, 33, 29, 0.022) 1px, transparent 1px),
-      linear-gradient(180deg, rgba(34, 33, 29, 0.022) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(34, 33, 29, 0.016) 1px, transparent 1px),
+      linear-gradient(180deg, rgba(34, 33, 29, 0.016) 1px, transparent 1px),
       var(--color-bg);
     background-size: 34px 34px;
   }
   .photo-flow {
     width: min(920px, 100%);
     margin: 0 auto;
-    padding-block: var(--space-8);
+    padding-block: var(--space-6);
   }
   .step-indicator {
     display: grid;
@@ -407,7 +407,7 @@ const photoRequestCss = `
     border: 1px solid var(--color-border);
     border-radius: 8px;
     background: var(--color-surface);
-    padding: calc(var(--space-6) + 8px) var(--space-6) var(--space-6);
+    padding: var(--space-6);
     box-shadow: 0 10px 28px rgba(34, 33, 29, 0.045);
   }
   .flow-panel::before {
@@ -422,7 +422,7 @@ const photoRequestCss = `
   }
   .photo-brand-kicker {
     z-index: 1;
-    margin-top: 14px;
+    margin-top: 6px;
     color: var(--color-text-muted);
     font-family: var(--font-brand);
     font-size: 12px;
@@ -432,8 +432,8 @@ const photoRequestCss = `
   }
   .flow-panel h1 {
     margin: 0;
-    font-size: var(--text-h1);
-    line-height: var(--leading-h1);
+    font-size: var(--text-xl);
+    line-height: var(--leading-xl);
     font-weight: 700;
     letter-spacing: -0.02em;
   }

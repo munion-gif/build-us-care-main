@@ -159,8 +159,8 @@ export function OrderLookupClient({ kakaoUrl }: OrderLookupClientProps) {
 }
 
 const css = `
-  .lookup-page { min-height: 70vh; display: grid; justify-items: center; align-content: start; gap: var(--space-6); padding: var(--space-8) var(--space-4) var(--space-16); background: linear-gradient(90deg, rgba(34, 33, 29, 0.035) 1px, transparent 1px), linear-gradient(180deg, rgba(34, 33, 29, 0.035) 1px, transparent 1px), var(--color-bg); background-size: 34px 34px; }
-  .lookup-card, .lookup-results, .lookup-kakao-banner { width: min(760px, 100%); border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); padding: clamp(20px, 4vw, 32px); box-shadow: 0 14px 34px rgba(34, 33, 29, 0.055); }
+  .lookup-page { min-height: 70vh; display: grid; justify-items: center; align-content: start; gap: var(--space-5, 1.25rem); padding: clamp(1.75rem, 4vw, 2.5rem) var(--space-4) var(--space-12); background: linear-gradient(90deg, rgba(34, 33, 29, 0.024) 1px, transparent 1px), linear-gradient(180deg, rgba(34, 33, 29, 0.024) 1px, transparent 1px), var(--color-bg); background-size: 34px 34px; }
+  .lookup-card, .lookup-results, .lookup-kakao-banner { width: min(760px, 100%); border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); padding: clamp(20px, 3vw, 28px); box-shadow: 0 14px 34px rgba(34, 33, 29, 0.055); }
   .lookup-card { display: grid; gap: var(--space-4); }
   .lookup-card { background: linear-gradient(135deg, rgba(255, 250, 241, 0.96), rgba(244, 234, 212, 0.78)); }
   .brand-kicker { color: var(--color-text); font-family: var(--font-brand); font-size: 13px; font-weight: var(--brand-label-weight); letter-spacing: var(--brand-letter-spacing); text-transform: lowercase; }
