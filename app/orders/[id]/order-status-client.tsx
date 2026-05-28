@@ -1864,6 +1864,81 @@ const orderStatusCss = `
     font-weight: 700;
     overflow-wrap: anywhere;
   }
+  .quote-item-list {
+    display: grid;
+    gap: 10px;
+    margin: 0 0 14px;
+    padding: 0;
+    list-style: none;
+  }
+  .quote-item-row {
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 14px;
+    align-items: start;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 10px;
+    background: rgba(255, 250, 241, 0.7);
+  }
+  .quote-item-row img,
+  .quote-item-image-fallback {
+    width: 76px;
+    height: 76px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: #ffffff;
+  }
+  .quote-item-row img {
+    object-fit: contain;
+    padding: 6px;
+  }
+  .quote-item-image-fallback {
+    display: grid;
+    place-items: center;
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+  .quote-item-body {
+    min-width: 0;
+    display: grid;
+    gap: 8px;
+  }
+  .quote-item-body > strong {
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    line-height: 1.35;
+    font-weight: 800;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+  .quote-item-body dl {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+  }
+  .quote-item-body dl div {
+    display: grid;
+    grid-template-columns: 70px minmax(0, 1fr);
+    gap: 10px;
+  }
+  .quote-item-body dt,
+  .quote-item-body dd {
+    margin: 0;
+    font-size: var(--text-xs);
+    line-height: 1.35;
+  }
+  .quote-item-body dt {
+    color: var(--color-text-muted);
+    font-weight: 700;
+  }
+  .quote-item-body dd {
+    text-align: right;
+    color: var(--color-text);
+    font-weight: 800;
+    overflow-wrap: anywhere;
+  }
   .after-photo-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2180,6 +2255,18 @@ const orderStatusCss = `
     }
     .summary-list dd {
       text-align: left;
+    }
+    .quote-item-row {
+      grid-template-columns: 64px minmax(0, 1fr);
+      gap: 10px;
+    }
+    .quote-item-row img,
+    .quote-item-image-fallback {
+      width: 64px;
+      height: 64px;
+    }
+    .quote-item-body dl div {
+      grid-template-columns: 56px minmax(0, 1fr);
     }
     .after-photo-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));

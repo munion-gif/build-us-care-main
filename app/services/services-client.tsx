@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { CheckCircle2, Clock, DoorOpen, Droplets, Lightbulb, Paintbrush, PanelsTopLeft, Pipette, Plug, Waves, Wind, type LucideIcon } from "lucide-react";
+import { CheckCircle2, Clock, Droplets, PanelsTopLeft, Pipette, Waves, Wind, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { PUBLIC_SERVICE_CODE_SET } from "@/lib/public-services";
 import type { QuoteServiceItem } from "@/lib/service-items";
 import { appendSourceParams, readClientSourceContext, type SourceContext } from "@/lib/traffic-source";
 
@@ -10,33 +11,24 @@ type ServicesClientProps = {
   services: QuoteServiceItem[];
 };
 
-const tabs = ["전체", "욕실", "주방", "전기·조명", "도어·손잡이"] as const;
-const hiddenServiceCodes = new Set<string>(["drain_clog", "partial_wallpaper"]);
+const tabs = ["전체", "욕실", "도어·손잡이"] as const;
 
 const categoryByCode: Record<string, (typeof tabs)[number]> = {
   toilet_replace: "욕실",
   basin_replace: "욕실",
   faucet_replace: "욕실",
   bidet_install: "욕실",
-  light_replace: "전기·조명",
-  outlet_replace: "전기·조명",
-  ventilator_replace: "전기·조명",
-  door_handle: "도어·손잡이",
-  sash_handle: "도어·손잡이",
-  silicone_repair: "욕실"
+  ventilator_replace: "욕실",
+  sash_handle: "도어·손잡이"
 };
 
 const icons: Record<string, LucideIcon> = {
   toilet_replace: Droplets,
   basin_replace: Droplets,
   faucet_replace: Pipette,
-  light_replace: Lightbulb,
-  outlet_replace: Plug,
-  door_handle: DoorOpen,
   bidet_install: Waves,
   ventilator_replace: Wind,
-  sash_handle: PanelsTopLeft,
-  silicone_repair: Paintbrush
+  sash_handle: PanelsTopLeft
 };
 
 function priceLabel(service: QuoteServiceItem) {
@@ -51,7 +43,7 @@ export function ServicesClient({ services }: ServicesClientProps) {
     () =>
       services.filter(
         (service) =>
-          !hiddenServiceCodes.has(service.service_type_code) &&
+          PUBLIC_SERVICE_CODE_SET.has(service.service_type_code) &&
           (activeTab === "전체" || categoryByCode[service.service_type_code] === activeTab)
       ),
     [activeTab, services]
@@ -381,12 +373,18 @@ const servicesCss = `
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: 1.5px solid var(--color-border);
+    border: 1.5px solid rgba(34, 33, 29, 0.92);
     border-radius: 8px;
-    color: var(--color-primary);
+    background: rgba(34, 33, 29, 0.92);
+    color: var(--color-cream);
     font-size: var(--text-button);
     line-height: var(--leading-button);
     font-weight: 700;
+  }
+  .service-list-card:hover .quote-link {
+    border-color: var(--color-primary);
+    background: rgba(34, 33, 29, 0.86);
+    color: var(--color-cream);
   }
   @media (max-width: 640px) {
     .services-page {

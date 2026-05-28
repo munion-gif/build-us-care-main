@@ -38,6 +38,40 @@ function maskAddress(address: string | null | undefined) {
   return `${parts.slice(0, -1).join(" ")} ***`;
 }
 
+function toArray(value: unknown) {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function selectedProductSnapshot(metadata: any) {
+  const product =
+    metadata?.selected_replacement_product ??
+    metadata?.selected_toilet_product ??
+    metadata?.selected_replacement_product_snapshot;
+  if (!product || typeof product !== "object") return null;
+  return {
+    brand: typeof product.brand === "string" ? product.brand : null,
+    model: typeof product.model === "string" ? product.model : null,
+    sku: typeof product.sku === "string" ? product.sku : null,
+    price: typeof product.price === "number" ? product.price : null,
+    image: typeof product.image === "string" ? product.image : null
+  };
+}
+
+function sanitizeQuoteItems(items: unknown) {
+  return toArray(items).map((item: any) => ({
+    sku: item?.sku ?? null,
+    item_name: item?.item_name ?? null,
+    qty: item?.qty ?? 1,
+    unit_material: item?.unit_material ?? 0,
+    unit_labor: item?.unit_labor ?? 0,
+    line_total: item?.line_total ?? 0,
+    metadata: {
+      selected_replacement_product: selectedProductSnapshot(item?.metadata)
+    }
+  }));
+}
+
 function sanitizeQuotes(quotes: any[] | null | undefined, isAdmin: boolean) {
   if (isAdmin) return quotes ?? [];
   return (quotes ?? []).map((quote) => ({
@@ -45,7 +79,8 @@ function sanitizeQuotes(quotes: any[] | null | undefined, isAdmin: boolean) {
     version: quote.version,
     total_final: quote.total_final,
     accepted_at: quote.accepted_at,
-    quoted_at: quote.quoted_at
+    quoted_at: quote.quoted_at,
+    items: sanitizeQuoteItems(quote.items)
   }));
 }
 

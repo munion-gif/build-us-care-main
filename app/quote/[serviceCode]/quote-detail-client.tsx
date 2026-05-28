@@ -309,7 +309,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [activeFormStep, setActiveFormStep] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CARD");
+  const [paymentMethod] = useState<PaymentMethod>("TRANSFER");
   const productSectionRef = useRef<HTMLDivElement | null>(null);
   const addressSectionRef = useRef<HTMLElement | null>(null);
   const scheduleSectionRef = useRef<HTMLElement | null>(null);
@@ -1351,8 +1351,6 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
             summaryTitle={showProductCatalog ? "오늘 결제할 금액" : "결제 요약"}
             paymentButtonLabel={showProductCatalog && productSelectionReady ? `제품값 ${won(onlinePaymentTotal)} 결제하기` : `${displayTotal} 결제하기`}
             paymentReadyMessage={showProductCatalog ? "제품값만 먼저 결제합니다. 시공비는 시공 완료 후 현장에서 결제합니다." : "결제 후 방문 일정이 확정됩니다."}
-            paymentMethod={paymentMethod}
-            onPaymentMethodChange={setPaymentMethod}
             productSelection={
               showProductCatalog ? (
                 <div className="sticky-selected-products" aria-label="선택 제품 요약">
@@ -1517,7 +1515,7 @@ function ReplacementProductCatalog({
             ))}
           </div>
         </div>
-        <div className="filter-chip-group" aria-label="가격대 필터">
+        <div className="filter-chip-group price-filter-group" aria-label="가격대 필터">
           <span>가격대</span>
           <div className="filter-chip-scroll">
             {PRODUCT_PRICE_FILTERS.map((filter) => (
@@ -3589,30 +3587,21 @@ const quoteCss = `
     font-size: var(--text-body-sm);
     line-height: var(--leading-body-sm);
   }
-  .payment-method-options {
+  .payment-method-notice {
     grid-column: 1 / -1;
-    display: grid;
-    gap: 8px;
-  }
-  .payment-method-option {
     display: grid;
     grid-template-columns: 26px minmax(0, 1fr);
     align-items: center;
-    min-height: 54px;
+    min-height: 48px;
+    gap: 10px;
     border-radius: 12px;
-    border: 1px solid var(--color-border);
-    background: var(--color-surface);
+    border: 1px solid var(--color-primary);
+    background: var(--color-primary-highlight);
     color: var(--color-text);
-    padding: 0 14px;
-    cursor: pointer;
+    padding: 8px 12px;
     font-size: var(--text-sm);
     font-weight: 700;
-    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
-  }
-  .payment-method-option input {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
+    box-shadow: 0 0 0 1px rgba(33, 32, 27, 0.06);
   }
   .payment-method-check {
     display: grid;
@@ -3625,36 +3614,49 @@ const quoteCss = `
     font-size: 14px;
     line-height: 1;
     font-weight: 700;
-  }
-  .payment-method-option.active {
-    border-color: var(--color-primary);
-    background: var(--color-primary-highlight);
-    color: var(--color-text);
-    box-shadow: 0 0 0 1px rgba(33, 32, 27, 0.06);
-  }
-  .payment-method-option.active .payment-method-check {
     border-color: var(--color-primary);
     background: var(--color-primary);
     color: #fffaf1;
   }
-  .payment-method-option:focus-within {
-    outline: 3px solid rgba(199, 146, 42, 0.24);
-    outline-offset: 2px;
+  .payment-method-notice > span:last-child {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
   }
-  .payment-consent {
+  .payment-method-notice strong {
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    line-height: 1.25;
+    font-weight: 800;
+  }
+  .payment-method-notice small {
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    line-height: 1.35;
+    font-weight: 600;
+  }
+  .payment-consent-group {
     grid-column: 1 / -1;
     display: grid;
-    grid-template-columns: 20px minmax(0, 1fr);
-    gap: 9px;
-    align-items: start;
+    gap: 5px;
     border: 1px solid var(--color-border);
     border-radius: 8px;
     background: rgba(255, 250, 241, 0.78);
-    padding: 10px 12px;
+    padding: 7px 9px;
     color: var(--color-text-muted);
     font-size: var(--text-caption);
-    line-height: var(--leading-caption);
+    line-height: 1.38;
     font-weight: 600;
+  }
+  .payment-consent {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    gap: 7px;
+    align-items: center;
+  }
+  .payment-consent + .payment-consent {
+    border-top: 1px solid var(--color-border);
+    padding-top: 5px;
   }
   .payment-consent-text {
     min-width: 0;
@@ -3662,15 +3664,19 @@ const quoteCss = `
     line-break: strict;
     overflow-wrap: break-word;
   }
+  .payment-consent-text strong {
+    color: var(--color-text);
+    font-weight: 800;
+  }
   .payment-consent-nowrap {
     display: inline-block;
     white-space: nowrap;
     word-break: keep-all;
   }
   .payment-consent input {
-    width: 18px;
-    height: 18px;
-    margin: 1px 0 0;
+    width: 16px;
+    height: 16px;
+    margin: 0;
     accent-color: var(--color-primary);
   }
   .payment-consent a {
@@ -3813,8 +3819,8 @@ const quoteCss = `
       min-height: 48px;
       padding: 10px 14px;
     }
-    .payment-consent {
-      padding: 8px 10px;
+    .payment-consent-group {
+      padding: 6px 8px;
       font-size: 12px;
     }
   }
@@ -3848,6 +3854,7 @@ const quoteCss = `
     .sticky-cta p,
     .sticky-cta-head,
     .sticky-summary,
+    .payment-consent-group,
     .payment-consent {
       grid-column: auto;
     }
@@ -4514,20 +4521,33 @@ const quoteCss = `
       overflow-wrap: break-word;
     }
     .address-trigger {
-      align-items: flex-start;
-      flex-wrap: wrap;
+      min-height: 48px;
+      align-items: center;
+      flex-wrap: nowrap;
+      gap: 8px;
+      padding: 0 12px;
+    }
+    .address-trigger strong {
+      min-width: 0;
+      line-height: 1.35;
     }
     .address-trigger small {
-      margin-left: 0;
+      flex: 0 0 auto;
+      margin-left: auto;
+      white-space: nowrap;
+    }
+    .address-trigger.filled {
+      min-height: 52px;
+      padding-block: 10px;
     }
     .payment-consent-text {
       min-width: 0;
       overflow-wrap: break-word;
     }
-    .payment-consent {
+    .payment-consent-group {
       border-radius: 10px;
-      padding: 0.75rem 0.875rem;
-      line-height: 1.55;
+      padding: 8px 10px;
+      line-height: 1.42;
     }
     .sticky-cta {
       gap: 0.625rem;
@@ -4853,6 +4873,19 @@ const quoteCss = `
       -webkit-overflow-scrolling: touch;
       padding-right: 10px;
     }
+    .price-filter-group .filter-chip-scroll {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      overflow: visible;
+      padding-right: 0;
+    }
+    .price-filter-group .filter-chip-scroll button {
+      width: 100%;
+      min-width: 0;
+      padding-inline: 6px;
+      text-align: center;
+    }
     .product-subsection-title {
       gap: 2px;
     }
@@ -5072,13 +5105,13 @@ const quoteCss = `
       line-height: 1.3;
     }
     .sticky-cta.has-product-selection .sticky-message,
-    .sticky-cta.has-product-selection .payment-consent {
-      padding: 8px 10px;
+    .sticky-cta.has-product-selection .payment-consent-group {
+      padding: 6px 8px;
       font-size: var(--text-caption);
-      line-height: var(--leading-caption);
+      line-height: 1.38;
     }
-    .sticky-cta.has-product-selection .payment-method-option {
-      min-height: 46px;
+    .sticky-cta.has-product-selection .payment-method-notice {
+      min-height: 44px;
     }
     .sticky-cta.has-product-selection .payment-button {
       min-height: 56px;

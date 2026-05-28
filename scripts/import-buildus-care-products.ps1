@@ -4,6 +4,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 $publicProductsDir = Join-Path $ProjectRoot "public\products"
@@ -33,6 +34,33 @@ function Normalize-Brand([string]$value) {
 function Normalize-Key([string]$value) {
   if ([string]::IsNullOrWhiteSpace($value)) { return "" }
   return (($value.ToUpperInvariant()) -replace "[^A-Z0-9가-힣]", "")
+}
+
+function Open-ZipReadShared([string]$Path) {
+  $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+  $zip = New-Object System.IO.Compression.ZipArchive($stream, [System.IO.Compression.ZipArchiveMode]::Read, $false)
+  return [pscustomobject]@{ Zip = $zip; Stream = $stream }
+}
+
+function Resolve-ZipTarget([string]$BaseDir, [string]$Target) {
+  if ([string]::IsNullOrWhiteSpace($Target)) { return "" }
+  if ($Target.StartsWith("/")) { return $Target.TrimStart("/") }
+  $parts = New-Object System.Collections.Generic.List[string]
+  foreach ($part in (($BaseDir -split "/") + ($Target -split "/"))) {
+    if (-not $part -or $part -eq ".") { continue }
+    if ($part -eq "..") {
+      if ($parts.Count -gt 0) { $parts.RemoveAt($parts.Count - 1) }
+      continue
+    }
+    $parts.Add($part)
+  }
+  return ($parts.ToArray() -join "/")
+}
+
+function Normalize-ImageModelKey([string]$value) {
+  $key = Normalize-Key $value
+  if (-not $key) { return "" }
+  return (($key -replace "핸들", "") -replace "손잡이", "") -replace "(대|중|소|그립)$", ""
 }
 
 function Get-AsciiSlug([string]$value) {
@@ -92,7 +120,8 @@ function Get-CellValue($cell, $sharedStrings) {
 }
 
 function Read-XlsxSheets([string]$Path) {
-  $zip = [System.IO.Compression.ZipFile]::OpenRead($Path)
+  $zipHandle = Open-ZipReadShared $Path
+  $zip = $zipHandle.Zip
   try {
     $shared = Get-SharedStrings $zip
     $workbookReader = New-Object System.IO.StreamReader($zip.GetEntry("xl/workbook.xml").Open())
@@ -115,7 +144,7 @@ function Read-XlsxSheets([string]$Path) {
       $rid = $sheet.GetAttribute("id", "http://schemas.openxmlformats.org/officeDocument/2006/relationships")
       $target = $relMap[$rid]
       if (-not $target) { continue }
-      $sheetPath = if ($target.StartsWith("/")) { $target.TrimStart("/") } else { "xl/$target" }
+      $sheetPath = Resolve-ZipTarget "xl" $target
       $entry = $zip.GetEntry($sheetPath)
       if (-not $entry) { continue }
       $reader = New-Object System.IO.StreamReader($entry.Open())
@@ -142,15 +171,37 @@ function Read-XlsxSheets([string]$Path) {
     return $sheets
   } finally {
     $zip.Dispose()
+    $zipHandle.Stream.Dispose()
   }
 }
 
-function Get-EmbeddedImageMap([string]$Path) {
+function Get-EmbeddedImageMap([string]$Path, [int]$SheetIndex) {
   $map = @{}
-  $zip = [System.IO.Compression.ZipFile]::OpenRead($Path)
+  $zipHandle = Open-ZipReadShared $Path
+  $zip = $zipHandle.Zip
   try {
-    $drawingEntries = @($zip.Entries | Where-Object { $_.FullName -match "^xl/drawings/drawing\d+\.xml$" })
-    foreach ($drawingEntry in $drawingEntries) {
+    $sheetRelsEntry = $zip.GetEntry("xl/worksheets/_rels/sheet$SheetIndex.xml.rels")
+    if (-not $sheetRelsEntry) { return $map }
+    $sheetRelsReader = New-Object System.IO.StreamReader($sheetRelsEntry.Open())
+    try {
+      $sheetRelsXml = $sheetRelsReader.ReadToEnd()
+    } finally {
+      $sheetRelsReader.Dispose()
+    }
+
+    $drawingPaths = New-Object System.Collections.Generic.List[string]
+    foreach ($match in [regex]::Matches($sheetRelsXml, '<Relationship\b[^>]*/?>')) {
+      $relationshipText = [string]$match.Value
+      $typeMatch = [regex]::Match($relationshipText, '\bType="([^"]+)"')
+      $targetMatch = [regex]::Match($relationshipText, '\bTarget="([^"]+)"')
+      if (-not $typeMatch.Success -or -not $targetMatch.Success) { continue }
+      if ($typeMatch.Groups[1].Value -notlike "*relationships/drawing") { continue }
+      $drawingPaths.Add((Resolve-ZipTarget "xl/worksheets" $targetMatch.Groups[1].Value))
+    }
+
+    foreach ($drawingPath in $drawingPaths) {
+      $drawingEntry = $zip.GetEntry($drawingPath)
+      if (-not $drawingEntry) { continue }
       $drawingReader = New-Object System.IO.StreamReader($drawingEntry.Open())
       try {
         $drawingXml = $drawingReader.ReadToEnd()
@@ -158,7 +209,9 @@ function Get-EmbeddedImageMap([string]$Path) {
         $drawingReader.Dispose()
       }
 
-      $relsPath = ($drawingEntry.FullName -replace "^xl/drawings/", "xl/drawings/_rels/") + ".rels"
+      $drawingDir = $drawingPath.Substring(0, $drawingPath.LastIndexOf("/"))
+      $drawingFile = $drawingPath.Substring($drawingPath.LastIndexOf("/") + 1)
+      $relsPath = "$drawingDir/_rels/$drawingFile.rels"
       $relsEntry = $zip.GetEntry($relsPath)
       if (-not $relsEntry) { continue }
       $relsReader = New-Object System.IO.StreamReader($relsEntry.Open())
@@ -174,16 +227,14 @@ function Get-EmbeddedImageMap([string]$Path) {
         $idMatch = [regex]::Match($relationshipText, '\bId="([^"]+)"')
         $targetMatch = [regex]::Match($relationshipText, '\bTarget="([^"]+)"')
         if (-not $idMatch.Success -or -not $targetMatch.Success) { continue }
-        $target = [string]$targetMatch.Groups[1].Value
-        if ($target.StartsWith("/")) { $target = $target.TrimStart("/") }
-        elseif (-not $target.StartsWith("xl/")) { $target = "xl/drawings/$target" }
-        $target = $target -replace "^xl/drawings/\.\./", "xl/"
+        $target = Resolve-ZipTarget $drawingDir ([string]$targetMatch.Groups[1].Value)
         $rels[[string]$idMatch.Groups[1].Value] = $target
       }
 
-      foreach ($anchor in [regex]::Matches($drawingXml, '<twoCellAnchor\b[\s\S]*?</twoCellAnchor>')) {
+      $anchorPattern = '<(?:\w+:)?(?:oneCellAnchor|twoCellAnchor)\b[\s\S]*?</(?:\w+:)?(?:oneCellAnchor|twoCellAnchor)>'
+      foreach ($anchor in [regex]::Matches($drawingXml, $anchorPattern)) {
         $anchorText = [string]$anchor.Value
-        $rowMatch = [regex]::Match($anchorText, '<from>[\s\S]*?<row>(\d+)</row>')
+        $rowMatch = [regex]::Match($anchorText, '<(?:\w+:)?from>[\s\S]*?<(?:\w+:)?row>(\d+)</(?:\w+:)?row>')
         $embedMatch = [regex]::Match($anchorText, 'r:embed="([^"]+)"')
         if (-not $rowMatch.Success -or -not $embedMatch.Success) { continue }
         $row = [int]$rowMatch.Groups[1].Value
@@ -195,12 +246,14 @@ function Get-EmbeddedImageMap([string]$Path) {
     }
   } finally {
     $zip.Dispose()
+    $zipHandle.Stream.Dispose()
   }
   return $map
 }
 
 function Copy-EmbeddedImage([string]$WorkbookPath, [string]$EntryPath, [string]$DestinationPath) {
-  $zip = [System.IO.Compression.ZipFile]::OpenRead($WorkbookPath)
+  $zipHandle = Open-ZipReadShared $WorkbookPath
+  $zip = $zipHandle.Zip
   try {
     $entry = $zip.GetEntry($EntryPath)
     if (-not $entry) { return $false }
@@ -218,6 +271,7 @@ function Copy-EmbeddedImage([string]$WorkbookPath, [string]$EntryPath, [string]$
     return $true
   } finally {
     $zip.Dispose()
+    $zipHandle.Stream.Dispose()
   }
 }
 
@@ -265,6 +319,9 @@ function Extract-SkuCodes([string]$value) {
 
 function Get-CategorySpec([string]$serviceCode, [string]$sheetName) {
   $sheetKey = $sheetName -replace "\s+", ""
+  if ($sheetKey -in @("전체", "원본정보", "종합비교", "현장가이드", "결정가이드")) {
+    return $null
+  }
   if ($serviceCode -eq "toilet_replace") {
     if ($sheetKey -like "*투피스*") {
       return @{ Id = "two-piece"; Name = "투피스"; Summary = "탱크와 본체가 분리된 일반형입니다. 부속 수급과 A/S가 쉽고 기본 교체에 적합합니다."; Hint = "가격·부속 호환·빠른 교체 우선" }
@@ -300,6 +357,15 @@ function Get-CategorySpec([string]$serviceCode, [string]$sheetName) {
   if ($serviceCode -eq "ventilator_replace") {
     return @{ Id = "bathroom-ventilator"; Name = "욕실 환풍기"; Summary = "욕실 천장에 설치하는 환풍기·복합 환기 제품입니다. 타공 크기, 전원, 기능 구성을 확인합니다."; Hint = "욕실 환풍기 교체" }
   }
+  if ($serviceCode -eq "sash_handle") {
+    if ($sheetKey -like "*잠금장치*" -or $sheetKey -like "*부자재*") {
+      return $null
+    }
+    if ($sheetKey -like "*확인필요*") {
+      return $null
+    }
+    return @{ Id = "sash-handle"; Name = "샷시 손잡이"; Summary = "창호에 설치하는 샷시 손잡이입니다. 기존 손잡이 크기, 잠금장치 타입, 피스 간격을 확인해 선택합니다."; Hint = "창호 손잡이 교체" }
+  }
   return $null
 }
 
@@ -309,6 +375,7 @@ function Get-ServiceCodeForWorkbook([string]$fileName) {
   if ($fileName -like "*수전*") { return "faucet_replace" }
   if ($fileName -like "*비데*") { return "bidet_install" }
   if ($fileName -like "*환풍기*") { return "ventilator_replace" }
+  if ($fileName -like "*샷시*손잡이*" -or $fileName -like "*샷시손잡이*") { return "sash_handle" }
   return $null
 }
 
@@ -318,6 +385,7 @@ function Get-ServiceAssetDir([string]$serviceCode) {
   if ($serviceCode -eq "faucet_replace") { return "faucets" }
   if ($serviceCode -eq "bidet_install") { return "bidets" }
   if ($serviceCode -eq "ventilator_replace") { return "ventilators" }
+  if ($serviceCode -eq "sash_handle") { return "sash-handles" }
   return "misc"
 }
 
@@ -346,20 +414,27 @@ function Get-ImageCandidates([string]$sourceDir) {
     }
 }
 
-function Find-ProductImage($imageCandidates, [string]$brandRoot, [string]$sheetName, [string]$model, [string[]]$skuCodes) {
+function Find-ProductImage($imageCandidates, [string]$serviceCode, [string]$brandRoot, [string]$sheetName, [string]$model, [string[]]$skuCodes) {
   $brandImages = @($imageCandidates | Where-Object { $_.BrandRoot -eq $brandRoot })
   if ($brandImages.Count -eq 0) { return $null }
   $sheetKey = Normalize-Key $sheetName
+  $modelKey = Normalize-Key $model
+  $looseModelKey = Normalize-ImageModelKey $model
+  $strictImageMatch = $serviceCode -eq "sash_handle"
   $modelTokens = [regex]::Matches($model.ToUpperInvariant(), "[A-Z0-9]{3,}") | ForEach-Object { [string]$_.Value } | Where-Object { $_ -notmatch "^[0-9]+$" }
   $best = $null
   $bestScore = 0
   foreach ($image in $brandImages) {
     $score = 0
+    $looseImageKey = Normalize-ImageModelKey $image.NameKey
     foreach ($code in $skuCodes) {
       $codeKey = Normalize-Key $code
       if ($codeKey -and ($image.NameKey.Contains($codeKey) -or $image.PathKey.Contains($codeKey))) { $score += 120 }
     }
-    if ($sheetKey -and $image.PathKey.Contains($sheetKey)) { $score += 15 }
+    if ($modelKey -and $image.NameKey.Length -ge 4 -and ($modelKey.Contains($image.NameKey) -or $image.NameKey.Contains($modelKey))) { $score += 95 }
+    if ($modelKey -and $image.PathKey.Length -ge 4 -and ($modelKey.Contains($image.PathKey) -or $image.PathKey.Contains($modelKey))) { $score += 70 }
+    if ($looseModelKey -and $looseImageKey.Length -ge 3 -and ($looseModelKey.Contains($looseImageKey) -or $looseImageKey.Contains($looseModelKey))) { $score += 80 }
+    if ($sheetKey -and $image.PathKey.Contains($sheetKey) -and -not $strictImageMatch) { $score += 15 }
     foreach ($token in $modelTokens) {
       $tokenKey = Normalize-Key $token
       if ($tokenKey.Length -ge 3 -and ($image.NameKey.Contains($tokenKey) -or $image.PathKey.Contains($tokenKey))) { $score += 8 }
@@ -369,7 +444,8 @@ function Find-ProductImage($imageCandidates, [string]$brandRoot, [string]$sheetN
       $bestScore = $score
     }
   }
-  if ($bestScore -le 0) { return $null }
+  if ($strictImageMatch -and $bestScore -lt 30) { return $null }
+  if (-not $strictImageMatch -and $bestScore -le 0) { return $null }
   return $best.FullName
 }
 
@@ -386,7 +462,7 @@ function Reset-AssetDir([string]$dir) {
 }
 
 $imageCandidates = @(Get-ImageCandidates $SourceDir)
-$serviceAssetDirs = @("toilets", "basins", "faucets", "bidets", "ventilators")
+$serviceAssetDirs = @("toilets", "basins", "faucets", "bidets", "ventilators", "sash-handles")
 foreach ($assetDir in $serviceAssetDirs) {
   Reset-AssetDir (Join-Path $publicProductsDir $assetDir)
 }
@@ -403,8 +479,9 @@ foreach ($workbookFile in $workbooks) {
   if (-not $serviceCode) { continue }
   $brandRoot = $workbookFile.Directory.Name
   $sheets = Read-XlsxSheets $workbookFile.FullName
-  $embeddedImageMap = Get-EmbeddedImageMap $workbookFile.FullName
-  foreach ($sheet in $sheets) {
+  for ($sheetIndex = 0; $sheetIndex -lt $sheets.Count; $sheetIndex++) {
+    $sheet = $sheets[$sheetIndex]
+    $embeddedImageMap = Get-EmbeddedImageMap $workbookFile.FullName ($sheetIndex + 1)
     if ($sheet.Rows.Count -lt 2) { continue }
     $category = Get-CategorySpec $serviceCode $sheet.Name
     if (-not $category) { continue }
@@ -413,11 +490,11 @@ foreach ($workbookFile in $workbooks) {
       $row = $sheet.Rows[$rowIndex]
       $brand = Normalize-Brand (Get-ByHeader $row $headers @("브랜드"))
       $model = Normalize-Text (Get-ByHeader $row $headers @("품명"))
-      $skuRaw = Get-ByHeader $row $headers @("품번")
+      $skuRaw = Get-ByHeader $row $headers @("품번", "품번/규격", "규격")
       $size = Get-ByHeader $row $headers @("사이즈", "사이즈(W*D*H)", "사이즈(D*W*H)", "사이즈(L*W*H)", "사이즈(mm)", "고정핀 중심 사이즈(mm)")
       $color = Get-ByHeader $row $headers @("색상", "컬러")
       $feature = Get-ByHeader $row $headers @("특징")
-      $price = Parse-Price (Get-ByHeader $row $headers @("온라인 최저가"))
+      $price = Parse-Price (Get-ByHeader $row $headers @("온라인 최저가", "단가", "제조사단가"))
       if (-not $brand -or -not $model) { continue }
       $skuCodes = @(Extract-SkuCodes $skuRaw)
       $sku = if ($skuCodes.Count -gt 0) { $skuCodes -join " / " } else { Normalize-Text $skuRaw }
@@ -431,21 +508,30 @@ foreach ($workbookFile in $workbooks) {
       $productId = "${serviceCode}:${categoryId}:$($sequence.ToString("00")):$slug"
       $assetDir = Get-ServiceAssetDir $serviceCode
       $fileSlug = "$($serviceCode -replace "_", "-")-$($sequence.ToString("000"))-$slug"
-      $sourceImage = Find-ProductImage $imageCandidates $brandRoot $sheet.Name $model $skuCodes
+      $embeddedEntryPath = if ($embeddedImageMap.ContainsKey($rowIndex)) { [string]$embeddedImageMap[$rowIndex] } else { $null }
+      $preferEmbeddedImage = $serviceCode -eq "sash_handle" -and $embeddedEntryPath
+      $sourceImage = if ($preferEmbeddedImage) { $null } else { Find-ProductImage $imageCandidates $serviceCode $brandRoot $sheet.Name $model $skuCodes }
       $imagePath = $null
-      if ($sourceImage) {
+      if ($preferEmbeddedImage) {
+        $ext = ([System.IO.Path]::GetExtension($embeddedEntryPath)).ToLowerInvariant()
+        if (-not $ext) { $ext = ".png" }
+        if ($ext -eq ".jpeg") { $ext = ".jpg" }
+        $destFile = Join-Path (Join-Path $publicProductsDir $assetDir) ($fileSlug + $ext)
+        if (Copy-EmbeddedImage $workbookFile.FullName $embeddedEntryPath $destFile) {
+          $imagePath = "/products/$assetDir/$fileSlug$ext"
+        }
+      } elseif ($sourceImage) {
         $ext = ([System.IO.Path]::GetExtension($sourceImage)).ToLowerInvariant()
         if ($ext -eq ".jpeg") { $ext = ".jpg" }
         $destFile = Join-Path (Join-Path $publicProductsDir $assetDir) ($fileSlug + $ext)
         Copy-Item -LiteralPath $sourceImage -Destination $destFile -Force
         $imagePath = "/products/$assetDir/$fileSlug$ext"
-      } elseif ($embeddedImageMap.ContainsKey($rowIndex)) {
-        $entryPath = [string]$embeddedImageMap[$rowIndex]
-        $ext = ([System.IO.Path]::GetExtension($entryPath)).ToLowerInvariant()
+      } elseif ($embeddedEntryPath) {
+        $ext = ([System.IO.Path]::GetExtension($embeddedEntryPath)).ToLowerInvariant()
         if (-not $ext) { $ext = ".png" }
         if ($ext -eq ".jpeg") { $ext = ".jpg" }
         $destFile = Join-Path (Join-Path $publicProductsDir $assetDir) ($fileSlug + $ext)
-        if (Copy-EmbeddedImage $workbookFile.FullName $entryPath $destFile) {
+        if (Copy-EmbeddedImage $workbookFile.FullName $embeddedEntryPath $destFile) {
           $imagePath = "/products/$assetDir/$fileSlug$ext"
         }
       } else {

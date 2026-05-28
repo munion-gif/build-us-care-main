@@ -4,19 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AirVent,
   ChevronRight,
-  DoorClosed,
-  LampCeiling,
-  Paintbrush,
   PanelsTopLeft,
-  PlugZap,
   ShowerHead,
   SoapDispenserDroplet,
   Toilet,
+  Waves,
   type LucideIcon
 } from "lucide-react";
 import { EVENT_TYPES } from "@/lib/event-types";
 import type { FAQItem } from "@/lib/faqs";
 import { getKakaoChannelChatUrl } from "@/lib/kakao-channel";
+import { PUBLIC_SERVICE_CODE_SET, SERVICE_AREA_LABEL } from "@/lib/public-services";
 import type { QuoteServiceItem } from "@/lib/service-items";
 import { appendSourceParams, readClientSourceContext, type SourceContext } from "@/lib/traffic-source";
 import { useTracking } from "@/lib/use-tracking";
@@ -29,14 +27,11 @@ type HomeClientProps = {
 
 const SERVICE_ICON_ITEMS: Array<{ label: string; Icon: LucideIcon; href: string }> = [
   { label: "양변기", Icon: Toilet, href: "/quote/toilet_replace" },
-  { label: "수전", Icon: ShowerHead, href: "/quote/faucet_replace" },
   { label: "세면대", Icon: SoapDispenserDroplet, href: "/quote/basin_replace" },
-  { label: "전등", Icon: LampCeiling, href: "/quote/light_replace" },
-  { label: "콘센트&스위치", Icon: PlugZap, href: "/quote/outlet_replace" },
-  { label: "도어핸들", Icon: DoorClosed, href: "/quote/door_handle" },
+  { label: "수전", Icon: ShowerHead, href: "/quote/faucet_replace" },
+  { label: "비데", Icon: Waves, href: "/quote/bidet_install" },
   { label: "환풍기", Icon: AirVent, href: "/quote/ventilator_replace" },
-  { label: "샷시손잡이", Icon: PanelsTopLeft, href: "/quote/sash_handle" },
-  { label: "실리콘", Icon: Paintbrush, href: "/quote/silicone_repair" }
+  { label: "샷시손잡이", Icon: PanelsTopLeft, href: "/quote/sash_handle" }
 ];
 
 export function HomeClient({ services, kakaoUrl, faqs }: HomeClientProps) {
@@ -85,7 +80,7 @@ export function HomeClient({ services, kakaoUrl, faqs }: HomeClientProps) {
   const casesHref = useMemo(() => appendSourceParams("/cases", sourceContext), [sourceContext]);
   const kakaoChatUrl = useMemo(() => getKakaoChannelChatUrl(kakaoUrl), [kakaoUrl]);
   const representativeServices = useMemo(
-    () => services.filter((service) => service.standardizable).slice(0, 6),
+    () => services.filter((service) => PUBLIC_SERVICE_CODE_SET.has(service.service_type_code)).slice(0, 6),
     [services]
   );
   const visibleFaqs = useMemo(() => faqs.slice(0, 6), [faqs]);
@@ -100,9 +95,14 @@ export function HomeClient({ services, kakaoUrl, faqs }: HomeClientProps) {
           <span className="brand-kicker">build us care</span>
           <h1 id="home-title">사진 3장으로 제품 호환 확인하기</h1>
           <p>
-            방문은 교체가 필요할 때만 진행합니다. 변기, 수전, 조명, 콘센트처럼 제품 호환이
+            방문은 교체가 필요할 때만 진행합니다. 양변기, 세면대, 수전, 비데, 환풍기, 샷시손잡이처럼 제품 호환이
             애매한 작업을 사진으로 먼저 확인하고 견적과 예약까지 이어갑니다.
           </p>
+          <div className="service-area-pill" aria-label="작업 가능 지역">
+            <span>작업지역</span>
+            <strong>{SERVICE_AREA_LABEL}</strong>
+            <small>추후 확장 예정</small>
+          </div>
           <div className="quick-picks" aria-label="대표 서비스 바로가기">
             <span>대표 항목</span>
             <div>
@@ -439,6 +439,40 @@ const homeCss = `
     line-height: 1;
     letter-spacing: 0;
   }
+  .service-area-pill {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: rgba(34, 33, 29, 0.58);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
+    font-weight: 600;
+    word-break: keep-all;
+  }
+  .service-area-pill > span,
+  .quick-picks > span {
+    flex: 0 0 58px;
+  }
+  .service-area-pill span {
+    color: rgba(34, 33, 29, 0.54);
+    font-weight: 600;
+  }
+  .service-area-pill strong {
+    min-width: 0;
+    color: rgba(34, 33, 29, 0.76);
+    font-weight: 700;
+  }
+  .service-area-pill small {
+    color: rgba(34, 33, 29, 0.5);
+    font-size: var(--text-xs);
+    line-height: var(--leading-caption);
+    font-weight: 700;
+  }
   .quick-picks {
     display: flex;
     align-items: center;
@@ -572,7 +606,7 @@ const homeCss = `
   }
   .service-icon-strip {
     display: grid;
-    grid-template-columns: repeat(9, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 10px;
     margin-top: clamp(-1.35rem, -2vw, -0.75rem);
     margin-bottom: var(--space-6);

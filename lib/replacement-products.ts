@@ -2,13 +2,14 @@ import {
   BIDET_INSTALL_LABOR_PRICE,
   BASIN_REPLACE_LABOR_PRICE,
   FAUCET_REPLACE_LABOR_PRICE,
+  SASH_HANDLE_REPLACE_LABOR_PRICE,
   TOILET_REPLACE_LABOR_PRICE,
   VENTILATOR_REPLACE_LABOR_PRICE
 } from "@/lib/constants";
 import rawReplacementProducts from "./replacement-products.generated.json";
 import { TOILET_PRODUCTS, TOILET_PRODUCT_SOURCE_NOTE } from "./toilet-products";
 
-export type ReplacementProductServiceCode = "toilet_replace" | "basin_replace" | "faucet_replace" | "bidet_install" | "ventilator_replace";
+export type ReplacementProductServiceCode = "toilet_replace" | "basin_replace" | "faucet_replace" | "bidet_install" | "ventilator_replace" | "sash_handle";
 
 export type ReplacementProduct = {
   id: string;
@@ -60,7 +61,8 @@ const SERVICE_ALIASES: Record<string, ReplacementProductServiceCode> = {
   kitchen_faucet: "faucet_replace",
   bidet_install: "bidet_install",
   ventilator_replace: "ventilator_replace",
-  bath_fan: "ventilator_replace"
+  bath_fan: "ventilator_replace",
+  sash_handle: "sash_handle"
 };
 
 const SERVICE_LABELS: Record<ReplacementProductServiceCode, { title: string; customConsultLabel: string; sourceNote: string }> = {
@@ -88,6 +90,11 @@ const SERVICE_LABELS: Record<ReplacementProductServiceCode, { title: string; cus
     title: "환풍기 종류와 제품가",
     customConsultLabel: "환풍기",
     sourceNote: "엑셀 제품 리스트 기준 제품가입니다. 실제 주문 금액은 시공비, 전원·덕트 조건, 타공 크기, 재고에 따라 확정됩니다."
+  },
+  sash_handle: {
+    title: "샷시손잡이 종류와 제품가",
+    customConsultLabel: "샷시손잡이",
+    sourceNote: "엑셀 제품 리스트 기준 제품가입니다. 실제 주문 금액은 시공비, 기존 창호 규격, 잠금장치 호환, 재고에 따라 확정됩니다."
   }
 };
 
@@ -238,6 +245,7 @@ export function getProductLaborPrice(serviceCode: string) {
   if (canonical === "bidet_install") return BIDET_INSTALL_LABOR_PRICE;
   if (canonical === "ventilator_replace") return VENTILATOR_REPLACE_LABOR_PRICE;
   if (canonical === "basin_replace") return BASIN_REPLACE_LABOR_PRICE;
+  if (canonical === "sash_handle") return SASH_HANDLE_REPLACE_LABOR_PRICE;
   return 0;
 }
 

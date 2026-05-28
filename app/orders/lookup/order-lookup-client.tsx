@@ -160,7 +160,7 @@ export function OrderLookupClient({ kakaoUrl }: OrderLookupClientProps) {
 
 const css = `
   .lookup-page { min-height: 70vh; display: grid; justify-items: center; align-content: start; gap: var(--space-5, 1.25rem); padding: clamp(1.75rem, 4vw, 2.5rem) var(--space-4) var(--space-12); background: linear-gradient(90deg, rgba(34, 33, 29, 0.024) 1px, transparent 1px), linear-gradient(180deg, rgba(34, 33, 29, 0.024) 1px, transparent 1px), var(--color-bg); background-size: 34px 34px; }
-  .lookup-card, .lookup-results, .lookup-kakao-banner { width: min(760px, 100%); border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); padding: clamp(20px, 3vw, 28px); box-shadow: 0 14px 34px rgba(34, 33, 29, 0.055); }
+  .lookup-card, .lookup-results, .lookup-kakao-banner { box-sizing: border-box; width: min(760px, 100%); border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); padding: clamp(20px, 3vw, 28px); box-shadow: 0 14px 34px rgba(34, 33, 29, 0.055); }
   .lookup-card { display: grid; gap: var(--space-4); }
   .lookup-card { background: linear-gradient(135deg, rgba(255, 250, 241, 0.96), rgba(244, 234, 212, 0.78)); }
   .brand-kicker { color: var(--color-text); font-family: var(--font-brand); font-size: 13px; font-weight: var(--brand-label-weight); letter-spacing: var(--brand-letter-spacing); text-transform: lowercase; }
@@ -169,10 +169,12 @@ const css = `
   .lookup-card span, .lookup-message { color: var(--color-text-muted); line-height: 1.55; }
   .lookup-instagram-note { border-radius: 8px; background: var(--color-primary-highlight); padding: var(--space-3) var(--space-4); color: var(--color-primary); font-weight: 700; line-height: 1.55; }
   .lookup-card form { display: grid; gap: var(--space-3); }
-  .lookup-form-grid { display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: var(--space-3); }
+  .lookup-form-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(132px, 0.65fr); align-items: end; gap: var(--space-3); }
+  .lookup-form-grid > * { min-width: 0; }
   .lookup-card label { display: grid; gap: 8px; font-weight: 700; }
-  .lookup-card input { min-height: 52px; border: 1px solid var(--color-border); border-radius: 8px; padding: 0 14px; font-size: 16px; }
-  .lookup-card button, .lookup-link { min-height: 52px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; background: var(--color-gold); color: #211c12; text-decoration: none; font-weight: 700; white-space: nowrap; }
+  .lookup-card input { box-sizing: border-box; width: 100%; min-height: 52px; border: 1px solid var(--color-border); border-radius: 8px; padding: 0 14px; font-size: 16px; }
+  .lookup-card button, .lookup-link { box-sizing: border-box; min-height: 52px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; background: var(--color-gold); color: #211c12; text-decoration: none; font-weight: 700; white-space: nowrap; }
+  .lookup-form-grid button { width: 100%; padding: 0 16px; }
   .lookup-card button:disabled { opacity: 0.55; cursor: not-allowed; }
   .lookup-message { border-radius: 8px; background: var(--color-primary-highlight); padding: var(--space-3) var(--space-4); font-weight: 700; }
   .lookup-message.empty { background: var(--color-alert-soft); color: #7a371f; }
