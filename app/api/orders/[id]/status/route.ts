@@ -2,6 +2,7 @@ import { fail, ok } from "@/lib/api-response";
 import { parseAdminKeys } from "@/lib/admin-auth";
 import { EVENT_TYPES } from "@/lib/event-types";
 import { inferDeviceType } from "@/lib/data-collection";
+import { findReplacementProduct } from "@/lib/replacement-products";
 import { ORDER_PHOTO_VIEW_EXPIRES_IN, ORDER_PHOTOS_BUCKET } from "@/lib/storage";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { accessTokenSchema, uuidSchema } from "@/lib/validation";
@@ -48,13 +49,33 @@ function selectedProductSnapshot(metadata: any) {
     metadata?.selected_replacement_product ??
     metadata?.selected_toilet_product ??
     metadata?.selected_replacement_product_snapshot;
-  if (!product || typeof product !== "object") return null;
+  const productId =
+    typeof metadata?.selected_replacement_product_id === "string"
+      ? metadata.selected_replacement_product_id
+      : typeof metadata?.selected_toilet_product_id === "string"
+        ? metadata.selected_toilet_product_id
+        : typeof product?.id === "string"
+          ? product.id
+          : null;
+  const serviceCode =
+    typeof metadata?.selected_replacement_product_service_code === "string"
+      ? metadata.selected_replacement_product_service_code
+      : typeof metadata?.service_type_code === "string"
+        ? metadata.service_type_code
+        : typeof product?.serviceCode === "string"
+          ? product.serviceCode
+          : null;
+  const catalogProduct = serviceCode ? findReplacementProduct(serviceCode, productId) : null;
+
+  if ((!product || typeof product !== "object") && !catalogProduct) return null;
   return {
-    brand: typeof product.brand === "string" ? product.brand : null,
-    model: typeof product.model === "string" ? product.model : null,
-    sku: typeof product.sku === "string" ? product.sku : null,
-    price: typeof product.price === "number" ? product.price : null,
-    image: typeof product.image === "string" ? product.image : null
+    id: typeof product?.id === "string" ? product.id : catalogProduct?.id ?? null,
+    serviceCode: typeof product?.serviceCode === "string" ? product.serviceCode : catalogProduct?.serviceCode ?? serviceCode,
+    brand: typeof product?.brand === "string" ? product.brand : catalogProduct?.brand ?? null,
+    model: typeof product?.model === "string" ? product.model : catalogProduct?.model ?? null,
+    sku: typeof product?.sku === "string" ? product.sku : catalogProduct?.sku ?? null,
+    price: typeof product?.price === "number" ? product.price : catalogProduct?.price ?? null,
+    image: typeof product?.image === "string" ? product.image : catalogProduct?.image ?? null
   };
 }
 

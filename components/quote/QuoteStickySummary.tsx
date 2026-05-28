@@ -44,7 +44,7 @@ export function QuoteStickySummary({
   onPaymentBlocked,
   productSelection,
   selectionReady = true,
-  selectionMessage = "필수 선택을 완료해주세요.",
+  selectionMessage = "필수 선택을 완료해 주세요.",
   mobileSummaryLabel,
   summaryTitle = "결제 요약",
   paymentButtonLabel = "결제 진행하기",
@@ -117,10 +117,12 @@ export function QuoteStickySummary({
   function handlePaymentButtonClick() {
     if (loading || !paymentAvailable) return;
     if (!selectionReady) {
+      setSummaryOpen(false);
       onPaymentBlocked?.();
       return;
     }
     if (onPaymentBlocked?.()) {
+      setSummaryOpen(false);
       return;
     }
     if (!policyAccepted) {
@@ -206,7 +208,7 @@ export function QuoteStickySummary({
         <button
           type="button"
           disabled={paymentDisabled}
-          aria-disabled={paymentDisabled || paymentBlocked}
+          aria-disabled={paymentDisabled}
           title={paymentTitle}
           className="strong payment-button"
           onClick={handlePaymentButtonClick}

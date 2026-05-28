@@ -282,6 +282,7 @@ export function replacementProductSnapshot(product: ReplacementProduct) {
     brand: product.brand,
     model: product.model,
     sku: product.sku,
-    price: product.price
+    price: product.price,
+    image: product.image
   };
 }

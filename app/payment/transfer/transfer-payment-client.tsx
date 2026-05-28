@@ -32,7 +32,7 @@ export function TransferPaymentClient() {
       <section className="transfer-card">
         <p className="brand-kicker">build us care</p>
         <h1>계좌이체 안내</h1>
-        <span>최종 견적은 저장되었습니다. 아래 금액을 확인한 뒤 입금 안내에 따라 진행해주세요.</span>
+        <span>최종 견적이 저장되었습니다. 금액을 확인한 뒤 입금 안내에 따라 진행해 주세요.</span>
 
         <div className="transfer-amount">
           <small>계좌이체 금액</small>
@@ -76,7 +76,11 @@ export function TransferPaymentClient() {
         </div>
 
         <div className="transfer-actions">
-          {statusUrl ? <Link href={statusUrl}>주문 내용 확인</Link> : <Link href="/">홈으로 이동</Link>}
+          {statusUrl ? (
+            <Link className="transfer-action-button" href={statusUrl}>주문정보 보기</Link>
+          ) : (
+            <Link className="transfer-action-button" href="/">홈으로 이동</Link>
+          )}
         </div>
       </section>
       <style jsx>{`
@@ -163,14 +167,15 @@ export function TransferPaymentClient() {
         .transfer-actions {
           display: grid;
         }
-        .transfer-actions a {
+        :global(.transfer-action-button) {
           display: inline-flex;
           justify-content: center;
           align-items: center;
+          width: 100%;
           min-height: 54px;
           border-radius: 8px;
-          background: var(--color-charcoal);
-          color: var(--color-cream);
+          background: var(--color-charcoal, #211f1b);
+          color: var(--color-cream, #fffaf1);
           font-weight: 800;
           text-decoration: none;
         }

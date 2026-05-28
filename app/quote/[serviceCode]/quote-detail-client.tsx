@@ -451,7 +451,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
   const mobileSummaryLabel = showProductCatalog
     ? productSelectionReady
       ? `선택 제품 ${totalProductQty}개`
-      : "제품을 선택해주세요"
+      : "제품을 선택해 주세요"
     : service.display_name;
   const orderFingerprint = useMemo(
     () =>
@@ -490,11 +490,11 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
 
   function moveToFormStep(step: number, section: HTMLElement | null, focusTarget?: HTMLElement | null) {
     setActiveFormStep(step);
-    window.requestAnimationFrame(() => scrollToTarget(section, focusTarget));
+    window.requestAnimationFrame(() => scrollToTarget(focusTarget ?? section, focusTarget));
   }
 
   function moveToProductSelection() {
-    setMessage(`${productCatalog?.customConsultLabel ?? "제품"} 제품을 먼저 선택해주세요.`);
+    setMessage(`${productCatalog?.customConsultLabel ?? "제품"} 제품을 먼저 선택해 주세요.`);
     window.requestAnimationFrame(() => scrollToTarget(productSectionRef.current));
   }
 
@@ -515,16 +515,21 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
 
   function basicInfoErrors() {
     const nextErrors: Record<string, string> = {};
-    if (!address.road_address) nextErrors.address = "주소를 먼저 입력해주세요.";
-    if (!address.detail_address.trim()) nextErrors.detail_address = "동/호수 또는 층 정보를 입력해주세요.";
-    if (!customerName.trim()) nextErrors.name = "이름을 입력해주세요.";
-    if (!isValidKoreanMobile(customerPhone)) nextErrors.phone = "전화번호를 010-XXXX-XXXX 형식으로 입력해주세요.";
+    const detailAddress = address.detail_address.trim();
+    if (!address.road_address) nextErrors.address = "주소를 먼저 입력해 주세요.";
+    if (!detailAddress) {
+      nextErrors.detail_address = "동/호수 또는 층 정보를 입력해 주세요.";
+    } else if (detailAddress.length < 2) {
+      nextErrors.detail_address = "상세주소를 2자 이상 입력해 주세요.";
+    }
+    if (!customerName.trim()) nextErrors.name = "이름을 입력해 주세요.";
+    if (!isValidKoreanMobile(customerPhone)) nextErrors.phone = "전화번호를 010-XXXX-XXXX 형식으로 입력해 주세요.";
     return nextErrors;
   }
 
   function scheduleBlockMessage() {
-    if (slotsLoading || !slotsReady) return "예약 가능 시간을 확인하고 있어요. 잠시 후 다시 시도해주세요.";
-    return slotsError || "방문 가능한 날짜와 시간대를 선택해주세요.";
+    if (slotsLoading || !slotsReady) return "예약 가능 시간을 확인하고 있어요. 잠시 후 다시 시도해 주세요.";
+    return slotsError || "방문 가능한 날짜와 시간대를 선택해 주세요.";
   }
 
   function handlePaymentBlocked() {
@@ -616,7 +621,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
     void track(EVENT_TYPES.QUOTE_PAGE_VIEW, { service_code: service.service_type_code });
     const params = new URLSearchParams(window.location.search);
     if (params.get("toss") === "fail") {
-      setMessage("결제가 취소되었습니다. 다시 시도해주세요.");
+      setMessage("결제가 취소되었습니다. 다시 시도해 주세요.");
       void track(EVENT_TYPES.PAYMENT_FAILED, { service_code: service.service_type_code, order_id: params.get("orderId") ?? undefined });
       params.delete("toss");
       window.history.replaceState({}, "", `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`);
@@ -719,7 +724,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
           setClosedSlotsByDate({});
           setSlotDaysByDate({});
           setSlotsReady(false);
-          setSlotsError("날짜를 불러올 수 없습니다. 다시 시도해주세요.");
+          setSlotsError("날짜를 불러올 수 없습니다. 다시 시도해 주세요.");
         }
       } finally {
         if (!ignore) setSlotsLoading(false);
@@ -762,7 +767,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
     const response = await fetch(url, init);
     const json = await response.json();
     if (!response.ok) {
-      throw new Error(customerErrorMessage(json?.error, "요청을 다시 확인해주세요."));
+      throw new Error(customerErrorMessage(json?.error, "요청을 다시 확인해 주세요."));
     }
     return json.data;
   }
@@ -794,7 +799,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
   async function createOrderAndQuote() {
     if (showProductCatalog && selectedProductItems.length === 0) {
       moveToProductSelection();
-      throw new Error(`${productCatalog?.customConsultLabel ?? "제품"} 제품을 1개 이상 선택해주세요.`);
+      throw new Error(`${productCatalog?.customConsultLabel ?? "제품"} 제품을 1개 이상 선택해 주세요.`);
     }
 
     const nextErrors = basicInfoErrors();
@@ -973,7 +978,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
     }) as PreparedPayment;
 
     if (Number(prepared.amount) !== Number(prepared.productAmount)) {
-      throw new Error("결제 금액 확인에 실패했어요. 제품값만 결제되도록 다시 시도해주세요.");
+      throw new Error("결제 금액 확인에 실패했어요. 제품값만 결제되도록 다시 시도해 주세요.");
     }
 
     return prepared;
@@ -1056,7 +1061,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
       });
       */
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "결제에 실패했어요. 다시 시도해주세요.");
+      setMessage(error instanceof Error ? error.message : "결제에 실패했어요. 다시 시도해 주세요.");
     } finally {
       setLoading(false);
     }
@@ -1267,7 +1272,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
               </button>
             </div>
             <div className="form-step-body">
-            <p className="data-guide-text">제품과 일정 준비 기간 때문에 예약은 오늘 기준 3일 이후 날짜부터 가능합니다. 희망 날짜와 시간대를 선택해주세요.</p>
+            <p className="data-guide-text">제품과 일정 준비 기간 때문에 예약은 오늘 기준 3일 이후 날짜부터 가능합니다. 희망 날짜와 시간대를 선택해 주세요.</p>
             <div className="calendar-panel">
               <div className="calendar-header">
                 <button type="button" onClick={() => changeCalendarMonth(-1)} aria-label="이전 달">
@@ -1338,7 +1343,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
                 </div>
               )}
               {slotsReady && !slotsError && selectableDatesInMonth === 0 && (
-                <p className="slot-help strong">이번 달 예약 가능한 날짜가 없습니다. 다음 달을 확인해주세요.</p>
+                <p className="slot-help strong">이번 달 예약 가능한 날짜가 없습니다. 다음 달을 확인해 주세요.</p>
               )}
             </div>
             <div className="slot-grid slide-down">
@@ -1371,7 +1376,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
               })}
             </div>
             {slotDaysByDate[date]?.hasReservation ? (
-              <p className="slot-help strong">예약이 있는 시간대는 마감으로 표시됩니다. 가능한 시간대를 선택해주세요.</p>
+              <p className="slot-help strong">예약이 있는 시간대는 마감으로 표시됩니다. 가능한 시간대를 선택해 주세요.</p>
             ) : closedSlotsByDate[date]?.length ? (
               <p className="slot-help">마감된 시간대는 회색으로 표시됩니다.</p>
             ) : null}
@@ -1405,11 +1410,11 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
             onPayment={() => setQuoteConfirmOpen(true)}
             onPaymentBlocked={handlePaymentBlocked}
             selectionReady={productSelectionReady}
-            selectionMessage={`${productCatalog?.customConsultLabel ?? "제품"} 제품을 먼저 선택해주세요.`}
+            selectionMessage={`${productCatalog?.customConsultLabel ?? "제품"} 제품을 먼저 선택해 주세요.`}
             mobileSummaryLabel={mobileSummaryLabel}
             summaryTitle={showProductCatalog ? "오늘 결제할 금액" : "결제 요약"}
             paymentButtonLabel="최종 견적 확인하기"
-            paymentReadyMessage={showProductCatalog ? "최종 견적서를 확인한 뒤 제품값 계좌이체로 진행합니다. 시공비는 시공 완료 후 현장에서 결제합니다." : "최종 견적서를 확인한 뒤 계좌이체로 진행합니다."}
+            paymentReadyMessage={showProductCatalog ? "최종 견적서를 확인한 뒤 제품값은 계좌이체로 진행합니다. 시공비는 시공 완료 후 현장에서 결제합니다." : "최종 견적서를 확인한 뒤 계좌이체로 진행합니다."}
             productSelection={
               showProductCatalog ? (
                 <div className="sticky-selected-products" aria-label="선택 제품 요약">
@@ -1425,9 +1430,9 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
                         ))}
                       </ul>
                     ) : (
-                      <strong>제품을 선택해주세요.</strong>
+                      <strong>제품을 선택해 주세요.</strong>
                     )}
-                    {hiddenSelectedProductCount > 0 && <b className="sticky-selected-product-more">나머지 {hiddenSelectedProductCount}개 제품은 결제 전 선택 목록에서 확인해주세요.</b>}
+                    {hiddenSelectedProductCount > 0 && <b className="sticky-selected-product-more">나머지 {hiddenSelectedProductCount}개 제품은 결제 전 선택 목록에서 확인해 주세요.</b>}
                     <small>{selectedProductMeta}</small>
                   </div>
                   {selectedProductItems.length > 0 && (
@@ -1508,7 +1513,7 @@ function QuoteConfirmModal({
           <div>
             <span className="brand-kicker">build us care</span>
             <h2 id="quote-confirm-title">최종 견적 확인</h2>
-            <p>선택한 제품과 결제 전 금액을 한 번 더 확인해주세요.</p>
+            <p>선택한 제품과 결제 전 금액을 한 번 더 확인해 주세요.</p>
           </div>
           <button type="button" className="quote-confirm-close" onClick={onClose} aria-label="최종 견적 확인 닫기">닫기</button>
         </div>
@@ -1724,7 +1729,7 @@ function ReplacementProductCatalog({
         </div>
       </div>
 
-      {filteredTotalCount === 0 && <div className="toilet-filter-empty">조건에 맞는 제품이 없습니다. 브랜드나 가격대를 다시 선택해주세요.</div>}
+      {filteredTotalCount === 0 && <div className="toilet-filter-empty">조건에 맞는 제품이 없습니다. 브랜드나 가격대를 다시 선택해 주세요.</div>}
 
       {productScope === "all" && filteredRecommendedProducts.length > 0 && (
         <section className="recommended-products" id="product-recommendations" aria-label="추천 제품">
@@ -1756,7 +1761,7 @@ function ReplacementProductCatalog({
           <span>{scopedDescription}</span>
         </div>
         {scopedProducts.length === 0 ? (
-          <div className="toilet-filter-empty">조건에 맞는 제품이 없습니다. 다른 브랜드나 가격대를 선택해주세요.</div>
+          <div className="toilet-filter-empty">조건에 맞는 제품이 없습니다. 다른 브랜드나 가격대를 선택해 주세요.</div>
         ) : (
           <div className={productScope === "recommended" ? "recommended-product-grid" : "toilet-product-grid all-product-list"}>
             {scopedProducts.map((product) => (
