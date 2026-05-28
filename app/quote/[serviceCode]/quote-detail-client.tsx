@@ -83,7 +83,7 @@ type PreviousOrder = {
 const VISIT_FEE = 15000;
 const MAX_REPLACEMENT_PRODUCT_QTY = 20;
 const PRODUCT_RECOMMEND_LABEL_ORDER = ["가성비", "인기", "프리미엄"];
-const PREFERRED_BRANDS = ["대림", "도비도스", "아메리칸스탠다드", "이누스"];
+const PREFERRED_BRANDS = ["대림바스", "아메리칸스탠다드", "대림", "도비도스", "이누스"];
 const PRODUCT_PRICE_FILTERS = [
   { id: "all", label: "전체 가격대", min: 0, max: Number.POSITIVE_INFINITY },
   { id: "under-200000", label: "20만원 미만", min: 0, max: 200000 },
@@ -1634,7 +1634,7 @@ function ReplacementProductCard({
   const selected = qty > 0;
   const priceAvailable = typeof product.price === "number";
   const skuLabel = product.sku.trim() || "-";
-  const noteText = recommended && product.recommendDescription ? product.recommendDescription : compactProductNote(product.note);
+  const noteText = compactProductNote(product.note);
 
   return (
     <article className={[selected ? "toilet-product-card selected" : "toilet-product-card", recommended ? "recommended" : ""].filter(Boolean).join(" ")}>
@@ -1657,9 +1657,11 @@ function ReplacementProductCard({
         <h3>{product.model}</h3>
         <p className="toilet-product-sku">품번 {skuLabel}</p>
         <strong className="toilet-product-price">{priceAvailable ? won(product.price ?? 0) : "가격 확인 필요"}</strong>
-        <p className={recommended ? "toilet-product-note" : "toilet-product-note compact"} title={product.note}>
-          {noteText}
-        </p>
+        {!recommended && (
+          <p className="toilet-product-note compact" title={product.note}>
+            {noteText}
+          </p>
+        )}
         <div className="toilet-card-actions">
           {selected ? (
             <>
@@ -1683,7 +1685,7 @@ function ReplacementProductCard({
               <button type="button" className="toilet-replace-button primary" disabled={!priceAvailable} onClick={() => onProductReplace(product.id)}>
                 {priceAvailable ? "이 제품 선택" : "상담 필요"}
               </button>
-              {priceAvailable && (
+              {!recommended && priceAvailable && (
                 <button type="button" className="toilet-add-button" onClick={() => onQuantityChange(product.id, 1)}>
                   같이 선택
                 </button>
@@ -1719,6 +1721,16 @@ const quoteCss = `
     color: var(--color-text);
     padding: 18px 18px 120px;
     font-family: var(--font-body);
+    word-break: keep-all;
+    line-break: strict;
+    overflow-wrap: break-word;
+  }
+  .quote-page :where(h1, h2, h3, p, span, small, strong, label, summary, button, a) {
+    word-break: keep-all;
+    line-break: strict;
+  }
+  .quote-page :where(p, small, label) {
+    text-wrap: pretty;
   }
   .context-banner {
     max-width: 980px;
@@ -1930,7 +1942,7 @@ const quoteCss = `
     line-height: var(--leading-h1);
     font-weight: 700;
     letter-spacing: -0.02em;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
   .quote-hero strong,
   .price-total strong {
@@ -2369,24 +2381,31 @@ const quoteCss = `
   }
   .recommended-product-grid .toilet-product-card {
     grid-template-columns: 1fr;
+    min-height: 0;
   }
   .toilet-product-grid .toilet-product-card {
     grid-template-columns: 1fr;
     min-height: 0;
   }
   .recommended-product-grid .toilet-product-image {
-    min-height: 166px;
+    height: 128px;
+    min-height: 128px;
+    border-right: 0;
     border-bottom: 1px solid #f0ece3;
-    background: #f8f2e8;
+    background: #fff;
   }
   .toilet-product-grid .toilet-product-image {
     height: 128px;
     min-height: 128px;
     border-bottom: 1px solid #f0ece3;
-    background: #f8f2e8;
+    background: #fff;
   }
   .recommended-product-grid .toilet-product-body {
+    grid-template-rows: none;
+    align-content: center;
+    gap: 5px;
     border-left: 0;
+    padding: 10px 11px 11px;
   }
   .toilet-product-grid .toilet-product-body {
     border-left: 0;
@@ -2401,7 +2420,7 @@ const quoteCss = `
     place-items: center;
     min-height: 168px;
     overflow: hidden;
-    background: #fffffc;
+    background: #fff;
   }
   .toilet-product-image-button {
     position: relative;
@@ -2419,9 +2438,16 @@ const quoteCss = `
   .toilet-product-image img {
     width: 100%;
     height: 100%;
+    box-sizing: border-box;
     object-fit: contain;
     display: block;
     padding: 5px;
+  }
+  .recommended-product-grid .toilet-product-image img {
+    width: 112px !important;
+    max-width: calc(100% - 10px);
+    height: 112px !important;
+    max-height: calc(100% - 10px);
   }
   .image-zoom-hint {
     position: absolute;
@@ -2485,7 +2511,7 @@ const quoteCss = `
     line-height: 1.32;
     font-weight: 700;
     letter-spacing: 0;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
   .toilet-product-grid .toilet-product-card h3 {
     font-size: var(--text-body);
@@ -2502,8 +2528,25 @@ const quoteCss = `
     letter-spacing: 0;
   }
   .recommended-product-grid .toilet-product-price {
-    font-size: 24px;
-    line-height: 30px;
+    font-size: 20px;
+    line-height: 25px;
+  }
+  .recommended-product-grid .toilet-product-card h3 {
+    font-size: var(--text-label);
+    line-height: 1.25;
+  }
+  .recommended-product-grid .toilet-product-card p {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+  }
+  .recommended-product-grid .toilet-product-card .toilet-product-sku {
+    margin: -2px 0 0;
+    font-size: 11px;
+    line-height: 1.25;
   }
   .toilet-product-grid .toilet-product-price {
     font-size: 21px;
@@ -2516,7 +2559,7 @@ const quoteCss = `
     line-height: var(--leading-body-sm);
   }
   .toilet-product-note {
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
   .toilet-product-note.compact {
     display: block;
@@ -2594,6 +2637,22 @@ const quoteCss = `
     padding: 0 10px;
     font-size: var(--text-label);
     line-height: var(--leading-label);
+  }
+  .recommended-product-grid .toilet-card-actions {
+    gap: 5px;
+    min-height: 32px;
+    justify-content: stretch;
+  }
+  .recommended-product-grid .toilet-add-button,
+  .recommended-product-grid .toilet-replace-button {
+    min-height: 32px;
+    border-radius: 7px;
+    padding: 0 8px;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+  }
+  .recommended-product-grid .toilet-replace-button.primary {
+    width: 100%;
   }
   .all-product-list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2707,7 +2766,7 @@ const quoteCss = `
     font-size: var(--text-h3);
     line-height: var(--leading-h3);
     font-weight: 700;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
   .product-image-modal-head button {
     min-height: 34px;
@@ -2730,7 +2789,7 @@ const quoteCss = `
     overflow: hidden;
     border: 1px solid var(--color-border);
     border-radius: 8px;
-    background: #f8f2e8;
+    background: #fff;
   }
   .product-image-modal-frame img {
     width: 100%;
@@ -3144,7 +3203,7 @@ const quoteCss = `
     font-weight: 700;
     letter-spacing: -0.015em;
     font-variant-numeric: tabular-nums;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
   .quote-summary-head p {
     margin: 6px 0 0;
@@ -3184,7 +3243,7 @@ const quoteCss = `
   .price-lines dt,
   .price-lines dd {
     margin: 0;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
   .price-total {
     margin-top: 14px;
@@ -3280,7 +3339,7 @@ const quoteCss = `
   }
   .addon-row span {
     min-width: 0;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
   .addon-row strong {
     flex: 0 0 auto;
@@ -3415,7 +3474,7 @@ const quoteCss = `
     color: var(--color-text-muted);
     font-weight: 600;
     line-height: 1.4;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
   .sticky-selected-products {
     grid-column: 1 / -1;
@@ -3450,7 +3509,7 @@ const quoteCss = `
     font-size: var(--text-sm);
     font-weight: 700;
     line-height: 1.35;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
   .sticky-selected-product-summary small {
     display: block;
@@ -3559,6 +3618,17 @@ const quoteCss = `
     line-height: var(--leading-caption);
     font-weight: 600;
   }
+  .payment-consent-text {
+    min-width: 0;
+    word-break: keep-all;
+    line-break: strict;
+    overflow-wrap: break-word;
+  }
+  .payment-consent-nowrap {
+    display: inline-block;
+    white-space: nowrap;
+    word-break: keep-all;
+  }
   .payment-consent input {
     width: 18px;
     height: 18px;
@@ -3569,6 +3639,7 @@ const quoteCss = `
     color: var(--color-primary);
     text-decoration: underline;
     text-underline-offset: 2px;
+    white-space: nowrap;
   }
   .sticky-cta .strong {
     background: var(--color-primary);
@@ -4398,7 +4469,7 @@ const quoteCss = `
     .section-title-row span {
       min-width: 0;
       text-align: left;
-      overflow-wrap: anywhere;
+      overflow-wrap: break-word;
     }
     .addon-row,
     .price-lines div,
@@ -4411,7 +4482,7 @@ const quoteCss = `
       max-width: 42%;
       white-space: normal;
       text-align: right;
-      overflow-wrap: anywhere;
+      overflow-wrap: break-word;
     }
     .address-trigger {
       align-items: flex-start;
@@ -4420,9 +4491,9 @@ const quoteCss = `
     .address-trigger small {
       margin-left: 0;
     }
-    .payment-consent span {
+    .payment-consent-text {
       min-width: 0;
-      overflow-wrap: anywhere;
+      overflow-wrap: break-word;
     }
     .payment-consent {
       border-radius: 10px;
@@ -4442,7 +4513,7 @@ const quoteCss = `
       min-width: 0;
       min-height: 52px;
       white-space: normal;
-      overflow-wrap: anywhere;
+      overflow-wrap: break-word;
     }
     .quote-page ~ .global-footer {
       padding-bottom: 160px;
@@ -4637,7 +4708,7 @@ const quoteCss = `
       min-width: 0;
       font-size: var(--text-sm);
       font-weight: 700;
-      overflow-wrap: anywhere;
+      overflow-wrap: break-word;
     }
     .sticky-cta .mobile-summary-toggle strong {
       font-size: var(--text-price-sub);
@@ -4796,6 +4867,10 @@ const quoteCss = `
       min-height: 126px;
       border-radius: 8px;
     }
+    .recommended-product-grid .toilet-product-card {
+      grid-template-columns: 1fr;
+      min-height: 0;
+    }
     .all-product-list .toilet-product-card {
       grid-template-columns: 98px minmax(0, 1fr);
       min-height: 126px;
@@ -4806,6 +4881,12 @@ const quoteCss = `
       min-height: 126px;
       border-right: 1px solid #f0ece3;
       border-bottom: 0;
+    }
+    .recommended-product-grid .toilet-product-image {
+      height: 116px;
+      min-height: 116px;
+      border-right: 0;
+      border-bottom: 1px solid #f0ece3;
     }
     .all-product-list .toilet-product-image {
       min-height: 126px;
@@ -4818,6 +4899,10 @@ const quoteCss = `
       gap: 4px;
       border-left: 0;
       padding: 9px 10px;
+    }
+    .recommended-product-grid .toilet-product-body {
+      gap: 5px;
+      padding: 10px;
     }
     .toilet-product-meta {
       gap: 5px;

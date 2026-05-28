@@ -199,9 +199,11 @@ export function QuoteStickySummary({
         )}
         <label className="payment-consent">
           <input ref={consentInputRef} type="checkbox" checked={policyAccepted} onChange={(event) => setPolicyAccepted(event.target.checked)} />
-          <span>
-            주문 내용과 방문 일정, <a href="/privacy" target="_blank" rel="noreferrer">개인정보 처리방침</a>,{" "}
-            <a href="/refund-policy" target="_blank" rel="noreferrer">취소·환불 안내</a>를 확인했습니다.
+          <span className="payment-consent-text">
+            주문 내용과 방문 일정,{" "}
+            <span className="payment-consent-nowrap"><a href="/privacy" target="_blank" rel="noreferrer">개인정보 처리방침</a></span>,{" "}
+            <span className="payment-consent-nowrap"><a href="/refund-policy" target="_blank" rel="noreferrer">취소·환불 안내</a>를</span>{" "}
+            확인했습니다.
           </span>
         </label>
         <button

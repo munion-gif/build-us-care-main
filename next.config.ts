@@ -17,7 +17,7 @@ function configuredDevOrigins() {
 
 const nextConfig: NextConfig = {
   typedRoutes: false,
-  allowedDevOrigins: Array.from(new Set([...localDevOrigins(), ...configuredDevOrigins()])),
+  allowedDevOrigins: Array.from(new Set(["127.0.0.1", ...localDevOrigins(), ...configuredDevOrigins()])),
   async redirects() {
     return [
       {

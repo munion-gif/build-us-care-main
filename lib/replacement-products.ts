@@ -1,4 +1,5 @@
 import {
+  BIDET_INSTALL_LABOR_PRICE,
   BASIN_REPLACE_LABOR_PRICE,
   FAUCET_REPLACE_LABOR_PRICE,
   TOILET_REPLACE_LABOR_PRICE,
@@ -7,7 +8,7 @@ import {
 import rawReplacementProducts from "./replacement-products.generated.json";
 import { TOILET_PRODUCTS, TOILET_PRODUCT_SOURCE_NOTE } from "./toilet-products";
 
-export type ReplacementProductServiceCode = "toilet_replace" | "basin_replace" | "faucet_replace" | "ventilator_replace";
+export type ReplacementProductServiceCode = "toilet_replace" | "basin_replace" | "faucet_replace" | "bidet_install" | "ventilator_replace";
 
 export type ReplacementProduct = {
   id: string;
@@ -57,6 +58,7 @@ const SERVICE_ALIASES: Record<string, ReplacementProductServiceCode> = {
   basin_replace: "basin_replace",
   faucet_replace: "faucet_replace",
   kitchen_faucet: "faucet_replace",
+  bidet_install: "bidet_install",
   ventilator_replace: "ventilator_replace",
   bath_fan: "ventilator_replace"
 };
@@ -70,17 +72,22 @@ const SERVICE_LABELS: Record<ReplacementProductServiceCode, { title: string; cus
   basin_replace: {
     title: "세면대 종류와 제품가",
     customConsultLabel: "세면대",
-    sourceNote: "2025년 제품 리스트 기준 제품가입니다. 실제 주문 금액은 시공비, 현장 부속, 배관 조건, 재고에 따라 확정됩니다."
+    sourceNote: "엑셀 제품 리스트 기준 제품가입니다. 실제 주문 금액은 시공비, 현장 부속, 배관 조건, 재고에 따라 확정됩니다."
   },
   faucet_replace: {
     title: "수전 종류와 제품가",
     customConsultLabel: "수전",
-    sourceNote: "2025년 제품 리스트 기준 제품가입니다. 실제 주문 금액은 시공비, 연결 부속, 배관 조건, 재고에 따라 확정됩니다."
+    sourceNote: "엑셀 제품 리스트 기준 제품가입니다. 실제 주문 금액은 시공비, 연결 부속, 배관 조건, 재고에 따라 확정됩니다."
+  },
+  bidet_install: {
+    title: "비데 종류와 제품가",
+    customConsultLabel: "비데",
+    sourceNote: "엑셀 제품 리스트 기준 제품가입니다. 실제 주문 금액은 시공비, 급수 연결, 전원 조건, 재고에 따라 확정됩니다."
   },
   ventilator_replace: {
     title: "환풍기 종류와 제품가",
     customConsultLabel: "환풍기",
-    sourceNote: "2025년 제품 리스트 기준 제품가입니다. 실제 주문 금액은 시공비, 전원·덕트 조건, 타공 크기, 재고에 따라 확정됩니다."
+    sourceNote: "엑셀 제품 리스트 기준 제품가입니다. 실제 주문 금액은 시공비, 전원·덕트 조건, 타공 크기, 재고에 따라 확정됩니다."
   }
 };
 
@@ -228,6 +235,7 @@ export function getProductLaborPrice(serviceCode: string) {
   const canonical = productCatalogServiceCode(serviceCode);
   if (canonical === "toilet_replace") return TOILET_REPLACE_LABOR_PRICE;
   if (canonical === "faucet_replace") return FAUCET_REPLACE_LABOR_PRICE;
+  if (canonical === "bidet_install") return BIDET_INSTALL_LABOR_PRICE;
   if (canonical === "ventilator_replace") return VENTILATOR_REPLACE_LABOR_PRICE;
   if (canonical === "basin_replace") return BASIN_REPLACE_LABOR_PRICE;
   return 0;
