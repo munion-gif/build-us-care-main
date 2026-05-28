@@ -21,11 +21,10 @@ export default async function QuotePage({ params, searchParams }: QuotePageProps
 
   const preset = parseQuotePreset(resolvedSearchParams);
   const materialSkus = [service.standard_material_sku, service.premium_material_sku].filter(Boolean) as string[];
-  const [materials, addons, appConfig] = await Promise.all([
+  const [materials, appConfig] = await Promise.all([
     measure("quote.service.fetchMaterials", () => getMaterialsBySku(materialSkus)),
-    measure("quote.service.fetchAddons", () => getMaterialsBySku(service.addon_skus)),
     getPublicAppConfig()
   ]);
 
-  return <QuoteDetailClient service={service} materials={materials} addons={addons} preset={preset} kakaoUrl={appConfig.kakaoChannelUrl} />;
+  return <QuoteDetailClient service={service} materials={materials} preset={preset} kakaoUrl={appConfig.kakaoChannelUrl} />;
 }

@@ -5,7 +5,9 @@ import { StdioClientTransport } from "file:///C:/Users/user/Downloads/UI-Inspect
 
 const projectDir = "C:\\Users\\user\\Documents\\New project";
 const inspectorServer = "C:\\Users\\user\\Downloads\\UI-Inspector-main\\UI-Inspector-main\\servers\\inspector-server.mjs";
-const targetUrl = process.env.UI_INSPECTOR_TARGET_URL ?? "http://127.0.0.1:3000/request/photo";
+const host = process.env.UI_INSPECTOR_HOST ?? "127.0.0.1";
+const port = process.env.UI_INSPECTOR_PORT ?? "3000";
+const targetUrl = process.env.UI_INSPECTOR_TARGET_URL ?? `http://${host}:${port}/request/photo`;
 
 function waitForUrl(url, timeoutMs = 30000) {
   const startedAt = Date.now();
@@ -36,8 +38,8 @@ function waitForUrl(url, timeoutMs = 30000) {
 }
 
 const nextBin = `${projectDir}\\node_modules\\next\\dist\\bin\\next`;
-const nextMode = process.env.UI_INSPECTOR_NEXT_MODE ?? "start";
-const dev = spawn(process.execPath, [nextBin, nextMode, "-H", "127.0.0.1", "-p", "3000"], {
+const nextMode = process.env.UI_INSPECTOR_NEXT_MODE ?? "dev";
+const dev = spawn(process.execPath, [nextBin, nextMode, "-H", host, "-p", port], {
   cwd: projectDir,
   env: process.env,
   stdio: ["ignore", "pipe", "pipe"],

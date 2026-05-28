@@ -267,7 +267,7 @@ export async function GET(request: Request) {
           usedCount: dayCounts.morning,
           maxCount: caps.morning,
           isFull: morningFull,
-          available: !beforeMinDate && !blocked && !hasReservation && !morningFull
+          available: !beforeMinDate && !blocked && !morningFull
         },
         afternoon: {
           used: dayCounts.afternoon,
@@ -275,12 +275,12 @@ export async function GET(request: Request) {
           usedCount: dayCounts.afternoon,
           maxCount: caps.afternoon,
           isFull: afternoonFull,
-          available: !beforeMinDate && !blocked && !hasReservation && !afternoonFull
+          available: !beforeMinDate && !blocked && !afternoonFull
         }
       }
     };
 
-    if (beforeMinDate || blocked || hasReservation) {
+    if (beforeMinDate || blocked) {
       slots[day] = [];
       closed[day] = ["morning", "afternoon"];
       continue;

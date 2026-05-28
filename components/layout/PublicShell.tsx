@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";
+import { NavigationFeedback } from "@/components/layout/NavigationFeedback";
 import { EVENT_TYPES } from "@/lib/event-types";
 import { useTracking } from "@/lib/use-tracking";
 
@@ -30,6 +31,7 @@ export function PublicShell({ children, kakaoUrl, maintenanceMode = false }: Pub
   return (
     <>
       <Header kakaoUrl={kakaoUrl} />
+      <NavigationFeedback />
       {maintenanceMode && (
         <div className="maintenance-banner" role="status">
           현재 서비스 점검 중입니다. 예약과 상담 응답이 평소보다 늦어질 수 있어요.

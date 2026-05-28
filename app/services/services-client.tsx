@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { CheckCircle2, Clock, DoorOpen, Droplets, Lightbulb, Paintbrush, PanelsTopLeft, Pipette, Plug, Waves, Wind, type LucideIcon } from "lucide-react";
+import { CheckCircle2, Clock, Droplets, PanelsTopLeft, Pipette, Waves, Wind, type LucideIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { PUBLIC_SERVICE_CODE_SET } from "@/lib/public-services";
 import type { QuoteServiceItem } from "@/lib/service-items";
 import { appendSourceParams, readClientSourceContext, type SourceContext } from "@/lib/traffic-source";
 
@@ -10,33 +11,26 @@ type ServicesClientProps = {
   services: QuoteServiceItem[];
 };
 
-const tabs = ["전체", "욕실", "주방", "전기·조명", "도어·손잡이"] as const;
-const hiddenServiceCodes = new Set<string>(["drain_clog", "partial_wallpaper"]);
+const tabs = ["전체", "욕실", "주방", "도어·손잡이"] as const;
+type ServiceTab = (typeof tabs)[number];
+type ServiceCategory = Exclude<ServiceTab, "전체">;
 
-const categoryByCode: Record<string, (typeof tabs)[number]> = {
-  toilet_replace: "욕실",
-  basin_replace: "욕실",
-  faucet_replace: "욕실",
-  bidet_install: "욕실",
-  light_replace: "전기·조명",
-  outlet_replace: "전기·조명",
-  ventilator_replace: "전기·조명",
-  door_handle: "도어·손잡이",
-  sash_handle: "도어·손잡이",
-  silicone_repair: "욕실"
+const categoriesByCode: Record<string, ServiceCategory[]> = {
+  toilet_replace: ["욕실"],
+  basin_replace: ["욕실"],
+  faucet_replace: ["욕실", "주방"],
+  bidet_install: ["욕실"],
+  ventilator_replace: ["욕실"],
+  sash_handle: ["도어·손잡이"]
 };
 
 const icons: Record<string, LucideIcon> = {
   toilet_replace: Droplets,
   basin_replace: Droplets,
   faucet_replace: Pipette,
-  light_replace: Lightbulb,
-  outlet_replace: Plug,
-  door_handle: DoorOpen,
   bidet_install: Waves,
   ventilator_replace: Wind,
-  sash_handle: PanelsTopLeft,
-  silicone_repair: Paintbrush
+  sash_handle: PanelsTopLeft
 };
 
 function priceLabel(service: QuoteServiceItem) {
@@ -45,14 +39,14 @@ function priceLabel(service: QuoteServiceItem) {
 }
 
 export function ServicesClient({ services }: ServicesClientProps) {
-  const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("전체");
+  const [activeTab, setActiveTab] = useState<ServiceTab>("전체");
   const [sourceContext, setSourceContext] = useState<SourceContext>(() => readClientSourceContext());
   const filtered = useMemo(
     () =>
       services.filter(
         (service) =>
-          !hiddenServiceCodes.has(service.service_type_code) &&
-          (activeTab === "전체" || categoryByCode[service.service_type_code] === activeTab)
+          PUBLIC_SERVICE_CODE_SET.has(service.service_type_code) &&
+          (activeTab === "전체" || categoriesByCode[service.service_type_code]?.includes(activeTab))
       ),
     [activeTab, services]
   );
@@ -100,7 +94,7 @@ export function ServicesClient({ services }: ServicesClientProps) {
       <section className="service-list-grid" id="service-list">
         {filtered.map((service) => {
           const Icon = icons[service.service_type_code] ?? Droplets;
-          const category = categoryByCode[service.service_type_code] ?? "전체";
+          const category = categoriesByCode[service.service_type_code]?.join("·") ?? "서비스";
           const included = service.included_items.slice(0, 2);
           return (
             <Link key={service.service_type_code} className="service-list-card" href={appendSourceParams(`/quote/${service.service_type_code}`, sourceContext)}>
@@ -144,16 +138,16 @@ const servicesCss = `
     min-height: 100vh;
     width: min(var(--content-wide), 100%);
     margin-inline: auto;
-    padding: var(--space-12) var(--space-6);
+    padding: clamp(2rem, 4vw, 2.75rem) var(--space-6) var(--space-12);
     background: var(--color-bg);
   }
   .services-hero {
     position: relative;
     overflow: hidden;
-    margin-bottom: var(--space-8);
+    margin-bottom: var(--space-6);
     border: 1px solid var(--color-border);
     border-radius: 8px;
-    padding: clamp(22px, 4vw, 36px);
+    padding: clamp(22px, 3vw, 30px);
     background:
       linear-gradient(135deg, rgba(255, 250, 241, 0.98) 0%, rgba(247, 241, 230, 0.96) 52%, rgba(228, 232, 223, 0.82) 100%);
     box-shadow: var(--shadow-sm);
@@ -167,30 +161,34 @@ const servicesCss = `
     margin-bottom: 18px;
     color: var(--color-text);
     font-family: var(--font-brand);
-    font-size: 13px;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
     font-weight: var(--brand-label-weight);
     letter-spacing: var(--brand-letter-spacing);
     text-transform: lowercase;
   }
   .services-hero span {
     color: var(--color-primary);
-    font-size: var(--text-sm);
-    font-weight: 620;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 600;
   }
   .services-hero h1 {
     margin: 0 0 var(--space-3);
     max-width: 760px;
-    font-size: clamp(1.45rem, 2.35vw, 2.08rem);
-    font-weight: 640;
-    letter-spacing: 0;
-    line-height: 1.24;
+    font-size: var(--text-xl);
+    line-height: var(--leading-xl);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    word-break: keep-all;
+    overflow-wrap: break-word;
   }
   .services-hero p {
     max-width: 620px;
     margin: 0;
     color: var(--color-text-muted);
-    font-size: var(--text-sm);
-    line-height: 1.65;
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
   }
   .services-hero-actions {
     display: flex;
@@ -207,8 +205,10 @@ const servicesCss = `
     padding: 0 var(--space-5, 1.25rem);
     background: var(--color-primary);
     color: var(--color-cream);
-    font-size: var(--text-sm);
-    font-weight: 680;
+    font-size: var(--text-button);
+    line-height: var(--leading-button);
+    font-weight: 700;
+    letter-spacing: -0.005em;
     text-decoration: none;
   }
   .services-flow {
@@ -236,13 +236,14 @@ const servicesCss = `
   }
   .services-flow strong {
     color: var(--color-primary);
-    font-size: 0.94rem;
-    font-weight: 660;
+    font-size: var(--text-card-title);
+    line-height: var(--leading-card-title);
+    font-weight: 700;
   }
   .services-flow span {
     color: var(--color-text-muted);
-    font-size: 0.9rem;
-    line-height: 1.45;
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
   }
   .service-tabs {
     display: flex;
@@ -262,7 +263,8 @@ const servicesCss = `
     padding: 0.42rem 1rem;
     background: var(--color-surface-2);
     color: var(--color-text-muted);
-    font-size: 0.92rem;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
     font-weight: 600;
     cursor: pointer;
   }
@@ -319,27 +321,32 @@ const servicesCss = `
   }
   .service-card-top h2 {
     margin: 0 0 var(--space-2);
-    font-size: clamp(1.02rem, 1.22vw, 1.2rem);
-    font-weight: 650;
-    line-height: 1.28;
+    font-size: var(--text-card-title);
+    line-height: var(--leading-card-title);
+    font-weight: 700;
+    letter-spacing: -0.005em;
   }
   .service-card-top span {
     border-radius: var(--radius-full);
     padding: 3px 9px;
     background: var(--color-surface-2);
     color: var(--color-text-muted);
-    font-size: var(--text-xs);
-    font-weight: 620;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 600;
   }
   .service-price strong {
-    font-size: clamp(1.38rem, 1.95vw, 1.78rem);
-    font-weight: 650;
+    font-size: var(--text-price-sub);
+    line-height: var(--leading-price-sub);
+    font-weight: 600;
     letter-spacing: 0;
+    font-variant-numeric: tabular-nums;
   }
   .service-price small {
     margin-left: var(--space-1);
     color: var(--color-text-muted);
-    font-size: 0.9rem;
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
   }
   .service-list-card ul {
     display: grid;
@@ -355,7 +362,8 @@ const servicesCss = `
     align-items: center;
     margin: 0;
     color: var(--color-text-muted);
-    font-size: var(--text-sm);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
   }
   .service-list-card li svg,
   .service-time svg {
@@ -367,11 +375,18 @@ const servicesCss = `
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: 1.5px solid var(--color-border);
+    border: 1.5px solid rgba(34, 33, 29, 0.92);
     border-radius: 8px;
-    color: var(--color-primary);
-    font-size: var(--text-sm);
-    font-weight: 680;
+    background: rgba(34, 33, 29, 0.92);
+    color: var(--color-cream);
+    font-size: var(--text-button);
+    line-height: var(--leading-button);
+    font-weight: 700;
+  }
+  .service-list-card:hover .quote-link {
+    border-color: var(--color-primary);
+    background: rgba(34, 33, 29, 0.86);
+    color: var(--color-cream);
   }
   @media (max-width: 640px) {
     .services-page {
@@ -382,7 +397,8 @@ const servicesCss = `
       padding: 1.75rem 1.35rem;
     }
     .services-hero h1 {
-      line-height: 1.3;
+      font-size: var(--text-h1);
+      line-height: var(--leading-h1);
     }
     .services-hero p {
       line-height: 1.7;

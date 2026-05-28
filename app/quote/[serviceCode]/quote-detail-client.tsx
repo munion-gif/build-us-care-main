@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Info, MapPin, MessageCircle } from "lucide-react";
+import { createPortal } from "react-dom";
+import { MapPin, MessageCircle } from "lucide-react";
 import { AddressModal, type AddressSelection } from "@/components/common/AddressModal";
-import { AddonSelector } from "@/components/quote/AddonSelector";
 import { PhotoUploader } from "@/components/quote/PhotoUploader";
 import { QuoteStickySummary } from "@/components/quote/QuoteStickySummary";
 import { customerErrorMessage } from "@/lib/error-messages";
@@ -26,7 +26,6 @@ import { useTracking } from "@/lib/use-tracking";
 type QuoteDetailClientProps = {
   service: QuoteServiceItem;
   materials: MaterialItem[];
-  addons: MaterialItem[];
   preset: QuotePreset;
   kakaoUrl: string | null;
 };
@@ -61,7 +60,6 @@ type AddressForm = {
 };
 
 type SlotPeriod = "morning" | "afternoon";
-type PaymentMethod = "CARD" | "TRANSFER";
 type SlotsByDate = Record<string, SlotPeriod[]>;
 type SlotDay = {
   date: string;
@@ -82,10 +80,21 @@ type PreviousOrder = {
   jobs?: Array<{ assigned_technician_name?: string | null; status?: string | null; completed_at?: string | null }> | null;
 };
 
+type QuoteConfirmRow = {
+  id: string;
+  image: string | null;
+  productName: string;
+  sku: string;
+  qty: number;
+  price: number;
+  labor: number;
+  finalPrice: number;
+};
+
 const VISIT_FEE = 15000;
 const MAX_REPLACEMENT_PRODUCT_QTY = 20;
 const PRODUCT_RECOMMEND_LABEL_ORDER = ["가성비", "인기", "프리미엄"];
-const PREFERRED_BRANDS = ["대림", "도비도스", "아메리칸스탠다드", "이누스"];
+const PREFERRED_BRANDS = ["대림바스", "아메리칸스탠다드", "대림", "도비도스", "이누스"];
 const PRODUCT_PRICE_FILTERS = [
   { id: "all", label: "전체 가격대", min: 0, max: Number.POSITIVE_INFINITY },
   { id: "under-200000", label: "20만원 미만", min: 0, max: 200000 },
@@ -111,6 +120,11 @@ function categoryLabel(category: string) {
     service: "서비스"
   };
   return labels[category] ?? category;
+}
+
+function serviceCategoryLabel(service: QuoteServiceItem) {
+  if (service.service_type_code === "faucet_replace") return "욕실·주방";
+  return categoryLabel(service.category);
 }
 
 function minReservationIsoDate() {
@@ -192,6 +206,7 @@ type PreparedPayment = {
   orderId: string;
   internalOrderId: string;
   accessToken?: string;
+  paymentId?: string;
   orderName: string;
   amount: number;
   productAmount: number;
@@ -256,10 +271,40 @@ function recommendationSortValue(product: ReplacementProduct) {
   return index === -1 ? PRODUCT_RECOMMEND_LABEL_ORDER.length : index;
 }
 
-export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl }: QuoteDetailClientProps) {
-  const [productGrade, setProductGrade] = useState<"standard" | "premium">(preset.product);
+function productDisplaySort(a: ReplacementProduct, b: ReplacementProduct) {
+  const aPrice = typeof a.price === "number" ? a.price : Number.POSITIVE_INFINITY;
+  const bPrice = typeof b.price === "number" ? b.price : Number.POSITIVE_INFINITY;
+  if (aPrice !== bPrice) return aPrice - bPrice;
+
+  const categoryOrder = a.categoryName.localeCompare(b.categoryName, "ko");
+  if (categoryOrder !== 0) return categoryOrder;
+
+  return `${a.model} ${a.sku}`.localeCompare(`${b.model} ${b.sku}`, "ko");
+}
+
+function compactProductNote(note: string) {
+  const cleaned = note
+    .replace(/[★]/g, "")
+    .replace(/\([^)]*\)/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const firstSegment = cleaned.split(/[,.，、]/).map((part) => part.trim()).find(Boolean) ?? cleaned;
+  if (firstSegment.length <= 12) return firstSegment;
+
+  const words = firstSegment.split(/\s+/).filter(Boolean);
+  const compactWords: string[] = [];
+  for (const word of words) {
+    const next = [...compactWords, word].join(" ");
+    if (next.length > 12) break;
+    compactWords.push(word);
+  }
+
+  return compactWords.length > 0 ? compactWords.join(" ") : firstSegment.slice(0, 12).trim();
+}
+
+export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: QuoteDetailClientProps) {
+  const productGrade: "standard" = "standard";
   const [productQuantities, setProductQuantities] = useState<Record<string, number>>({});
-  const [selectedAddons, setSelectedAddons] = useState<string[]>(preset.addons.filter((sku) => addons.some((addon) => addon.sku === sku)));
   const [files, setFiles] = useState<File[]>([]);
   const [address, setAddress] = useState<AddressForm>({ road_address: "", detail_address: "", postal_code: "" });
   const [customer, setCustomer] = useState({ name: "", phone: "" });
@@ -281,14 +326,19 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [activeFormStep, setActiveFormStep] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CARD");
+  const [quoteConfirmOpen, setQuoteConfirmOpen] = useState(false);
+  const productSectionRef = useRef<HTMLDivElement | null>(null);
   const addressSectionRef = useRef<HTMLElement | null>(null);
+  const scheduleSectionRef = useRef<HTMLElement | null>(null);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
+  const phoneInputRef = useRef<HTMLInputElement | null>(null);
+  const addressButtonRef = useRef<HTMLButtonElement | null>(null);
+  const detailAddressInputRef = useRef<HTMLInputElement | null>(null);
   const { track } = useTracking();
   const kakaoChatUrl = getKakaoChannelChatUrl(kakaoUrl);
 
   const standardMaterial = materials.find((material) => material.sku === service.standard_material_sku) ?? materials[0];
-  const premiumMaterial = materials.find((material) => material.sku === service.premium_material_sku) ?? standardMaterial;
-  const selectedMaterial = productGrade === "premium" ? premiumMaterial : standardMaterial;
+  const selectedMaterial = standardMaterial;
   const productCatalog = useMemo(() => getReplacementProductCatalog(service.service_type_code), [service.service_type_code]);
   const showProductCatalog = Boolean(productCatalog);
   const selectedProductItems = useMemo(
@@ -302,8 +352,8 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
     [productCatalog, productQuantities]
   );
   const totalProductQty = selectedProductItems.reduce((sum, item) => sum + item.qty, 0);
-  const selectedAddonItems = addons.filter((addon) => selectedAddons.includes(addon.sku));
-  const addonTotal = showProductCatalog ? 0 : selectedAddonItems.reduce((sum, addon) => sum + addon.retail_price, 0);
+  const selectedAddonItems: MaterialItem[] = [];
+  const addonTotal = 0;
   const selectedProductPrice = showProductCatalog ? selectedProductItems.reduce((sum, item) => sum + (item.product.price ?? 0) * item.qty, 0) : selectedMaterial?.retail_price ?? 0;
   const serviceLaborPrice = showProductCatalog ? getProductLaborPrice(service.service_type_code) : service.base_price;
   const quoteVisitFee = showProductCatalog ? 0 : VISIT_FEE;
@@ -314,7 +364,56 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
   const total = serviceLaborTotal + selectedProductPrice + addonTotal + quoteVisitFee;
   const onlinePaymentTotal = showProductCatalog ? selectedProductPrice : total;
   const onsitePaymentTotal = showProductCatalog ? serviceLaborTotal : 0;
-  const laborPriceHelp = showProductCatalog ? `${service.display_name} 기본 시공비` : "기본 시공비와 방문비 포함";
+  const quoteConfirmRows = useMemo<QuoteConfirmRow[]>(
+    () => {
+      if (showProductCatalog) {
+        return selectedProductItems.map(({ product, qty }) => {
+          const productPrice = (product.price ?? 0) * qty;
+          const laborPrice = serviceLaborPrice * qty;
+          return {
+            id: product.id,
+            image: product.image ?? null,
+            productName: [product.brand, product.model].filter(Boolean).join(" ").trim() || product.model || product.sku,
+            sku: product.sku.trim() || "-",
+            qty,
+            price: productPrice,
+            labor: laborPrice,
+            finalPrice: productPrice + laborPrice
+          };
+        });
+      }
+
+      const productPrice = selectedMaterial?.retail_price ?? 0;
+      const laborPrice = serviceLaborPrice + quoteVisitFee;
+      return [
+        {
+          id: selectedMaterial?.sku ?? service.service_type_code,
+          image: null,
+          productName: selectedMaterial?.name ?? service.display_name,
+          sku: selectedMaterial?.sku ?? service.service_type_code,
+          qty: 1,
+          price: productPrice,
+          labor: laborPrice,
+          finalPrice: productPrice + laborPrice + addonTotal
+        }
+      ];
+    },
+    [
+      addonTotal,
+      quoteVisitFee,
+      selectedMaterial?.name,
+      selectedMaterial?.retail_price,
+      selectedMaterial?.sku,
+      selectedProductItems,
+      service.display_name,
+      service.service_type_code,
+      serviceLaborPrice,
+      showProductCatalog
+    ]
+  );
+  const quoteConfirmProductTotal = quoteConfirmRows.reduce((sum, row) => sum + row.price, 0);
+  const quoteConfirmLaborTotal = quoteConfirmRows.reduce((sum, row) => sum + row.labor, 0);
+  const quoteConfirmFinalTotal = quoteConfirmRows.reduce((sum, row) => sum + row.finalPrice, 0);
   const todayIso = toIsoDate(new Date());
   const minSelectableDate = minReservationIsoDate();
   const calendarDays = useMemo(() => buildCalendarDays(calendarMonth), [calendarMonth]);
@@ -322,30 +421,37 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
     if (!slotsReady) return 0;
     return Object.entries(slotDaysByDate).filter(([dateText, day]) => {
       if (dateText.slice(0, 7) !== `${calendarMonth.getFullYear()}-${String(calendarMonth.getMonth() + 1).padStart(2, "0")}`) return false;
-      return !day.beforeMinDate && !day.blocked && !day.hasReservation && !day.allFull;
+      return !day.beforeMinDate && !day.blocked && !day.allFull;
     }).length;
   }, [calendarMonth, slotDaysByDate, slotsReady]);
-  const mockPaymentMode = process.env.NEXT_PUBLIC_PAYMENT_MOCK_MODE === "true";
-  const tossReady = Boolean(process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY);
-  const paymentAvailable = mockPaymentMode || tossReady;
+  const mockPaymentMode = false;
+  const paymentAvailable = true;
   const customerName = String(customer?.name ?? "");
   const customerPhone = String(customer?.phone ?? "");
-  const hasRequiredBasicInfo = Boolean(address.road_address && customerName.trim() && isValidKoreanMobile(customerPhone));
+  const hasRequiredBasicInfo = Boolean(address.road_address && address.detail_address.trim() && customerName.trim() && isValidKoreanMobile(customerPhone));
   const materialSkus = useMemo(
-    () => [...(showProductCatalog ? [] : [selectedMaterial?.sku]), ...selectedAddonItems.map((addon) => addon.sku)].filter(Boolean) as string[],
-    [selectedAddonItems, selectedMaterial?.sku, showProductCatalog]
+    () => (showProductCatalog ? [] : [selectedMaterial?.sku].filter(Boolean)) as string[],
+    [selectedMaterial?.sku, showProductCatalog]
   );
   const selectedProductSummaryText = selectedProductItems.length === 0
     ? `${service.display_name} · 제품 선택 전`
     : selectedProductItems.length === 1
       ? `${service.display_name} · ${selectedProductItems[0].product.model}`
       : `${service.display_name} · ${selectedProductItems.length}개 제품 / 총 ${totalProductQty}개`;
+  const selectedProductSummaryItems = selectedProductItems.slice(0, 2).map(({ product, qty }) => ({
+    id: product.id,
+    label: `${product.brand} ${product.model}${qty > 1 ? ` · ${qty}개` : ""}`
+  }));
+  const hiddenSelectedProductCount = Math.max(0, selectedProductItems.length - selectedProductSummaryItems.length);
+  const selectedProductMeta = selectedProductItems.length > 0
+    ? `${selectedProductItems.length}개 모델 · 총 ${totalProductQty}개`
+    : `${productCatalog?.customConsultLabel ?? "제품"}을 선택하면 결제 금액이 계산됩니다.`;
   const productSelectionReady = !showProductCatalog || selectedProductItems.length > 0;
   const displayTotal = showProductCatalog && !productSelectionReady ? "제품 선택 후 계산" : won(onlinePaymentTotal);
   const mobileSummaryLabel = showProductCatalog
     ? productSelectionReady
       ? `선택 제품 ${totalProductQty}개`
-      : "제품을 선택해주세요"
+      : "제품을 선택해 주세요"
     : service.display_name;
   const orderFingerprint = useMemo(
     () =>
@@ -357,23 +463,97 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
         slot,
         productGrade,
         productQuantities,
-        selectedAddons: [...selectedAddons].sort(),
         materialSkus,
         requestNote,
         files: files.map((file) => `${file.name}:${file.size}:${file.lastModified}`)
       }),
-    [address, customerName, customerPhone, date, files, materialSkus, productGrade, productQuantities, requestNote, selectedAddons, service.service_type_code, slot]
+    [address, customerName, customerPhone, date, files, materialSkus, productQuantities, requestNote, service.service_type_code, slot]
   );
   const availableSlotsForDate = (dateText: string): SlotPeriod[] => {
     if (!slotsReady) return [];
     if (dateText < minSelectableDate) return [];
     const day = slotDaysByDate[dateText];
     if (day) {
-      if (day.beforeMinDate || day.blocked || day.hasReservation || day.allFull) return [];
+      if (day.beforeMinDate || day.blocked || day.allFull) return [];
       return (["morning", "afternoon"] as SlotPeriod[]).filter((period) => !day.slots[period]?.isFull);
     }
     return slotsByDate[dateText] ?? ["morning", "afternoon"];
   };
+  const selectedScheduleReady = slotsReady && !slotsError && availableSlotsForDate(date).includes(slot);
+
+  function scrollToTarget(target: HTMLElement | null, focusTarget?: HTMLElement | null) {
+    target?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (focusTarget) {
+      window.setTimeout(() => focusTarget.focus({ preventScroll: true }), 260);
+    }
+  }
+
+  function moveToFormStep(step: number, section: HTMLElement | null, focusTarget?: HTMLElement | null) {
+    setActiveFormStep(step);
+    window.requestAnimationFrame(() => scrollToTarget(focusTarget ?? section, focusTarget));
+  }
+
+  function moveToProductSelection() {
+    setMessage(`${productCatalog?.customConsultLabel ?? "제품"} 제품을 먼저 선택해 주세요.`);
+    window.requestAnimationFrame(() => scrollToTarget(productSectionRef.current));
+  }
+
+  function focusFirstBasicInfoError(errors: Record<string, string>) {
+    const firstTarget =
+      errors.name ? nameInputRef.current :
+      errors.phone ? phoneInputRef.current :
+      errors.address ? addressButtonRef.current :
+      errors.detail_address ? detailAddressInputRef.current :
+      null;
+    moveToFormStep(0, addressSectionRef.current, firstTarget);
+  }
+
+  function moveToScheduleStep(messageText?: string) {
+    if (messageText) setMessage(messageText);
+    moveToFormStep(1, scheduleSectionRef.current);
+  }
+
+  function basicInfoErrors() {
+    const nextErrors: Record<string, string> = {};
+    const detailAddress = address.detail_address.trim();
+    if (!address.road_address) nextErrors.address = "주소를 먼저 입력해 주세요.";
+    if (!detailAddress) {
+      nextErrors.detail_address = "동/호수 또는 층 정보를 입력해 주세요.";
+    } else if (detailAddress.length < 2) {
+      nextErrors.detail_address = "상세주소를 2자 이상 입력해 주세요.";
+    }
+    if (!customerName.trim()) nextErrors.name = "이름을 입력해 주세요.";
+    if (!isValidKoreanMobile(customerPhone)) nextErrors.phone = "전화번호를 010-XXXX-XXXX 형식으로 입력해 주세요.";
+    return nextErrors;
+  }
+
+  function scheduleBlockMessage() {
+    if (slotsLoading || !slotsReady) return "예약 가능 시간을 확인하고 있어요. 잠시 후 다시 시도해 주세요.";
+    return slotsError || "방문 가능한 날짜와 시간대를 선택해 주세요.";
+  }
+
+  function handlePaymentBlocked() {
+    if (showProductCatalog && selectedProductItems.length === 0) {
+      moveToProductSelection();
+      return true;
+    }
+
+    const nextErrors = basicInfoErrors();
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors(nextErrors);
+      setMessage(Object.values(nextErrors)[0]);
+      focusFirstBasicInfoError(nextErrors);
+      return true;
+    }
+
+    setFieldErrors({});
+    if (!selectedScheduleReady) {
+      moveToScheduleStep(scheduleBlockMessage());
+      return true;
+    }
+
+    return false;
+  }
 
   function replaceProduct(productId: string) {
     setProductQuantities({ [productId]: 1 });
@@ -419,11 +599,13 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
     if (date < minSelectableDate) setDate(minSelectableDate);
   }, [date, minSelectableDate]);
 
+  /*
   useEffect(() => {
     if (!mockPaymentMode && tossReady) {
       void loadTossSdk().catch(() => undefined);
     }
   }, [mockPaymentMode, tossReady]);
+  */
 
   useEffect(() => {
     if (preset.source === "instagram") {
@@ -439,7 +621,7 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
     void track(EVENT_TYPES.QUOTE_PAGE_VIEW, { service_code: service.service_type_code });
     const params = new URLSearchParams(window.location.search);
     if (params.get("toss") === "fail") {
-      setMessage("결제가 취소되었습니다. 다시 시도해주세요.");
+      setMessage("결제가 취소되었습니다. 다시 시도해 주세요.");
       void track(EVENT_TYPES.PAYMENT_FAILED, { service_code: service.service_type_code, order_id: params.get("orderId") ?? undefined });
       params.delete("toss");
       window.history.replaceState({}, "", `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`);
@@ -454,19 +636,16 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
         customer?: Partial<{ name: string; phone: string }>;
         date?: string;
         slot?: "morning" | "afternoon";
-        productGrade?: "standard" | "premium";
         selectedProductId?: string;
         productQuantities?: Record<string, number>;
         selectedToiletProductId?: string;
         toiletProductQuantities?: Record<string, number>;
-        selectedAddons?: string[];
         requestNote?: string;
       };
       if (draft.address) setAddress(normalizeDraftAddress(draft.address));
       if (draft.customer) setCustomer(normalizeDraftCustomer(draft.customer));
       if (draft.date && draft.date >= minReservationIsoDate()) setDate(draft.date);
       if (draft.slot) setSlot(draft.slot);
-      if (draft.productGrade) setProductGrade(draft.productGrade);
       const savedProductQuantities = draft.productQuantities ?? draft.toiletProductQuantities;
       if (productCatalog && savedProductQuantities && Object.keys(savedProductQuantities).length > 0) {
         const nextQuantities: Record<string, number> = {};
@@ -485,17 +664,16 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
           setProductQuantities({ [draftProduct.id]: 1 });
         }
       }
-      if (draft.selectedAddons) setSelectedAddons(draft.selectedAddons.filter((sku) => addons.some((addon) => addon.sku === sku)));
       if (draft.requestNote) setRequestNote(draft.requestNote);
     } catch {
       sessionStorage.removeItem(quoteDraftStorageKey(service.service_type_code));
     }
-  }, [addons, productCatalog, service.service_type_code]);
+  }, [productCatalog, service.service_type_code]);
 
   useEffect(() => {
-    const draft = { address, customer: { name: customerName, phone: customerPhone }, date, slot, productGrade, productQuantities, selectedAddons, requestNote };
+    const draft = { address, customer: { name: customerName, phone: customerPhone }, date, slot, productQuantities, requestNote };
     sessionStorage.setItem(quoteDraftStorageKey(service.service_type_code), JSON.stringify(draft));
-  }, [address, customerName, customerPhone, date, productGrade, productQuantities, requestNote, selectedAddons, service.service_type_code, slot]);
+  }, [address, customerName, customerPhone, date, productQuantities, requestNote, service.service_type_code, slot]);
 
   useEffect(() => {
     const normalized = normalizePhone(customerPhone);
@@ -546,7 +724,7 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
           setClosedSlotsByDate({});
           setSlotDaysByDate({});
           setSlotsReady(false);
-          setSlotsError("날짜를 불러올 수 없습니다. 다시 시도해주세요.");
+          setSlotsError("날짜를 불러올 수 없습니다. 다시 시도해 주세요.");
         }
       } finally {
         if (!ignore) setSlotsLoading(false);
@@ -589,7 +767,7 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
     const response = await fetch(url, init);
     const json = await response.json();
     if (!response.ok) {
-      throw new Error(customerErrorMessage(json?.error, "요청을 다시 확인해주세요."));
+      throw new Error(customerErrorMessage(json?.error, "요청을 다시 확인해 주세요."));
     }
     return json.data;
   }
@@ -619,20 +797,24 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
   }
 
   async function createOrderAndQuote() {
-    const nextErrors: Record<string, string> = {};
-    if (!address.road_address) nextErrors.address = "주소를 먼저 입력해주세요.";
-    if (!customerName.trim()) nextErrors.name = "이름을 입력해주세요.";
-    if (!isValidKoreanMobile(customerPhone)) nextErrors.phone = "전화번호를 010-XXXX-XXXX 형식으로 입력해주세요.";
+    if (showProductCatalog && selectedProductItems.length === 0) {
+      moveToProductSelection();
+      throw new Error(`${productCatalog?.customConsultLabel ?? "제품"} 제품을 1개 이상 선택해 주세요.`);
+    }
+
+    const nextErrors = basicInfoErrors();
     if (Object.keys(nextErrors).length > 0) {
       setFieldErrors(nextErrors);
-      addressSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      focusFirstBasicInfoError(nextErrors);
       throw new Error(Object.values(nextErrors)[0]);
     }
     setFieldErrors({});
-    if (!service.standardizable) throw new Error("상담이 필요한 시공입니다. 카톡 상담으로 이어갈게요.");
-    if (showProductCatalog && selectedProductItems.length === 0) {
-      throw new Error(`${productCatalog?.customConsultLabel ?? "제품"} 제품을 1개 이상 선택해주세요.`);
+    if (!selectedScheduleReady) {
+      const scheduleMessage = scheduleBlockMessage();
+      moveToScheduleStep(scheduleMessage);
+      throw new Error(scheduleMessage);
     }
+    if (!service.standardizable) throw new Error("상담이 필요한 시공입니다. 카톡 상담으로 이어갈게요.");
 
     const rawPaymentDraft = sessionStorage.getItem(quotePaymentStorageKey(service.service_type_code));
     if (rawPaymentDraft) {
@@ -792,11 +974,11 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
     const prepared = await requestJson("/api/payments/prepare", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId })
+      body: JSON.stringify({ orderId, provider: "bank_transfer" })
     }) as PreparedPayment;
 
     if (Number(prepared.amount) !== Number(prepared.productAmount)) {
-      throw new Error("결제 금액 확인에 실패했어요. 제품값만 결제되도록 다시 시도해주세요.");
+      throw new Error("결제 금액 확인에 실패했어요. 제품값만 결제되도록 다시 시도해 주세요.");
     }
 
     return prepared;
@@ -804,13 +986,8 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
 
   async function handlePayment() {
     setLoading(true);
-    setMessage(mockPaymentMode ? "제품값 결제 정보를 준비하고 테스트 결제를 승인하고 있어요." : "제품값 결제 정보를 준비하고 토스 결제창을 열고 있어요.");
+    setMessage("계좌이체 안내를 준비하고 있어요.");
     try {
-      const tossClientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY;
-      if (!mockPaymentMode && !tossClientKey) {
-        throw new Error("결제 모듈이 아직 준비되지 않았어요.");
-      }
-
       const paymentReady = await createOrderAndQuote();
       const preparedPayment = await preparePayment(paymentReady.orderId);
       void track(
@@ -821,42 +998,32 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
           product_amount: preparedPayment.productAmount,
           total_final: preparedPayment.totalAmount,
           onsite_amount: preparedPayment.onsitePaymentAmount,
-          mock: mockPaymentMode,
-          method: paymentMethod
+          mock: false,
+          method: "BANK_TRANSFER"
         },
         { orderId: paymentReady.orderId }
       );
 
-      if (mockPaymentMode) {
-        const paymentKey = `mock-${preparedPayment.orderId}`;
-        const response = await fetch("/api/payments/confirm", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            orderId: preparedPayment.orderId,
-            paymentKey,
-            amount: preparedPayment.amount
-          })
-        });
-        const json = await response.json().catch(() => null);
+      sessionStorage.removeItem(quotePaymentStorageKey(service.service_type_code));
+      const params = new URLSearchParams({
+        orderId: preparedPayment.internalOrderId || paymentReady.orderId,
+        providerOrderId: preparedPayment.orderId,
+        amount: String(preparedPayment.amount),
+        productAmount: String(preparedPayment.productAmount),
+        serviceFeeAmount: String(preparedPayment.serviceFeeAmount),
+        totalAmount: String(preparedPayment.totalAmount),
+        onsiteAmount: String(preparedPayment.onsitePaymentAmount),
+        accessToken: paymentReady.accessToken,
+        serviceCode: service.service_type_code
+      });
+      if (preparedPayment.paymentId) params.set("paymentId", preparedPayment.paymentId);
+      window.location.assign(`/payment/transfer?${params.toString()}`);
+      return;
 
-        if (!response.ok) {
-          throw new Error(customerErrorMessage(json?.error, "테스트 결제 승인에 실패했어요."));
-        }
-
-        sessionStorage.removeItem(quotePaymentStorageKey(service.service_type_code));
-
-        const params = new URLSearchParams({
-          paymentKey,
-          orderId: preparedPayment.orderId,
-          amount: String(preparedPayment.amount),
-          accessToken: paymentReady.accessToken,
-          serviceCode: service.service_type_code
-        });
-        window.location.assign(`/payment/success?${params.toString()}`);
-        return;
-      }
-
+      /*
+      // Toss Payments flow is intentionally parked while the service uses manual bank transfer.
+      // Restore this block when card/easy-pay or Toss virtual account checkout is ready.
+      const tossClientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY;
       await loadTossSdk();
 
       if (!window.TossPayments) {
@@ -892,11 +1059,17 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
         windowTarget: "self",
         ...(paymentMethod === "CARD" ? { card: { flowMode: "DEFAULT" as const } } : {})
       });
+      */
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "결제에 실패했어요. 다시 시도해주세요.");
+      setMessage(error instanceof Error ? error.message : "결제에 실패했어요. 다시 시도해 주세요.");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleQuoteConfirmPayment() {
+    setQuoteConfirmOpen(false);
+    await handlePayment();
   }
 
   return (
@@ -911,36 +1084,25 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
 
       <section className="quote-hero">
         <div>
-          <p>{categoryLabel(service.category)} · 예상 {service.estimated_minutes ?? 60}분</p>
+          <p>{serviceCategoryLabel(service)} · 예상 {service.estimated_minutes ?? 60}분</p>
           <h1>{service.display_name}</h1>
-          <strong>{service.standardizable ? `시작가 ${won(displayedStartPrice)}` : "상담 후 견적 확정"}</strong>
+          <strong className="hero-start-price">{service.standardizable ? `시작가 ${won(displayedStartPrice)}` : "상담 후 견적 확정"}</strong>
+          <small>{service.standardizable ? "기본 철거와 신규 설치 기준입니다." : "사진 확인 후 필요한 작업 범위를 안내합니다."}</small>
         </div>
         {service.standardizable && (
-          <div className="hero-price-breakdown" aria-label="시작가 구성">
-            <div className="hero-breakdown-item">
-              <span className="hero-breakdown-label">
-                시공비
-                <span className="hero-info-icon" role="img" aria-label={laborPriceHelp} title={laborPriceHelp}>
-                  <Info size={17} aria-hidden="true" />
-                </span>
-              </span>
-              <strong>{won(startLaborPrice)}</strong>
+          <div className="hero-price-breakdown" aria-label="가격 기준">
+            <div className="hero-breakdown-head">
+              <span>가격 기준</span>
+              <strong>제품 선택 후 자동 계산</strong>
             </div>
-            <b aria-hidden="true">+</b>
-            <div className="hero-breakdown-item">
-              <span className="hero-breakdown-label">
-                제품 가격
-                <span className="hero-info-icon" role="img" aria-label="선택 가능한 제품 중 최저 제품가 기준" title="선택 가능한 제품 중 최저 제품가 기준">
-                  <Info size={17} aria-hidden="true" />
-                </span>
-              </span>
-              <strong>{won(startProductPrice)}</strong>
-            </div>
+            <p>아래에서 제품을 선택하면 결제 금액과 현장 결제 금액이 바로 계산됩니다.</p>
+            <small>현장 상태나 추가 작업 여부에 따라 최종 금액은 달라질 수 있어요.</small>
           </div>
         )}
       </section>
 
       {productCatalog && (
+        <div ref={productSectionRef} className="product-selection-anchor">
           <ReplacementProductCatalog
             catalog={productCatalog}
             selectedQuantities={productQuantities}
@@ -948,7 +1110,8 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
             onQuantityChange={setProductQty}
             onQuantityDelta={changeProductQty}
           />
-        )}
+        </div>
+      )}
 
       {productCatalog && (
         <section className="quote-section custom-product-consult">
@@ -967,39 +1130,6 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
               <span>상담 준비 중</span>
             </button>
           )}
-        </section>
-      )}
-
-      {service.standardizable && (
-        <section className="quote-section material-options-panel">
-          <div className="section-title-row">
-            <strong>자재/추가 옵션</strong>
-            <span>{showProductCatalog ? "제품 선택 반영" : productGrade === "premium" ? "고급 자재" : "일반 자재"} · 선택 입력</span>
-          </div>
-          <div className="optional-detail-body">
-            {!showProductCatalog && (
-              <section className="embedded-section">
-                <div className="section-title-row">
-                  <h2>자재 등급</h2>
-                  <span>{productGrade === "premium" ? "고급 선택" : "일반 선택"}</span>
-                </div>
-                <div className="grade-grid">
-                  {[
-                    { key: "standard" as const, label: "일반", material: standardMaterial },
-                    { key: "premium" as const, label: "고급", material: premiumMaterial }
-                  ].map((grade) => (
-                    <button key={grade.key} className={productGrade === grade.key ? "selected" : ""} onClick={() => setProductGrade(grade.key)}>
-                      <span>{grade.label}</span>
-                      <strong>{won(grade.material?.retail_price ?? 0)}</strong>
-                      <small>{grade.material?.name}</small>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            <AddonSelector addons={addons} selectedAddons={selectedAddons} onChange={setSelectedAddons} />
-          </div>
         </section>
       )}
 
@@ -1045,18 +1175,21 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
             <section className={`form-step-block ${activeFormStep === 0 ? "active" : ""} ${hasRequiredBasicInfo ? "completed" : ""}`} ref={addressSectionRef}>
               <div className="section-title-row step-title-row">
                 <button type="button" className="step-title-button" onClick={() => setActiveFormStep(0)} aria-expanded={activeFormStep === 0}>
-                  <span>
-                    <h2>1단계. 기본 정보</h2>
-                    <small>연락처와 방문 주소</small>
-                  </span>
+                <span>
+                  <h2>1단계. 기본 정보</h2>
+                  <small>연락처와 방문 주소</small>
+                </span>
                 </button>
               </div>
               <div className="form-step-body">
               <p className="data-guide-text">회원가입 없이 연락처와 방문 주소만 입력하면 기존 이용 이력과 예약 가능 여부를 확인합니다.</p>
               <div className="customer-field-grid">
                 <label className="field-label">
-                  이름 <span className="required-mark" aria-hidden="true">*</span>
+                  <span>
+                    이름 <span className="required-mark" aria-hidden="true">*</span>
+                  </span>
                   <input
+                    ref={nameInputRef}
                     className={fieldErrors.name ? "error" : ""}
                     value={customerName}
                     onChange={(event) => {
@@ -1067,8 +1200,11 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
                   />
                 </label>
                 <label className="field-label">
-                  연락처 <span className="required-mark" aria-hidden="true">*</span>
+                  <span>
+                    연락처 <span className="required-mark" aria-hidden="true">*</span>
+                  </span>
                   <input
+                    ref={phoneInputRef}
                     className={fieldErrors.phone ? "error" : ""}
                     value={customerPhone}
                     onChange={(event) => {
@@ -1081,7 +1217,7 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
               </div>
               {fieldErrors.name && <p className="field-error">{fieldErrors.name}</p>}
               {fieldErrors.phone && <p className="field-error">{fieldErrors.phone}</p>}
-              <button className={address.road_address ? "address-trigger filled" : fieldErrors.address ? "address-trigger error" : "address-trigger"} type="button" onClick={() => setAddressModalOpen(true)}>
+              <button ref={addressButtonRef} className={address.road_address ? "address-trigger filled" : fieldErrors.address ? "address-trigger error" : "address-trigger"} type="button" onClick={() => setAddressModalOpen(true)}>
                 <MapPin size={20} />
                 <strong>
                   {address.road_address || (
@@ -1094,36 +1230,49 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
               </button>
               {fieldErrors.address && <p className="field-error">{fieldErrors.address}</p>}
               <label className="field-label">
-                상세주소 (선택)
-                <input value={address.detail_address} onChange={(event) => setAddress((current) => ({ ...current, detail_address: event.target.value }))} placeholder="상세 동/호수, 층수" />
+                <span>
+                  상세주소 <span className="required-mark" aria-hidden="true">*</span>
+                </span>
+                <input
+                  ref={detailAddressInputRef}
+                  className={fieldErrors.detail_address ? "error" : ""}
+                  value={address.detail_address}
+                  onChange={(event) => {
+                    setAddress((current) => ({ ...current, detail_address: event.target.value }));
+                    setFieldErrors((current) => ({ ...current, detail_address: "" }));
+                  }}
+                  placeholder="예: 101동 1203호, 단독주택 2층"
+                />
+                <small className="field-help">동/호수 또는 층 정보를 입력해야 방문이 가능합니다.</small>
               </label>
+              {fieldErrors.detail_address && <p className="field-error">{fieldErrors.detail_address}</p>}
               <AddressModal open={addressModalOpen} onClose={() => setAddressModalOpen(false)} onSelect={handleAddressSelect} />
               {previousOrdersLoading && <p className="returning-note">이전 시공 이력을 확인하고 있어요.</p>}
               {previousOrders.length > 0 && <PreviousOrderCard order={previousOrders[0]} />}
               </div>
             </section>
 
-          <section className={`form-step-block ${activeFormStep === 1 ? "active" : ""} ${date && slot ? "completed" : ""}`}>
+          <section ref={scheduleSectionRef} className={`form-step-block ${activeFormStep === 1 ? "active" : ""} ${selectedScheduleReady ? "completed" : ""}`}>
             <div className="section-title-row step-title-row">
               <button type="button" className="step-title-button" onClick={() => setActiveFormStep(1)} aria-expanded={activeFormStep === 1}>
                 <span>
-                  <h2>2단계. 일정/확인</h2>
+                  <h2>
+                    2단계. 일정/확인 <span className="required-mark" aria-hidden="true">*</span>
+                  </h2>
                   <small>
                 {slotsError ? (
                   "다시 확인 필요"
                 ) : slotsLoading ? (
                   "예약 가능 시간 확인 중"
                 ) : (
-                  <>
-                    예약일 선택 <span className="required-mark" aria-hidden="true">*</span>
-                  </>
+                  "예약일 선택"
                 )}
                   </small>
                 </span>
               </button>
             </div>
             <div className="form-step-body">
-            <p className="data-guide-text">제품과 일정 준비 기간 때문에 예약은 오늘 기준 3일 이후 날짜부터 가능합니다. 희망 날짜와 시간대를 선택해주세요.</p>
+            <p className="data-guide-text">제품과 일정 준비 기간 때문에 예약은 오늘 기준 3일 이후 날짜부터 가능합니다. 희망 날짜와 시간대를 선택해 주세요.</p>
             <div className="calendar-panel">
               <div className="calendar-header">
                 <button type="button" onClick={() => changeCalendarMonth(-1)} aria-label="이전 달">
@@ -1147,8 +1296,8 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
                   const isSelected = iso === date;
                   const slotDay = slotDaysByDate[iso];
                   const availableSlots = availableSlotsForDate(iso);
-                  const reservedDate = Boolean(slotDay?.hasReservation);
-                  const disabled = slotsLoading || !slotsReady || Boolean(slotDay?.beforeMinDate || slotDay?.blocked || slotDay?.hasReservation || slotDay?.allFull) || iso < minSelectableDate || availableSlots.length === 0;
+                  const partiallyBooked = Boolean(slotDay?.hasReservation && availableSlots.length > 0 && !slotDay?.allFull);
+                  const disabled = slotsLoading || !slotsReady || Boolean(slotDay?.beforeMinDate || slotDay?.blocked || slotDay?.allFull) || iso < minSelectableDate || availableSlots.length === 0;
                   return (
                     <button
                       key={iso}
@@ -1160,7 +1309,7 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
                         isSelected ? "selected" : "",
                         slotDay?.allFull ? "all-full" : "",
                         slotDay?.blocked ? "blocked" : "",
-                        reservedDate ? "reserved-date" : "",
+                        partiallyBooked ? "partially-booked" : "",
                         disabled ? "disabled" : ""
                       ]
                         .filter(Boolean)
@@ -1173,7 +1322,7 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
                       }}
                     >
                       <span>{day.getDate()}</span>
-                      {reservedDate ? <small>예약완료</small> : slotDay?.allFull ? <i aria-hidden="true">•</i> : null}
+                      {partiallyBooked ? <small>일부마감</small> : slotDay?.allFull ? <i aria-hidden="true">•</i> : null}
                     </button>
                   );
                 })}
@@ -1194,7 +1343,7 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
                 </div>
               )}
               {slotsReady && !slotsError && selectableDatesInMonth === 0 && (
-                <p className="slot-help strong">이번 달 예약 가능한 날짜가 없습니다. 다음 달을 확인해주세요.</p>
+                <p className="slot-help strong">이번 달 예약 가능한 날짜가 없습니다. 다음 달을 확인해 주세요.</p>
               )}
             </div>
             <div className="slot-grid slide-down">
@@ -1227,7 +1376,7 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
               })}
             </div>
             {slotDaysByDate[date]?.hasReservation ? (
-              <p className="slot-help strong">이미 예약이 있는 날짜입니다. 다른 날짜를 선택해주세요.</p>
+              <p className="slot-help strong">예약이 있는 시간대는 마감으로 표시됩니다. 가능한 시간대를 선택해 주세요.</p>
             ) : closedSlotsByDate[date]?.length ? (
               <p className="slot-help">마감된 시간대는 회색으로 표시됩니다.</p>
             ) : null}
@@ -1250,7 +1399,7 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
 
           <QuoteStickySummary
             total={displayTotal}
-            serviceName={showProductCatalog ? selectedProductSummaryText : service.display_name}
+            serviceName={service.display_name}
             date={date}
             slot={slot}
             photoCount={files.length}
@@ -1258,53 +1407,36 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
             paymentAvailable={paymentAvailable}
             mockPaymentMode={mockPaymentMode}
             loading={loading}
-            onPayment={() => handlePayment()}
+            onPayment={() => setQuoteConfirmOpen(true)}
+            onPaymentBlocked={handlePaymentBlocked}
             selectionReady={productSelectionReady}
-            selectionMessage={`${productCatalog?.customConsultLabel ?? "제품"} 제품을 먼저 선택해주세요.`}
+            selectionMessage={`${productCatalog?.customConsultLabel ?? "제품"} 제품을 먼저 선택해 주세요.`}
             mobileSummaryLabel={mobileSummaryLabel}
-            summaryTitle={showProductCatalog ? "제품값 선결제" : "결제 요약"}
-            paymentButtonLabel={showProductCatalog && productSelectionReady ? `제품값 ${won(onlinePaymentTotal)} 결제하기` : `${displayTotal} 결제하기`}
-            paymentReadyMessage={showProductCatalog ? "제품값만 먼저 결제합니다. 시공비는 시공 완료 후 현장에서 결제합니다." : "결제 후 방문 일정이 확정됩니다."}
-            paymentMethod={paymentMethod}
-            onPaymentMethodChange={setPaymentMethod}
+            summaryTitle={showProductCatalog ? "오늘 결제할 금액" : "결제 요약"}
+            paymentButtonLabel="최종 견적 확인하기"
+            paymentReadyMessage={showProductCatalog ? "최종 견적서를 확인한 뒤 제품값은 계좌이체로 진행합니다. 시공비는 시공 완료 후 현장에서 결제합니다." : "최종 견적서를 확인한 뒤 계좌이체로 진행합니다."}
             productSelection={
               showProductCatalog ? (
-                <div className="sticky-selected-products" aria-label="선택 제품 목록">
+                <div className="sticky-selected-products" aria-label="선택 제품 요약">
                   <div className="sticky-selected-products-title">
                     <span>선택 제품</span>
-                    <strong>총 {totalProductQty}개</strong>
+                    <strong>{selectedProductItems.length > 0 ? `총 ${totalProductQty}개` : "선택 전"}</strong>
                   </div>
-                  {selectedProductItems.length === 0 ? (
-                    <p className="sticky-selected-empty">제품을 선택해주세요.</p>
-                  ) : (
-                    selectedProductItems.map(({ product, qty }) => (
-                      <div className="sticky-selected-product-row" key={product.id}>
-                        <div>
-                          <strong>
-                            {product.brand} {product.model}
-                          </strong>
-                          <small>
-                            제품가 {won(product.price ?? 0)} · 시공비 {won(serviceLaborPrice)} · 수량 {qty}
-                          </small>
-                        </div>
-                        <div className="quantity-control" aria-label={`${product.model} 수량`}>
-                          <button type="button" onClick={() => changeProductQty(product.id, -1)} aria-label={`${product.model} 수량 줄이기`}>
-                            -
-                          </button>
-                          <span>{qty}</span>
-                          <button type="button" onClick={() => changeProductQty(product.id, 1)} aria-label={`${product.model} 수량 늘리기`}>
-                            +
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
+                  <div className={selectedProductItems.length > 0 ? "sticky-selected-product-summary" : "sticky-selected-product-summary empty"}>
+                    {selectedProductSummaryItems.length > 0 ? (
+                      <ul className="sticky-selected-product-list">
+                        {selectedProductSummaryItems.map((item) => (
+                          <li key={item.id}>{item.label}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <strong>제품을 선택해 주세요.</strong>
+                    )}
+                    {hiddenSelectedProductCount > 0 && <b className="sticky-selected-product-more">나머지 {hiddenSelectedProductCount}개 제품은 결제 전 선택 목록에서 확인해 주세요.</b>}
+                    <small>{selectedProductMeta}</small>
+                  </div>
                   {selectedProductItems.length > 0 && (
                     <div className="sticky-payment-breakdown" aria-label="결제 금액 구분">
-                      <div>
-                        <span>제품값 선결제</span>
-                        <strong>{won(selectedProductPrice)}</strong>
-                      </div>
                       <div>
                         <span>시공비 현장결제</span>
                         <strong>{won(onsitePaymentTotal)}</strong>
@@ -1319,10 +1451,148 @@ export function QuoteDetailClient({ service, materials, addons, preset, kakaoUrl
               ) : null
             }
           />
+          <QuoteConfirmModal
+            open={quoteConfirmOpen}
+            serviceName={service.display_name}
+            rows={quoteConfirmRows}
+            address={`${address.road_address} ${address.detail_address}`.trim() || "주소 확인 전"}
+            visitText={date ? `${date} ${slot === "morning" ? "오전" : "오후"}` : "방문일 선택 전"}
+            productTotal={quoteConfirmProductTotal}
+            laborTotal={quoteConfirmLaborTotal}
+            finalTotal={quoteConfirmFinalTotal}
+            transferAmount={onlinePaymentTotal}
+            onsiteAmount={onsitePaymentTotal}
+            productCatalogMode={showProductCatalog}
+            loading={loading}
+            onClose={() => setQuoteConfirmOpen(false)}
+            onConfirm={handleQuoteConfirmPayment}
+          />
         </>
       )}
     </main>
   );
+}
+
+function QuoteConfirmModal({
+  open,
+  serviceName,
+  rows,
+  address,
+  visitText,
+  productTotal,
+  laborTotal,
+  finalTotal,
+  transferAmount,
+  onsiteAmount,
+  productCatalogMode,
+  loading,
+  onClose,
+  onConfirm
+}: {
+  open: boolean;
+  serviceName: string;
+  rows: QuoteConfirmRow[];
+  address: string;
+  visitText: string;
+  productTotal: number;
+  laborTotal: number;
+  finalTotal: number;
+  transferAmount: number;
+  onsiteAmount: number;
+  productCatalogMode: boolean;
+  loading: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  if (!open || typeof document === "undefined") return null;
+
+  const modal = (
+    <div className="quote-confirm-backdrop" role="presentation" onMouseDown={onClose}>
+      <section className="quote-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="quote-confirm-title" onMouseDown={(event) => event.stopPropagation()}>
+        <div className="quote-confirm-head">
+          <div>
+            <span className="brand-kicker">build us care</span>
+            <h2 id="quote-confirm-title">최종 견적 확인</h2>
+            <p>선택한 제품과 결제 전 금액을 한 번 더 확인해 주세요.</p>
+          </div>
+          <button type="button" className="quote-confirm-close" onClick={onClose} aria-label="최종 견적 확인 닫기">닫기</button>
+        </div>
+
+        <div className="quote-confirm-meta" aria-label="견적 기본 정보">
+          <div>
+            <span>서비스</span>
+            <strong>{serviceName}</strong>
+          </div>
+          <div>
+            <span>방문 주소</span>
+            <strong>{address}</strong>
+          </div>
+          <div>
+            <span>방문 일정</span>
+            <strong>{visitText}</strong>
+          </div>
+        </div>
+
+        <div className="quote-confirm-grid" aria-label="견적서">
+          <div className="quote-confirm-grid-head" aria-hidden="true">
+            <span>견적서 사진</span>
+            <span>제품명</span>
+            <span>품번</span>
+            <span>가격</span>
+            <span>시공비</span>
+            <span>최종가격</span>
+          </div>
+          {rows.map((row) => (
+            <div className="quote-confirm-grid-row" key={row.id}>
+              <div className="quote-confirm-photo" data-label="견적서 사진">
+                {row.image ? <img src={row.image} alt={`${row.productName} 제품 사진`} /> : <span>사진</span>}
+              </div>
+              <strong className="quote-confirm-product" data-label="제품명">
+                {row.productName}
+                {row.qty > 1 && <small>{row.qty}개</small>}
+              </strong>
+              <span data-label="품번">{row.sku}</span>
+              <span data-label="가격">{won(row.price)}</span>
+              <span data-label="시공비">{won(row.labor)}</span>
+              <strong data-label="최종가격">{won(row.finalPrice)}</strong>
+            </div>
+          ))}
+        </div>
+
+        <div className="quote-confirm-summary" aria-label="견적 금액 요약">
+          <div>
+            <span>제품 가격</span>
+            <strong>{won(productTotal)}</strong>
+          </div>
+          <div>
+            <span>{productCatalogMode ? "시공비 현장결제" : "시공비"}</span>
+            <strong>{won(laborTotal)}</strong>
+          </div>
+          <div>
+            <span>예상 총액</span>
+            <strong>{won(finalTotal)}</strong>
+          </div>
+          <div className="quote-confirm-transfer">
+            <span>계좌이체 금액</span>
+            <strong>{won(transferAmount)}</strong>
+          </div>
+        </div>
+
+        {productCatalogMode && onsiteAmount > 0 && (
+          <p className="quote-confirm-note">제품값은 지금 계좌이체로 결제하고, 시공비 {won(onsiteAmount)}은 시공 완료 후 현장에서 결제합니다.</p>
+        )}
+
+        <div className="quote-confirm-actions">
+          <button type="button" className="quote-confirm-secondary" onClick={onClose}>다시 확인하기</button>
+          <button type="button" className="quote-confirm-primary" onClick={onConfirm} disabled={loading}>
+            {loading ? "계좌이체 안내 준비 중..." : "확인 후 계좌이체 진행"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+
+  return createPortal(modal, document.body);
 }
 
 function ReplacementProductCatalog({
@@ -1343,6 +1613,7 @@ function ReplacementProductCatalog({
   const [productScope, setProductScope] = useState("all");
   const [brandFilter, setBrandFilter] = useState("all");
   const [priceFilter, setPriceFilter] = useState<ProductPriceFilterId>("all");
+  const [previewProduct, setPreviewProduct] = useState<ReplacementProduct | null>(null);
   const brandOptions = useMemo(() => sortedBrandOptions(catalog.products), [catalog.products]);
   const recommendedProducts = useMemo(
     () =>
@@ -1354,7 +1625,7 @@ function ReplacementProductCatalog({
   );
   const filteredRecommendedProducts = recommendedProducts.filter((product) => matchesProductFilters(product, brandFilter, priceFilter));
   const groupViews = catalog.groups.map((group) => {
-    const products = group.products.filter((product) => matchesProductFilters(product, brandFilter, priceFilter));
+    const products = group.products.filter((product) => matchesProductFilters(product, brandFilter, priceFilter)).sort(productDisplaySort);
     const prices = products.map((product) => product.price).filter((price): price is number => typeof price === "number");
     return {
       ...group,
@@ -1369,7 +1640,7 @@ function ReplacementProductCatalog({
     productScope === "recommended"
       ? filteredRecommendedProducts
       : productScope === "all"
-        ? groupViews.flatMap((group) => group.products)
+        ? groupViews.flatMap((group) => group.products).sort(productDisplaySort)
         : activeGroupView?.products ?? [];
   const scopedTitle =
     productScope === "recommended"
@@ -1381,7 +1652,7 @@ function ReplacementProductCatalog({
     productScope === "recommended"
       ? "빠르게 고르기 좋은 대표 제품입니다."
       : productScope === "all"
-        ? "선택한 브랜드와 가격대 조건에 맞는 전체 제품입니다."
+        ? "브랜드와 가격대 필터로 좁혀서 가격 낮은 순서로 비교할 수 있습니다."
         : activeGroupView?.summary ?? "선택한 조건에 맞는 제품입니다.";
 
   function scrollToProductSection(id: string) {
@@ -1399,6 +1670,17 @@ function ReplacementProductCatalog({
     setPriceFilter("all");
   }, [catalog.serviceCode]);
 
+  useEffect(() => {
+    if (!previewProduct) return;
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setPreviewProduct(null);
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [previewProduct]);
+
   return (
     <section className="quote-section toilet-product-catalog" id="product-catalog-top">
       <div className="section-title-row">
@@ -1409,14 +1691,14 @@ function ReplacementProductCatalog({
 
       <div className="product-index-chips" aria-label={`${catalog.customConsultLabel} 제품 목차`}>
         <button type="button" className={productScope === "all" ? "active" : ""} onClick={() => selectProductScope("all")}>
-          전체 {filteredTotalCount}개
+          전체
         </button>
         <button type="button" className={productScope === "recommended" ? "active" : ""} onClick={() => selectProductScope("recommended")}>
-          추천 {filteredRecommendedProducts.length}
+          추천
         </button>
         {catalog.groups.map((group) => (
           <button key={group.id} type="button" className={productScope === group.id ? "active" : ""} onClick={() => selectProductScope(group.id)}>
-            {group.name} {groupViews.find((view) => view.id === group.id)?.filteredCount ?? group.count}
+            {group.name}
           </button>
         ))}
       </div>
@@ -1424,27 +1706,30 @@ function ReplacementProductCatalog({
       <div className="toilet-filter-row" aria-label={`${catalog.customConsultLabel} 제품 필터`}>
         <div className="filter-chip-group" aria-label="브랜드 필터">
           <span>브랜드</span>
-          <button type="button" className={brandFilter === "all" ? "active" : ""} onClick={() => setBrandFilter("all")}>
-            전체
-          </button>
-          {brandOptions.map((brand) => (
-            <button key={brand} type="button" className={brandFilter === brand ? "active" : ""} onClick={() => setBrandFilter(brand)}>
-              {brand}
+          <div className="filter-chip-scroll">
+            <button type="button" className={brandFilter === "all" ? "active" : ""} onClick={() => setBrandFilter("all")}>
+              전체
             </button>
-          ))}
+            {brandOptions.map((brand) => (
+              <button key={brand} type="button" className={brandFilter === brand ? "active" : ""} onClick={() => setBrandFilter(brand)}>
+                {brand}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="filter-chip-group" aria-label="가격대 필터">
+        <div className="filter-chip-group price-filter-group" aria-label="가격대 필터">
           <span>가격대</span>
-          {PRODUCT_PRICE_FILTERS.map((filter) => (
-            <button key={filter.id} type="button" className={priceFilter === filter.id ? "active" : ""} onClick={() => setPriceFilter(filter.id)}>
-              {filter.label.replace("전체 가격대", "전체")}
-            </button>
-          ))}
+          <div className="filter-chip-scroll">
+            {PRODUCT_PRICE_FILTERS.map((filter) => (
+              <button key={filter.id} type="button" className={priceFilter === filter.id ? "active" : ""} onClick={() => setPriceFilter(filter.id)}>
+                {filter.label.replace("전체 가격대", "전체")}
+              </button>
+            ))}
+          </div>
         </div>
-        <strong>{scopedProducts.length}개 제품</strong>
       </div>
 
-      {filteredTotalCount === 0 && <div className="toilet-filter-empty">조건에 맞는 제품이 없습니다. 브랜드나 가격대를 다시 선택해주세요.</div>}
+      {filteredTotalCount === 0 && <div className="toilet-filter-empty">조건에 맞는 제품이 없습니다. 브랜드나 가격대를 다시 선택해 주세요.</div>}
 
       {productScope === "all" && filteredRecommendedProducts.length > 0 && (
         <section className="recommended-products" id="product-recommendations" aria-label="추천 제품">
@@ -1463,6 +1748,7 @@ function ReplacementProductCatalog({
                 onProductReplace={onProductReplace}
                 onQuantityChange={onQuantityChange}
                 onQuantityDelta={onQuantityDelta}
+                onImagePreview={setPreviewProduct}
               />
             ))}
           </div>
@@ -1475,9 +1761,9 @@ function ReplacementProductCatalog({
           <span>{scopedDescription}</span>
         </div>
         {scopedProducts.length === 0 ? (
-          <div className="toilet-filter-empty">조건에 맞는 제품이 없습니다. 다른 브랜드나 가격대를 선택해주세요.</div>
+          <div className="toilet-filter-empty">조건에 맞는 제품이 없습니다. 다른 브랜드나 가격대를 선택해 주세요.</div>
         ) : (
-          <div className="toilet-product-grid">
+          <div className={productScope === "recommended" ? "recommended-product-grid" : "toilet-product-grid all-product-list"}>
             {scopedProducts.map((product) => (
               <ReplacementProductCard
                 key={product.id}
@@ -1488,11 +1774,36 @@ function ReplacementProductCatalog({
                 onProductReplace={onProductReplace}
                 onQuantityChange={onQuantityChange}
                 onQuantityDelta={onQuantityDelta}
+                onImagePreview={setPreviewProduct}
               />
             ))}
           </div>
         )}
       </section>
+
+      {previewProduct?.image && (
+        <div className="product-image-modal" role="presentation" onClick={() => setPreviewProduct(null)}>
+          <div className="product-image-dialog" role="dialog" aria-modal="true" aria-label={`${previewProduct.brand} ${previewProduct.model} 제품 사진`} onClick={(event) => event.stopPropagation()}>
+            <div className="product-image-modal-head">
+              <div>
+                <span>{previewProduct.brand}</span>
+                <strong>{previewProduct.model}</strong>
+                <small>품번 {previewProduct.sku.trim() || "-"}</small>
+              </div>
+              <button type="button" onClick={() => setPreviewProduct(null)} aria-label="제품 사진 크게 보기 닫기">
+                닫기
+              </button>
+            </div>
+            <div className="product-image-modal-frame">
+              <img src={previewProduct.image} alt={`${previewProduct.brand} ${previewProduct.model}`} />
+            </div>
+            <div className="product-image-modal-meta">
+              <strong>{typeof previewProduct.price === "number" ? won(previewProduct.price) : "가격 확인 필요"}</strong>
+              <p>{previewProduct.note}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
     </section>
   );
@@ -1505,7 +1816,8 @@ function ReplacementProductCard({
   recommended = false,
   onProductReplace,
   onQuantityChange,
-  onQuantityDelta
+  onQuantityDelta,
+  onImagePreview
 }: {
   product: ReplacementProduct;
   qty: number;
@@ -1514,15 +1826,25 @@ function ReplacementProductCard({
   onProductReplace: (productId: string) => void;
   onQuantityChange: (productId: string, qty: number) => void;
   onQuantityDelta: (productId: string, delta: number) => void;
+  onImagePreview: (product: ReplacementProduct) => void;
 }) {
   const selected = qty > 0;
   const priceAvailable = typeof product.price === "number";
+  const skuLabel = product.sku.trim() || "-";
+  const noteText = compactProductNote(product.note);
 
   return (
     <article className={[selected ? "toilet-product-card selected" : "toilet-product-card", recommended ? "recommended" : ""].filter(Boolean).join(" ")}>
-      <div className={product.image ? "toilet-product-image" : "toilet-product-image empty"}>
-        {product.image ? <img src={product.image} alt={`${product.brand} ${product.model}`} loading="lazy" /> : <span>이미지 확인 필요</span>}
-      </div>
+      {product.image ? (
+        <button type="button" className="toilet-product-image toilet-product-image-button" onClick={() => onImagePreview(product)} aria-label={`${product.brand} ${product.model} 사진 크게 보기`}>
+          <img src={product.image} alt={`${product.brand} ${product.model}`} loading="lazy" />
+          <span className="image-zoom-hint">크게 보기</span>
+        </button>
+      ) : (
+        <div className="toilet-product-image empty">
+          <span>이미지 확인 필요</span>
+        </div>
+      )}
       <div className="toilet-product-body">
         <div className="toilet-product-meta">
           <span>{product.brand}</span>
@@ -1530,11 +1852,13 @@ function ReplacementProductCard({
           {selected && <b className="selected-badge">선택됨</b>}
         </div>
         <h3>{product.model}</h3>
+        <p className="toilet-product-sku">품번 {skuLabel}</p>
         <strong className="toilet-product-price">{priceAvailable ? won(product.price ?? 0) : "가격 확인 필요"}</strong>
-        <p className="toilet-product-sku">
-          품번 <span>{product.sku}</span>
-        </p>
-        <p>{recommended && product.recommendDescription ? product.recommendDescription : product.note}</p>
+        {!recommended && (
+          <p className="toilet-product-note compact" title={product.note}>
+            {noteText}
+          </p>
+        )}
         <div className="toilet-card-actions">
           {selected ? (
             <>
@@ -1588,11 +1912,22 @@ function PreviousOrderCard({ order }: { order: PreviousOrder }) {
 
 const quoteCss = `
   .quote-page {
+    position: relative;
     min-height: 100vh;
     background: var(--color-bg);
     color: var(--color-text);
     padding: 18px 18px 120px;
     font-family: var(--font-body);
+    word-break: keep-all;
+    line-break: strict;
+    overflow-wrap: break-word;
+  }
+  .quote-page :where(h1, h2, h3, p, span, small, strong, label, summary, button, a) {
+    word-break: keep-all;
+    line-break: strict;
+  }
+  .quote-page :where(p, small, label) {
+    text-wrap: pretty;
   }
   .context-banner {
     max-width: 980px;
@@ -1601,7 +1936,7 @@ const quoteCss = `
     color: var(--color-cream);
     border-radius: 8px;
     padding: 14px 16px;
-    font-weight: 650;
+    font-weight: 600;
   }
   .quote-hero,
   .quote-flow-note,
@@ -1615,59 +1950,69 @@ const quoteCss = `
     padding: 18px;
   }
   .quote-hero {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+    align-items: stretch;
     gap: 14px;
+    background:
+      linear-gradient(135deg, rgba(255, 250, 241, 0.98), rgba(244, 234, 212, 0.72) 55%, rgba(228, 232, 223, 0.68));
+    box-shadow: var(--shadow-sm);
   }
-  .hero-price-breakdown {
-    min-width: min(420px, 48%);
+  .quote-hero > div:first-child {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    align-items: center;
-    gap: 18px;
-    border-radius: 8px;
-    padding: 16px 18px;
-    background: #f5f6f8;
-    color: #2a2c30;
-  }
-  .hero-breakdown-item {
-    display: grid;
+    align-content: start;
     gap: 8px;
     min-width: 0;
   }
-  .hero-breakdown-label {
+  .hero-price-breakdown {
+    min-width: 0;
+    display: grid;
+    align-content: start;
+    gap: 12px;
+    align-self: stretch;
+    border: 1px solid rgba(207, 197, 181, 0.95);
+    border-radius: 8px;
+    padding: 14px;
+    background: rgba(255, 250, 241, 0.78);
+    color: var(--color-text);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  }
+  .hero-breakdown-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .hero-breakdown-head span {
+    min-height: 24px;
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    color: #555961;
-    font-size: 14px;
-    font-weight: 850;
-    line-height: 1.2;
-    white-space: nowrap;
+    border-radius: var(--radius-full);
+    padding: 0 9px;
+    background: var(--color-gold-wash);
+    color: #6d4d11;
+    font-size: var(--text-caption);
+    font-weight: 700;
   }
-  .hero-info-icon {
-    display: inline-grid;
-    place-items: center;
-    flex: 0 0 auto;
+  .hero-breakdown-head strong {
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    line-height: var(--leading-sm);
+    font-weight: 700;
   }
-  .hero-info-icon svg {
-    flex: 0 0 auto;
-    color: #7d8796;
-    stroke-width: 2.6;
+  .hero-price-breakdown p {
+    margin: 0;
+    padding-top: 10px;
+    border-top: 1px solid rgba(207, 197, 181, 0.86);
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    line-height: 1.55;
+    font-weight: 600;
   }
-  .hero-breakdown-item strong {
-    font-size: clamp(22px, 2.6vw, 34px);
-    line-height: 1.05;
-    font-weight: 950;
-    letter-spacing: 0;
-    white-space: nowrap;
-  }
-  .hero-price-breakdown b {
-    color: #22252a;
-    font-size: clamp(28px, 3.5vw, 42px);
-    line-height: 1;
-    font-weight: 850;
+  .hero-price-breakdown small {
+    color: var(--color-text-muted);
+    font-size: var(--text-caption);
+    line-height: 1.45;
   }
   .quote-flow-note {
     display: grid;
@@ -1678,14 +2023,17 @@ const quoteCss = `
   }
   .quote-flow-note span {
     color: var(--color-text-muted);
-    font-size: 13px;
-    font-weight: 650;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 600;
   }
   .quote-flow-note strong {
     display: block;
     margin-top: 4px;
-    font-size: 22px;
-    font-weight: 650;
+    font-size: var(--text-h3);
+    line-height: var(--leading-h3);
+    font-weight: 700;
+    letter-spacing: -0.012em;
   }
   .quote-flow-note p {
     margin: 4px 0 0;
@@ -1702,7 +2050,7 @@ const quoteCss = `
   .quote-flow-note em {
     color: var(--color-primary);
     font-style: normal;
-    font-weight: 620;
+    font-weight: 600;
   }
   .quote-flow-note ol {
     display: grid;
@@ -1721,8 +2069,9 @@ const quoteCss = `
     border-radius: 8px;
     background: var(--color-sage-soft);
     color: var(--color-text-muted);
-    font-size: 13px;
-    font-weight: 650;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 600;
   }
   .quote-flow-note li.current {
     outline: 1px solid var(--color-sage);
@@ -1759,10 +2108,11 @@ const quoteCss = `
     display: grid;
     gap: 6px;
     min-height: 104px;
-    border: 1px solid #dde2d7;
+    border: 1px solid var(--color-border);
     border-radius: 8px;
     padding: 12px;
-    background: #fff;
+    background: rgba(255, 250, 241, 0.9);
+    box-shadow: var(--shadow-sm);
   }
   .quote-scope-cards span {
     width: fit-content;
@@ -1771,17 +2121,17 @@ const quoteCss = `
     background: var(--color-primary-highlight);
     color: var(--color-primary);
     font-size: 12px;
-    font-weight: 900;
+    font-weight: 700;
   }
   .quote-scope-cards strong {
     line-height: 1.3;
-    font-size: 15px;
+    font-size: var(--text-body-sm);
   }
   .quote-scope-cards p {
     margin: 0;
     color: var(--color-text-muted);
-    font-size: 13px;
-    line-height: 1.45;
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
   }
   .quote-hero p,
   .muted,
@@ -1789,25 +2139,37 @@ const quoteCss = `
   .sticky-cta p {
     color: var(--color-text-muted);
     margin: 0;
-    line-height: 1.5;
+    line-height: var(--leading-body);
   }
   .quote-hero h1 {
-    margin: 8px 0;
-    font-size: clamp(28px, 5vw, 48px);
-    letter-spacing: 0;
-    overflow-wrap: anywhere;
+    margin: 0;
+    font-size: var(--text-h1);
+    line-height: var(--leading-h1);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    overflow-wrap: break-word;
   }
-  .quote-hero strong,
+  .quote-hero .hero-start-price,
   .price-total strong {
-    font-size: 24px;
+    font-size: var(--text-price-sub);
+    line-height: var(--leading-price-sub);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .quote-hero small {
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    line-height: var(--leading-sm);
+    font-weight: 600;
   }
   .hero-badge {
     background: var(--color-gold);
     color: #211c12;
     border-radius: 999px;
     padding: 9px 12px;
-    font-size: 14px;
-    font-weight: 900;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 600;
     white-space: nowrap;
   }
   .section-title-row {
@@ -1825,26 +2187,45 @@ const quoteCss = `
   }
   .section-title-row h2 {
     margin: 0;
-    font-size: 22px;
+    font-size: var(--text-h3);
+    line-height: var(--leading-h3);
+    font-weight: 700;
+    letter-spacing: -0.012em;
   }
   .section-title-row span {
     color: var(--color-text-muted);
-    font-size: 14px;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 600;
     text-align: right;
   }
   .section-title-row .success-label {
     color: var(--color-primary);
-    font-weight: 900;
+    font-weight: 700;
   }
   .field-label {
     display: grid;
     gap: 8px;
     color: var(--color-text);
-    font-weight: 900;
+    font-weight: 700;
+  }
+  .field-label > span {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+  }
+  .product-selection-anchor {
+    scroll-margin-top: 78px;
+  }
+  .field-help {
+    color: var(--color-text-muted);
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
+    font-weight: 400;
   }
   .required-mark {
     color: #dc2626;
-    font-weight: 950;
+    font-weight: 700;
   }
   .customer-field-grid {
     display: grid;
@@ -1914,7 +2295,7 @@ const quoteCss = `
     background: var(--color-surface-2);
     color: var(--color-text-muted);
     font-size: var(--text-xs);
-    font-weight: 900;
+    font-weight: 700;
   }
   .quote-optional-details[open] summary::after {
     content: "접기";
@@ -1974,7 +2355,7 @@ const quoteCss = `
   .text-button,
   .primary-button {
     cursor: pointer;
-    font-weight: 680;
+    font-weight: 700;
   }
   .grade-grid button {
     display: grid;
@@ -2008,13 +2389,14 @@ const quoteCss = `
     margin: 8px 0 0;
     color: #dc2626;
     font-size: var(--text-xs);
-    font-weight: 620;
+    font-weight: 600;
   }
   .data-guide-text {
     margin: -4px 0 16px;
     color: var(--color-text-muted);
-    font-size: var(--text-sm);
-    line-height: 1.6;
+    max-width: 680px;
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
   }
   .toilet-product-catalog {
     display: grid;
@@ -2031,6 +2413,11 @@ const quoteCss = `
     padding: 2px 0 8px;
     scroll-snap-type: x proximity;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .product-index-chips::-webkit-scrollbar,
+  .filter-chip-scroll::-webkit-scrollbar {
+    display: none;
   }
   .product-index-chips button,
   .filter-chip-group button {
@@ -2043,7 +2430,7 @@ const quoteCss = `
     color: var(--color-text);
     font: inherit;
     font-size: var(--text-xs);
-    font-weight: 900;
+    font-weight: 700;
     cursor: pointer;
     white-space: nowrap;
   }
@@ -2060,12 +2447,16 @@ const quoteCss = `
     gap: 4px;
   }
   .product-subsection-title strong {
-    font-size: var(--text-lg);
+    font-size: var(--text-h3);
+    line-height: var(--leading-h3);
+    font-weight: 700;
+    letter-spacing: -0.012em;
   }
   .product-subsection-title span {
     color: var(--color-text-muted);
-    font-size: var(--text-sm);
-    line-height: 1.5;
+    max-width: 640px;
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
   }
   .recommended-products {
     display: grid;
@@ -2085,7 +2476,7 @@ const quoteCss = `
   .toilet-product-meta span {
     color: var(--color-primary);
     font-size: var(--text-xs);
-    font-weight: 900;
+    font-weight: 700;
   }
   .toilet-filter-row {
     display: grid;
@@ -2096,22 +2487,24 @@ const quoteCss = `
     background: rgba(255, 250, 241, 0.74);
   }
   .filter-chip-group {
+    display: grid;
+    grid-template-columns: 46px minmax(0, 1fr);
+    gap: 7px 8px;
+    align-items: center;
+  }
+  .filter-chip-group > span {
+    color: var(--color-text-muted);
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
+    font-weight: 700;
+  }
+  .filter-chip-scroll {
+    min-width: 0;
     display: flex;
     flex-wrap: wrap;
     gap: 7px;
     align-items: center;
-  }
-  .filter-chip-group > span {
-    flex: 0 0 auto;
-    min-width: 46px;
-    color: var(--color-text-muted);
-    font-size: 11px;
-    font-weight: 900;
-  }
-  .toilet-filter-row > strong {
-    color: var(--color-primary);
-    font-size: var(--text-sm);
-    font-weight: 950;
+    scrollbar-width: none;
   }
   .toilet-filter-empty {
     border: 1px solid var(--color-border);
@@ -2120,7 +2513,7 @@ const quoteCss = `
     background: var(--color-surface-2);
     color: var(--color-text-muted);
     font-size: var(--text-sm);
-    font-weight: 850;
+    font-weight: 700;
     line-height: 1.5;
     text-align: center;
   }
@@ -2153,7 +2546,7 @@ const quoteCss = `
     background: rgba(34, 33, 29, 0.92);
     color: var(--color-cream);
     font: inherit;
-    font-weight: 900;
+    font-weight: 700;
     text-decoration: none;
     white-space: nowrap;
   }
@@ -2163,7 +2556,7 @@ const quoteCss = `
   }
   .toilet-product-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
   }
   .toilet-product-card {
@@ -2199,13 +2592,36 @@ const quoteCss = `
   }
   .recommended-product-grid .toilet-product-card {
     grid-template-columns: 1fr;
+    min-height: 0;
+  }
+  .toilet-product-grid .toilet-product-card {
+    grid-template-columns: 1fr;
+    min-height: 0;
   }
   .recommended-product-grid .toilet-product-image {
-    min-height: 178px;
+    height: 128px;
+    min-height: 128px;
+    border-right: 0;
     border-bottom: 1px solid #f0ece3;
+    background: #fff;
+  }
+  .toilet-product-grid .toilet-product-image {
+    height: 128px;
+    min-height: 128px;
+    border-bottom: 1px solid #f0ece3;
+    background: #fff;
   }
   .recommended-product-grid .toilet-product-body {
+    grid-template-rows: none;
+    align-content: center;
+    gap: 5px;
     border-left: 0;
+    padding: 10px 11px 11px;
+  }
+  .toilet-product-grid .toilet-product-body {
+    border-left: 0;
+    gap: 5px;
+    padding: 10px 11px 11px;
   }
   .toilet-product-card.recommended {
     background: linear-gradient(180deg, #fff, rgba(255, 250, 241, 0.88));
@@ -2215,19 +2631,58 @@ const quoteCss = `
     place-items: center;
     min-height: 168px;
     overflow: hidden;
-    background: #fffffc;
+    background: #fff;
+  }
+  .toilet-product-image-button {
+    position: relative;
+    width: 100%;
+    border: 0;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    cursor: zoom-in;
+  }
+  .toilet-product-image-button:focus-visible {
+    outline: 3px solid rgba(184, 138, 43, 0.24);
+    outline-offset: -3px;
   }
   .toilet-product-image img {
     width: 100%;
     height: 100%;
+    box-sizing: border-box;
     object-fit: contain;
     display: block;
-    padding: 10px;
+    padding: 5px;
+  }
+  .recommended-product-grid .toilet-product-image img {
+    width: 112px !important;
+    max-width: calc(100% - 10px);
+    height: 112px !important;
+    max-height: calc(100% - 10px);
+  }
+  .image-zoom-hint {
+    position: absolute;
+    right: 7px;
+    bottom: 7px;
+    border-radius: 999px;
+    background: rgba(34, 33, 29, 0.82);
+    padding: 4px 7px;
+    color: #fff;
+    font-size: 10px;
+    line-height: 1;
+    font-weight: 700;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 140ms ease;
+  }
+  .toilet-product-image-button:hover .image-zoom-hint,
+  .toilet-product-image-button:focus-visible .image-zoom-hint {
+    opacity: 1;
   }
   .toilet-product-image.empty span {
     color: var(--color-text-muted);
     font-size: var(--text-xs);
-    font-weight: 900;
+    font-weight: 700;
   }
   .toilet-product-body {
     display: grid;
@@ -2249,8 +2704,8 @@ const quoteCss = `
   .toilet-product-meta b {
     border-radius: 999px;
     padding: 4px 8px;
-    font-size: 11px;
-    line-height: 1;
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
   }
   .toilet-product-meta .selected-badge {
     background: var(--color-primary);
@@ -2263,39 +2718,100 @@ const quoteCss = `
   .toilet-product-card h3 {
     margin: 0;
     min-height: 0;
-    font-size: var(--text-base);
-    line-height: 1.35;
-    overflow-wrap: anywhere;
+    font-size: var(--text-body);
+    line-height: 1.32;
+    font-weight: 700;
+    letter-spacing: 0;
+    overflow-wrap: break-word;
+  }
+  .toilet-product-grid .toilet-product-card h3 {
+    font-size: var(--text-body);
+    line-height: 1.3;
   }
   .toilet-product-price {
     display: block;
     color: var(--color-text);
-    font-size: 22px;
-    line-height: 1.15;
-    font-weight: 950;
+    font-size: 23px;
+    line-height: 29px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
     letter-spacing: 0;
   }
-  .toilet-product-sku {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 10px;
-    margin: 0;
-    color: var(--color-text-muted);
-    font-size: var(--text-xs);
-    font-weight: 900;
+  .recommended-product-grid .toilet-product-price {
+    font-size: 20px;
+    line-height: 25px;
   }
-  .toilet-product-sku span {
-    color: var(--color-text);
-    font-size: var(--text-sm);
-    text-align: right;
-    overflow-wrap: anywhere;
+  .recommended-product-grid .toilet-product-card h3 {
+    font-size: var(--text-label);
+    line-height: 1.25;
+  }
+  .recommended-product-grid .toilet-product-card p {
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+  }
+  .recommended-product-grid .toilet-product-card .toilet-product-sku {
+    margin: -2px 0 0;
+    font-size: 11px;
+    line-height: 1.25;
+  }
+  .toilet-product-grid .toilet-product-price {
+    font-size: 21px;
+    line-height: 27px;
   }
   .toilet-product-card p {
     margin: 0;
     color: var(--color-text-muted);
-    font-size: var(--text-xs);
-    line-height: 1.45;
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
+  }
+  .toilet-product-note {
+    overflow-wrap: break-word;
+  }
+  .toilet-product-note.compact {
+    display: block;
+    color: var(--color-text-muted);
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 500;
+    overflow: visible;
+  }
+  .toilet-product-card .toilet-product-sku {
+    margin: -1px 0 0;
+    color: var(--color-text-muted);
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .toilet-product-grid .toilet-product-card p {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+  }
+  .toilet-product-grid .toilet-product-card .toilet-product-note.compact {
+    display: block;
+    overflow: visible;
+  }
+  .toilet-product-grid .toilet-product-card .toilet-product-sku {
+    display: block;
+    margin: -2px 0 0;
+    color: var(--color-text-muted);
+    font-size: 11px;
+    line-height: 1.25;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .toilet-card-actions {
     display: flex;
@@ -2313,7 +2829,7 @@ const quoteCss = `
     padding: 0 12px;
     font: inherit;
     font-size: var(--text-sm);
-    font-weight: 900;
+    font-weight: 700;
     cursor: pointer;
   }
   .toilet-replace-button.primary {
@@ -2325,6 +2841,217 @@ const quoteCss = `
   .toilet-replace-button {
     background: var(--color-surface);
     color: var(--color-primary);
+  }
+  .toilet-product-grid .toilet-add-button,
+  .toilet-product-grid .toilet-replace-button {
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+  }
+  .recommended-product-grid .toilet-card-actions {
+    gap: 5px;
+    min-height: 32px;
+    justify-content: stretch;
+    flex-wrap: nowrap;
+  }
+  .recommended-product-grid .toilet-add-button,
+  .recommended-product-grid .toilet-replace-button {
+    min-height: 32px;
+    border-radius: 7px;
+    padding: 0 8px;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+  }
+  .recommended-product-grid .toilet-replace-button.primary {
+    flex: 1 1 auto;
+    width: auto;
+  }
+  .recommended-product-grid .toilet-add-button {
+    flex: 0 0 auto;
+  }
+  .all-product-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .all-product-list .toilet-product-card {
+    grid-template-columns: 92px minmax(0, 1fr);
+    min-height: 118px;
+  }
+  .all-product-list .toilet-product-image {
+    height: auto;
+    min-height: 118px;
+    border-right: 1px solid #f0ece3;
+    border-bottom: 0;
+  }
+  .all-product-list .toilet-product-body {
+    align-content: center;
+    gap: 3px;
+    padding: 8px 9px;
+  }
+  .all-product-list .toilet-product-meta {
+    gap: 4px;
+  }
+  .all-product-list .toilet-product-meta span {
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
+  }
+  .all-product-list .toilet-product-meta b {
+    padding: 2px 6px;
+    font-size: 10px;
+    line-height: 1.2;
+  }
+  .all-product-list .toilet-product-card h3 {
+    font-size: var(--text-label);
+    line-height: 1.25;
+  }
+  .all-product-list .toilet-product-price {
+    font-size: 19px;
+    line-height: 24px;
+  }
+  .all-product-list .toilet-product-card p {
+    -webkit-line-clamp: 1;
+  }
+  .all-product-list .toilet-product-card .toilet-product-note.compact {
+    display: block;
+    overflow: visible;
+    font-size: 10px;
+    line-height: 1.2;
+  }
+  .all-product-list .toilet-product-card .toilet-product-sku {
+    font-size: 10px;
+    line-height: 1.2;
+  }
+  .all-product-list .toilet-card-actions {
+    justify-content: flex-start;
+    gap: 5px;
+    min-height: 31px;
+  }
+  .all-product-list .toilet-add-button,
+  .all-product-list .toilet-replace-button {
+    min-height: 31px;
+    border-radius: 7px;
+    padding: 0 7px;
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
+  }
+  .all-product-list .toilet-replace-button.primary {
+    min-width: 68px;
+  }
+  .product-image-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(20, 18, 14, 0.58);
+  }
+  .product-image-dialog {
+    width: min(720px, calc(100vw - 32px));
+    max-height: calc(100vh - 48px);
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 12px;
+    border: 1px solid rgba(255, 250, 241, 0.5);
+    border-radius: 10px;
+    background: #fff;
+    padding: 14px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+  }
+  .product-image-modal-head {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .product-image-modal-head div {
+    min-width: 0;
+    display: grid;
+    gap: 3px;
+  }
+  .product-image-modal-head span,
+  .product-image-modal-head small {
+    color: var(--color-text-muted);
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 600;
+  }
+  .product-image-modal-head strong {
+    color: var(--color-text);
+    font-size: var(--text-h3);
+    line-height: var(--leading-h3);
+    font-weight: 700;
+    overflow-wrap: break-word;
+  }
+  .product-image-modal-head button {
+    min-height: 34px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface);
+    padding: 0 12px;
+    color: var(--color-text);
+    font: inherit;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .product-image-modal-frame {
+    min-height: 0;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: #fff;
+  }
+  .product-image-modal-frame img {
+    width: 100%;
+    height: 100%;
+    max-height: min(68vh, 620px);
+    object-fit: contain;
+    padding: 18px;
+  }
+  .product-image-modal-meta {
+    display: grid;
+    gap: 4px;
+  }
+  .product-image-modal-meta strong {
+    color: var(--color-text);
+    font-size: var(--text-price-sub);
+    line-height: var(--leading-price-sub);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .product-image-modal-meta p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
+  }
+  @media (max-width: 640px) {
+    .product-image-modal {
+      padding: 10px;
+    }
+    .product-image-dialog {
+      width: 100%;
+      max-height: calc(100vh - 20px);
+      gap: 10px;
+      padding: 10px;
+    }
+    .product-image-modal-head {
+      align-items: center;
+    }
+    .product-image-modal-head strong {
+      font-size: var(--text-body);
+      line-height: 1.32;
+    }
+    .product-image-modal-frame img {
+      max-height: 62vh;
+      padding: 10px;
+    }
   }
   .toilet-add-button:disabled,
   .toilet-replace-button:disabled {
@@ -2354,7 +3081,7 @@ const quoteCss = `
     color: var(--color-text);
     font: inherit;
     font-size: 20px;
-    font-weight: 950;
+    font-weight: 700;
     line-height: 1;
     cursor: pointer;
     box-shadow: none;
@@ -2367,7 +3094,7 @@ const quoteCss = `
     border-inline: 1px solid var(--color-border);
     color: var(--color-text);
     font-size: var(--text-sm);
-    font-weight: 950;
+    font-weight: 700;
   }
   .calendar-panel {
     border: 1px solid var(--color-border);
@@ -2396,7 +3123,7 @@ const quoteCss = `
     border: 1px solid var(--color-border);
     border-radius: 8px;
     background: var(--color-surface);
-    font-weight: 650;
+    font-weight: 600;
     cursor: pointer;
   }
   .calendar-weekdays {
@@ -2405,8 +3132,9 @@ const quoteCss = `
   .calendar-weekdays span {
     text-align: center;
     color: var(--color-text-muted);
-    font-size: 13px;
-    font-weight: 620;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 600;
   }
   .calendar-grid button {
     position: relative;
@@ -2436,7 +3164,7 @@ const quoteCss = `
     border: 1px solid var(--color-primary);
     background: var(--color-primary);
     color: var(--color-cream);
-    font-weight: 650;
+    font-weight: 600;
   }
   .calendar-grid button.disabled {
     color: #c3c7bf;
@@ -2447,22 +3175,22 @@ const quoteCss = `
   .calendar-grid button.disabled.today span {
     border-color: #c3c7bf;
   }
-  .calendar-grid button.reserved-date {
+  .calendar-grid button.partially-booked {
     opacity: 1;
   }
-  .calendar-grid button.reserved-date span {
-    background: #efe6d7;
-    color: #8a3428;
-    font-weight: 900;
+  .calendar-grid button.partially-booked span {
+    background: var(--color-gold-wash);
+    color: var(--color-primary);
+    font-weight: 700;
   }
-  .calendar-grid button.reserved-date small {
+  .calendar-grid button.partially-booked small {
     position: absolute;
     bottom: -10px;
     left: 50%;
     transform: translateX(-50%);
-    color: #8a3428;
-    font-size: 9px;
-    font-weight: 950;
+    color: var(--color-primary);
+    font-size: var(--text-caption);
+    font-weight: 700;
     line-height: 1;
     white-space: nowrap;
   }
@@ -2505,7 +3233,7 @@ const quoteCss = `
   .slot-error p {
     margin: 0;
     line-height: 1.5;
-    font-weight: 800;
+    font-weight: 700;
   }
   .slot-error button {
     min-height: 40px;
@@ -2514,7 +3242,7 @@ const quoteCss = `
     padding: 0 14px;
     background: var(--color-accent-orange);
     color: #fff;
-    font-weight: 900;
+    font-weight: 700;
     white-space: nowrap;
   }
   @keyframes slotPulse {
@@ -2534,7 +3262,7 @@ const quoteCss = `
   .slot-grid button b {
     color: var(--color-text-muted);
     font-size: var(--text-xs);
-    font-weight: 900;
+    font-weight: 700;
   }
   .slot-grid button.disabled {
     border-color: var(--color-border);
@@ -2551,7 +3279,7 @@ const quoteCss = `
     background: #f0ede8;
     color: var(--color-text-muted);
     font-size: 12px;
-    font-weight: 900;
+    font-weight: 700;
   }
   .slot-grid button.disabled small {
     background: #fee2e2;
@@ -2562,7 +3290,7 @@ const quoteCss = `
     right: 14px;
     top: 14px;
     font-style: normal;
-    font-weight: 900;
+    font-weight: 700;
   }
   .slot-help {
     margin: 10px 0 0;
@@ -2574,7 +3302,7 @@ const quoteCss = `
     background: var(--color-primary-highlight);
     padding: 10px 12px;
     color: var(--color-primary);
-    font-weight: 900;
+    font-weight: 700;
   }
   .home-info-section {
     display: grid;
@@ -2600,7 +3328,7 @@ const quoteCss = `
   .home-info-block label,
   .home-info-grid label {
     color: var(--color-text);
-    font-weight: 900;
+    font-weight: 700;
   }
   .chip-group {
     display: flex;
@@ -2618,7 +3346,7 @@ const quoteCss = `
     background: var(--color-surface);
     padding: 0 16px;
     color: var(--color-text-muted);
-    font-weight: 900;
+    font-weight: 700;
     cursor: pointer;
   }
   .chip.active {
@@ -2646,7 +3374,7 @@ const quoteCss = `
     border-radius: 8px;
     padding: 10px 12px;
     background: var(--color-surface-2);
-    font-weight: 800;
+    font-weight: 700;
     color: var(--color-text);
   }
   .request-note-field {
@@ -2683,11 +3411,15 @@ const quoteCss = `
   .quote-summary-head span {
     color: var(--color-primary);
     font-size: var(--text-xs);
-    font-weight: 900;
+    font-weight: 700;
   }
   .quote-summary-head strong {
-    font-size: var(--text-lg);
-    overflow-wrap: anywhere;
+    font-size: var(--text-price-main);
+    line-height: var(--leading-price-main);
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: break-word;
   }
   .quote-summary-head p {
     margin: 6px 0 0;
@@ -2712,7 +3444,7 @@ const quoteCss = `
     content: "✓";
     margin-right: 6px;
     color: var(--color-primary);
-    font-weight: 900;
+    font-weight: 700;
   }
   .price-lines div,
   .price-total,
@@ -2727,7 +3459,7 @@ const quoteCss = `
   .price-lines dt,
   .price-lines dd {
     margin: 0;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
   .price-total {
     margin-top: 14px;
@@ -2744,7 +3476,7 @@ const quoteCss = `
     margin-bottom: 10px;
     color: var(--color-text-muted);
     font-size: 12px;
-    font-weight: 900;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
   }
@@ -2823,7 +3555,7 @@ const quoteCss = `
   }
   .addon-row span {
     min-width: 0;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
   .addon-row strong {
     flex: 0 0 auto;
@@ -2833,7 +3565,8 @@ const quoteCss = `
     border: 0;
     background: transparent;
     color: var(--color-primary);
-    font-size: 15px;
+    font-size: var(--text-button);
+    line-height: var(--leading-button);
   }
   .primary-button,
   .sticky-cta button {
@@ -2888,7 +3621,7 @@ const quoteCss = `
     border: 1px solid var(--color-border);
     border-radius: 8px;
     background: var(--color-surface);
-    font-weight: 900;
+    font-weight: 700;
   }
   .address-modal-frame {
     min-height: 0;
@@ -2896,7 +3629,213 @@ const quoteCss = `
   .address-modal-error {
     padding: 18px;
   }
+  .quote-confirm-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: rgba(25, 24, 20, 0.54);
+  }
+  .quote-confirm-dialog {
+    width: min(940px, 100%);
+    max-height: calc(100vh - 36px);
+    overflow: auto;
+    display: grid;
+    gap: 18px;
+    border: 1px solid rgba(34, 33, 29, 0.16);
+    border-radius: 10px;
+    background: #fffaf1;
+    padding: 22px;
+    box-shadow: 0 28px 72px rgba(25, 24, 20, 0.28);
+  }
+  .quote-confirm-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: start;
+  }
+  .quote-confirm-head h2 {
+    margin: 8px 0 6px;
+    color: var(--color-text);
+    font-size: var(--text-h2);
+    line-height: var(--leading-h2);
+    letter-spacing: 0;
+  }
+  .quote-confirm-head p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
+  }
+  .quote-confirm-close,
+  .quote-confirm-secondary {
+    min-height: 42px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: 0 14px;
+    font-weight: 700;
+  }
+  .quote-confirm-meta {
+    display: grid;
+    grid-template-columns: 0.8fr 1.4fr 0.8fr;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.64);
+    overflow: hidden;
+  }
+  .quote-confirm-meta div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    padding: 12px;
+    border-right: 1px solid var(--color-border);
+  }
+  .quote-confirm-meta div:last-child {
+    border-right: 0;
+  }
+  .quote-confirm-meta span,
+  .quote-confirm-grid-head span,
+  .quote-confirm-summary span {
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+  .quote-confirm-meta strong {
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    line-height: 1.35;
+    overflow-wrap: break-word;
+  }
+  .quote-confirm-grid {
+    display: grid;
+    gap: 0;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface);
+    overflow: hidden;
+  }
+  .quote-confirm-grid-head,
+  .quote-confirm-grid-row {
+    display: grid;
+    grid-template-columns: 84px minmax(170px, 1.4fr) minmax(96px, 0.75fr) minmax(96px, 0.75fr) minmax(96px, 0.75fr) minmax(108px, 0.8fr);
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+  }
+  .quote-confirm-grid-head {
+    background: rgba(244, 234, 212, 0.72);
+    border-bottom: 1px solid var(--color-border);
+  }
+  .quote-confirm-grid-row {
+    min-height: 86px;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .quote-confirm-grid-row:last-child {
+    border-bottom: 0;
+  }
+  .quote-confirm-grid-row > span,
+  .quote-confirm-grid-row > strong {
+    min-width: 0;
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    line-height: 1.35;
+    overflow-wrap: break-word;
+  }
+  .quote-confirm-grid-row > span[data-label="품번"] {
+    color: var(--color-text-muted);
+    font-weight: 700;
+  }
+  .quote-confirm-grid-row > strong[data-label="최종가격"] {
+    font-size: var(--text-base);
+    font-variant-numeric: tabular-nums;
+  }
+  .quote-confirm-photo {
+    width: 64px;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+  }
+  .quote-confirm-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+  .quote-confirm-photo span {
+    color: var(--color-text-faint);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+  .quote-confirm-product {
+    display: grid;
+    gap: 4px;
+    font-weight: 800;
+  }
+  .quote-confirm-product small {
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+  .quote-confirm-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .quote-confirm-summary div {
+    display: grid;
+    gap: 6px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.72);
+    padding: 12px;
+  }
+  .quote-confirm-summary strong {
+    color: var(--color-text);
+    font-size: var(--text-price-sub);
+    line-height: var(--leading-price-sub);
+    font-variant-numeric: tabular-nums;
+  }
+  .quote-confirm-summary .quote-confirm-transfer {
+    border-color: rgba(199, 146, 42, 0.5);
+    background: var(--color-primary-highlight);
+  }
+  .quote-confirm-note {
+    margin: 0;
+    border-radius: 8px;
+    background: rgba(244, 234, 212, 0.78);
+    padding: 12px 14px;
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    font-weight: 700;
+  }
+  .quote-confirm-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 0.72fr) minmax(0, 1fr);
+    gap: 10px;
+  }
+  .quote-confirm-primary {
+    min-height: 52px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--color-text);
+    color: var(--color-cream);
+    padding: 0 18px;
+    font-weight: 800;
+  }
+  .quote-confirm-primary:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
   .sticky-cta {
+    box-sizing: border-box;
     position: fixed;
     left: 0;
     right: 0;
@@ -2918,12 +3857,14 @@ const quoteCss = `
   .sticky-cta-head span {
     color: var(--color-text-muted);
     font-size: var(--text-xs);
-    font-weight: 650;
+    font-weight: 600;
   }
   .sticky-cta-head strong {
-    font-size: 28px;
-    line-height: 1.1;
-    letter-spacing: 0;
+    font-size: var(--text-price-main);
+    line-height: var(--leading-price-main);
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    font-variant-numeric: tabular-nums;
   }
   .sticky-summary {
     grid-column: 1 / -1;
@@ -2948,25 +3889,24 @@ const quoteCss = `
   .sticky-summary span {
     color: var(--color-text-muted);
     font-size: var(--text-xs);
-    font-weight: 650;
+    font-weight: 600;
   }
   .sticky-summary small {
     color: var(--color-text-muted);
-    font-weight: 620;
+    font-weight: 600;
     line-height: 1.4;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
   .sticky-selected-products {
     grid-column: 1 / -1;
     display: grid;
-    gap: 8px;
+    gap: 9px;
     border: 1px solid var(--color-border);
     border-radius: 8px;
     padding: 10px 12px;
     background: rgba(255, 250, 241, 0.86);
   }
-  .sticky-selected-products-title,
-  .sticky-selected-product-row {
+  .sticky-selected-products-title {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 10px;
@@ -2976,31 +3916,53 @@ const quoteCss = `
   .sticky-selected-products-title strong {
     color: var(--color-text-muted);
     font-size: var(--text-xs);
-    font-weight: 900;
+    font-weight: 700;
   }
-  .sticky-selected-product-row {
-    min-height: 42px;
+  .sticky-selected-product-summary {
+    display: grid;
+    gap: 3px;
     border-top: 1px solid var(--color-border);
-    padding-top: 8px;
+    padding-top: 9px;
   }
-  .sticky-selected-product-row strong {
+  .sticky-selected-product-summary strong {
     display: block;
     color: var(--color-text);
     font-size: var(--text-sm);
-    font-weight: 950;
+    font-weight: 700;
     line-height: 1.35;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
-  .sticky-selected-product-row small {
+  .sticky-selected-product-summary small {
     display: block;
-    margin-top: 2px;
     color: var(--color-text-muted);
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 600;
     line-height: 1.35;
   }
-  .sticky-selected-product-row .quantity-control {
-    background: var(--color-surface);
+  .sticky-selected-product-summary.empty strong {
+    color: var(--color-text-muted);
+  }
+  .sticky-selected-product-list {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .sticky-selected-product-list li {
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    line-height: 1.35;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+  .sticky-selected-product-more {
+    display: block;
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    line-height: 1.35;
   }
   .sticky-payment-breakdown {
     display: grid;
@@ -3018,44 +3980,35 @@ const quoteCss = `
   .sticky-payment-breakdown span {
     color: var(--color-text-muted);
     font-size: var(--text-xs);
-    font-weight: 850;
+    font-weight: 700;
   }
   .sticky-payment-breakdown strong {
     color: var(--color-text);
-    font-size: var(--text-sm);
-    font-weight: 950;
-  }
-  .sticky-payment-breakdown div:first-child strong {
-    color: var(--color-primary);
+    font-size: var(--text-price-sub);
+    line-height: var(--leading-price-sub);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
   }
   .sticky-cta p {
     grid-column: 1 / -1;
-    font-size: 14px;
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
   }
-  .payment-method-options {
+  .payment-method-notice {
     grid-column: 1 / -1;
-    display: grid;
-    gap: 8px;
-  }
-  .payment-method-option {
     display: grid;
     grid-template-columns: 26px minmax(0, 1fr);
     align-items: center;
-    min-height: 54px;
+    min-height: 48px;
+    gap: 10px;
     border-radius: 12px;
-    border: 1px solid var(--color-border);
-    background: var(--color-surface);
+    border: 1px solid var(--color-primary);
+    background: var(--color-primary-highlight);
     color: var(--color-text);
-    padding: 0 14px;
-    cursor: pointer;
+    padding: 8px 12px;
     font-size: var(--text-sm);
-    font-weight: 900;
-    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
-  }
-  .payment-method-option input {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
+    font-weight: 700;
+    box-shadow: 0 0 0 1px rgba(33, 32, 27, 0.06);
   }
   .payment-method-check {
     display: grid;
@@ -3067,48 +4020,77 @@ const quoteCss = `
     color: transparent;
     font-size: 14px;
     line-height: 1;
-    font-weight: 950;
-  }
-  .payment-method-option.active {
-    border-color: var(--color-primary);
-    background: var(--color-primary-highlight);
-    color: var(--color-text);
-    box-shadow: 0 0 0 1px rgba(33, 32, 27, 0.06);
-  }
-  .payment-method-option.active .payment-method-check {
+    font-weight: 700;
     border-color: var(--color-primary);
     background: var(--color-primary);
     color: #fffaf1;
   }
-  .payment-method-option:focus-within {
-    outline: 3px solid rgba(199, 146, 42, 0.24);
-    outline-offset: 2px;
+  .payment-method-notice > span:last-child {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
   }
-  .payment-consent {
+  .payment-method-notice strong {
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    line-height: 1.25;
+    font-weight: 800;
+  }
+  .payment-method-notice small {
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    line-height: 1.35;
+    font-weight: 600;
+  }
+  .payment-consent-group {
     grid-column: 1 / -1;
     display: grid;
-    grid-template-columns: 20px minmax(0, 1fr);
-    gap: 9px;
-    align-items: start;
+    gap: 5px;
     border: 1px solid var(--color-border);
     border-radius: 8px;
     background: rgba(255, 250, 241, 0.78);
-    padding: 10px 12px;
+    padding: 7px 9px;
     color: var(--color-text-muted);
-    font-size: 13px;
-    font-weight: 620;
-    line-height: 1.45;
+    font-size: var(--text-caption);
+    line-height: 1.38;
+    font-weight: 600;
+  }
+  .payment-consent {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    gap: 7px;
+    align-items: center;
+  }
+  .payment-consent + .payment-consent {
+    border-top: 1px solid var(--color-border);
+    padding-top: 5px;
+  }
+  .payment-consent-text {
+    min-width: 0;
+    word-break: keep-all;
+    line-break: strict;
+    overflow-wrap: break-word;
+  }
+  .payment-consent-text strong {
+    color: var(--color-text);
+    font-weight: 800;
+  }
+  .payment-consent-nowrap {
+    display: inline-block;
+    white-space: nowrap;
+    word-break: keep-all;
   }
   .payment-consent input {
-    width: 18px;
-    height: 18px;
-    margin: 1px 0 0;
+    width: 16px;
+    height: 16px;
+    margin: 0;
     accent-color: var(--color-primary);
   }
   .payment-consent a {
     color: var(--color-primary);
     text-decoration: underline;
     text-underline-offset: 2px;
+    white-space: nowrap;
   }
   .sticky-cta .strong {
     background: var(--color-primary);
@@ -3163,15 +4145,8 @@ const quoteCss = `
     .hero-price-breakdown {
       width: 100%;
       min-width: 0;
-      grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
       gap: 10px;
       padding: 14px;
-    }
-    .hero-breakdown-label {
-      font-size: 12px;
-    }
-    .hero-breakdown-item strong {
-      font-size: clamp(20px, 6vw, 28px);
     }
     .quote-flow-note {
       grid-template-columns: 1fr;
@@ -3198,18 +4173,26 @@ const quoteCss = `
       grid-template-columns: 112px minmax(0, 1fr);
       min-height: 150px;
     }
+    .all-product-list .toilet-product-card {
+      grid-template-columns: 112px minmax(0, 1fr);
+      min-height: 150px;
+    }
     .toilet-product-image {
       min-height: 150px;
     }
+    .all-product-list .toilet-product-image {
+      min-height: 150px;
+    }
     .toilet-product-image img {
-      padding: 8px;
+      padding: 6px;
     }
     .toilet-product-body {
       gap: 6px;
       padding: 12px;
     }
     .toilet-product-price {
-      font-size: var(--text-lg);
+      font-size: 24px;
+      line-height: 30px;
     }
     .included-list,
     .grade-grid,
@@ -3243,8 +4226,8 @@ const quoteCss = `
       min-height: 48px;
       padding: 10px 14px;
     }
-    .payment-consent {
-      padding: 8px 10px;
+    .payment-consent-group {
+      padding: 6px 8px;
       font-size: 12px;
     }
   }
@@ -3278,6 +4261,7 @@ const quoteCss = `
     .sticky-cta p,
     .sticky-cta-head,
     .sticky-summary,
+    .payment-consent-group,
     .payment-consent {
       grid-column: auto;
     }
@@ -3294,7 +4278,7 @@ const quoteCss = `
       background: var(--color-primary-highlight);
       color: var(--color-primary);
       font-size: var(--text-sm);
-      font-weight: 800;
+      font-weight: 700;
     }
     .sticky-cta button {
       width: 100%;
@@ -3392,8 +4376,10 @@ const quoteCss = `
     border-top: 2px solid var(--color-text);
   }
   .price-total strong {
-    font-size: var(--text-xl);
-    font-weight: 800;
+    font-size: var(--text-price-main);
+    line-height: var(--leading-price-main);
+    font-weight: 700;
+    letter-spacing: -0.015em;
   }
   .included-list li {
     display: flex;
@@ -3456,8 +4442,8 @@ const quoteCss = `
   }
   .photo-slot label span {
     max-width: 13ch;
-    font-size: 0.72rem;
-    line-height: 1.35;
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
   }
   .photo-slot-caption {
     position: absolute;
@@ -3467,8 +4453,8 @@ const quoteCss = `
     padding: 4px 8px;
     background: rgba(0, 0, 0, 0.62);
     color: #fff;
-    font-size: 0.72rem;
-    font-weight: 900;
+    font-size: var(--text-caption);
+    font-weight: 700;
   }
   .photo-slot input {
     display: none;
@@ -3546,8 +4532,10 @@ const quoteCss = `
     border-radius: 8px;
     background: var(--color-primary);
     color: var(--color-cream);
-    font-size: var(--text-base);
-    font-weight: 680;
+    font-size: var(--text-button);
+    line-height: var(--leading-button);
+    font-weight: 700;
+    letter-spacing: -0.005em;
     transition: transform var(--transition), background var(--transition), opacity var(--transition);
   }
   .sticky-cta button:hover,
@@ -3556,11 +4544,17 @@ const quoteCss = `
     transform: translateY(-1px);
   }
   .sticky-cta button:disabled,
+  .sticky-cta button[aria-disabled="true"],
   .primary-button:disabled,
   .primary-button.disabled {
     opacity: 0.4;
-    cursor: not-allowed;
+    cursor: pointer;
     transform: none;
+  }
+  .sticky-cta button:disabled,
+  .primary-button:disabled,
+  .primary-button.disabled {
+    cursor: not-allowed;
   }
   .quote-page {
     padding-top: 12px;
@@ -3571,11 +4565,13 @@ const quoteCss = `
   }
   .quote-hero h1 {
     margin: 4px 0;
-    font-size: clamp(24px, 4vw, 34px);
-    line-height: 1.15;
+    font-size: var(--text-h1);
+    line-height: var(--leading-h1);
   }
-  .quote-hero strong {
-    font-size: var(--text-lg);
+  .quote-hero .hero-start-price {
+    font-size: var(--text-price-sub);
+    line-height: var(--leading-price-sub);
+    font-weight: 600;
   }
   .hero-badge {
     padding: 6px 10px;
@@ -3588,7 +4584,8 @@ const quoteCss = `
   }
   .quote-flow-note strong {
     margin-top: 2px;
-    font-size: var(--text-lg);
+    font-size: var(--text-h3);
+    line-height: var(--leading-h3);
   }
   .quote-flow-note p {
     display: none;
@@ -3610,23 +4607,6 @@ const quoteCss = `
     width: 20px;
     height: 20px;
   }
-  .material-options-panel {
-    display: grid;
-    gap: 14px;
-    padding: 14px;
-  }
-  .material-options-panel > .section-title-row {
-    margin-bottom: 0;
-  }
-  .material-options-panel > .section-title-row strong {
-    font-size: var(--text-base);
-  }
-  .material-options-panel .optional-detail-body {
-    margin-top: 0;
-    border-top: 1px solid var(--color-border);
-    padding-top: var(--space-4);
-  }
-  .material-options-panel .quote-section,
   .quote-optional-details.compact .photo-upload-section {
     max-width: none;
     margin: 0;
@@ -3667,7 +4647,7 @@ const quoteCss = `
     text-align: left;
     cursor: pointer;
   }
-  .step-title-button span {
+  .step-title-button > span {
     display: grid;
     gap: 4px;
     min-width: 0;
@@ -3675,6 +4655,7 @@ const quoteCss = `
   }
   .step-title-button h2 {
     margin: 0;
+    color: var(--color-text);
   }
   .step-title-button small {
     color: var(--color-text-muted);
@@ -3689,7 +4670,7 @@ const quoteCss = `
     background: var(--color-surface-2);
     color: var(--color-text-muted);
     font-size: var(--text-xs);
-    font-weight: 900;
+    font-weight: 700;
     line-height: 1;
   }
   .step-title-button .success-label {
@@ -3740,9 +4721,6 @@ const quoteCss = `
       min-height: 34px;
       justify-content: flex-start;
     }
-    .material-options-panel {
-      padding: 12px;
-    }
     .form-step-block {
       padding: 14px 12px;
     }
@@ -3758,10 +4736,12 @@ const quoteCss = `
       color: var(--color-text);
     }
     .section-title-row h2 {
-      font-size: var(--text-base);
+      font-size: var(--text-h3);
+      line-height: var(--leading-h3);
     }
     .data-guide-text {
-      font-size: var(--text-xs);
+      font-size: var(--text-body-sm);
+      line-height: var(--leading-body-sm);
     }
     .photo-slot-grid {
       gap: var(--space-2);
@@ -3818,11 +4798,11 @@ const quoteCss = `
     .sticky-cta-head span {
       color: var(--color-text-muted);
       font-size: var(--text-xs);
-      font-weight: 900;
+      font-weight: 700;
     }
     .sticky-cta-head strong {
-      font-size: 30px;
-      line-height: 1.1;
+      font-size: var(--text-price-main);
+      line-height: var(--leading-price-main);
     }
     .sticky-summary {
       grid-column: auto;
@@ -3847,13 +4827,13 @@ const quoteCss = `
     .sticky-summary span {
       color: var(--color-text-muted);
       font-size: var(--text-xs);
-      font-weight: 900;
+      font-weight: 700;
     }
     .sticky-summary small {
       display: block;
       color: var(--color-text-muted);
       font-size: var(--text-sm);
-      font-weight: 800;
+      font-weight: 700;
       line-height: 1.4;
     }
     .sticky-message {
@@ -3865,7 +4845,7 @@ const quoteCss = `
       background: var(--color-primary-highlight);
       color: var(--color-primary);
       font-size: var(--text-sm);
-      font-weight: 800;
+      font-weight: 700;
       line-height: 1.45;
     }
     .sticky-cta .payment-button {
@@ -3906,7 +4886,6 @@ const quoteCss = `
     .quote-scope-cards,
     .quote-section,
     .context-banner,
-    .material-options-panel,
     .quote-form-panel,
     .form-step-block,
     .sticky-cta {
@@ -3933,7 +4912,7 @@ const quoteCss = `
     .section-title-row span {
       min-width: 0;
       text-align: left;
-      overflow-wrap: anywhere;
+      overflow-wrap: break-word;
     }
     .addon-row,
     .price-lines div,
@@ -3946,23 +4925,36 @@ const quoteCss = `
       max-width: 42%;
       white-space: normal;
       text-align: right;
-      overflow-wrap: anywhere;
+      overflow-wrap: break-word;
     }
     .address-trigger {
-      align-items: flex-start;
-      flex-wrap: wrap;
+      min-height: 48px;
+      align-items: center;
+      flex-wrap: nowrap;
+      gap: 8px;
+      padding: 0 12px;
+    }
+    .address-trigger strong {
+      min-width: 0;
+      line-height: 1.35;
     }
     .address-trigger small {
-      margin-left: 0;
+      flex: 0 0 auto;
+      margin-left: auto;
+      white-space: nowrap;
     }
-    .payment-consent span {
+    .address-trigger.filled {
+      min-height: 52px;
+      padding-block: 10px;
+    }
+    .payment-consent-text {
       min-width: 0;
-      overflow-wrap: anywhere;
+      overflow-wrap: break-word;
     }
-    .payment-consent {
+    .payment-consent-group {
       border-radius: 10px;
-      padding: 0.75rem 0.875rem;
-      line-height: 1.55;
+      padding: 8px 10px;
+      line-height: 1.42;
     }
     .sticky-cta {
       gap: 0.625rem;
@@ -3977,7 +4969,7 @@ const quoteCss = `
       min-width: 0;
       min-height: 52px;
       white-space: normal;
-      overflow-wrap: anywhere;
+      overflow-wrap: break-word;
     }
     .quote-page ~ .global-footer {
       padding-bottom: 160px;
@@ -4002,14 +4994,15 @@ const quoteCss = `
     display: inline-block;
     color: var(--color-text-muted);
     font-size: var(--text-sm);
-    font-weight: 800;
+    font-weight: 700;
   }
   .quote-flow-note strong {
     display: block;
     margin-top: 4px;
-    font-size: clamp(24px, 3.4vw, 34px);
-    font-weight: 850;
-    line-height: 1.05;
+    font-size: var(--text-h2);
+    line-height: var(--leading-h2);
+    font-weight: 700;
+    letter-spacing: -0.018em;
   }
   .quote-flow-note p,
   .quote-flow-note em {
@@ -4021,7 +5014,7 @@ const quoteCss = `
   .quote-flow-note em {
     color: var(--color-primary);
     font-style: normal;
-    font-weight: 750;
+    font-weight: 700;
   }
   .quote-flow-note .quote-step-diagram {
     display: grid;
@@ -4044,7 +5037,7 @@ const quoteCss = `
     border-radius: 0;
     color: var(--color-text-muted);
     font-size: var(--text-sm);
-    font-weight: 750;
+    font-weight: 700;
     text-align: center;
   }
   .quote-flow-note .quote-step-node:not(:last-child)::after {
@@ -4055,7 +5048,7 @@ const quoteCss = `
     transform: translate(-50%, -50%);
     color: var(--color-border-strong);
     font-size: 22px;
-    font-weight: 800;
+    font-weight: 700;
     line-height: 1;
   }
   .quote-flow-note .step-number {
@@ -4069,12 +5062,12 @@ const quoteCss = `
     color: var(--color-text);
     box-shadow: var(--shadow-sm);
     font-size: 20px;
-    font-weight: 900;
+    font-weight: 700;
   }
   .quote-flow-note .step-label {
     color: var(--color-text-muted);
     font-size: var(--text-sm);
-    font-weight: 800;
+    font-weight: 700;
     line-height: 1.25;
     white-space: nowrap;
   }
@@ -4148,15 +5141,85 @@ const quoteCss = `
   .sticky-cta .mobile-summary-toggle {
     display: none;
   }
-  .sticky-selected-empty {
-    margin: 0;
-    border-top: 1px solid var(--color-border);
-    padding-top: 8px;
-    color: var(--color-text-muted);
-    font-size: var(--text-sm);
-    font-weight: 900;
-  }
   @media (max-width: 720px) {
+    .quote-confirm-backdrop {
+      align-items: end;
+      padding: 10px;
+    }
+    .quote-confirm-dialog {
+      max-height: calc(100vh - 20px);
+      gap: 14px;
+      border-radius: 16px 16px 0 0;
+      padding: 16px;
+    }
+    .quote-confirm-head {
+      grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .quote-confirm-close {
+      justify-self: end;
+      min-height: 38px;
+    }
+    .quote-confirm-meta {
+      grid-template-columns: 1fr;
+    }
+    .quote-confirm-meta div {
+      border-right: 0;
+      border-bottom: 1px solid var(--color-border);
+      padding: 10px 12px;
+    }
+    .quote-confirm-meta div:last-child {
+      border-bottom: 0;
+    }
+    .quote-confirm-grid-head {
+      display: none;
+    }
+    .quote-confirm-grid-row {
+      grid-template-columns: 64px minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+      padding: 12px;
+    }
+    .quote-confirm-photo {
+      width: 58px;
+    }
+    .quote-confirm-product {
+      align-self: center;
+    }
+    .quote-confirm-grid-row > span[data-label],
+    .quote-confirm-grid-row > strong[data-label]:not(.quote-confirm-product) {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: 72px minmax(0, 1fr);
+      gap: 10px;
+      align-items: baseline;
+      font-size: var(--text-sm);
+    }
+    .quote-confirm-grid-row > span[data-label]::before,
+    .quote-confirm-grid-row > strong[data-label]:not(.quote-confirm-product)::before {
+      content: attr(data-label);
+      color: var(--color-text-muted);
+      font-size: var(--text-xs);
+      font-weight: 700;
+    }
+    .quote-confirm-summary {
+      grid-template-columns: 1fr 1fr;
+    }
+    .quote-confirm-summary div:nth-child(3) {
+      order: -1;
+    }
+    .quote-confirm-summary .quote-confirm-transfer {
+      order: -2;
+    }
+    .quote-confirm-actions {
+      grid-template-columns: 1fr;
+      position: sticky;
+      bottom: -16px;
+      margin: 0 -16px -16px;
+      padding: 10px 16px 12px;
+      border-top: 1px solid var(--color-border);
+      background: #fffaf1;
+      z-index: 1;
+    }
     .sticky-cta {
       grid-template-columns: 1fr;
     }
@@ -4178,12 +5241,13 @@ const quoteCss = `
     .sticky-cta .mobile-summary-toggle span {
       min-width: 0;
       font-size: var(--text-sm);
-      font-weight: 900;
-      overflow-wrap: anywhere;
+      font-weight: 700;
+      overflow-wrap: break-word;
     }
     .sticky-cta .mobile-summary-toggle strong {
-      font-size: var(--text-base);
-      font-weight: 950;
+      font-size: var(--text-price-sub);
+      line-height: var(--leading-price-sub);
+      font-weight: 700;
       white-space: nowrap;
     }
     .sticky-cta .sticky-sheet-content {
@@ -4209,11 +5273,6 @@ const quoteCss = `
   }
   @media (max-width: 640px) {
     .quote-page {
-      --text-xs: 0.75rem;
-      --text-sm: 0.875rem;
-      --text-base: 1rem;
-      --text-lg: 1.125rem;
-      --text-xl: 1.375rem;
       padding: 10px 10px 96px;
     }
     .quote-section,
@@ -4227,34 +5286,20 @@ const quoteCss = `
     }
     .quote-hero p {
       margin-bottom: 4px;
-      font-size: 0.8125rem;
+      font-size: var(--text-body-sm);
+      line-height: var(--leading-body-sm);
     }
     .quote-hero h1 {
-      font-size: 1.75rem;
-      line-height: 1.08;
+      font-size: var(--text-h1);
+      line-height: var(--leading-h1);
     }
-    .quote-hero strong {
-      font-size: 1.25rem;
+    .quote-hero .hero-start-price {
+      font-size: var(--text-price-sub);
+      line-height: var(--leading-price-sub);
     }
     .hero-price-breakdown {
       gap: 6px;
       padding: 10px;
-    }
-    .hero-breakdown-item {
-      gap: 4px;
-    }
-    .hero-breakdown-label {
-      font-size: 0.75rem;
-    }
-    .hero-info-icon svg {
-      width: 15px;
-      height: 15px;
-    }
-    .hero-breakdown-item strong {
-      font-size: 1.45rem;
-    }
-    .hero-price-breakdown b {
-      font-size: 1.65rem;
     }
     .toilet-product-catalog {
       gap: 10px;
@@ -4268,12 +5313,13 @@ const quoteCss = `
       align-items: end;
     }
     .toilet-product-catalog .section-title-row h2 {
-      font-size: 1.25rem;
-      line-height: 1.2;
+      font-size: var(--text-h3);
+      line-height: var(--leading-h3);
     }
     .toilet-product-catalog .section-title-row span {
       align-self: end;
-      font-size: 0.8125rem;
+      font-size: var(--text-label);
+      line-height: var(--leading-label);
       white-space: nowrap;
     }
     .toilet-product-catalog > .data-guide-text {
@@ -4281,39 +5327,60 @@ const quoteCss = `
     }
     .product-index-chips {
       gap: 6px;
-      margin-inline: -2px;
-      padding: 0 2px 4px;
+      margin-inline: -12px;
+      padding: 0 12px 4px;
     }
     .product-index-chips button,
     .filter-chip-group button {
       min-height: 30px;
       padding: 0 10px;
-      font-size: 0.75rem;
+      font-size: var(--text-label);
+      line-height: var(--leading-label);
     }
     .toilet-filter-row {
-      gap: 8px;
-      padding: 10px;
+      gap: 6px;
+      padding: 10px 0;
+      overflow: hidden;
     }
     .filter-chip-group {
+      grid-template-columns: 48px minmax(0, 1fr);
       gap: 6px;
+      padding-inline: 10px;
     }
     .filter-chip-group > span {
-      min-width: 40px;
-      font-size: 0.7rem;
+      font-size: var(--text-caption);
+      line-height: var(--leading-caption);
     }
-    .toilet-filter-row > strong {
-      font-size: 0.875rem;
+    .filter-chip-scroll {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      -webkit-overflow-scrolling: touch;
+      padding-right: 10px;
+    }
+    .price-filter-group .filter-chip-scroll {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+      overflow: visible;
+      padding-right: 0;
+    }
+    .price-filter-group .filter-chip-scroll button {
+      width: 100%;
+      min-width: 0;
+      padding-inline: 6px;
+      text-align: center;
     }
     .product-subsection-title {
       gap: 2px;
     }
     .product-subsection-title strong {
-      font-size: 1.2rem;
-      line-height: 1.2;
+      font-size: var(--text-h3);
+      line-height: var(--leading-h3);
     }
     .product-subsection-title span {
-      font-size: 0.8125rem;
-      line-height: 1.35;
+      font-size: var(--text-body-sm);
+      line-height: var(--leading-body-sm);
     }
     .recommended-products,
     .product-results {
@@ -4330,6 +5397,14 @@ const quoteCss = `
       min-height: 126px;
       border-radius: 8px;
     }
+    .recommended-product-grid .toilet-product-card {
+      grid-template-columns: 1fr;
+      min-height: 0;
+    }
+    .all-product-list .toilet-product-card {
+      grid-template-columns: 98px minmax(0, 1fr);
+      min-height: 126px;
+    }
     .recommended-product-grid .toilet-product-image,
     .toilet-product-image {
       height: 126px;
@@ -4337,8 +5412,17 @@ const quoteCss = `
       border-right: 1px solid #f0ece3;
       border-bottom: 0;
     }
+    .recommended-product-grid .toilet-product-image {
+      height: 116px;
+      min-height: 116px;
+      border-right: 0;
+      border-bottom: 1px solid #f0ece3;
+    }
+    .all-product-list .toilet-product-image {
+      min-height: 126px;
+    }
     .toilet-product-image img {
-      padding: 6px;
+      padding: 4px;
     }
     .recommended-product-grid .toilet-product-body,
     .toilet-product-body {
@@ -4346,38 +5430,37 @@ const quoteCss = `
       border-left: 0;
       padding: 9px 10px;
     }
+    .recommended-product-grid .toilet-product-body {
+      gap: 5px;
+      padding: 10px;
+    }
     .toilet-product-meta {
       gap: 5px;
     }
     .toilet-product-meta span {
-      font-size: 0.75rem;
+      font-size: var(--text-label);
+      line-height: var(--leading-label);
     }
     .toilet-product-meta b {
       padding: 3px 7px;
-      font-size: 0.6875rem;
+      font-size: var(--text-caption);
+      line-height: var(--leading-caption);
     }
     .toilet-product-card h3 {
-      font-size: 1.05rem;
-      line-height: 1.22;
+      font-size: var(--text-body);
+      line-height: 1.35;
     }
     .toilet-product-price {
-      font-size: 1.35rem;
-      line-height: 1.08;
+      font-size: 24px;
+      line-height: 30px;
     }
-    .toilet-product-sku {
-      gap: 6px;
-      font-size: 0.75rem;
-    }
-    .toilet-product-sku span {
-      font-size: 0.875rem;
-    }
-    .toilet-product-card p:not(.toilet-product-sku) {
+    .toilet-product-card p {
       display: -webkit-box;
-      -webkit-line-clamp: 1;
+      -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
-      font-size: 0.78rem;
-      line-height: 1.35;
+      font-size: var(--text-body-sm);
+      line-height: var(--leading-body-sm);
     }
     .toilet-card-actions {
       gap: 6px;
@@ -4388,7 +5471,8 @@ const quoteCss = `
       min-height: 34px;
       border-radius: 7px;
       padding: 0 9px;
-      font-size: 0.8125rem;
+      font-size: var(--text-button);
+      line-height: var(--leading-button);
     }
     .toilet-replace-button.primary {
       min-width: 72px;
@@ -4418,8 +5502,8 @@ const quoteCss = `
       font-size: 1.05rem;
     }
     .custom-product-consult p {
-      font-size: 0.8125rem;
-      line-height: 1.45;
+      font-size: var(--text-body-sm);
+      line-height: var(--leading-body-sm);
     }
     .custom-product-consult a,
     .custom-product-consult button {
@@ -4438,13 +5522,89 @@ const quoteCss = `
       box-shadow: 0 8px 22px rgba(34, 33, 29, 0.14);
     }
     .sticky-cta .mobile-summary-toggle span {
-      font-size: 0.875rem;
+      font-size: var(--text-body-sm);
+      line-height: var(--leading-body-sm);
     }
     .sticky-cta .mobile-summary-toggle strong {
-      font-size: 1rem;
+      font-size: var(--text-price-sub);
+      line-height: var(--leading-price-sub);
     }
     .sticky-cta.expanded {
       max-height: calc(84vh - env(safe-area-inset-bottom));
+    }
+  }
+  @media (min-width: 1180px) {
+    .quote-page {
+      display: grid;
+      grid-template-columns: minmax(0, 820px) 352px;
+      align-items: start;
+      justify-content: center;
+      column-gap: 24px;
+      padding: 14px 18px 48px;
+    }
+    .quote-page > :not(style):not(.sticky-cta) {
+      grid-column: 1;
+      width: 100%;
+      max-width: 820px;
+    }
+    .sticky-cta {
+      position: sticky;
+      grid-column: 2;
+      grid-row: 1 / span 100;
+      align-self: start;
+      left: auto;
+      right: auto;
+      top: 74px;
+      bottom: auto;
+      width: 352px;
+      max-height: calc(100vh - 98px);
+      gap: 12px;
+      padding: 20px;
+      border: 1px solid rgba(25, 26, 23, 0.1);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.98);
+      box-shadow: 0 14px 34px rgba(25, 26, 23, 0.1);
+    }
+    .sticky-cta.has-product-selection {
+      gap: 12px;
+      padding: 20px;
+    }
+    .sticky-cta.has-product-selection .sticky-cta-head {
+      padding-bottom: 12px;
+    }
+    .sticky-cta.has-product-selection .sticky-summary {
+      grid-template-columns: 1fr;
+      padding: 0 10px;
+    }
+    .sticky-cta.has-product-selection .sticky-summary div {
+      grid-template-columns: 44px minmax(0, 1fr);
+      min-height: 34px;
+      gap: 8px;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .sticky-cta.has-product-selection .sticky-summary div:last-child {
+      border-bottom: 0;
+    }
+    .sticky-cta.has-product-selection .sticky-summary small {
+      font-size: var(--text-xs);
+      line-height: 1.3;
+    }
+    .sticky-cta.has-product-selection .sticky-message,
+    .sticky-cta.has-product-selection .payment-consent-group {
+      padding: 6px 8px;
+      font-size: var(--text-caption);
+      line-height: 1.38;
+    }
+    .sticky-cta.has-product-selection .payment-method-notice {
+      min-height: 44px;
+    }
+    .sticky-cta.has-product-selection .payment-button {
+      min-height: 56px;
+    }
+  }
+  @media (max-width: 720px) {
+    .sticky-cta.expanded.has-product-selection {
+      max-height: calc(88vh - env(safe-area-inset-bottom));
     }
   }
 `;

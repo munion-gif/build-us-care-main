@@ -43,7 +43,7 @@ const TOILET_PRODUCT_PRICES = TOILET_PRODUCTS
 
 export const TOILET_PRODUCT_MIN_PRICE = TOILET_PRODUCT_PRICES.length > 0 ? Math.min(...TOILET_PRODUCT_PRICES) : 0;
 
-export const TOILET_PRODUCT_SOURCE_NOTE = "2025년 제품 리스트 기준 제품가입니다. 실제 주문 금액은 시공비, 폐기, 현장 부속, 재고에 따라 확정됩니다.";
+export const TOILET_PRODUCT_SOURCE_NOTE = "엑셀 제품 리스트 기준 제품가입니다. 실제 주문 금액은 시공비, 폐기, 현장 부속, 재고에 따라 확정됩니다.";
 
 export const TOILET_PRODUCT_GROUPS: ToiletProductGroup[] = CATEGORY_ORDER.map((categoryId) => {
   const products = TOILET_PRODUCTS.filter((product) => product.categoryId === categoryId);

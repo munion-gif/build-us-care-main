@@ -2,6 +2,7 @@ import { fail, ok } from "@/lib/api-response";
 import { parseAdminKeys } from "@/lib/admin-auth";
 import { EVENT_TYPES } from "@/lib/event-types";
 import { inferDeviceType } from "@/lib/data-collection";
+import { findReplacementProduct } from "@/lib/replacement-products";
 import { ORDER_PHOTO_VIEW_EXPIRES_IN, ORDER_PHOTOS_BUCKET } from "@/lib/storage";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { accessTokenSchema, uuidSchema } from "@/lib/validation";
@@ -38,6 +39,60 @@ function maskAddress(address: string | null | undefined) {
   return `${parts.slice(0, -1).join(" ")} ***`;
 }
 
+function toArray(value: unknown) {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function selectedProductSnapshot(metadata: any) {
+  const product =
+    metadata?.selected_replacement_product ??
+    metadata?.selected_toilet_product ??
+    metadata?.selected_replacement_product_snapshot;
+  const productId =
+    typeof metadata?.selected_replacement_product_id === "string"
+      ? metadata.selected_replacement_product_id
+      : typeof metadata?.selected_toilet_product_id === "string"
+        ? metadata.selected_toilet_product_id
+        : typeof product?.id === "string"
+          ? product.id
+          : null;
+  const serviceCode =
+    typeof metadata?.selected_replacement_product_service_code === "string"
+      ? metadata.selected_replacement_product_service_code
+      : typeof metadata?.service_type_code === "string"
+        ? metadata.service_type_code
+        : typeof product?.serviceCode === "string"
+          ? product.serviceCode
+          : null;
+  const catalogProduct = serviceCode ? findReplacementProduct(serviceCode, productId) : null;
+
+  if ((!product || typeof product !== "object") && !catalogProduct) return null;
+  return {
+    id: typeof product?.id === "string" ? product.id : catalogProduct?.id ?? null,
+    serviceCode: typeof product?.serviceCode === "string" ? product.serviceCode : catalogProduct?.serviceCode ?? serviceCode,
+    brand: typeof product?.brand === "string" ? product.brand : catalogProduct?.brand ?? null,
+    model: typeof product?.model === "string" ? product.model : catalogProduct?.model ?? null,
+    sku: typeof product?.sku === "string" ? product.sku : catalogProduct?.sku ?? null,
+    price: typeof product?.price === "number" ? product.price : catalogProduct?.price ?? null,
+    image: typeof product?.image === "string" ? product.image : catalogProduct?.image ?? null
+  };
+}
+
+function sanitizeQuoteItems(items: unknown) {
+  return toArray(items).map((item: any) => ({
+    sku: item?.sku ?? null,
+    item_name: item?.item_name ?? null,
+    qty: item?.qty ?? 1,
+    unit_material: item?.unit_material ?? 0,
+    unit_labor: item?.unit_labor ?? 0,
+    line_total: item?.line_total ?? 0,
+    metadata: {
+      selected_replacement_product: selectedProductSnapshot(item?.metadata)
+    }
+  }));
+}
+
 function sanitizeQuotes(quotes: any[] | null | undefined, isAdmin: boolean) {
   if (isAdmin) return quotes ?? [];
   return (quotes ?? []).map((quote) => ({
@@ -45,7 +100,8 @@ function sanitizeQuotes(quotes: any[] | null | undefined, isAdmin: boolean) {
     version: quote.version,
     total_final: quote.total_final,
     accepted_at: quote.accepted_at,
-    quoted_at: quote.quoted_at
+    quoted_at: quote.quoted_at,
+    items: sanitizeQuoteItems(quote.items)
   }));
 }
 

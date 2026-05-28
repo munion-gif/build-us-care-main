@@ -1,7 +1,23 @@
+import os from "node:os";
 import type { NextConfig } from "next";
+
+function localDevOrigins() {
+  return Object.values(os.networkInterfaces())
+    .flatMap((items) => items ?? [])
+    .filter((item) => item.family === "IPv4" && !item.internal)
+    .map((item) => item.address);
+}
+
+function configuredDevOrigins() {
+  return (process.env.NEXT_ALLOWED_DEV_ORIGINS ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
 
 const nextConfig: NextConfig = {
   typedRoutes: false,
+  allowedDevOrigins: Array.from(new Set(["127.0.0.1", ...localDevOrigins(), ...configuredDevOrigins()])),
   async redirects() {
     return [
       {

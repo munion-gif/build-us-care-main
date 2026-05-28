@@ -17,34 +17,56 @@ export function Footer() {
     <footer className="global-footer">
       <style>{footerCss}</style>
       <div className="footer-inner">
-        <div className="footer-brand">
+        <section className="footer-column footer-brand" aria-label="회사 정보">
           <Link href="/" className="footer-logo">
             <img className="footer-logo-image" src="/builduscare-footer-logo.png" alt="Build us Care" />
           </Link>
-          <div className="footer-meta" aria-label="회사 정보">
-            <span>운영사: 주식회사 무니온(muniOn)</span>
-            <span>대표: 김영태</span>
-            <span>사업자등록번호: 601-81-39840</span>
-            <span>주소: 경기도 용인시 수지구 포은대로59번길 37, B407호</span>
-            <span>이메일: munion@mymunion.com</span>
+          <dl className="footer-meta">
+            <div>
+              <dt>운영사</dt>
+              <dd>주식회사 무니온(muniOn)</dd>
+            </div>
+            <div>
+              <dt>대표</dt>
+              <dd>김영태</dd>
+            </div>
+            <div>
+              <dt>사업자등록번호</dt>
+              <dd>601-81-39840</dd>
+            </div>
+            <div>
+              <dt>주소</dt>
+              <dd>경기도 용인시 수지구 포은대로59번길 37, B407호</dd>
+            </div>
+            <div>
+              <dt>이메일</dt>
+              <dd>munion@mymunion.com</dd>
+            </div>
+          </dl>
+        </section>
+        <nav className="footer-column footer-links" aria-label="바로가기">
+          <p className="footer-heading">바로가기</p>
+          <div className="footer-link-grid">
+            {links.map(([label, href]) => (
+              <Link key={href} href={href}>
+                {label}
+              </Link>
+            ))}
           </div>
-        </div>
-        <nav aria-label="푸터 메뉴">
-          {links.map(([label, href]) => (
-            <Link key={href} href={href}>
-              {label}
-            </Link>
-          ))}
-          <span className="footer-legal-links" aria-label="약관 및 정책">
+        </nav>
+      </div>
+      <div className="footer-bottom">
+        <div className="footer-bottom-inner">
+          <nav className="footer-policy-links" aria-label="약관 및 정책">
             {legalLinks.map(([label, href]) => (
               <Link key={href} href={href}>
                 {label}
               </Link>
             ))}
-          </span>
-        </nav>
+          </nav>
+          <span>© 2026 Buildus Care. All rights reserved.</span>
+        </div>
       </div>
-      <div className="footer-bottom">© 2026 Buildus Care. All rights reserved.</div>
     </footer>
   );
 }
@@ -55,16 +77,27 @@ const footerCss = `
     color: rgba(247, 241, 230, 0.72);
   }
   .footer-inner,
-  .footer-bottom {
+  .footer-bottom-inner {
     width: min(var(--content-wide), 100%);
     margin-inline: auto;
     padding-inline: var(--space-6);
   }
   .footer-inner {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--space-8);
-    padding-block: var(--space-10, 2.5rem);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 0.36fr);
+    align-items: flex-start;
+    gap: clamp(2rem, 7vw, 7rem);
+    padding-block: 2rem 1.75rem;
+  }
+  .footer-column {
+    min-width: 0;
+  }
+  .footer-heading {
+    margin: 0 0 0.75rem;
+    color: var(--color-cream);
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 700;
   }
   .footer-logo {
     display: inline-flex;
@@ -73,60 +106,84 @@ const footerCss = `
   }
   .footer-logo-image {
     display: block;
-    width: min(340px, 78vw);
+    width: min(220px, 64vw);
     height: auto;
   }
   .footer-meta {
-    max-width: 720px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.35rem 0.875rem;
-    margin-top: var(--space-4);
-    line-height: 1.65;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.375rem 1.25rem;
+    margin-top: var(--space-3);
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
   }
-  .footer-meta span {
+  .footer-meta div {
+    display: contents;
+  }
+  .footer-meta dt {
+    color: rgba(247, 241, 230, 0.56);
+    font-weight: 600;
+  }
+  .footer-meta dd {
+    margin: 0;
     overflow-wrap: anywhere;
   }
-  .global-footer nav {
-    display: flex;
-    gap: var(--space-4);
-    flex-wrap: wrap;
+  .footer-link-grid {
+    display: grid;
+    gap: 0.625rem;
   }
-  .global-footer nav a {
+  .footer-links a,
+  .footer-policy-links a {
     color: rgba(255, 255, 255, 0.72);
     text-decoration: none;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 600;
   }
-  .footer-legal-links {
-    display: inline-flex;
-    gap: var(--space-3);
+  .footer-links a:hover,
+  .footer-policy-links a:hover {
+    color: var(--color-cream);
   }
   .footer-bottom {
     border-top: 1px solid rgba(255, 255, 255, 0.12);
-    padding-block: var(--space-4);
-    font-size: var(--text-sm);
+  }
+  .footer-bottom-inner {
+    min-height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
+  }
+  .footer-policy-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.875rem;
   }
   @media (max-width: 640px) {
     .footer-inner {
       display: grid;
-      gap: var(--space-8);
+      grid-template-columns: 1fr;
+      gap: 1.625rem;
       padding-inline: var(--space-4);
-      padding-block: var(--space-12);
+      padding-block: 1.75rem;
     }
-    .footer-bottom {
+    .footer-logo-image {
+      width: min(190px, 68vw);
+    }
+    .footer-bottom-inner {
+      min-height: 0;
+      display: grid;
+      gap: 0.75rem;
       padding-inline: var(--space-4);
+      padding-block: 0.875rem;
     }
     .footer-meta {
-      display: grid;
-      gap: 0.375rem;
-      line-height: 1.75;
+      gap: 0.25rem 0.875rem;
     }
-    .global-footer nav {
-      display: grid;
-      gap: var(--space-4);
-    }
-    .footer-legal-links {
-      display: flex;
-      flex-wrap: wrap;
+    .footer-link-grid {
+      grid-template-columns: 1fr;
     }
   }
 `;

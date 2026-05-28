@@ -136,7 +136,7 @@ const resultCss = `
   .result-badge {
     border-radius: var(--radius-full);
     padding: 6px 12px;
-    font-weight: 800;
+    font-weight: 700;
   }
   .green { background: var(--color-primary-highlight); color: var(--color-primary); }
   .red { background: #fee2e2; color: #991b1b; }
@@ -155,7 +155,7 @@ const resultCss = `
     background: var(--color-primary);
     color: #fff;
     text-decoration: none;
-    font-weight: 800;
+    font-weight: 700;
   }
   button:disabled {
     opacity: 0.4;

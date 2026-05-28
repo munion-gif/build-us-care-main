@@ -166,7 +166,8 @@ export const tossConfirmSchema = z.object({
 export const paymentPrepareSchema = z.object({
   orderId: z.string().uuid().optional(),
   quoteId: z.string().uuid().optional(),
-  reservationId: z.string().uuid().optional()
+  reservationId: z.string().uuid().optional(),
+  provider: z.enum(["bank_transfer", "toss"]).default("bank_transfer")
 }).refine((value) => Boolean(value.orderId || value.quoteId || value.reservationId), {
   message: "orderId, quoteId, reservationId 중 하나가 필요합니다."
 });

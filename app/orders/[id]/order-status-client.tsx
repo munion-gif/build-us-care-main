@@ -1089,8 +1089,10 @@ const orderStatusCss = `
   }
   .order-header h1 {
     margin: 8px 0;
-    font-size: clamp(28px, 5vw, 44px);
-    letter-spacing: 0;
+    font-size: var(--text-h1);
+    line-height: var(--leading-h1);
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
   .order-trust-strip {
     width: min(780px, 100%);
@@ -1121,7 +1123,7 @@ const orderStatusCss = `
   .next-action-card > span {
     color: var(--color-primary);
     font-size: var(--text-xs);
-    font-weight: 900;
+    font-weight: 700;
   }
   .order-current-main h2,
   .next-action-card h2 {
@@ -1158,11 +1160,11 @@ const orderStatusCss = `
     gap: 6px;
     color: var(--color-text-muted);
     font-size: var(--text-xs);
-    font-weight: 900;
+    font-weight: 700;
   }
   .order-current-panel dd {
     margin: 0;
-    font-weight: 900;
+    font-weight: 700;
     overflow-wrap: anywhere;
   }
   .next-action-card {
@@ -1178,7 +1180,7 @@ const orderStatusCss = `
     padding: 0 16px;
     background: var(--color-primary);
     color: #fff;
-    font-weight: 900;
+    font-weight: 700;
     cursor: pointer;
   }
   .next-happens-card {
@@ -1193,7 +1195,7 @@ const orderStatusCss = `
     background: var(--color-surface-2);
     color: var(--color-primary);
     font-size: var(--text-xs);
-    font-weight: 900;
+    font-weight: 700;
   }
   .next-happens-card h2 {
     margin: 0;
@@ -1242,7 +1244,7 @@ const orderStatusCss = `
     background: var(--color-primary);
     color: #fff;
     text-decoration: none;
-    font-weight: 900;
+    font-weight: 700;
   }
   .next-action-buttons .secondary,
   .next-action-buttons a {
@@ -1283,13 +1285,14 @@ const orderStatusCss = `
     background: #fff;
     color: var(--color-primary);
     font-size: var(--text-xs);
-    font-weight: 900;
+    font-weight: 700;
   }
   .payment-success-card h2 {
     margin: 0;
-    font-size: clamp(26px, 4vw, 38px);
-    line-height: 1.15;
-    letter-spacing: 0;
+    font-size: var(--text-h2);
+    line-height: var(--leading-h2);
+    font-weight: 700;
+    letter-spacing: -0.018em;
   }
   .payment-success-card dl {
     display: grid;
@@ -1313,7 +1316,7 @@ const orderStatusCss = `
     color: var(--color-text-muted);
   }
   .payment-success-card dd {
-    font-weight: 900;
+    font-weight: 700;
     text-align: left;
     overflow-wrap: anywhere;
   }
@@ -1346,7 +1349,7 @@ const orderStatusCss = `
     background: var(--color-primary);
     color: #fff;
     text-decoration: none;
-    font-weight: 900;
+    font-weight: 700;
   }
   .payment-success-actions button {
     background: #fff;
@@ -1368,7 +1371,7 @@ const orderStatusCss = `
   }
   .order-success-contact strong {
     font-size: var(--text-sm);
-    font-weight: 900;
+    font-weight: 700;
   }
   .order-success-contact p {
     font-size: var(--text-sm);
@@ -1389,7 +1392,7 @@ const orderStatusCss = `
     gap: 6px;
     color: var(--color-text-muted);
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 700;
     white-space: nowrap;
   }
   .order-success-qr img {
@@ -1430,7 +1433,7 @@ const orderStatusCss = `
     border-radius: var(--radius-md);
     background: #dcfce7;
     color: #166534;
-    font-weight: 900;
+    font-weight: 700;
   }
   .cancel-pending-card {
     border-color: #fed7aa;
@@ -1460,7 +1463,7 @@ const orderStatusCss = `
   .cancel-reason-list legend {
     margin-bottom: 6px;
     color: var(--color-text-muted);
-    font-weight: 900;
+    font-weight: 700;
   }
   .cancel-reason-list label {
     min-height: 46px;
@@ -1470,7 +1473,7 @@ const orderStatusCss = `
     border: 1px solid #d9ded2;
     border-radius: var(--radius-md);
     padding: 0 12px;
-    font-weight: 800;
+    font-weight: 700;
   }
   .cancel-reason-list label.selected {
     border-color: #991b1b;
@@ -1514,7 +1517,7 @@ const orderStatusCss = `
     padding: 0 12px;
     background: #fff;
     color: var(--color-text);
-    font-weight: 900;
+    font-weight: 700;
   }
   .reschedule-calendar {
     display: grid;
@@ -1534,7 +1537,7 @@ const orderStatusCss = `
     place-items: center;
     color: var(--color-text-muted);
     font-size: var(--text-xs);
-    font-weight: 900;
+    font-weight: 700;
   }
   .calendar-day {
     position: relative;
@@ -1545,7 +1548,7 @@ const orderStatusCss = `
     border-radius: var(--radius-md);
     background: #fff;
     color: var(--color-text);
-    font-weight: 900;
+    font-weight: 700;
   }
   .calendar-day.selected {
     border-color: var(--color-primary);
@@ -1563,7 +1566,7 @@ const orderStatusCss = `
     background: repeating-linear-gradient(135deg, #f4f3f0, #f4f3f0 5px, #e8e5e0 5px, #e8e5e0 10px);
   }
   .calendar-day small {
-    font-size: 10px;
+    font-size: var(--text-caption);
   }
   .reschedule-slot-grid {
     display: grid;
@@ -1591,7 +1594,7 @@ const orderStatusCss = `
   }
   .reschedule-slot span {
     font-size: var(--text-xs);
-    font-weight: 900;
+    font-weight: 700;
   }
   .reschedule-error {
     display: grid;
@@ -1604,7 +1607,7 @@ const orderStatusCss = `
   .reschedule-error p {
     margin: 0;
     color: #991b1b;
-    font-weight: 800;
+    font-weight: 700;
   }
   .state-guide {
     margin-top: 8px !important;
@@ -1612,7 +1615,7 @@ const orderStatusCss = `
     border-radius: var(--radius-md);
     background: rgba(255,255,255,0.72);
     color: var(--color-text) !important;
-    font-weight: 800;
+    font-weight: 700;
   }
   .status-guidance-list {
     display: grid;
@@ -1626,7 +1629,7 @@ const orderStatusCss = `
     position: relative;
     color: var(--color-text);
     font-size: var(--text-sm);
-    font-weight: 800;
+    font-weight: 700;
     line-height: 1.5;
   }
   .status-guidance-list li::before {
@@ -1653,7 +1656,7 @@ const orderStatusCss = `
   }
   .order-trust-strip strong {
     font-size: var(--text-sm);
-    font-weight: 900;
+    font-weight: 700;
   }
   .order-trust-strip span {
     color: var(--color-text-muted);
@@ -1682,7 +1685,7 @@ const orderStatusCss = `
   .order-overview-panel span {
     color: var(--color-primary);
     font-size: var(--text-xs);
-    font-weight: 900;
+    font-weight: 700;
   }
   .order-overview-panel strong {
     font-size: var(--text-lg);
@@ -1717,10 +1720,10 @@ const orderStatusCss = `
   .order-overview-panel dt {
     color: var(--color-text-muted);
     font-size: var(--text-xs);
-    font-weight: 800;
+    font-weight: 700;
   }
   .order-overview-panel dd {
-    font-weight: 900;
+    font-weight: 700;
     overflow-wrap: anywhere;
   }
   .order-card h2 {
@@ -1740,7 +1743,7 @@ const orderStatusCss = `
     display: block;
     color: var(--color-primary);
     font-size: var(--text-base);
-    font-weight: 900;
+    font-weight: 700;
     line-height: 1.35;
   }
   .timeline-current-summary p {
@@ -1754,7 +1757,7 @@ const orderStatusCss = `
     margin-top: 8px;
     color: var(--color-primary);
     font-size: var(--text-xs);
-    font-weight: 900;
+    font-weight: 700;
   }
   .status-timeline {
     list-style: none;
@@ -1793,13 +1796,13 @@ const orderStatusCss = `
     border: 2px solid var(--color-border);
     background: var(--color-surface);
     color: var(--color-text-faint);
-    font-weight: 900;
-    font-size: 11px;
+    font-weight: 700;
+    font-size: var(--text-caption);
   }
   .status-timeline li p {
     margin: 0;
     color: var(--color-text-faint);
-    font-weight: 800;
+    font-weight: 700;
     line-height: 1.45;
     overflow-wrap: anywhere;
   }
@@ -1835,7 +1838,7 @@ const orderStatusCss = `
     border-radius: 8px;
     background: #fff4dd;
     color: #7a4b00;
-    font-weight: 800;
+    font-weight: 700;
   }
   .summary-list {
     display: grid;
@@ -1858,7 +1861,82 @@ const orderStatusCss = `
   }
   .summary-list dd {
     text-align: right;
-    font-weight: 900;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  .quote-item-list {
+    display: grid;
+    gap: 10px;
+    margin: 0 0 14px;
+    padding: 0;
+    list-style: none;
+  }
+  .quote-item-row {
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 14px;
+    align-items: start;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 10px;
+    background: rgba(255, 250, 241, 0.7);
+  }
+  .quote-item-row img,
+  .quote-item-image-fallback {
+    width: 76px;
+    height: 76px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: #ffffff;
+  }
+  .quote-item-row img {
+    object-fit: contain;
+    padding: 6px;
+  }
+  .quote-item-image-fallback {
+    display: grid;
+    place-items: center;
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-weight: 700;
+  }
+  .quote-item-body {
+    min-width: 0;
+    display: grid;
+    gap: 8px;
+  }
+  .quote-item-body > strong {
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    line-height: 1.35;
+    font-weight: 800;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+  .quote-item-body dl {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+  }
+  .quote-item-body dl div {
+    display: grid;
+    grid-template-columns: 70px minmax(0, 1fr);
+    gap: 10px;
+  }
+  .quote-item-body dt,
+  .quote-item-body dd {
+    margin: 0;
+    font-size: var(--text-xs);
+    line-height: 1.35;
+  }
+  .quote-item-body dt {
+    color: var(--color-text-muted);
+    font-weight: 700;
+  }
+  .quote-item-body dd {
+    text-align: right;
+    color: var(--color-text);
+    font-weight: 800;
     overflow-wrap: anywhere;
   }
   .after-photo-grid {
@@ -1888,7 +1966,7 @@ const orderStatusCss = `
     background: var(--color-primary);
     color: #fff;
     text-decoration: none;
-    font-weight: 900;
+    font-weight: 700;
   }
   .as-card button:disabled {
     background: var(--color-surface-2);
@@ -1932,7 +2010,7 @@ const orderStatusCss = `
   }
   .related-service-grid strong,
   .related-service-grid span {
-    font-weight: 900;
+    font-weight: 700;
   }
   .related-service-grid small {
     color: var(--color-text-muted);
@@ -1965,7 +2043,7 @@ const orderStatusCss = `
     background: var(--color-primary-highlight);
     color: var(--color-primary);
     font-size: 26px;
-    font-weight: 900;
+    font-weight: 700;
   }
   .technician-profile strong {
     display: flex;
@@ -1973,7 +2051,7 @@ const orderStatusCss = `
     gap: 8px;
     align-items: center;
     font-size: var(--text-base);
-    font-weight: 900;
+    font-weight: 700;
   }
   .technician-profile small {
     border-radius: var(--radius-full);
@@ -1981,7 +2059,7 @@ const orderStatusCss = `
     background: var(--color-primary-highlight);
     color: var(--color-primary);
     font-size: var(--text-xs);
-    font-weight: 900;
+    font-weight: 700;
   }
   .technician-profile p,
   .technician-profile blockquote {
@@ -2029,7 +2107,7 @@ const orderStatusCss = `
     border: 1px solid #d9ded2;
     border-radius: 8px;
     background: #fff;
-    font-weight: 900;
+    font-weight: 700;
   }
   .star-row {
     display: flex;
@@ -2064,7 +2142,7 @@ const orderStatusCss = `
     align-items: center;
     gap: 8px;
     color: #28251d;
-    font-weight: 800;
+    font-weight: 700;
   }
   .feedback-checks input {
     width: 18px;
@@ -2085,7 +2163,7 @@ const orderStatusCss = `
     border: 1px solid #d9ded2;
     border-radius: 999px;
     color: #687166;
-    font-weight: 900;
+    font-weight: 700;
   }
   .warranty-type-grid label.selected {
     border-color: var(--color-primary);
@@ -2177,6 +2255,18 @@ const orderStatusCss = `
     }
     .summary-list dd {
       text-align: left;
+    }
+    .quote-item-row {
+      grid-template-columns: 64px minmax(0, 1fr);
+      gap: 10px;
+    }
+    .quote-item-row img,
+    .quote-item-image-fallback {
+      width: 64px;
+      height: 64px;
+    }
+    .quote-item-body dl div {
+      grid-template-columns: 56px minmax(0, 1fr);
     }
     .after-photo-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));

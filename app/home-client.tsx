@@ -4,19 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AirVent,
   ChevronRight,
-  DoorClosed,
-  LampCeiling,
-  Paintbrush,
   PanelsTopLeft,
-  PlugZap,
   ShowerHead,
   SoapDispenserDroplet,
   Toilet,
+  Waves,
   type LucideIcon
 } from "lucide-react";
 import { EVENT_TYPES } from "@/lib/event-types";
 import type { FAQItem } from "@/lib/faqs";
 import { getKakaoChannelChatUrl } from "@/lib/kakao-channel";
+import { PUBLIC_SERVICE_CODE_SET, SERVICE_AREA_LABEL } from "@/lib/public-services";
 import type { QuoteServiceItem } from "@/lib/service-items";
 import { appendSourceParams, readClientSourceContext, type SourceContext } from "@/lib/traffic-source";
 import { useTracking } from "@/lib/use-tracking";
@@ -29,14 +27,11 @@ type HomeClientProps = {
 
 const SERVICE_ICON_ITEMS: Array<{ label: string; Icon: LucideIcon; href: string }> = [
   { label: "양변기", Icon: Toilet, href: "/quote/toilet_replace" },
-  { label: "수전", Icon: ShowerHead, href: "/quote/faucet_replace" },
   { label: "세면대", Icon: SoapDispenserDroplet, href: "/quote/basin_replace" },
-  { label: "전등", Icon: LampCeiling, href: "/quote/light_replace" },
-  { label: "콘센트&스위치", Icon: PlugZap, href: "/quote/outlet_replace" },
-  { label: "도어핸들", Icon: DoorClosed, href: "/quote/door_handle" },
+  { label: "수전", Icon: ShowerHead, href: "/quote/faucet_replace" },
+  { label: "비데", Icon: Waves, href: "/quote/bidet_install" },
   { label: "환풍기", Icon: AirVent, href: "/quote/ventilator_replace" },
-  { label: "샷시손잡이", Icon: PanelsTopLeft, href: "/quote/sash_handle" },
-  { label: "실리콘", Icon: Paintbrush, href: "/quote/silicone_repair" }
+  { label: "샷시손잡이", Icon: PanelsTopLeft, href: "/quote/sash_handle" }
 ];
 
 export function HomeClient({ services, kakaoUrl, faqs }: HomeClientProps) {
@@ -85,7 +80,7 @@ export function HomeClient({ services, kakaoUrl, faqs }: HomeClientProps) {
   const casesHref = useMemo(() => appendSourceParams("/cases", sourceContext), [sourceContext]);
   const kakaoChatUrl = useMemo(() => getKakaoChannelChatUrl(kakaoUrl), [kakaoUrl]);
   const representativeServices = useMemo(
-    () => services.filter((service) => service.standardizable).slice(0, 6),
+    () => services.filter((service) => PUBLIC_SERVICE_CODE_SET.has(service.service_type_code)).slice(0, 6),
     [services]
   );
   const visibleFaqs = useMemo(() => faqs.slice(0, 6), [faqs]);
@@ -100,9 +95,14 @@ export function HomeClient({ services, kakaoUrl, faqs }: HomeClientProps) {
           <span className="brand-kicker">build us care</span>
           <h1 id="home-title">사진 3장으로 제품 호환 확인하기</h1>
           <p>
-            방문은 교체가 필요할 때만 진행합니다. 변기, 수전, 조명, 콘센트처럼 제품 호환이
+            방문은 교체가 필요할 때만 진행합니다. 양변기, 세면대, 수전, 비데, 환풍기, 샷시손잡이처럼 제품 호환이
             애매한 작업을 사진으로 먼저 확인하고 견적과 예약까지 이어갑니다.
           </p>
+          <div className="service-area-pill" aria-label="작업 가능 지역">
+            <span>작업지역</span>
+            <strong>{SERVICE_AREA_LABEL}</strong>
+            <small>추후 확장 예정</small>
+          </div>
           <div className="quick-picks" aria-label="대표 서비스 바로가기">
             <span>대표 항목</span>
             <div>
@@ -282,8 +282,9 @@ const homeCss = `
     --warm-gray: var(--color-border);
     --sage: var(--color-sage);
     min-height: 100vh;
-    padding: 0 clamp(14px, 3vw, 40px) 92px;
-    background: #fbf6ee;
+    overflow-x: clip;
+    padding: 0 clamp(14px, 3vw, 32px) 84px;
+    background: var(--color-bg);
     color: var(--charcoal);
   }
   .home-hero,
@@ -291,16 +292,16 @@ const homeCss = `
   .home-section,
   .quick-flow-board {
     width: min(1120px, 100%);
-    margin: 0 auto clamp(2rem, 4vw, 3.5rem);
+    margin: 0 auto var(--space-8);
   }
   .home-hero {
     position: relative;
     isolation: isolate;
     display: grid;
     grid-template-columns: minmax(0, 1.02fr) minmax(340px, 0.88fr);
-    gap: clamp(1.5rem, 5vw, 4rem);
+    gap: clamp(1.5rem, 4vw, 3rem);
     align-items: center;
-    padding-block: clamp(4rem, 7.5vw, 6.35rem);
+    padding-block: clamp(3rem, 5vw, 4.5rem);
   }
   .home-hero::before {
     content: "";
@@ -345,7 +346,8 @@ const homeCss = `
     margin-bottom: 18px;
     color: rgba(34, 33, 29, 0.68);
     font-family: var(--font-brand);
-    font-size: 12px;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
     font-weight: var(--brand-label-weight);
     letter-spacing: var(--brand-letter-spacing);
     text-transform: lowercase;
@@ -362,12 +364,12 @@ const homeCss = `
     letter-spacing: 0.04em;
   }
   .home-hero h1 {
-    max-width: 16ch;
+    max-width: 720px;
     margin: 0 0 var(--space-3);
-    font-size: clamp(2.65rem, 5.7vw, 5.05rem);
-    font-weight: 500;
-    line-height: 1.07;
-    letter-spacing: 0;
+    font-size: var(--text-hero);
+    line-height: var(--leading-hero);
+    font-weight: 700;
+    letter-spacing: -0.025em;
     word-break: keep-all;
   }
   .home-hero p,
@@ -380,8 +382,9 @@ const homeCss = `
   .home-hero p {
     max-width: 35rem;
     margin: 0;
-    font-size: var(--text-base);
-    font-weight: 520;
+    font-size: var(--text-body-lg);
+    line-height: var(--leading-body-lg);
+    font-weight: 400;
   }
   .hero-actions {
     display: flex;
@@ -400,8 +403,10 @@ const homeCss = `
     border-radius: 999px;
     padding: 0 18px;
     text-decoration: none;
-    font-size: var(--text-sm);
-    font-weight: 680;
+    font-size: var(--text-button);
+    line-height: var(--leading-button);
+    font-weight: 700;
+    letter-spacing: -0.005em;
   }
   .primary-action,
   .empty-service a {
@@ -429,10 +434,44 @@ const homeCss = `
     border-radius: 999px;
     background: #fee500;
     color: #22211d;
-    font-size: 9px;
-    font-weight: 800;
+    font-size: var(--text-caption);
+    font-weight: 700;
     line-height: 1;
     letter-spacing: 0;
+  }
+  .service-area-pill {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: rgba(34, 33, 29, 0.58);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
+    font-weight: 600;
+    word-break: keep-all;
+  }
+  .service-area-pill > span,
+  .quick-picks > span {
+    flex: 0 0 58px;
+  }
+  .service-area-pill span {
+    color: rgba(34, 33, 29, 0.54);
+    font-weight: 600;
+  }
+  .service-area-pill strong {
+    min-width: 0;
+    color: rgba(34, 33, 29, 0.76);
+    font-weight: 700;
+  }
+  .service-area-pill small {
+    color: rgba(34, 33, 29, 0.5);
+    font-size: var(--text-xs);
+    line-height: var(--leading-caption);
+    font-weight: 700;
   }
   .quick-picks {
     display: flex;
@@ -440,8 +479,9 @@ const homeCss = `
     gap: var(--space-2);
     margin-top: var(--space-4);
     color: rgba(34, 33, 29, 0.54);
-    font-size: var(--text-sm);
-    font-weight: 620;
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
+    font-weight: 600;
   }
   .quick-picks > div {
     display: flex;
@@ -458,18 +498,19 @@ const homeCss = `
     background: rgba(255, 250, 241, 0.66);
     color: rgba(34, 33, 29, 0.7);
     text-decoration: none;
-    font-size: var(--text-xs);
-    font-weight: 640;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 600;
   }
   .hero-visual {
     position: relative;
     z-index: 1;
     display: flex;
     flex-direction: column;
-    gap: 22px;
-    min-height: 390px;
+    gap: 18px;
+    min-height: 340px;
     overflow: hidden;
-    padding: 22px 18px 18px;
+    padding: 18px;
     border: 1px solid rgba(217, 210, 196, 0.95);
     border-radius: 8px;
     background:
@@ -495,23 +536,25 @@ const homeCss = `
     grid-column: 1 / -1;
     color: rgba(34, 33, 29, 0.6);
     font-family: var(--font-brand);
-    font-size: 12px;
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
     font-weight: var(--brand-label-weight);
     letter-spacing: 0.32em;
     text-transform: lowercase;
   }
   .diagnosis-label strong {
-    font-family: "Avenir Next", var(--font-latin);
-    font-size: clamp(1.66rem, 3.6vw, 2.45rem);
-    font-weight: 400;
-    letter-spacing: 0;
-    line-height: 1;
+    font-family: var(--font-latin);
+    font-size: var(--text-h2);
+    line-height: var(--leading-h2);
+    font-weight: 700;
+    letter-spacing: -0.018em;
   }
   .diagnosis-label small {
     align-self: end;
     color: rgba(34, 33, 29, 0.62);
-    font-size: var(--text-sm);
-    font-weight: 560;
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
+    font-weight: 500;
   }
   .diagnosis-label dl {
     grid-column: 1 / -1;
@@ -528,8 +571,9 @@ const homeCss = `
   .diagnosis-label dt,
   .diagnosis-label dd {
     margin: 0;
-    font-size: 12px;
-    font-weight: 650;
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
+    font-weight: 600;
     text-transform: uppercase;
   }
   .diagnosis-label dt {
@@ -549,22 +593,23 @@ const homeCss = `
   }
   .visual-note span {
     color: rgba(255, 250, 241, 0.64);
-    font-size: 12px;
-    font-weight: 650;
+    font-size: var(--text-caption);
+    line-height: var(--leading-caption);
+    font-weight: 600;
     letter-spacing: 0.16em;
     text-transform: lowercase;
   }
   .visual-note strong {
-    font-size: var(--text-base);
-    line-height: 1.35;
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
     word-break: keep-all;
   }
   .service-icon-strip {
     display: grid;
-    grid-template-columns: repeat(9, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 10px;
     margin-top: clamp(-1.35rem, -2vw, -0.75rem);
-    margin-bottom: clamp(0.75rem, 2vw, 1.35rem);
+    margin-bottom: var(--space-6);
   }
   .service-icon-item {
     min-width: 0;
@@ -586,9 +631,9 @@ const homeCss = `
   }
   .service-icon-item strong {
     color: rgba(34, 33, 29, 0.76);
-    font-size: 12px;
-    font-weight: 720;
-    line-height: 1.22;
+    font-size: var(--text-caption);
+    font-weight: 700;
+    line-height: var(--leading-caption);
     text-align: center;
     word-break: keep-all;
   }
@@ -633,17 +678,22 @@ const homeCss = `
     padding: 0 11px;
     background: rgba(168, 176, 162, 0.18);
     color: rgba(34, 33, 29, 0.7);
-    font-size: var(--text-xs);
-    font-weight: 680;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 600;
   }
   .section-head h2 {
     margin: 0;
-    font-size: var(--text-lg);
-    font-weight: 660;
+    font-size: var(--text-h3);
+    line-height: var(--leading-h3);
+    font-weight: 700;
+    letter-spacing: -0.018em;
   }
   .section-head p {
+    max-width: 640px;
     margin: 0;
-    font-size: var(--text-sm);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
   }
   .service-grid {
     display: grid;
@@ -664,20 +714,23 @@ const homeCss = `
   }
   .service-card small {
     font-family: var(--font-brand);
-    font-size: var(--text-xs);
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
     font-weight: var(--brand-label-weight);
     letter-spacing: 0.13em;
     text-transform: lowercase;
   }
   .service-card p {
     margin: auto 0 var(--space-1);
-    font-size: var(--text-base);
-    font-weight: 650;
+    font-size: var(--text-card-title);
+    line-height: var(--leading-card-title);
+    font-weight: 700;
   }
   .service-description {
     margin: var(--space-2) 0 var(--space-3);
-    font-size: var(--text-xs);
-    font-weight: 620;
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
+    font-weight: 400;
   }
   .service-meta-row {
     display: flex;
@@ -687,8 +740,9 @@ const homeCss = `
   }
   .service-meta-row span {
     color: #7f8a7b;
-    font-size: var(--text-xs);
-    font-weight: 650;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 600;
   }
   .empty-service {
     display: grid;
@@ -742,17 +796,19 @@ const homeCss = `
     border-radius: 999px;
     background: rgba(168, 176, 162, 0.38);
     color: rgba(34, 33, 29, 0.74);
-    font-size: var(--text-xs);
-    font-weight: 650;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 700;
   }
   .quick-flow-steps strong {
-    font-size: var(--text-sm);
-    font-weight: 650;
+    font-size: var(--text-card-title);
+    line-height: var(--leading-card-title);
+    font-weight: 700;
   }
   .quick-flow-steps span {
     color: rgba(34, 33, 29, 0.62);
-    font-size: var(--text-sm);
-    line-height: 1.55;
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-body-sm);
   }
   .faq-section {
     padding: clamp(18px, 3vw, 26px);
@@ -773,16 +829,17 @@ const homeCss = `
     align-items: center;
     padding: 0 18px;
     color: var(--charcoal);
-    font-size: var(--text-sm);
-    font-weight: 700;
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    font-weight: 600;
     cursor: pointer;
   }
   .faq-list p {
     margin: 0;
     padding: 0 18px 18px;
     color: rgba(34, 33, 29, 0.64);
-    font-size: var(--text-sm);
-    line-height: 1.65;
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
   }
   .floating-kakao-cta {
     position: fixed;
@@ -812,8 +869,10 @@ const homeCss = `
     color: var(--color-cream);
     box-shadow: 0 14px 34px rgba(34, 33, 29, 0.18);
     text-decoration: none;
-    font-size: var(--text-sm);
-    font-weight: 760;
+    font-size: var(--text-button);
+    line-height: var(--leading-button);
+    font-weight: 700;
+    letter-spacing: -0.005em;
     white-space: nowrap;
   }
   .floating-kakao-mark {
@@ -824,8 +883,8 @@ const homeCss = `
     border-radius: 999px;
     background: #fee500;
     color: #22211d;
-    font-size: 10px;
-    font-weight: 850;
+    font-size: var(--text-caption);
+    font-weight: 700;
     line-height: 1;
     letter-spacing: 0;
   }
@@ -867,8 +926,8 @@ const homeCss = `
       padding-block: var(--space-8);
     }
     .home-hero h1 {
-      max-width: 12ch;
-      font-size: clamp(2.5rem, 13vw, 3.25rem);
+      max-width: 13ch;
+      letter-spacing: -0.02em;
     }
     .hero-visual {
       display: none;
@@ -888,6 +947,9 @@ const homeCss = `
     .service-grid {
       grid-template-columns: 1fr;
     }
+    .service-section {
+      display: none;
+    }
     .service-icon-strip {
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 7px;
@@ -902,7 +964,7 @@ const homeCss = `
       height: 42px;
     }
     .service-icon-item strong {
-      font-size: 11px;
+      font-size: var(--text-caption);
     }
     .service-card {
       min-height: 0;

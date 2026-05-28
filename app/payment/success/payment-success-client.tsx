@@ -34,7 +34,7 @@ export function PaymentSuccessClient() {
       const retryUrl = serviceCode ? `/quote/${encodeURIComponent(serviceCode)}` : "/";
 
       if (!paymentKey || !orderId || !Number.isFinite(amount) || amount <= 0) {
-        setState({ status: "error", message: "결제 승인 정보가 부족합니다. 다시 결제해주세요.", retryUrl });
+        setState({ status: "error", message: "결제 승인 정보가 부족합니다. 다시 결제해 주세요.", retryUrl });
         return;
       }
 
@@ -87,15 +87,19 @@ export function PaymentSuccessClient() {
             <strong>{won(state.productAmount)}</strong>
             <span>시공비 {won(state.serviceFeeAmount)}은 설치 완료 후 현장에서 결제해 주세요.</span>
             <small>예상 총액 {won(state.totalAmount)}</small>
-            <p>주문 내용을 확인한 뒤 카톡으로 안내드릴게요.</p>
-            {state.statusUrl ? <Link href={state.statusUrl}>주문 내용 확인</Link> : <Link href="/">홈으로 이동</Link>}
+            <p>주문정보를 확인한 뒤 카톡으로 안내드릴게요.</p>
+            {state.statusUrl ? (
+              <Link className="payment-result-action" href={state.statusUrl}>주문정보 보기</Link>
+            ) : (
+              <Link className="payment-result-action" href="/">홈으로 이동</Link>
+            )}
           </>
         )}
         {state.status === "error" && (
           <>
             <h1>결제 확인이 필요합니다</h1>
             <span>{state.message}</span>
-            <Link href={state.retryUrl}>다시 결제하기</Link>
+            <Link className="payment-result-action" href={state.retryUrl}>다시 결제하기</Link>
           </>
         )}
       </section>
@@ -121,36 +125,41 @@ export function PaymentSuccessClient() {
         p {
           margin: 0;
           color: var(--color-muted);
-          font-weight: 750;
+          font-weight: 700;
           letter-spacing: 0.32em;
           text-transform: lowercase;
         }
         h1 {
           margin: 0;
-          font-size: clamp(30px, 6vw, 48px);
-          line-height: 1.08;
-          letter-spacing: 0;
+          font-size: var(--text-h1);
+          line-height: var(--leading-h1);
+          font-weight: 700;
+          letter-spacing: -0.02em;
         }
         strong {
-          font-size: clamp(42px, 8vw, 68px);
-          line-height: 1;
+          font-size: var(--text-price-main);
+          line-height: var(--leading-price-main);
+          font-weight: 700;
+          letter-spacing: -0.015em;
+          font-variant-numeric: tabular-nums;
         }
         span,
         small {
           color: var(--color-muted);
-          font-weight: 750;
+          font-weight: 700;
           line-height: 1.55;
           font-size: 18px;
         }
-        a {
+        :global(.payment-result-action) {
           display: inline-flex;
           justify-content: center;
           align-items: center;
+          width: 100%;
           min-height: 54px;
           border-radius: 8px;
-          background: var(--color-charcoal);
-          color: var(--color-cream);
-          font-weight: 900;
+          background: var(--color-charcoal, #211f1b);
+          color: var(--color-cream, #fffaf1);
+          font-weight: 700;
           text-decoration: none;
           margin-top: 8px;
         }

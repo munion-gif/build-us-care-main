@@ -85,12 +85,14 @@ const policyCss = `
   .policy-hero p {
     margin: 0 0 8px;
     color: var(--color-primary);
-    font-weight: 900;
+    font-weight: 700;
   }
   .policy-hero h1 {
     margin: 0;
-    font-size: clamp(2rem, 5vw, 3.2rem);
-    letter-spacing: 0;
+    font-size: var(--text-h1);
+    line-height: var(--leading-h1);
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
   .policy-hero span {
     display: block;

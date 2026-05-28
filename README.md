@@ -13,6 +13,16 @@ npm run dev
 
 기본 URL은 `http://localhost:3000`입니다.
 
+로컬 확인용 고정 실행 스크립트도 제공합니다.
+
+```bash
+npm run dev:local
+npm run dev:inspect
+```
+
+- `dev:local`: `http://127.0.0.1:3000`에서 Next dev 서버를 실행합니다.
+- `dev:inspect`: Next dev 서버를 실행한 뒤 ui-inspector를 `/request/photo`에 붙입니다. 포트 충돌 시 `UI_INSPECTOR_PORT`로 포트를 바꿀 수 있습니다.
+
 ## 환경변수
 
 `.env.example`을 참고해 `.env.local`을 만듭니다.

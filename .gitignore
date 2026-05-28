@@ -12,6 +12,7 @@ tsconfig.typecheck.tsbuildinfo
 .vercel
 
 # Local runtime artifacts
+.runtime/
 *.log
 *.err.log
 *.out.log
