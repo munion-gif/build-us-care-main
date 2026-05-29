@@ -1,6 +1,7 @@
 import {
   BIDET_INSTALL_LABOR_PRICE,
   BASIN_REPLACE_LABOR_PRICE,
+  DOOR_HANDLE_REPLACE_LABOR_PRICE,
   FAUCET_REPLACE_LABOR_PRICE,
   SASH_HANDLE_REPLACE_LABOR_PRICE,
   TOILET_REPLACE_LABOR_PRICE,
@@ -9,7 +10,7 @@ import {
 import rawReplacementProducts from "./replacement-products.generated.json";
 import { TOILET_PRODUCTS, TOILET_PRODUCT_SOURCE_NOTE } from "./toilet-products";
 
-export type ReplacementProductServiceCode = "toilet_replace" | "basin_replace" | "faucet_replace" | "bidet_install" | "ventilator_replace" | "sash_handle";
+export type ReplacementProductServiceCode = "toilet_replace" | "basin_replace" | "faucet_replace" | "bidet_install" | "ventilator_replace" | "sash_handle" | "door_handle";
 
 export type ReplacementProduct = {
   id: string;
@@ -21,6 +22,7 @@ export type ReplacementProduct = {
   brand: string;
   model: string;
   sku: string;
+  size?: string;
   price: number | null;
   note: string;
   popular: boolean;
@@ -62,7 +64,8 @@ const SERVICE_ALIASES: Record<string, ReplacementProductServiceCode> = {
   bidet_install: "bidet_install",
   ventilator_replace: "ventilator_replace",
   bath_fan: "ventilator_replace",
-  sash_handle: "sash_handle"
+  sash_handle: "sash_handle",
+  door_handle: "door_handle"
 };
 
 const SERVICE_LABELS: Record<ReplacementProductServiceCode, { title: string; customConsultLabel: string; sourceNote: string }> = {
@@ -95,6 +98,11 @@ const SERVICE_LABELS: Record<ReplacementProductServiceCode, { title: string; cus
     title: "샷시손잡이 종류와 제품가",
     customConsultLabel: "샷시손잡이",
     sourceNote: "엑셀 제품 리스트 기준 제품가입니다. 실제 주문 금액은 시공비, 기존 창호 규격, 잠금장치 호환, 재고에 따라 확정됩니다."
+  },
+  door_handle: {
+    title: "도어핸들 종류와 제품가",
+    customConsultLabel: "도어핸들",
+    sourceNote: "엑셀 제품 리스트 기준 제품가입니다. 실제 주문 금액은 시공비, 기존 문 두께, 잠금장치 호환, 재고에 따라 확정됩니다."
   }
 };
 
@@ -238,14 +246,31 @@ export function isProductSelectionService(serviceCode?: string | null) {
   return Boolean(serviceCode && productCatalogServiceCode(serviceCode));
 }
 
-export function getProductLaborPrice(serviceCode: string) {
+function replacementProductSearchText(product?: Pick<ReplacementProduct, "categoryName" | "model" | "note" | "sourceSheet"> | null) {
+  return [product?.categoryName, product?.model, product?.note, product?.sourceSheet].filter(Boolean).join(" ");
+}
+
+export function getProductLaborPrice(serviceCode: string, product?: Pick<ReplacementProduct, "categoryName" | "model" | "note" | "sourceSheet"> | null) {
   const canonical = productCatalogServiceCode(serviceCode);
   if (canonical === "toilet_replace") return TOILET_REPLACE_LABOR_PRICE;
-  if (canonical === "faucet_replace") return FAUCET_REPLACE_LABOR_PRICE;
+  if (canonical === "faucet_replace") {
+    const text = replacementProductSearchText(product);
+    if (text.includes("레인샤워")) return 100000;
+    if (text.includes("샤워욕조") || text.includes("샤워수전") || text.includes("샤워 수전")) return 60000;
+    if (text.includes("세면") || text.includes("주방")) return 40000;
+    return FAUCET_REPLACE_LABOR_PRICE;
+  }
   if (canonical === "bidet_install") return BIDET_INSTALL_LABOR_PRICE;
-  if (canonical === "ventilator_replace") return VENTILATOR_REPLACE_LABOR_PRICE;
+  if (canonical === "ventilator_replace") {
+    const text = replacementProductSearchText(product);
+    if (text.includes("복합") || text.includes("휴젠뜨") || text.includes("온풍") || text.includes("제습") || text.includes("헤어") || text.includes("바디") || text.includes("히터")) {
+      return 80000;
+    }
+    return VENTILATOR_REPLACE_LABOR_PRICE;
+  }
   if (canonical === "basin_replace") return BASIN_REPLACE_LABOR_PRICE;
   if (canonical === "sash_handle") return SASH_HANDLE_REPLACE_LABOR_PRICE;
+  if (canonical === "door_handle") return DOOR_HANDLE_REPLACE_LABOR_PRICE;
   return 0;
 }
 
@@ -274,7 +299,60 @@ export function findReplacementProduct(serviceCode: string, productId: string | 
   return REPLACEMENT_PRODUCTS.find((product) => product.serviceCode === canonical && product.id === productId) ?? null;
 }
 
+function replacementProductNoteSegments(note: string | null | undefined) {
+  return (note ?? "")
+    .replace(/[★]/g, "")
+    .replace(/\([^)]*\)/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(/[,.，、]/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function isReplacementProductSizeSegment(segment: string) {
+  return /^사이즈\s*[:：]?\s*/.test(segment);
+}
+
+function normalizeReplacementProductSize(value: string) {
+  return value
+    .replace(/\[W\]/gi, "W")
+    .replace(/\[D\]/gi, "D")
+    .replace(/\[H\]/gi, "H")
+    .replace(/\s*[xX]\s*/g, "×")
+    .replace(/\s*×\s*/g, "×")
+    .replace(/\s*\/\s*/g, " / ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function replacementProductSizeLabel(product: Pick<ReplacementProduct, "note" | "size">) {
+  const explicitSize = product.size?.trim();
+  const noteSize = replacementProductNoteSegments(product.note)
+    .find(isReplacementProductSizeSegment)
+    ?.replace(/^사이즈\s*[:：]?\s*/, "")
+    .trim();
+  const size = normalizeReplacementProductSize(explicitSize || noteSize || "");
+  if (!size) return "";
+  return size.startsWith("사이즈") ? size : `사이즈 ${size}`;
+}
+
+export function replacementProductCompactSizeLabel(product: Pick<ReplacementProduct, "note" | "size">) {
+  const fullSizeLabel = replacementProductSizeLabel(product);
+  if (!fullSizeLabel) return "";
+
+  const sizeValue = fullSizeLabel.replace(/^사이즈\s*/, "").trim();
+  const slashParts = sizeValue.split("/").map((part) => part.trim()).filter(Boolean);
+  if (slashParts.length >= 2) {
+    const dimensionPart = slashParts.find((part) => /×/.test(part)) ?? slashParts[1];
+    return `사이즈 ${slashParts[0]} / ${dimensionPart}`;
+  }
+
+  return fullSizeLabel;
+}
+
 export function replacementProductSnapshot(product: ReplacementProduct) {
+  const sizeLabel = replacementProductSizeLabel(product);
   return {
     id: product.id,
     serviceCode: product.serviceCode,
@@ -282,6 +360,7 @@ export function replacementProductSnapshot(product: ReplacementProduct) {
     brand: product.brand,
     model: product.model,
     sku: product.sku,
+    ...(sizeLabel ? { size: sizeLabel } : {}),
     price: product.price,
     image: product.image
   };

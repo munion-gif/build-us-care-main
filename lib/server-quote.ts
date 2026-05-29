@@ -109,7 +109,7 @@ export async function calculateServerQuote(
       return sum + (material?.retail_price ?? 0);
     }, selectedProductPrice);
     const optionTotal = (item.options ?? []).reduce((sum, option) => sum + option.price_delta, 0) * item.qty;
-    const unitLabor = isProductSelectionService(sku) ? getProductLaborPrice(sku) : service?.base_price ?? 0;
+    const unitLabor = isProductSelectionService(sku) ? getProductLaborPrice(sku, selectedReplacementProduct) : service?.base_price ?? 0;
     const lineLabor = unitLabor * item.qty;
     const lineMaterial = materialUnitTotal * item.qty;
 

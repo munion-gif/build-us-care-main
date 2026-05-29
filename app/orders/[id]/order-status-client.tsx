@@ -12,6 +12,7 @@ import { EVENT_TYPES } from "@/lib/event-types";
 import { SERVICE_NAME_BY_CODE, formatKRDate, formatKRDateTime, formatKRW, formatServiceName } from "@/lib/format";
 import { getKakaoChannelChatUrl } from "@/lib/kakao-channel";
 import { getOrderStatusUx } from "@/lib/order-status-ux";
+import { buildQuoteDocumentInputFromOrderStatus, downloadQuoteDocument } from "@/lib/quote-document";
 import { useTracking } from "@/lib/use-tracking";
 
 type OrderStatusClientProps = {
@@ -256,6 +257,8 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [quoteDownloadLoading, setQuoteDownloadLoading] = useState(false);
+  const [quoteDownloadMessage, setQuoteDownloadMessage] = useState("");
   const [showRecommendations, setShowRecommendations] = useState(false);
   const [warrantyOpen, setWarrantyOpen] = useState(false);
   const [warrantyType, setWarrantyType] = useState<"leak" | "falling" | "noise" | "other">("leak");
@@ -466,6 +469,28 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
       setShareMessage("주문 현황 링크를 복사했습니다. 카카오톡에 붙여넣어 공유해주세요.");
     } catch {
       setShareMessage("공유가 어려우면 현재 페이지 주소를 복사해 주세요.");
+    }
+  }
+
+  async function handleQuoteDownload() {
+    if (!order || !quote) {
+      setQuoteDownloadMessage("견적 정보를 불러온 뒤 다시 시도해 주세요.");
+      return;
+    }
+
+    setQuoteDownloadLoading(true);
+    setQuoteDownloadMessage("");
+    try {
+      await downloadQuoteDocument(
+        buildQuoteDocumentInputFromOrderStatus(order, {
+          payment,
+          serviceName: serviceName(order)
+        })
+      );
+    } catch (error) {
+      setQuoteDownloadMessage(error instanceof Error ? error.message : "견적서 다운로드에 실패했어요. 다시 시도해 주세요.");
+    } finally {
+      setQuoteDownloadLoading(false);
     }
   }
 
@@ -724,7 +749,8 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
           <div><dt>접수일</dt><dd>{formatKRDateTime(order.created_at)}</dd></div>
         </dl>
       </section>
-      <QuoteSummary quote={quote} payment={payment} />
+      <QuoteSummary quote={quote} payment={payment} onDownloadQuote={handleQuoteDownload} downloadLoading={quoteDownloadLoading} />
+      {quoteDownloadMessage && <p className="order-inline-message quote-download-message">{quoteDownloadMessage}</p>}
       <ReservationCard job={job} reservation={reservation} address={order.home?.address_full} servicePhone={servicePhone} />
       <TechnicianProfileCard job={job} />
       {order.status === "cancel_requested" && (
@@ -1732,6 +1758,32 @@ const orderStatusCss = `
     font-weight: 600;
     color: var(--color-text-muted);
   }
+  .quote-summary-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .quote-summary-head h2 {
+    margin: 0;
+  }
+  .quote-download-button {
+    min-height: 36px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--color-text);
+    padding: 0 12px;
+    font: inherit;
+    font-size: var(--text-label);
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .quote-download-button:disabled {
+    opacity: 0.56;
+    cursor: wait;
+  }
   .timeline-current-summary {
     margin: 0 0 18px;
     padding: 14px;
@@ -2246,6 +2298,13 @@ const orderStatusCss = `
     }
     .next-action-buttons {
       display: grid;
+    }
+    .quote-summary-head {
+      display: grid;
+      align-items: stretch;
+    }
+    .quote-download-button {
+      width: 100%;
     }
     .order-overview-panel > div {
       min-height: auto;

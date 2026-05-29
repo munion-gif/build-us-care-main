@@ -49,7 +49,7 @@ const serviceItems = [
   ["bathroom_basic", "욕실 기본 점검/소모품 교체", 60000, 60, { category: "bathroom" }],
   ["kitchen_faucet", "주방 수전 교체", 90000, 90, { category: "kitchen" }],
   ["light_replace", "조명 교체", 40000, 40, { category: "lighting" }],
-  ["door_handle", "도어 핸들 교체", 35000, 30, { category: "door" }],
+  ["door_handle", "도어 핸들 교체", 30000, 30, { category: "door" }],
   ["toilet_replace", "변기 교체", 80000, 120, { category: "bathroom" }],
   ["bath_fan", "욕실 환풍기 교체", 70000, 80, { category: "bathroom" }],
   ["slide_bar", "샤워 슬라이드바 교체", 45000, 45, { category: "bathroom" }],

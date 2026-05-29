@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useState } from "react";
+import { buildQuoteDocumentInputFromOrderStatus, downloadQuoteDocument } from "@/lib/quote-document";
 
 function won(value: number) {
   return `${value.toLocaleString("ko-KR")}원`;
@@ -14,6 +16,8 @@ function numberParam(value: string | null) {
 
 export function TransferPaymentClient() {
   const searchParams = useSearchParams();
+  const [downloadLoading, setDownloadLoading] = useState(false);
+  const [downloadMessage, setDownloadMessage] = useState("");
   const orderId = searchParams.get("orderId") ?? "";
   const accessToken = searchParams.get("accessToken") ?? "";
   const amount = numberParam(searchParams.get("amount"));
@@ -26,6 +30,36 @@ export function TransferPaymentClient() {
   const accountHolder = process.env.NEXT_PUBLIC_BANK_TRANSFER_HOLDER ?? "";
   const hasBankAccount = Boolean(bankName && bankAccount && accountHolder);
   const statusUrl = orderId && accessToken ? `/orders/${orderId}?accessToken=${encodeURIComponent(accessToken)}` : null;
+
+  async function handleQuoteDownload() {
+    if (!orderId || !accessToken) {
+      setDownloadMessage("주문 링크를 확인한 뒤 다시 시도해 주세요.");
+      return;
+    }
+
+    setDownloadLoading(true);
+    setDownloadMessage("");
+    try {
+      const response = await fetch(`/api/orders/${encodeURIComponent(orderId)}/status?accessToken=${encodeURIComponent(accessToken)}`);
+      const result = await response.json().catch(() => null);
+      const order = result?.data?.order;
+      if (!response.ok || !order) {
+        throw new Error(result?.error?.message ?? result?.message ?? "견적 정보를 불러오지 못했어요.");
+      }
+
+      await downloadQuoteDocument(
+        buildQuoteDocumentInputFromOrderStatus(order, {
+          fallbackTransferAmount: amount,
+          fallbackOnsiteAmount: onsiteAmount,
+          fallbackTotalAmount: totalAmount
+        })
+      );
+    } catch (error) {
+      setDownloadMessage(error instanceof Error ? error.message : "견적서 다운로드에 실패했어요. 다시 시도해 주세요.");
+    } finally {
+      setDownloadLoading(false);
+    }
+  }
 
   return (
     <main className="transfer-page">
@@ -76,12 +110,16 @@ export function TransferPaymentClient() {
         </div>
 
         <div className="transfer-actions">
+          <button className="transfer-action-button secondary" type="button" onClick={handleQuoteDownload} disabled={downloadLoading || !statusUrl}>
+            {downloadLoading ? "견적서 준비 중..." : "견적서 다운로드"}
+          </button>
           {statusUrl ? (
             <Link className="transfer-action-button" href={statusUrl}>주문정보 보기</Link>
           ) : (
             <Link className="transfer-action-button" href="/">홈으로 이동</Link>
           )}
         </div>
+        {downloadMessage && <p className="transfer-inline-message">{downloadMessage}</p>}
       </section>
       <style jsx>{`
         .transfer-page {
@@ -166,6 +204,8 @@ export function TransferPaymentClient() {
         }
         .transfer-actions {
           display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
         }
         :global(.transfer-action-button) {
           display: inline-flex;
@@ -179,6 +219,22 @@ export function TransferPaymentClient() {
           font-weight: 800;
           text-decoration: none;
         }
+        .transfer-action-button.secondary {
+          border: 1px solid var(--color-border);
+          background: #fff;
+          color: var(--color-text);
+        }
+        .transfer-action-button:disabled {
+          opacity: 0.56;
+          cursor: wait;
+        }
+        .transfer-inline-message {
+          margin: -4px 0 0;
+          color: #b42318;
+          font-size: var(--text-label);
+          line-height: var(--leading-label);
+          font-weight: 700;
+        }
         @media (max-width: 520px) {
           .transfer-page {
             padding: 12px;
@@ -187,6 +243,9 @@ export function TransferPaymentClient() {
             padding: 18px;
           }
           .transfer-breakdown {
+            grid-template-columns: 1fr;
+          }
+          .transfer-actions {
             grid-template-columns: 1fr;
           }
         }

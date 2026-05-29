@@ -138,20 +138,26 @@ export function OrderLookupClient({ kakaoUrl }: OrderLookupClientProps) {
       </section>
       <OrderLookupResults orders={orders} />
       <section className="lookup-kakao-banner">
-        <div>
+        <div className="lookup-kakao-copy">
           <h2>주문을 찾기 어렵다면?</h2>
           <p>{kakaoUrl ? "카톡 상담으로 주문 정보를 확인해드릴게요." : "상담 채널 준비 중입니다."}</p>
         </div>
+        {kakaoChatUrl ? (
+          <a className="lookup-kakao-link" href={kakaoChatUrl} target="_blank" rel="noreferrer">
+            <span className="kakao-mark" aria-hidden="true">TALK</span>
+            카톡 상담
+          </a>
+        ) : (
+          <button className="lookup-kakao-link" type="button" disabled>
+            <span className="kakao-mark" aria-hidden="true">TALK</span>
+            카톡 상담
+          </button>
+        )}
         {kakaoUrl && (
           <div className="lookup-kakao-qr" aria-label="카카오 상담 QR 코드">
             <img src="/kakao-channel-qr.png" alt="카카오 상담 채널 QR 코드" />
-            <span>PC에서는 QR로 상담 열기</span>
+            <span>카톡상담 QR</span>
           </div>
-        )}
-        {kakaoChatUrl ? (
-          <a className="lookup-kakao-mobile-link" href={kakaoChatUrl} target="_blank" rel="noreferrer">카톡 상담하기</a>
-        ) : (
-          <button className="lookup-kakao-mobile-link" type="button" disabled>카톡 상담 준비 중</button>
         )}
       </section>
     </main>
@@ -193,11 +199,12 @@ const css = `
   .lookup-badges span { border-radius: var(--radius-full); padding: 4px 9px; background: var(--color-primary-highlight); color: var(--color-primary); font-size: var(--text-xs); font-weight: 700; }
   .lookup-order-summary { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); font-weight: 700; line-height: 1.5; }
   .lookup-kakao-banner { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-4); background: var(--color-sage-soft); }
+  .lookup-kakao-copy { min-width: 0; }
   .lookup-kakao-banner h2 { margin: 0 0 4px; font-size: var(--text-base); line-height: 1.25; letter-spacing: 0; }
   .lookup-kakao-banner p { margin: 0; color: var(--color-text-muted); font-size: var(--text-sm); line-height: 1.55; }
-  .lookup-kakao-banner a, .lookup-kakao-banner button { min-height: 46px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: var(--radius-full); padding: 0 var(--space-5); background: var(--color-gold); color: #211c12; text-decoration: none; font-weight: 700; white-space: nowrap; }
-  .lookup-kakao-banner button { background: var(--color-surface-2); color: var(--color-text-faint); cursor: not-allowed; }
-  .lookup-kakao-mobile-link { display: none !important; }
+  .lookup-kakao-link { min-height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--color-border); border-radius: 8px; padding: var(--space-2) 1.25rem; background: rgba(255, 250, 241, 0.86); color: var(--color-primary); text-decoration: none; font-size: var(--text-button); line-height: var(--leading-button); font-weight: 700; letter-spacing: -0.005em; white-space: nowrap; }
+  .lookup-kakao-link .kakao-mark { display: inline-grid; place-items: center; min-width: 34px; height: 18px; border-radius: var(--radius-full); background: #fee500; color: #22211d; font-size: var(--text-caption); font-weight: 700; line-height: 1; letter-spacing: 0; }
+  .lookup-kakao-link:disabled { opacity: 0.4; cursor: not-allowed; }
   .lookup-kakao-qr { display: grid; justify-items: center; gap: 6px; color: var(--color-text-muted); font-size: var(--text-xs); font-weight: 700; text-align: center; }
   .lookup-kakao-qr img { width: 88px; height: 88px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: #fff; }
   @media (max-width: 820px) {
@@ -205,7 +212,6 @@ const css = `
     .lookup-link { width: 100%; }
     .lookup-kakao-banner { grid-template-columns: 1fr; }
     .lookup-kakao-qr { display: none; }
-    .lookup-kakao-mobile-link { display: inline-flex !important; }
-    .lookup-kakao-banner a, .lookup-kakao-banner button { width: 100%; }
+    .lookup-kakao-link { width: 100%; }
   }
 `;

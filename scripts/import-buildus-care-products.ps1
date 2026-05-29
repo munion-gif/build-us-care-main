@@ -366,6 +366,9 @@ function Get-CategorySpec([string]$serviceCode, [string]$sheetName) {
     }
     return @{ Id = "sash-handle"; Name = "샷시 손잡이"; Summary = "창호에 설치하는 샷시 손잡이입니다. 기존 손잡이 크기, 잠금장치 타입, 피스 간격을 확인해 선택합니다."; Hint = "창호 손잡이 교체" }
   }
+  if ($serviceCode -eq "door_handle") {
+    return @{ Id = "door-handle"; Name = "도어핸들"; Summary = "방문에 설치하는 도어핸들입니다. 기존 문 두께, 잠금 방식, 레버 규격을 확인해 선택합니다."; Hint = "방문 손잡이 교체" }
+  }
   return $null
 }
 
@@ -376,6 +379,7 @@ function Get-ServiceCodeForWorkbook([string]$fileName) {
   if ($fileName -like "*비데*") { return "bidet_install" }
   if ($fileName -like "*환풍기*") { return "ventilator_replace" }
   if ($fileName -like "*샷시*손잡이*" -or $fileName -like "*샷시손잡이*") { return "sash_handle" }
+  if ($fileName -like "*도어핸들*" -or $fileName -like "*도어*손잡이*" -or $fileName -like "*방문*손잡이*") { return "door_handle" }
   return $null
 }
 
@@ -386,15 +390,18 @@ function Get-ServiceAssetDir([string]$serviceCode) {
   if ($serviceCode -eq "bidet_install") { return "bidets" }
   if ($serviceCode -eq "ventilator_replace") { return "ventilators" }
   if ($serviceCode -eq "sash_handle") { return "sash-handles" }
+  if ($serviceCode -eq "door_handle") { return "door-handles" }
   return "misc"
 }
 
-function Build-Note([string]$size, [string]$color, [string]$feature) {
+function Build-Note([string]$size, [string]$color, [string]$feature, [string]$doorThickness = "") {
   $parts = New-Object System.Collections.Generic.List[string]
   $cleanColor = Normalize-Text $color
   $cleanSize = Normalize-Text $size
   $cleanFeature = Normalize-Text $feature
+  $cleanDoorThickness = Normalize-Text $doorThickness
   if ($cleanColor -and $cleanColor -ne "-") { $parts.Add("색상 $cleanColor") }
+  if ($cleanDoorThickness -and $cleanDoorThickness -ne "-") { $parts.Add("문두께 $cleanDoorThickness") }
   if ($cleanSize -and $cleanSize -ne "-") { $parts.Add("사이즈 $cleanSize") }
   if ($cleanFeature -and $cleanFeature -ne "-") { $parts.Add($cleanFeature) }
   return ($parts.ToArray() -join ", ")
@@ -462,7 +469,7 @@ function Reset-AssetDir([string]$dir) {
 }
 
 $imageCandidates = @(Get-ImageCandidates $SourceDir)
-$serviceAssetDirs = @("toilets", "basins", "faucets", "bidets", "ventilators", "sash-handles")
+$serviceAssetDirs = @("toilets", "basins", "faucets", "bidets", "ventilators", "sash-handles", "door-handles")
 foreach ($assetDir in $serviceAssetDirs) {
   Reset-AssetDir (Join-Path $publicProductsDir $assetDir)
 }
@@ -493,6 +500,7 @@ foreach ($workbookFile in $workbooks) {
       $skuRaw = Get-ByHeader $row $headers @("품번", "품번/규격", "규격")
       $size = Get-ByHeader $row $headers @("사이즈", "사이즈(W*D*H)", "사이즈(D*W*H)", "사이즈(L*W*H)", "사이즈(mm)", "고정핀 중심 사이즈(mm)")
       $color = Get-ByHeader $row $headers @("색상", "컬러")
+      $doorThickness = Get-ByHeader $row $headers @("문두께", "문 두께")
       $feature = Get-ByHeader $row $headers @("특징")
       $price = Parse-Price (Get-ByHeader $row $headers @("온라인 최저가", "단가", "제조사단가"))
       if (-not $brand -or -not $model) { continue }
@@ -554,7 +562,7 @@ foreach ($workbookFile in $workbooks) {
         model = $model
         sku = $sku
         price = $price
-        note = Build-Note $size $color $feature
+        note = Build-Note $size $color $feature $doorThickness
         popular = $false
         image = $imagePath
         sourceWorkbook = $workbookFile.Name
