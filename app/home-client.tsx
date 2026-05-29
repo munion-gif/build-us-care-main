@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AirVent,
   ChevronRight,
+  DoorOpen,
   PanelsTopLeft,
   ShowerHead,
   SoapDispenserDroplet,
@@ -31,7 +32,8 @@ const SERVICE_ICON_ITEMS: Array<{ label: string; Icon: LucideIcon; href: string 
   { label: "수전", Icon: ShowerHead, href: "/quote/faucet_replace" },
   { label: "비데", Icon: Waves, href: "/quote/bidet_install" },
   { label: "환풍기", Icon: AirVent, href: "/quote/ventilator_replace" },
-  { label: "샷시손잡이", Icon: PanelsTopLeft, href: "/quote/sash_handle" }
+  { label: "샷시손잡이", Icon: PanelsTopLeft, href: "/quote/sash_handle" },
+  { label: "도어핸들", Icon: DoorOpen, href: "/quote/door_handle" }
 ];
 
 export function HomeClient({ services, kakaoUrl, faqs }: HomeClientProps) {
@@ -80,7 +82,7 @@ export function HomeClient({ services, kakaoUrl, faqs }: HomeClientProps) {
   const casesHref = useMemo(() => appendSourceParams("/cases", sourceContext), [sourceContext]);
   const kakaoChatUrl = useMemo(() => getKakaoChannelChatUrl(kakaoUrl), [kakaoUrl]);
   const representativeServices = useMemo(
-    () => services.filter((service) => PUBLIC_SERVICE_CODE_SET.has(service.service_type_code)).slice(0, 6),
+    () => services.filter((service) => PUBLIC_SERVICE_CODE_SET.has(service.service_type_code)),
     [services]
   );
   const visibleFaqs = useMemo(() => faqs.slice(0, 6), [faqs]);
@@ -95,24 +97,9 @@ export function HomeClient({ services, kakaoUrl, faqs }: HomeClientProps) {
           <span className="brand-kicker">build us care</span>
           <h1 id="home-title">사진 3장으로 제품 호환 확인하기</h1>
           <p>
-            방문은 교체가 필요할 때만 진행합니다. 양변기, 세면대, 수전, 비데, 환풍기, 샷시손잡이처럼 제품 호환이
+            방문은 교체가 필요할 때만 진행합니다. 양변기, 세면대, 수전, 비데, 환풍기, 샷시손잡이, 도어핸들처럼 제품 호환이
             애매한 작업을 사진으로 먼저 확인하고 견적과 예약까지 이어갑니다.
           </p>
-          <div className="service-area-pill" aria-label="작업 가능 지역">
-            <span>작업지역</span>
-            <strong>{SERVICE_AREA_LABEL}</strong>
-            <small>추후 확장 예정</small>
-          </div>
-          <div className="quick-picks" aria-label="대표 서비스 바로가기">
-            <span>대표 항목</span>
-            <div>
-              {representativeServices.slice(0, 4).map((service) => (
-                <a key={service.service_type_code} href={appendSourceParams(`/quote/${service.service_type_code}`, sourceContext)}>
-                  {service.display_name}
-                </a>
-              ))}
-            </div>
-          </div>
           <div className="hero-actions">
             <a
               className="primary-action"
@@ -155,6 +142,11 @@ export function HomeClient({ services, kakaoUrl, faqs }: HomeClientProps) {
             <strong>방문 없이 사진으로 먼저 판단하고, 호환 가능 제품 확인 및 견적까지 안내합니다.</strong>
           </div>
         </div>
+        <div className="service-area-pill hero-area-pill" aria-label="작업 가능 지역">
+          <span>작업지역</span>
+          <strong>{SERVICE_AREA_LABEL}</strong>
+          <small>추후 확장 예정</small>
+        </div>
       </section>
 
       <section className="service-icon-strip" aria-label="교체 가능 항목">
@@ -172,7 +164,7 @@ export function HomeClient({ services, kakaoUrl, faqs }: HomeClientProps) {
         <div className="section-head">
           <span>replaceable product check</span>
           <h2 id="services-title">사진으로 먼저 확인하는 대표 서비스</h2>
-          <p>작은 생활 설비 교체를 기준으로, 판정 가능한 항목부터 견적까지 연결합니다.</p>
+          <p>작은 생활 설비 교체를 기준으로, 설치 가능한 제품부터 견적까지 연결합니다.</p>
         </div>
         {representativeServices.length > 0 ? (
           <div className="service-grid">
@@ -301,6 +293,7 @@ const homeCss = `
     grid-template-columns: minmax(0, 1.02fr) minmax(340px, 0.88fr);
     gap: clamp(1.5rem, 4vw, 3rem);
     align-items: center;
+    margin-bottom: 0;
     padding-block: clamp(3rem, 5vw, 4.5rem);
   }
   .home-hero::before {
@@ -443,7 +436,7 @@ const homeCss = `
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: var(--space-2);
+    gap: 6px 10px;
     margin-top: var(--space-4);
     padding: 0;
     border: 0;
@@ -454,17 +447,24 @@ const homeCss = `
     font-weight: 600;
     word-break: keep-all;
   }
-  .service-area-pill > span,
-  .quick-picks > span {
-    flex: 0 0 58px;
+  .service-area-pill > span {
+    flex: 0 0 auto;
   }
   .service-area-pill span {
-    color: rgba(34, 33, 29, 0.54);
-    font-weight: 600;
+    min-height: 24px;
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    padding: 0 9px;
+    background: rgba(168, 176, 162, 0.18);
+    color: rgba(34, 33, 29, 0.62);
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 700;
   }
   .service-area-pill strong {
     min-width: 0;
-    color: rgba(34, 33, 29, 0.76);
+    color: rgba(34, 33, 29, 0.82);
     font-weight: 700;
   }
   .service-area-pill small {
@@ -472,35 +472,6 @@ const homeCss = `
     font-size: var(--text-xs);
     line-height: var(--leading-caption);
     font-weight: 700;
-  }
-  .quick-picks {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    margin-top: var(--space-4);
-    color: rgba(34, 33, 29, 0.54);
-    font-size: var(--text-body-sm);
-    line-height: var(--leading-body-sm);
-    font-weight: 600;
-  }
-  .quick-picks > div {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  .quick-picks a {
-    min-height: 32px;
-    display: inline-flex;
-    align-items: center;
-    border: 1px solid var(--warm-gray);
-    border-radius: 999px;
-    padding: 0 11px;
-    background: rgba(255, 250, 241, 0.66);
-    color: rgba(34, 33, 29, 0.7);
-    text-decoration: none;
-    font-size: var(--text-label);
-    line-height: var(--leading-label);
-    font-weight: 600;
   }
   .hero-visual {
     position: relative;
@@ -604,36 +575,59 @@ const homeCss = `
     line-height: var(--leading-body);
     word-break: keep-all;
   }
+  .hero-area-pill {
+    grid-column: 2;
+    width: fit-content;
+    max-width: 100%;
+    margin-top: var(--space-3);
+    align-self: start;
+  }
   .service-icon-strip {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-    gap: 10px;
-    margin-top: clamp(-1.35rem, -2vw, -0.75rem);
-    margin-bottom: var(--space-6);
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0;
+    margin: 0 auto;
+    padding-block: 22px;
   }
   .service-icon-item {
+    position: relative;
     min-width: 0;
-    min-height: 70px;
+    min-height: 76px;
     display: grid;
     place-items: center;
     align-content: center;
-    gap: 7px;
-    padding: 0 2px;
+    gap: 6px;
+    padding: 9px 8px;
     color: inherit;
     text-decoration: none;
   }
+  .service-icon-item::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    right: 0;
+    width: 3px;
+    height: 28px;
+    border-radius: 999px;
+    background: #e3c41c;
+    opacity: 0.86;
+    transform: translateY(-50%);
+  }
+  .service-icon-item:last-child::after {
+    display: none;
+  }
   .service-icon-item span {
-    width: 46px;
-    height: 46px;
+    width: 42px;
+    height: 42px;
     display: grid;
     place-items: center;
     color: rgba(34, 33, 29, 0.78);
   }
   .service-icon-item strong {
     color: rgba(34, 33, 29, 0.76);
-    font-size: var(--text-caption);
+    font-size: 12px;
     font-weight: 700;
-    line-height: var(--leading-caption);
+    line-height: 1.25;
     text-align: center;
     word-break: keep-all;
   }
@@ -899,12 +893,21 @@ const homeCss = `
     .hero-visual {
       min-height: 320px;
     }
+    .hero-area-pill {
+      grid-column: 1;
+      margin-top: calc(var(--space-2) * -1);
+    }
     .service-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     .service-icon-strip {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      margin-top: 0;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      margin: 0 auto;
+      padding-block: 22px;
+    }
+    .service-icon-item:nth-child(4n)::after,
+    .service-icon-item:last-child::after {
+      display: none;
     }
     .quick-flow-steps {
       grid-template-columns: 1fr;
@@ -932,17 +935,19 @@ const homeCss = `
     .hero-visual {
       display: none;
     }
-    .quick-picks {
-      display: none;
-    }
     .hero-actions {
       display: grid;
+      margin-top: 20px;
     }
     .hero-actions a {
       width: 100%;
     }
     .hero-actions .kakao-action {
       display: none;
+    }
+    .hero-area-pill {
+      width: 100%;
+      margin-top: var(--space-3);
     }
     .service-grid {
       grid-template-columns: 1fr;
@@ -952,12 +957,24 @@ const homeCss = `
     }
     .service-icon-strip {
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 7px;
-      margin-bottom: var(--space-2);
+      gap: 0;
+      margin: 0 auto;
+      padding-block: 20px;
+    }
+    .service-icon-item:nth-child(4n)::after {
+      display: block;
+    }
+    .service-icon-item:nth-child(3n)::after,
+    .service-icon-item:last-child::after {
+      display: none;
     }
     .service-icon-item {
-      min-height: 64px;
-      padding: 0 3px;
+      min-height: 78px;
+      padding: 9px 8px;
+    }
+    .service-icon-item::after {
+      height: 24px;
+      width: 3px;
     }
     .service-icon-item span {
       width: 42px;

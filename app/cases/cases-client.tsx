@@ -32,38 +32,27 @@ type CaseItem = {
   photo_href: string;
 };
 
-type Facets = {
-  services: Array<{ code: string; name: string }>;
-  regions: string[];
-};
-
 const TABS = [
   { key: "all", label: "전체" },
-  { key: "toilet_replace", label: "변기" },
+  { key: "toilet_replace", label: "양변기" },
   { key: "basin_replace", label: "세면대" },
   { key: "faucet_replace", label: "수전" },
-  { key: "light_replace", label: "전등" },
-  { key: "outlet_replace", label: "콘센트" },
-  { key: "door_handle", label: "도어핸들" },
   { key: "bidet_install", label: "비데" },
   { key: "ventilator_replace", label: "환풍기" },
   { key: "sash_handle", label: "샷시손잡이" },
-  { key: "silicone_repair", label: "실리콘" }
+  { key: "door_handle", label: "도어핸들" }
 ] as const;
 
 const TAB_LABEL_BY_SERVICE: Record<string, string> = {
-  toilet_replace: "변기",
+  toilet_replace: "양변기",
   basin_replace: "세면대",
   faucet_replace: "수전",
   kitchen_faucet: "수전",
-  light_replace: "전등",
-  outlet_replace: "콘센트",
-  door_handle: "도어핸들",
   bidet_install: "비데",
   ventilator_replace: "환풍기",
   bath_fan: "환풍기",
   sash_handle: "샷시손잡이",
-  silicone_repair: "실리콘"
+  door_handle: "도어핸들"
 };
 
 const BUILDING_LABELS: Record<string, string> = {
@@ -91,9 +80,7 @@ function hasCasePhoto(item: CaseItem) {
 
 export function CasesClient() {
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]["key"]>("all");
-  const [region, setRegion] = useState("all");
   const [cases, setCases] = useState<CaseItem[]>([]);
-  const [facets, setFacets] = useState<Facets>({ services: [], regions: [] });
   const [sourceContext, setSourceContext] = useState(() => readClientSourceContext());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -111,7 +98,7 @@ export function CasesClient() {
       setError(null);
 
       try {
-        const params = new URLSearchParams({ service: activeTab, region, limit: "30" });
+        const params = new URLSearchParams({ service: activeTab, limit: "30" });
         const response = await fetch(`/api/cases?${params.toString()}`, {
           signal: controller.signal
         });
@@ -123,7 +110,6 @@ export function CasesClient() {
 
         const nextCases = payload.data?.cases ?? [];
         setCases(nextCases);
-        setFacets(payload.data?.facets ?? { services: [], regions: [] });
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
           setError((err as Error).message);
@@ -136,7 +122,7 @@ export function CasesClient() {
 
     loadCases();
     return () => controller.abort();
-  }, [activeTab, region]);
+  }, [activeTab]);
 
   const visibleCases = useMemo(() => cases.filter(hasCasePhoto), [cases]);
   const selectedCaseType = TABS.find((tab) => tab.key === activeTab)?.label ?? "선택한 품목";
@@ -170,12 +156,6 @@ export function CasesClient() {
               </button>
             ))}
           </div>
-          <div className="case-selects">
-            <select value={region} onChange={(event) => setRegion(event.target.value)} aria-label="지역 필터">
-              <option value="all">전체 지역</option>
-              {facets.regions.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>
-          </div>
         </div>
       </section>
 
@@ -188,7 +168,7 @@ export function CasesClient() {
         <section className="case-empty">
           <h2>사례를 불러오지 못했어요</h2>
           <p>{error}</p>
-          <button type="button" onClick={() => { setActiveTab("all"); setRegion("all"); }}>
+          <button type="button" onClick={() => setActiveTab("all")}>
             다시 확인하기
           </button>
         </section>
@@ -307,7 +287,7 @@ export function CasesClient() {
 const css = `
   .cases-page { --case-section-gap: clamp(1.75rem, 3.4vw, 2.5rem); min-height: 100vh; background: var(--color-bg); padding: clamp(2.5rem, 5vw, 4rem) var(--space-4) var(--space-16); }
   .cases-page > section { width: min(var(--content-wide), 100%); margin-inline: auto; }
-  .cases-hero { margin-bottom: var(--case-section-gap); border: 1px solid var(--color-border); border-radius: 8px; padding: clamp(22px, 4vw, 34px); background: linear-gradient(135deg, rgba(255, 250, 241, 0.96), rgba(228, 232, 223, 0.82)); box-shadow: 0 12px 30px rgba(34, 33, 29, 0.045); }
+  .cases-hero { margin-bottom: var(--case-section-gap); border: 1px solid var(--color-border); border-radius: 8px; padding: clamp(22px, 4vw, 34px); background: rgba(255, 250, 241, 0.92); box-shadow: 0 12px 30px rgba(34, 33, 29, 0.045); }
   .brand-kicker { display: block; margin-bottom: 18px; color: var(--color-text); font-family: var(--font-brand); font-size: 13px; font-weight: var(--brand-label-weight); letter-spacing: var(--brand-letter-spacing); text-transform: lowercase; }
   .cases-hero span { color: var(--color-primary); font-size: var(--text-sm); font-weight: 700; }
   .cases-hero h1 { max-width: 760px; margin: var(--space-2) 0; color: var(--color-text); font-size: var(--text-xl); font-weight: 700; letter-spacing: 0; line-height: 1.2; }
@@ -318,8 +298,6 @@ const css = `
   .case-tabs { display: flex; gap: var(--space-2); overflow-x: auto; padding-bottom: 2px; }
   .case-tabs button { min-height: 36px; border: 1px solid var(--color-border); border-radius: var(--radius-full); padding: 0 var(--space-4); background: var(--color-surface); color: var(--color-text-muted); font-size: var(--text-sm); font-weight: 700; white-space: nowrap; cursor: pointer; }
   .case-tabs button.active { background: var(--color-charcoal-panel); color: var(--color-cream); }
-  .case-selects { display: flex; gap: var(--space-2); }
-  .case-selects select { min-height: 38px; border: 1px solid var(--color-border); border-radius: var(--radius-full); padding: 0 var(--space-4); background: var(--color-surface); color: var(--color-text); font-size: var(--text-sm); font-weight: 700; }
   .case-layout { display: block; }
   .case-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: var(--space-3); }
   .case-card { overflow: hidden; display: grid; grid-template-rows: auto 1fr auto; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); box-shadow: var(--shadow-sm); transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition); }
@@ -387,7 +365,7 @@ const css = `
       gap: 0.75rem;
       padding-bottom: 1.25rem;
     }
-    .case-grid, .case-selects { grid-template-columns: 1fr; display: grid; }
+    .case-grid { grid-template-columns: 1fr; display: grid; }
     .case-tabs {
       flex-wrap: wrap;
       overflow-x: visible;
@@ -397,10 +375,6 @@ const css = `
       flex: 1 1 calc(33.333% - 0.625rem);
       min-height: 40px;
       padding-inline: 0.875rem;
-    }
-    .case-selects select {
-      min-height: 42px;
-      border-radius: 8px;
     }
     .case-card {
       border-radius: 8px;

@@ -58,6 +58,7 @@ export function QuoteStickySummary({
   const dragStartYRef = useRef<number | null>(null);
   const dragCurrentYRef = useRef<number | null>(null);
   const visitText = date ? `${date} ${slotLabel(slot)}` : "방문일 선택 전";
+  const readyPaymentMessage = mockPaymentMode ? "테스트 결제 모드입니다." : paymentReadyMessage;
   const paymentBlocked = !selectionReady || !policyAccepted || !areaAccepted;
   const paymentDisabled = loading || !paymentAvailable;
   const paymentTitle = !selectionReady
@@ -178,14 +179,23 @@ export function QuoteStickySummary({
         {message && <p className="sticky-message">{message}</p>}
         {!selectionReady && <p className="sticky-message">{selectionMessage}</p>}
         {selectionReady && !paymentAvailable && <p className="sticky-message">결제 기능은 곧 연결됩니다. 지금은 카톡 상담으로 예약 가능합니다.</p>}
-        {selectionReady && paymentAvailable && <p className="sticky-message">{mockPaymentMode ? "테스트 결제 모드입니다." : paymentReadyMessage}</p>}
+        {selectionReady && paymentAvailable && readyPaymentMessage && <p className="sticky-message">{readyPaymentMessage}</p>}
         {selectionReady && paymentAvailable && (
-          <div className="payment-method-notice" aria-label="결제수단">
-            <span className="payment-method-check" aria-hidden="true">✓</span>
-            <span>
-              <strong>계좌이체</strong>
-              <small>주문 확인 후 입금 안내를 확인합니다.</small>
-            </span>
+          <div className="payment-method-list" aria-label="결제수단">
+            <div className="payment-method-notice">
+              <span className="payment-method-check" aria-hidden="true">✓</span>
+              <span>
+                <strong>계좌이체</strong>
+                <small>주문 확인 후 입금 안내를 확인합니다.</small>
+              </span>
+            </div>
+            <div className="payment-method-notice pending" aria-disabled="true">
+              <span className="payment-method-check" aria-hidden="true">-</span>
+              <span>
+                <strong>카드·간편결제</strong>
+                <small>준비중입니다.</small>
+              </span>
+            </div>
           </div>
         )}
         <div className="payment-consent-group">
@@ -193,7 +203,6 @@ export function QuoteStickySummary({
             <input ref={consentInputRef} type="checkbox" checked={policyAccepted} onChange={(event) => setPolicyAccepted(event.target.checked)} />
             <span className="payment-consent-text">
               주문 내용과 방문 일정,{" "}
-              <span className="payment-consent-nowrap"><a href="/privacy" target="_blank" rel="noreferrer">개인정보 처리방침</a></span>,{" "}
               <span className="payment-consent-nowrap"><a href="/refund-policy" target="_blank" rel="noreferrer">취소·환불 안내</a>를</span>{" "}
               확인했습니다.
             </span>
@@ -217,11 +226,7 @@ export function QuoteStickySummary({
             ? "계좌이체 안내 준비 중..."
             : !paymentAvailable
               ? "결제 준비 중"
-              : !selectionReady
-                ? "제품 선택 후 결제"
-                : policyAccepted && areaAccepted
-                  ? paymentButtonLabel
-                  : "안내 확인 후 결제"}
+              : "결제"}
         </button>
       </div>
     </div>

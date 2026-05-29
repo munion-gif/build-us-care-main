@@ -1,7 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { CheckCircle2, Clock, Droplets, PanelsTopLeft, Pipette, Waves, Wind, type LucideIcon } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock,
+  DoorOpen,
+  Droplets,
+  Fan,
+  PanelsTopLeft,
+  ShowerHead,
+  SoapDispenserDroplet,
+  Toilet,
+  type LucideIcon
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { PUBLIC_SERVICE_CODE_SET } from "@/lib/public-services";
 import type { QuoteServiceItem } from "@/lib/service-items";
@@ -11,9 +22,7 @@ type ServicesClientProps = {
   services: QuoteServiceItem[];
 };
 
-const tabs = ["전체", "욕실", "주방", "도어·손잡이"] as const;
-type ServiceTab = (typeof tabs)[number];
-type ServiceCategory = Exclude<ServiceTab, "전체">;
+type ServiceCategory = "욕실" | "주방" | "도어·손잡이";
 
 const categoriesByCode: Record<string, ServiceCategory[]> = {
   toilet_replace: ["욕실"],
@@ -21,17 +30,26 @@ const categoriesByCode: Record<string, ServiceCategory[]> = {
   faucet_replace: ["욕실", "주방"],
   bidet_install: ["욕실"],
   ventilator_replace: ["욕실"],
-  sash_handle: ["도어·손잡이"]
+  sash_handle: ["도어·손잡이"],
+  door_handle: ["도어·손잡이"]
 };
 
 const icons: Record<string, LucideIcon> = {
-  toilet_replace: Droplets,
-  basin_replace: Droplets,
-  faucet_replace: Pipette,
-  bidet_install: Waves,
-  ventilator_replace: Wind,
-  sash_handle: PanelsTopLeft
+  toilet_replace: Toilet,
+  basin_replace: SoapDispenserDroplet,
+  faucet_replace: ShowerHead,
+  bidet_install: Droplets,
+  ventilator_replace: Fan,
+  sash_handle: PanelsTopLeft,
+  door_handle: DoorOpen
 };
+
+const flowSteps = [
+  { title: "사진", body: "제품 호환 확인" },
+  { title: "견적", body: "제품가·시공비 확인" },
+  { title: "예약", body: "방문 일정 선택" },
+  { title: "교체", body: "방문 후 시공 완료" }
+];
 
 function priceLabel(service: QuoteServiceItem) {
   if (!service.standardizable || service.base_price === 0) return "현장 확인 후 안내";
@@ -39,16 +57,10 @@ function priceLabel(service: QuoteServiceItem) {
 }
 
 export function ServicesClient({ services }: ServicesClientProps) {
-  const [activeTab, setActiveTab] = useState<ServiceTab>("전체");
   const [sourceContext, setSourceContext] = useState<SourceContext>(() => readClientSourceContext());
   const filtered = useMemo(
-    () =>
-      services.filter(
-        (service) =>
-          PUBLIC_SERVICE_CODE_SET.has(service.service_type_code) &&
-          (activeTab === "전체" || categoriesByCode[service.service_type_code]?.includes(activeTab))
-      ),
-    [activeTab, services]
+    () => services.filter((service) => PUBLIC_SERVICE_CODE_SET.has(service.service_type_code)),
+    [services]
   );
   const photoHref = appendSourceParams("/request/photo", sourceContext);
 
@@ -63,37 +75,29 @@ export function ServicesClient({ services }: ServicesClientProps) {
         <strong className="brand-kicker">build us care</strong>
         <span>서비스별 정찰가</span>
         <h1>교체가 필요하면 가격과 예약까지 바로 확인하세요</h1>
-        <p>먼저 사진으로 호환가능한 제품과 방문없는 견적을 받아보세요.</p>
+        <p>먼저 사진으로 호환가능한 제품을 확인하고, 투명한 견적을 받아보세요.</p>
         <div className="services-hero-actions">
           <Link href={photoHref}>사진확인</Link>
         </div>
       </section>
 
       <section className="services-flow" aria-label="서비스 진행 흐름">
-        {[
-          ["사진", "교체 가능 및 호환 제품확인"],
-          ["견적", "정찰가와 옵션 확인"],
-          ["예약", "방문일 선택"],
-          ["상태", "주문 링크에서 확인"]
-        ].map(([title, body]) => (
-          <div key={title}>
-            <strong>{title}</strong>
-            <span>{body}</span>
-          </div>
-        ))}
-      </section>
-
-      <section className="service-tabs" aria-label="서비스 카테고리">
-        {tabs.map((tab) => (
-          <button key={tab} type="button" className={activeTab === tab ? "active" : ""} onClick={() => setActiveTab(tab)}>
-            {tab}
-          </button>
-        ))}
+        <ol className="services-flow-list">
+          {flowSteps.map(({ title, body }, index) => (
+            <li key={title} className="services-flow-step">
+              <span className="services-flow-copy">
+                <strong>{title}</strong>
+                <span>{body}</span>
+              </span>
+              {index < flowSteps.length - 1 && <span className="services-flow-arrow" aria-hidden="true">→</span>}
+            </li>
+          ))}
+        </ol>
       </section>
 
       <section className="service-list-grid" id="service-list">
         {filtered.map((service) => {
-          const Icon = icons[service.service_type_code] ?? Droplets;
+          const Icon = icons[service.service_type_code] ?? ShowerHead;
           const category = categoriesByCode[service.service_type_code]?.join("·") ?? "서비스";
           const included = service.included_items.slice(0, 2);
           return (
@@ -212,69 +216,68 @@ const servicesCss = `
     text-decoration: none;
   }
   .services-flow {
+    margin-bottom: var(--space-6);
+  }
+  .services-flow-list {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: var(--space-2);
-    margin-bottom: var(--space-6);
-  }
-  .services-flow div {
-    display: grid;
-    gap: 4px;
+    gap: 0;
+    margin: 0;
+    padding: 0;
     border: 1px solid var(--color-border);
     border-radius: 8px;
-    background: rgba(255, 250, 241, 0.86);
-    padding: 14px 16px;
+    background: rgba(255, 250, 241, 0.72);
+    list-style: none;
+    box-shadow: 0 4px 14px rgba(34, 33, 29, 0.025);
   }
-  .services-flow div:nth-child(2) {
-    background: rgba(255, 250, 241, 0.86);
+  .services-flow-step {
+    position: relative;
+    min-width: 0;
+    padding: 16px 20px;
   }
-  .services-flow div:nth-child(3) {
-    background: var(--color-sage-soft);
+  .services-flow-step + .services-flow-step {
+    border-left: 1px solid rgba(217, 210, 196, 0.8);
   }
-  .services-flow div:nth-child(4) {
-    background: rgba(255, 250, 241, 0.86);
+  .services-flow-copy {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
   }
-  .services-flow strong {
-    color: var(--color-primary);
-    font-size: var(--text-card-title);
-    line-height: var(--leading-card-title);
+  .services-flow-arrow {
+    position: absolute;
+    top: 50%;
+    right: -11px;
+    z-index: 2;
+    width: 22px;
+    height: 22px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(217, 210, 196, 0.9);
+    border-radius: 999px;
+    background: var(--color-bg);
+    color: rgba(34, 33, 29, 0.6);
+    font-size: 15px;
+    line-height: 1;
     font-weight: 700;
+    transform: translateY(-50%);
   }
-  .services-flow span {
-    color: var(--color-text-muted);
-    font-size: var(--text-body-sm);
-    line-height: var(--leading-body-sm);
+  .services-flow-copy strong {
+    color: var(--color-text);
+    font-size: var(--text-body);
+    line-height: var(--leading-body);
+    font-weight: 700;
+    word-break: keep-all;
   }
-  .service-tabs {
-    display: flex;
-    gap: var(--space-2);
-    overflow-x: auto;
-    padding-bottom: var(--space-2);
-    margin-bottom: var(--space-6);
-    scrollbar-width: none;
-  }
-  .service-tabs::-webkit-scrollbar {
-    display: none;
-  }
-  .service-tabs button {
-    flex: 0 0 auto;
-    border: 0;
-    border-radius: 8px;
-    padding: 0.42rem 1rem;
-    background: var(--color-surface-2);
+  .services-flow-copy span {
     color: var(--color-text-muted);
     font-size: var(--text-label);
     line-height: var(--leading-label);
     font-weight: 600;
-    cursor: pointer;
-  }
-  .service-tabs button.active {
-    background: var(--color-charcoal-panel);
-    color: var(--color-cream);
+    word-break: keep-all;
   }
   .service-list-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 14px;
   }
   .service-list-card {
@@ -404,23 +407,41 @@ const servicesCss = `
       line-height: 1.7;
     }
     .services-flow {
-      grid-template-columns: 1fr 1fr;
-      gap: 0.75rem;
       margin-bottom: 1.5rem;
     }
-    .services-flow div {
-      padding: 1rem;
+    .services-flow-list {
+      grid-template-columns: 1fr;
+      border-radius: 8px;
     }
-    .service-tabs {
-      flex-wrap: wrap;
-      overflow-x: visible;
-      gap: 0.625rem;
-      margin-bottom: 1.5rem;
-      padding-bottom: 0;
+    .services-flow-step {
+      padding: 13px 16px;
+      text-align: center;
     }
-    .service-tabs button {
-      flex: 1 1 calc(50% - 0.625rem);
-      min-height: 40px;
+    .services-flow-step + .services-flow-step {
+      border-left: 0;
+      border-top: 1px solid rgba(217, 210, 196, 0.8);
+    }
+    .services-flow-arrow {
+      top: auto;
+      right: auto;
+      bottom: -11px;
+      left: 50%;
+      content: "↓";
+      transform: translateX(-50%);
+    }
+    .services-flow-arrow {
+      font-size: 0;
+    }
+    .services-flow-arrow::before {
+      content: "↓";
+      font-size: 15px;
+      line-height: 1;
+    }
+    .services-flow-copy {
+      justify-items: center;
+    }
+    .services-flow-copy span {
+      display: none;
     }
     .service-list-grid {
       grid-template-columns: 1fr;

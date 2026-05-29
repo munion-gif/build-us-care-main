@@ -1,5 +1,5 @@
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
-import { FALLBACK_SERVICE_ITEMS } from "@/lib/constants";
+import { DOOR_HANDLE_REPLACE_LABOR_PRICE, FALLBACK_SERVICE_ITEMS } from "@/lib/constants";
 import { CANONICAL_SERVICE_CODES, SUPPORTED_SERVICE_CODES } from "@/lib/service-catalog";
 
 export type QuoteServiceItem = {
@@ -49,10 +49,11 @@ function asStringArray(value: unknown, fallback: string[] = []) {
 
 function normalizeServiceItem(row: any): QuoteServiceItem {
   const metadata = (row.metadata ?? {}) as Record<string, unknown>;
+  const serviceTypeCode = row.service_type_code;
   return {
-    service_type_code: row.service_type_code,
+    service_type_code: serviceTypeCode,
     display_name: row.display_name,
-    base_price: Number(row.base_price ?? 0),
+    base_price: serviceTypeCode === "door_handle" ? DOOR_HANDLE_REPLACE_LABOR_PRICE : Number(row.base_price ?? 0),
     estimated_minutes: row.estimated_minutes ?? null,
     category: row.category ?? (metadata.category as string | undefined) ?? "service",
     standardizable: row.standardizable ?? STANDARDIZABLE_CODES.has(row.service_type_code),
@@ -186,7 +187,7 @@ const HOME_FALLBACK_ITEMS: QuoteServiceItem[] = [
   {
     service_type_code: "door_handle",
     display_name: "도어핸들 교체",
-    base_price: 35000,
+    base_price: 30000,
     estimated_minutes: 30,
     category: "door",
     standardizable: true,

@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Camera, Check, ChevronLeft, Copy, Loader2, X } from "lucide-react";
+import { Camera, Check, ChevronLeft, Copy, Loader2, MapPin, X } from "lucide-react";
+import { AddressModal, type AddressSelection } from "@/components/common/AddressModal";
 import { EVENT_TYPES } from "@/lib/event-types";
 import { customerErrorMessage } from "@/lib/error-messages";
 import { getKakaoChannelChatUrl } from "@/lib/kakao-channel";
 import { CUSTOMER_PHOTO_SLOTS } from "@/lib/photo-guides";
+import { PUBLIC_SERVICE_CODES, SERVICE_AREA_LABEL } from "@/lib/public-services";
 import type { QuoteServiceItem } from "@/lib/service-items";
 import { useTracking } from "@/lib/use-tracking";
 
@@ -14,8 +16,16 @@ type PhotoRequestClientProps = {
   kakaoUrl: string | null;
 };
 
-const PHOTO_REQUEST_STEPS = ["작업 선택", "사진 업로드", "접수 확인"];
-const PHOTO_REQUEST_TOTAL_STEPS = PHOTO_REQUEST_STEPS.length;
+const PHOTO_REQUEST_TOTAL_STEPS = 3;
+const PHOTO_SERVICE_LABELS: Record<string, string> = {
+  toilet_replace: "양변기",
+  basin_replace: "세면대",
+  faucet_replace: "수전",
+  bidet_install: "비데",
+  ventilator_replace: "환풍기",
+  sash_handle: "샷시손잡이",
+  door_handle: "도어핸들"
+};
 
 function normalizePhone(phone: string) {
   return phone.replace(/\D/g, "");
@@ -34,15 +44,30 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
   const [serviceCode, setServiceCode] = useState("toilet_replace");
   const [files, setFiles] = useState<File[]>([]);
   const [requestDetail, setRequestDetail] = useState("");
-  const [customer, setCustomer] = useState({ name: "", phone: "", kakaoNotice: true });
+  const [customer, setCustomer] = useState({ name: "", phone: "", serviceAreaConfirmed: false, customerInfoConsent: false, kakaoNotice: true });
+  const [address, setAddress] = useState({ road_address: "", detail_address: "", postal_code: "" });
+  const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [receipt, setReceipt] = useState<any | null>(null);
   const { track } = useTracking();
   const kakaoChatUrl = getKakaoChannelChatUrl(kakaoUrl);
+  const addressFull = `${address.road_address} ${address.detail_address}`.trim();
+  const visibleServices = useMemo(
+    () =>
+      PUBLIC_SERVICE_CODES.map((code) => services.find((service) => service.service_type_code === code)).filter(
+        (service): service is QuoteServiceItem => Boolean(service)
+      ),
+    [services]
+  );
 
-  const selectedService = useMemo(() => services.find((service) => service.service_type_code === serviceCode), [serviceCode, services]);
-  const guide = selectedService?.photo_guide ?? "전체 사진 / 문제 부위 / 주변 환경이 보이는 사진을 올려주세요.";
+  function handleAddressSelect(nextAddress: AddressSelection) {
+    setAddress((current) => ({
+      ...current,
+      road_address: nextAddress.road_address,
+      postal_code: nextAddress.postal_code
+    }));
+  }
 
   function goNext() {
     if (step === 1 && !serviceCode) {
@@ -59,6 +84,22 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
     }
     if (step === 2 && (!customer.name.trim() || !isValidKoreanMobile(customer.phone))) {
       setMessage("이름과 010 전화번호를 확인해주세요.");
+      return;
+    }
+    if (step === 2 && !address.road_address) {
+      setMessage("주소를 먼저 검색해주세요.");
+      return;
+    }
+    if (step === 2 && address.detail_address.trim().length < 2) {
+      setMessage("상세주소를 2자 이상 입력해주세요.");
+      return;
+    }
+    if (step === 2 && !customer.customerInfoConsent) {
+      setMessage("개인정보 수집·이용 동의를 확인해주세요.");
+      return;
+    }
+    if (step === 2 && !customer.serviceAreaConfirmed) {
+      setMessage("작업 가능 지역에 해당하는지 확인해주세요.");
       return;
     }
     setMessage("");
@@ -104,6 +145,18 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
       if (!customer.name.trim() || !isValidKoreanMobile(customer.phone)) {
         throw new Error("이름과 010 전화번호를 확인해주세요.");
       }
+      if (!address.road_address) {
+        throw new Error("주소를 먼저 검색해주세요.");
+      }
+      if (address.detail_address.trim().length < 2) {
+        throw new Error("상세주소를 2자 이상 입력해주세요.");
+      }
+      if (!customer.customerInfoConsent) {
+        throw new Error("개인정보 수집·이용 동의를 확인해주세요.");
+      }
+      if (!customer.serviceAreaConfirmed) {
+        throw new Error("작업 가능 지역에 해당하는지 확인해주세요.");
+      }
 
       for (const file of photos) {
         paths.push(await uploadTempPhoto(file));
@@ -118,6 +171,9 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
           imageUrls: paths,
           name: customer.name.trim(),
           phone: normalizePhone(customer.phone),
+          address: addressFull,
+          serviceAreaConfirmed: customer.serviceAreaConfirmed,
+          customerInfoConsent: customer.customerInfoConsent,
           requestDetail: requestDetail.trim()
         })
       });
@@ -141,29 +197,19 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
     <main className="photo-request-page">
       <style>{photoRequestCss}</style>
       <section className="photo-flow">
-        <div className="step-indicator" aria-label={`사진확인 ${step}단계`}>
-          <span>step {step}/{PHOTO_REQUEST_TOTAL_STEPS}</span>
-          {PHOTO_REQUEST_STEPS.map((label, index) => {
-            const itemStep = index + 1;
-            return (
-              <p key={label} className={step === itemStep ? "current" : step > itemStep ? "done" : ""}>
-                {step > itemStep ? <Check size={13} /> : null}
-                {label}
-              </p>
-            );
-          })}
-        </div>
-
         <div className="flow-panel">
           <span className="photo-brand-kicker">build us care</span>
           {step === 1 && (
             <>
               <h1>어떤 작업이 필요하세요?</h1>
-              <p className="flow-lead">정확하지 않아도 됩니다. 사진을 보고 교체 가능 여부와 필요한 제품을 다시 확인할게요.</p>
+              <p className="step-lead">
+                <span>정확하지 않아도 됩니다. 사진을 보고 호환되는 제품과 견적을 보내드립니다.</span>
+                <span>원하시는 제품이 있다면 카톡상담을 부탁드립니다.</span>
+              </p>
             <div className="diagnosis-service-grid">
-              {services.map((service) => (
+              {visibleServices.map((service) => (
                 <button key={service.service_type_code} className={serviceCode === service.service_type_code ? "selected" : ""} onClick={() => setServiceCode(service.service_type_code)}>
-                  {service.display_name}
+                  {PHOTO_SERVICE_LABELS[service.service_type_code] ?? service.display_name}
                 </button>
               ))}
             </div>
@@ -173,7 +219,6 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
           {step === 2 && (
             <>
             <h1>사진 3장을 올려주세요</h1>
-            <p className="flow-lead">{guide}</p>
             <div className="photo-guide-cards" aria-label="사진 촬영 가이드">
               {CUSTOMER_PHOTO_SLOTS.map((slot, index) => (
                 <span key={slot.angle}>{index + 1} {slot.label}</span>
@@ -185,7 +230,7 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
                 <span>
                   수리 내용 <b aria-hidden="true">*</b>
                 </span>
-                <small>예: 세면수전과 샤워 욕조수전을 교체하고 싶어요·집 전체 조명을 교체하고 싶어요·수전에서 물에 새요</small>
+                <small>예: 세면수전과 샤워 욕조수전을 교체하고 싶어요. 집 전체 조명을 교체하고 싶어요. 수전에서 물이 새요.</small>
                 <textarea
                   value={requestDetail}
                   onChange={(event) => setRequestDetail(event.target.value)}
@@ -207,6 +252,55 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
                   <input value={customer.phone} onChange={(event) => setCustomer((current) => ({ ...current, phone: event.target.value }))} placeholder="010-XXXX-XXXX" />
                 </label>
               </div>
+              <label className="field-label">
+                <span>
+                  주소 <b aria-hidden="true">*</b>
+                </span>
+                <button className={address.road_address ? "address-trigger filled" : "address-trigger"} type="button" onClick={() => setAddressModalOpen(true)}>
+                  <MapPin size={18} />
+                  <strong>{address.road_address || "주소 검색"}</strong>
+                  {address.postal_code && <small>우편번호 {address.postal_code}</small>}
+                </button>
+              </label>
+              <label className="field-label">
+                <span>
+                  상세주소 <b aria-hidden="true">*</b>
+                </span>
+                <input
+                  value={address.detail_address}
+                  onChange={(event) => setAddress((current) => ({ ...current, detail_address: event.target.value }))}
+                  placeholder="동/호수 또는 층 정보를 입력해주세요"
+                />
+              </label>
+              <AddressModal open={addressModalOpen} onClose={() => setAddressModalOpen(false)} onSelect={handleAddressSelect} />
+              <label className={customer.customerInfoConsent ? "customer-privacy-check selected" : "customer-privacy-check"}>
+                <input
+                  type="checkbox"
+                  checked={customer.customerInfoConsent}
+                  onChange={(event) => setCustomer((current) => ({ ...current, customerInfoConsent: event.target.checked }))}
+                />
+                <span className="customer-privacy-check-icon">{customer.customerInfoConsent ? <Check size={15} /> : null}</span>
+                <span>
+                  <strong>
+                    개인정보 수집·이용 동의 <em>(필수)</em>
+                  </strong>
+                  <a href="/privacy" target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>
+                    내용보기
+                  </a>
+                </span>
+              </label>
+              <label className={customer.serviceAreaConfirmed ? "service-area-check selected" : "service-area-check"}>
+                <input
+                  type="checkbox"
+                  checked={customer.serviceAreaConfirmed}
+                  onChange={(event) => setCustomer((current) => ({ ...current, serviceAreaConfirmed: event.target.checked }))}
+                />
+                <span className="service-area-check-icon">{customer.serviceAreaConfirmed ? <Check size={15} /> : null}</span>
+                <span>
+                  <strong>작업 가능 지역에 해당합니다</strong>
+                  <small>{SERVICE_AREA_LABEL}</small>
+                </span>
+              </label>
               <button
                 type="button"
                 className={customer.kakaoNotice ? "notice-choice selected" : "notice-choice"}
@@ -227,14 +321,16 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
             <div className="done-panel">
             {!receipt ? (
               <>
-                <h1>사진 확인을 접수할게요</h1>
-                <p>올려주신 사진과 연락처를 기준으로 호환 가능한 제품과 견적 가능 여부를 확인합니다.</p>
-                <p>확인 후 영업시간 기준 24시간 이내에 결과 안내를 이어갈게요.</p>
-                <button type="button" onClick={submitDiagnosis} disabled={loading}>
-                  {loading ? <Loader2 className="spin" size={18} /> : null}
-                  {loading ? "접수하고 있습니다..." : "사진 확인 접수하기"}
-                </button>
-                <a href="/">홈으로 돌아가기</a>
+                <h1>사진 확인 접수를 완료하였습니다.</h1>
+                <p>올려주신 사진과 연락처를 기준으로 호환 가능한 제품과 견적 가능 여부를 확인하며</p>
+                <p>영업시간 기준 24시간 이내에 결과 안내를 이어갈게요.</p>
+                <div className="done-panel-actions">
+                  <button type="button" onClick={submitDiagnosis} disabled={loading}>
+                    {loading ? <Loader2 className="spin" size={18} /> : null}
+                    {loading ? "접수하고 있습니다..." : "사진 접수하기"}
+                  </button>
+                  <a href="/">홈으로 돌아가기</a>
+                </div>
               </>
             ) : (
               <ReceiptComplete receipt={receipt} kakaoChatUrl={kakaoChatUrl} />
@@ -243,7 +339,7 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
           )}
 
         {message && <p className="flow-message">{message}</p>}
-        <div className="flow-actions">
+        <div className={step === 3 ? "flow-actions confirm-actions" : "flow-actions"}>
           {step > 1 && (
             <button type="button" className="secondary" onClick={() => setStep((current) => current - 1)} disabled={loading}>
               <ChevronLeft size={18} />
@@ -283,8 +379,9 @@ function ReceiptComplete({ receipt, kakaoChatUrl }: { receipt: any; kakaoChatUrl
       <span>접수완료</span>
       <h1>사진 확인 접수가 완료됐어요</h1>
       <p>올려주신 사진을 확인한 뒤 호환 제품과 견적 가능 여부를 안내할게요.</p>
+      <p>원하시는 제품이 있다면 카톡으로 상담 부탁드립니다.</p>
       <p>카톡 상담방에 접수번호를 보내주시면 상담원이 더 빠르게 이어서 확인할 수 있어요.</p>
-      <p>방문은 교체가 가능한 경우에만 예약으로 이어집니다.</p>
+      <p>방문은 교체가 가능한 경우에만 예약확정 후 방문합니다.</p>
       {receiptNumber ? <strong>접수번호 {receiptNumber}</strong> : null}
       {copied ? <p className="receipt-copy-message">접수번호가 복사됐어요. 카톡에 붙여넣어 보내주세요.</p> : null}
       <div className="result-actions">
@@ -362,43 +459,6 @@ const photoRequestCss = `
     margin: 0 auto;
     padding-block: var(--space-6);
   }
-  .step-indicator {
-    display: grid;
-    grid-template-columns: auto repeat(3, minmax(0, 1fr));
-    gap: var(--space-2);
-    align-items: center;
-    margin-bottom: var(--space-4);
-  }
-  .step-indicator span {
-    display: none;
-    color: var(--color-primary);
-    font-weight: 700;
-  }
-  .step-indicator p {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    box-sizing: border-box;
-    width: 100%;
-    height: 36px;
-    min-height: 36px;
-    margin: 0;
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    padding: 0 var(--space-2);
-    background: rgba(255, 250, 241, 0.72);
-    color: var(--color-text-faint);
-    font-size: var(--text-xs);
-    font-weight: 600;
-    line-height: 1;
-    white-space: nowrap;
-  }
-  .step-indicator p.current,
-  .step-indicator p.done {
-    background: rgba(168, 176, 162, 0.18);
-    color: var(--color-primary);
-  }
   .flow-panel {
     position: relative;
     display: grid;
@@ -437,18 +497,26 @@ const photoRequestCss = `
     font-weight: 700;
     letter-spacing: -0.02em;
   }
-  .flow-lead {
-    max-width: 42rem;
-    margin: -4px 0 var(--space-2);
-    line-height: 1.6;
-  }
   .flow-panel p,
   .flow-message {
     color: var(--color-text-muted);
   }
+  .step-lead {
+    display: grid;
+    gap: 2px;
+    max-width: 680px;
+    margin: -2px 0 2px;
+    line-height: 1.65;
+    font-weight: 700;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+  .step-lead span {
+    display: block;
+  }
   .diagnosis-service-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--space-3);
   }
   .diagnosis-service-grid button,
@@ -477,6 +545,7 @@ const photoRequestCss = `
     min-height: 44px;
     display: flex;
     align-items: center;
+    border: 1px solid transparent;
     border-radius: 8px;
     padding: 0 var(--space-3);
     background: rgba(168, 176, 162, 0.18);
@@ -489,7 +558,8 @@ const photoRequestCss = `
     background: var(--color-gold-wash);
   }
   .photo-guide-cards span:nth-child(3) {
-    background: rgba(255, 250, 241, 0.9);
+    border-color: rgba(184, 138, 43, 0.24);
+    background: rgba(244, 234, 212, 0.58);
   }
   .photo-slot-grid {
     display: grid;
@@ -604,6 +674,210 @@ const photoRequestCss = `
     padding: var(--space-3) var(--space-4);
     resize: vertical;
   }
+  .address-trigger {
+    width: 100%;
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0 var(--space-4);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    font: inherit;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+  }
+  .address-trigger.filled {
+    color: var(--color-text);
+  }
+  .address-trigger svg {
+    flex: 0 0 auto;
+    color: var(--color-primary);
+  }
+  .address-trigger strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .address-trigger small {
+    margin-left: auto;
+    color: var(--color-text-muted);
+    font-size: var(--text-caption);
+    white-space: nowrap;
+  }
+  .address-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: rgba(0, 0, 0, 0.48);
+  }
+  .address-modal {
+    width: min(720px, 100%);
+    height: min(620px, 86vh);
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+    border-radius: 8px;
+    background: #fff;
+  }
+  .address-modal-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: center;
+    border-bottom: 1px solid var(--color-border);
+    padding: 14px 16px;
+  }
+  .address-modal-header p,
+  .address-modal-error {
+    margin: 4px 0 0;
+    color: var(--color-text-muted);
+  }
+  .address-modal-header button {
+    min-width: 64px;
+    height: 40px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface);
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .address-modal-frame {
+    min-height: 0;
+  }
+  .address-modal-error {
+    padding: 18px;
+  }
+  .service-area-check {
+    position: relative;
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: border-color var(--transition), background var(--transition), box-shadow var(--transition);
+  }
+  .service-area-check.selected {
+    border-color: rgba(184, 138, 43, 0.42);
+    background: rgba(244, 234, 212, 0.58);
+  }
+  .service-area-check:focus-within {
+    outline: 3px solid rgba(184, 138, 43, 0.18);
+    outline-offset: 2px;
+  }
+  .service-area-check input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .service-area-check-icon {
+    flex: 0 0 auto;
+    width: 24px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-surface);
+    color: var(--color-primary);
+  }
+  .service-area-check.selected .service-area-check-icon {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: var(--color-cream);
+  }
+  .service-area-check > span:last-child {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+  .service-area-check strong {
+    font-size: var(--text-sm);
+  }
+  .service-area-check small {
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    line-height: 1.45;
+  }
+  .customer-privacy-check {
+    position: relative;
+    width: fit-content;
+    max-width: 100%;
+    display: inline-flex;
+    gap: 9px;
+    align-items: center;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    background: rgba(255, 250, 241, 0.78);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: border-color var(--transition), background var(--transition), box-shadow var(--transition);
+  }
+  .customer-privacy-check.selected {
+    border-color: rgba(184, 138, 43, 0.5);
+    background: rgba(244, 234, 212, 0.58);
+  }
+  .customer-privacy-check:focus-within {
+    outline: 3px solid rgba(184, 138, 43, 0.18);
+    outline-offset: 2px;
+  }
+  .customer-privacy-check input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .customer-privacy-check-icon {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    background: var(--color-surface);
+    color: var(--color-primary);
+  }
+  .customer-privacy-check.selected .customer-privacy-check-icon {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: var(--color-cream);
+  }
+  .customer-privacy-check > span:last-child {
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  .customer-privacy-check strong {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 5px;
+    color: var(--color-text);
+    font-size: var(--text-sm);
+    line-height: var(--leading-sm);
+    white-space: nowrap;
+  }
+  .customer-privacy-check em {
+    color: var(--color-text-muted);
+    font-style: normal;
+  }
+  .customer-privacy-check a {
+    color: var(--color-primary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
   .notice-choice {
     display: flex;
     width: 100%;
@@ -659,6 +933,13 @@ const photoRequestCss = `
     gap: var(--space-2);
     margin-top: var(--space-4);
   }
+  .flow-actions.confirm-actions {
+    margin-top: var(--space-5);
+  }
+  .flow-actions.confirm-actions .secondary {
+    min-width: 88px;
+    padding: 0 16px;
+  }
   .flow-actions button:not(.secondary),
   .done-panel button:first-of-type {
     border: 0;
@@ -667,7 +948,27 @@ const photoRequestCss = `
     padding: 0 var(--space-6);
   }
   .done-panel {
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+    padding-block: clamp(28px, 5vw, 56px);
     text-align: center;
+  }
+  .done-panel h1,
+  .done-panel p {
+    margin: 0;
+  }
+  .done-panel p {
+    max-width: 680px;
+    line-height: 1.7;
+  }
+  .done-panel-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
   }
   .diagnosis-result {
     width: 100%;
@@ -728,7 +1029,11 @@ const photoRequestCss = `
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    min-width: 148px;
     padding: 0 var(--space-5, 1.25rem);
+  }
+  .done-panel button:first-of-type {
+    min-width: 176px;
   }
   .done-panel button:disabled {
     opacity: 0.4;
@@ -764,23 +1069,6 @@ const photoRequestCss = `
     .flow-panel h1 {
       font-size: var(--text-lg);
       line-height: 1.3;
-    }
-    .flow-lead {
-      margin: -0.25rem 0 0.125rem;
-      line-height: 1.7;
-    }
-    .step-indicator {
-      grid-template-columns: auto;
-      margin: 0 0 0.875rem;
-      padding-inline: 0.125rem;
-    }
-    .step-indicator span {
-      display: block;
-      font-size: 0.875rem;
-      line-height: 1.2;
-    }
-    .step-indicator p {
-      display: none;
     }
     .diagnosis-service-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));

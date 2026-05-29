@@ -17,6 +17,9 @@ const createDiagnosisSchema = z
     photos: z.array(z.string().min(1)).min(1).max(3).optional(),
     phone: z.string().optional(),
     name: z.string().optional(),
+    address: z.string().max(300).optional(),
+    serviceAreaConfirmed: z.boolean().optional(),
+    customerInfoConsent: z.boolean().optional(),
     requestDetail: z.string().max(800).optional(),
     requestMessage: z.string().max(800).optional()
   })
@@ -82,6 +85,15 @@ export async function POST(request: Request) {
   const serviceTypeCode = parsed.data.serviceTypeCode ?? parsed.data.service_code ?? "toilet_replace";
   const inputImages = parsed.data.imageUrls ?? parsed.data.photos ?? [];
   const requestDetail = (parsed.data.requestDetail ?? parsed.data.requestMessage ?? "").trim();
+  const address = parsed.data.address?.trim() || null;
+  const serviceAreaConfirmed = parsed.data.serviceAreaConfirmed === true;
+  const customerInfoConsent = parsed.data.customerInfoConsent === true;
+  const detailLines = [
+    requestDetail ? `고객 요청: ${requestDetail}` : null,
+    address ? `주소: ${address}` : null,
+    parsed.data.serviceAreaConfirmed !== undefined ? `작업 가능 지역 확인: ${serviceAreaConfirmed ? "확인함" : "미확인"}` : null,
+    parsed.data.customerInfoConsent !== undefined ? `개인정보 수집·이용 동의: ${customerInfoConsent ? "확인함" : "미확인"}` : null
+  ].filter(Boolean);
 
   if (inputImages.length === 0) {
     return fail("IMAGE_REQUIRED", "이미지를 1장 이상 업로드해주세요.", 400);
@@ -119,16 +131,22 @@ export async function POST(request: Request) {
     confidence: null,
     result_message: "사진 확인 접수가 완료됐습니다.",
     reason: "담당자가 사진과 연락처를 확인할 예정입니다.",
-    details: requestDetail ? `고객 요청: ${requestDetail}` : "호환 가능한 제품과 견적 가능 여부를 확인한 뒤 안내합니다.",
+    details: detailLines.length > 0 ? detailLines.join("\n") : "호환 가능한 제품과 견적 가능 여부를 확인한 뒤 안내합니다.",
     recommendation: "확인 후 카톡 또는 전화로 안내드릴게요.",
     suggested_service_code: null,
     raw_response: {
       mode: "manual_photo_consultation",
       customer: {
         name: parsed.data.name?.trim() || null,
-        phone: parsed.data.phone?.replace(/\D/g, "") || null
+        phone: parsed.data.phone?.replace(/\D/g, "") || null,
+        address,
+        service_area_confirmed: serviceAreaConfirmed,
+        customer_info_consent: customerInfoConsent
       },
       request_detail: requestDetail || null,
+      address,
+      service_area_confirmed: serviceAreaConfirmed,
+      customer_info_consent: customerInfoConsent,
       order_id: linkedOrderId,
       order_number: photoReceiptNumber,
       receipt_number: photoReceiptNumber
@@ -179,13 +197,16 @@ export async function POST(request: Request) {
       recipient: "admin",
       send_status: "queued",
       payload: {
-        message: `[빌드어스] 사진 확인 접수\n접수번호: ${photoReceiptNumber ?? "-"}\n고객명: ${parsed.data.name?.trim() || "-"}\n연락처: ${parsed.data.phone?.replace(/\D/g, "") || "-"}\n서비스: ${serviceTypeCode}\n수리내용: ${requestDetail || "-"}`,
+        message: `[빌드어스] 사진 확인 접수\n접수번호: ${photoReceiptNumber ?? "-"}\n고객명: ${parsed.data.name?.trim() || "-"}\n연락처: ${parsed.data.phone?.replace(/\D/g, "") || "-"}\n주소: ${address ?? "-"}\n작업 가능 지역 확인: ${parsed.data.serviceAreaConfirmed === undefined ? "-" : serviceAreaConfirmed ? "확인함" : "미확인"}\n개인정보 수집·이용 동의: ${parsed.data.customerInfoConsent === undefined ? "-" : customerInfoConsent ? "확인함" : "미확인"}\n서비스: ${serviceTypeCode}\n수리내용: ${requestDetail || "-"}`,
         diagnosis_id: data.id,
         order_id: linkedOrderId,
         order_number: photoReceiptNumber,
         receipt_number: photoReceiptNumber,
         service_code: serviceTypeCode,
         request_detail: requestDetail || null,
+        address,
+        service_area_confirmed: serviceAreaConfirmed,
+        customer_info_consent: customerInfoConsent,
         photos: inputImages,
         image_urls: resolvedUrls
       }

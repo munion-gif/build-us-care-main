@@ -16,6 +16,8 @@ type QuoteSummaryProps = {
     paid_at?: string | null;
     approved_at?: string | null;
   } | null;
+  onDownloadQuote?: () => void | Promise<void>;
+  downloadLoading?: boolean;
 };
 
 type QuoteSummaryItem = {
@@ -63,12 +65,19 @@ function quoteItemRows(items: QuoteSummaryItem[] | undefined) {
   });
 }
 
-export function QuoteSummary({ quote, payment }: QuoteSummaryProps) {
+export function QuoteSummary({ quote, payment, onDownloadQuote, downloadLoading = false }: QuoteSummaryProps) {
   const items = quoteItemRows(quote?.items);
 
   return (
     <section className="order-card">
-      <h2>결제/견적 정보</h2>
+      <div className="quote-summary-head">
+        <h2>결제/견적 정보</h2>
+        {onDownloadQuote && (
+          <button className="quote-download-button" type="button" onClick={onDownloadQuote} disabled={downloadLoading || !quote}>
+            {downloadLoading ? "준비 중..." : "견적서 다운로드"}
+          </button>
+        )}
+      </div>
       {items.length > 0 && (
         <ul className="quote-item-list" aria-label="견적 제품 목록">
           {items.map((item) => (

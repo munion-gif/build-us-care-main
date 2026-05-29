@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { MapPin, MessageCircle } from "lucide-react";
+import { Info, MapPin, MessageCircle } from "lucide-react";
 import { AddressModal, type AddressSelection } from "@/components/common/AddressModal";
 import { PhotoUploader } from "@/components/quote/PhotoUploader";
 import { QuoteStickySummary } from "@/components/quote/QuoteStickySummary";
@@ -11,12 +11,15 @@ import { EVENT_TYPES } from "@/lib/event-types";
 import { formatKRDate, formatServiceName } from "@/lib/format";
 import { getKakaoChannelChatUrl } from "@/lib/kakao-channel";
 import { customerPhotoSlot } from "@/lib/photo-guides";
+import { cashReceiptSummary, type QuoteDocumentCashReceipt } from "@/lib/quote-document";
 import type { MaterialItem, QuoteServiceItem } from "@/lib/service-items";
 import type { QuotePreset } from "@/lib/quote-preset";
 import { regionLabel } from "@/lib/quote-preset";
 import {
   getProductLaborPrice,
   getReplacementProductCatalog,
+  replacementProductCompactSizeLabel,
+  replacementProductSizeLabel,
   replacementProductSnapshot,
   type ReplacementProduct
 } from "@/lib/replacement-products";
@@ -91,6 +94,10 @@ type QuoteConfirmRow = {
   finalPrice: number;
 };
 
+type CashReceiptType = "none" | "personal" | "business";
+
+type CashReceiptInfo = QuoteDocumentCashReceipt;
+
 const VISIT_FEE = 15000;
 const MAX_REPLACEMENT_PRODUCT_QTY = 20;
 const PRODUCT_RECOMMEND_LABEL_ORDER = ["가성비", "인기", "프리미엄"];
@@ -103,11 +110,39 @@ const PRODUCT_PRICE_FILTERS = [
   { id: "500000-1000000", label: "50~99만원", min: 500000, max: 1000000 },
   { id: "over-1000000", label: "100만원 이상", min: 1000000, max: Number.POSITIVE_INFINITY }
 ] as const;
+const PRODUCT_ROWS_PER_PAGE = 5;
 
 type ProductPriceFilterId = (typeof PRODUCT_PRICE_FILTERS)[number]["id"];
 
 function won(value: number) {
   return `${value.toLocaleString("ko-KR")}원`;
+}
+
+function normalizeCashReceipt(info: CashReceiptInfo): CashReceiptInfo {
+  if (info.type === "none") return { type: "none", value: "" };
+  return { type: info.type, value: info.value.replace(/\D/g, "") };
+}
+
+function cashReceiptOptionLabel(type: CashReceiptType) {
+  if (type === "personal") return "개인";
+  if (type === "business") return "사업자";
+  return "신청 안 함";
+}
+
+function cashReceiptValidationError(info: CashReceiptInfo) {
+  const normalized = normalizeCashReceipt(info);
+  if (normalized.type === "none") return "";
+  if (normalized.type === "personal" && !/^\d{10,11}$/.test(normalized.value)) {
+    return "현금영수증 휴대폰 번호는 숫자 10~11자리로 입력해 주세요.";
+  }
+  if (normalized.type === "business" && !/^\d{10}$/.test(normalized.value)) {
+    return "사업자등록번호는 숫자 10자리로 입력해 주세요.";
+  }
+  return "";
+}
+
+function cashReceiptSpecialRequest(info: CashReceiptInfo) {
+  return `현금영수증: ${cashReceiptSummary(info)}`;
 }
 
 function categoryLabel(category: string) {
@@ -282,13 +317,36 @@ function productDisplaySort(a: ReplacementProduct, b: ReplacementProduct) {
   return `${a.model} ${a.sku}`.localeCompare(`${b.model} ${b.sku}`, "ko");
 }
 
-function compactProductNote(note: string) {
-  const cleaned = note
+function productPaginationItems(currentPage: number, totalPages: number) {
+  if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1);
+
+  const pages = new Set([1, totalPages, currentPage - 1, currentPage, currentPage + 1]);
+  const sortedPages = Array.from(pages)
+    .filter((page) => page >= 1 && page <= totalPages)
+    .sort((a, b) => a - b);
+
+  return sortedPages.flatMap((page, index) => {
+    const previous = sortedPages[index - 1];
+    if (index > 0 && previous && page - previous > 1) return ["ellipsis", page] as const;
+    return [page] as const;
+  });
+}
+
+function productNoteSegments(note: string) {
+  return note
     .replace(/[★]/g, "")
     .replace(/\([^)]*\)/g, "")
     .replace(/\s+/g, " ")
-    .trim();
-  const firstSegment = cleaned.split(/[,.，、]/).map((part) => part.trim()).find(Boolean) ?? cleaned;
+    .trim()
+    .split(/[,.，、]/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function compactProductNote(note: string) {
+  const segments = productNoteSegments(note);
+  const firstSegment = segments.find((part) => !/^사이즈\s*[:：]?\s*/.test(part)) ?? "";
+  if (!firstSegment) return "";
   if (firstSegment.length <= 12) return firstSegment;
 
   const words = firstSegment.split(/\s+/).filter(Boolean);
@@ -327,6 +385,9 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
   const [loading, setLoading] = useState(false);
   const [activeFormStep, setActiveFormStep] = useState(0);
   const [quoteConfirmOpen, setQuoteConfirmOpen] = useState(false);
+  const [quoteConfirmError, setQuoteConfirmError] = useState("");
+  const [customerInfoConsent, setCustomerInfoConsent] = useState(false);
+  const [cashReceipt, setCashReceipt] = useState<CashReceiptInfo>({ type: "none", value: "" });
   const productSectionRef = useRef<HTMLDivElement | null>(null);
   const addressSectionRef = useRef<HTMLElement | null>(null);
   const scheduleSectionRef = useRef<HTMLElement | null>(null);
@@ -334,6 +395,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
   const phoneInputRef = useRef<HTMLInputElement | null>(null);
   const addressButtonRef = useRef<HTMLButtonElement | null>(null);
   const detailAddressInputRef = useRef<HTMLInputElement | null>(null);
+  const customerInfoConsentRef = useRef<HTMLInputElement | null>(null);
   const { track } = useTracking();
   const kakaoChatUrl = getKakaoChannelChatUrl(kakaoUrl);
 
@@ -360,16 +422,19 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
   const startLaborPrice = serviceLaborPrice + quoteVisitFee;
   const startProductPrice = productCatalog ? productCatalog.minPrice : standardMaterial?.retail_price ?? 0;
   const displayedStartPrice = startLaborPrice + startProductPrice;
-  const serviceLaborTotal = showProductCatalog ? serviceLaborPrice * totalProductQty : serviceLaborPrice;
+  const serviceLaborTotal = showProductCatalog ? selectedProductItems.reduce((sum, item) => sum + getProductLaborPrice(service.service_type_code, item.product) * item.qty, 0) : serviceLaborPrice;
   const total = serviceLaborTotal + selectedProductPrice + addonTotal + quoteVisitFee;
   const onlinePaymentTotal = showProductCatalog ? selectedProductPrice : total;
   const onsitePaymentTotal = showProductCatalog ? serviceLaborTotal : 0;
+  const heroPriceBasisReady = !showProductCatalog || selectedProductItems.length > 0;
+  const heroLaborAmount = showProductCatalog ? serviceLaborTotal : startLaborPrice;
+  const heroProductAmount = showProductCatalog ? selectedProductPrice : startProductPrice;
   const quoteConfirmRows = useMemo<QuoteConfirmRow[]>(
     () => {
       if (showProductCatalog) {
         return selectedProductItems.map(({ product, qty }) => {
           const productPrice = (product.price ?? 0) * qty;
-          const laborPrice = serviceLaborPrice * qty;
+          const laborPrice = getProductLaborPrice(service.service_type_code, product) * qty;
           return {
             id: product.id,
             image: product.image ?? null,
@@ -428,7 +493,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
   const paymentAvailable = true;
   const customerName = String(customer?.name ?? "");
   const customerPhone = String(customer?.phone ?? "");
-  const hasRequiredBasicInfo = Boolean(address.road_address && address.detail_address.trim() && customerName.trim() && isValidKoreanMobile(customerPhone));
+  const hasRequiredBasicInfo = Boolean(address.road_address && address.detail_address.trim() && customerName.trim() && isValidKoreanMobile(customerPhone) && customerInfoConsent);
   const materialSkus = useMemo(
     () => (showProductCatalog ? [] : [selectedMaterial?.sku].filter(Boolean)) as string[],
     [selectedMaterial?.sku, showProductCatalog]
@@ -438,7 +503,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
     : selectedProductItems.length === 1
       ? `${service.display_name} · ${selectedProductItems[0].product.model}`
       : `${service.display_name} · ${selectedProductItems.length}개 제품 / 총 ${totalProductQty}개`;
-  const selectedProductSummaryItems = selectedProductItems.slice(0, 2).map(({ product, qty }) => ({
+  const selectedProductSummaryItems = selectedProductItems.slice(0, 3).map(({ product, qty }) => ({
     id: product.id,
     label: `${product.brand} ${product.model}${qty > 1 ? ` · ${qty}개` : ""}`
   }));
@@ -465,9 +530,11 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
         productQuantities,
         materialSkus,
         requestNote,
+        customerInfoConsent,
+        cashReceipt,
         files: files.map((file) => `${file.name}:${file.size}:${file.lastModified}`)
       }),
-    [address, customerName, customerPhone, date, files, materialSkus, productQuantities, requestNote, service.service_type_code, slot]
+    [address, cashReceipt, customerInfoConsent, customerName, customerPhone, date, files, materialSkus, productQuantities, requestNote, service.service_type_code, slot]
   );
   const availableSlotsForDate = (dateText: string): SlotPeriod[] => {
     if (!slotsReady) return [];
@@ -478,6 +545,13 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
       return (["morning", "afternoon"] as SlotPeriod[]).filter((period) => !day.slots[period]?.isFull);
     }
     return slotsByDate[dateText] ?? ["morning", "afternoon"];
+  };
+  const calendarClosedSlotLabel = (day: SlotDay | undefined) => {
+    if (!day || day.allFull) return "";
+    const closedSlots = (["morning", "afternoon"] as SlotPeriod[]).filter((period) => day.slots[period]?.isFull);
+    if (closedSlots.length === 1) return closedSlots[0] === "morning" ? "오전 마감" : "오후 마감";
+    if (closedSlots.length > 1) return "마감";
+    return "";
   };
   const selectedScheduleReady = slotsReady && !slotsError && availableSlotsForDate(date).includes(slot);
 
@@ -504,6 +578,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
       errors.phone ? phoneInputRef.current :
       errors.address ? addressButtonRef.current :
       errors.detail_address ? detailAddressInputRef.current :
+      errors.customer_consent ? customerInfoConsentRef.current :
       null;
     moveToFormStep(0, addressSectionRef.current, firstTarget);
   }
@@ -524,6 +599,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
     }
     if (!customerName.trim()) nextErrors.name = "이름을 입력해 주세요.";
     if (!isValidKoreanMobile(customerPhone)) nextErrors.phone = "전화번호를 010-XXXX-XXXX 형식으로 입력해 주세요.";
+    if (!customerInfoConsent) nextErrors.customer_consent = "개인정보 수집·이용 동의를 확인해 주세요.";
     return nextErrors;
   }
 
@@ -541,7 +617,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
     const nextErrors = basicInfoErrors();
     if (Object.keys(nextErrors).length > 0) {
       setFieldErrors(nextErrors);
-      setMessage(Object.values(nextErrors)[0]);
+      setMessage("");
       focusFirstBasicInfoError(nextErrors);
       return true;
     }
@@ -641,6 +717,8 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
         selectedToiletProductId?: string;
         toiletProductQuantities?: Record<string, number>;
         requestNote?: string;
+        customerInfoConsent?: boolean;
+        cashReceipt?: Partial<CashReceiptInfo>;
       };
       if (draft.address) setAddress(normalizeDraftAddress(draft.address));
       if (draft.customer) setCustomer(normalizeDraftCustomer(draft.customer));
@@ -665,15 +743,22 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
         }
       }
       if (draft.requestNote) setRequestNote(draft.requestNote);
+      if (typeof draft.customerInfoConsent === "boolean") setCustomerInfoConsent(draft.customerInfoConsent);
+      if (draft.cashReceipt?.type) {
+        setCashReceipt({
+          type: draft.cashReceipt.type,
+          value: draft.cashReceipt.value ?? ""
+        });
+      }
     } catch {
       sessionStorage.removeItem(quoteDraftStorageKey(service.service_type_code));
     }
   }, [productCatalog, service.service_type_code]);
 
   useEffect(() => {
-    const draft = { address, customer: { name: customerName, phone: customerPhone }, date, slot, productQuantities, requestNote };
+    const draft = { address, customer: { name: customerName, phone: customerPhone }, date, slot, productQuantities, requestNote, customerInfoConsent, cashReceipt };
     sessionStorage.setItem(quoteDraftStorageKey(service.service_type_code), JSON.stringify(draft));
-  }, [address, customerName, customerPhone, date, productQuantities, requestNote, service.service_type_code, slot]);
+  }, [address, cashReceipt, customerInfoConsent, customerName, customerPhone, date, productQuantities, requestNote, service.service_type_code, slot]);
 
   useEffect(() => {
     const normalized = normalizePhone(customerPhone);
@@ -831,12 +916,14 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
 
     const source = preset.source;
     const utm = getUtmParams();
+    const normalizedCashReceipt = normalizeCashReceipt(cashReceipt);
+    const specialRequestText = [requestNote.trim(), cashReceiptSpecialRequest(normalizedCashReceipt)].filter(Boolean).join("\n\n");
     const orderItems = showProductCatalog
       ? selectedProductItems.map(({ product, qty }) => ({
           service_type_code: service.service_type_code,
           item_name: `${service.display_name} · ${product.model}`,
           qty,
-          unit_price: serviceLaborPrice + (product.price ?? 0),
+          unit_price: getProductLaborPrice(service.service_type_code, product) + (product.price ?? 0),
           options: [],
           metadata: { material_skus: materialSkus, product_grade: productGrade, ...replacementProductMetadata(product) }
         }))
@@ -923,7 +1010,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
         },
         items: orderItems,
         visit_fee: quoteVisitFee,
-        special_requests: requestNote.trim() || undefined
+        special_requests: specialRequestText || undefined
       })
     });
 
@@ -1068,6 +1155,12 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
   }
 
   async function handleQuoteConfirmPayment() {
+    const receiptError = cashReceiptValidationError(cashReceipt);
+    if (receiptError) {
+      setQuoteConfirmError(receiptError);
+      return;
+    }
+    setQuoteConfirmError("");
     setQuoteConfirmOpen(false);
     await handlePayment();
   }
@@ -1093,10 +1186,26 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
           <div className="hero-price-breakdown" aria-label="가격 기준">
             <div className="hero-breakdown-head">
               <span>가격 기준</span>
-              <strong>제품 선택 후 자동 계산</strong>
+              <strong>시공비 + 제품가</strong>
             </div>
-            <p>아래에서 제품을 선택하면 결제 금액과 현장 결제 금액이 바로 계산됩니다.</p>
-            <small>현장 상태나 추가 작업 여부에 따라 최종 금액은 달라질 수 있어요.</small>
+            <div className="hero-price-basis-grid">
+              <div className="hero-price-basis-card">
+                <span className="hero-price-basis-label">
+                  시공비
+                  <Info size={14} aria-hidden="true" />
+                </span>
+                <strong>{heroPriceBasisReady ? won(heroLaborAmount) : "선택 후 계산"}</strong>
+              </div>
+              <span className="hero-price-basis-plus" aria-hidden="true">+</span>
+              <div className="hero-price-basis-card">
+                <span className="hero-price-basis-label">
+                  제품 가격
+                  <Info size={14} aria-hidden="true" />
+                </span>
+                <strong>{heroPriceBasisReady ? won(heroProductAmount) : "선택 후 계산"}</strong>
+              </div>
+            </div>
+            <p className="hero-price-note">최종 금액은 선택 제품과 현장 조건에 따라 확정됩니다.</p>
           </div>
         )}
       </section>
@@ -1191,7 +1300,12 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
                   <input
                     ref={nameInputRef}
                     className={fieldErrors.name ? "error" : ""}
+                    type="text"
                     value={customerName}
+                    required
+                    aria-required="true"
+                    aria-invalid={Boolean(fieldErrors.name)}
+                    autoComplete="name"
                     onChange={(event) => {
                       setCustomer((current) => ({ ...normalizeDraftCustomer(current), name: event.target.value }));
                       setFieldErrors((current) => ({ ...current, name: "" }));
@@ -1206,7 +1320,13 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
                   <input
                     ref={phoneInputRef}
                     className={fieldErrors.phone ? "error" : ""}
+                    type="tel"
                     value={customerPhone}
+                    required
+                    aria-required="true"
+                    aria-invalid={Boolean(fieldErrors.phone)}
+                    autoComplete="tel"
+                    inputMode="tel"
                     onChange={(event) => {
                       setCustomer((current) => ({ ...normalizeDraftCustomer(current), phone: event.target.value }));
                       setFieldErrors((current) => ({ ...current, phone: "" }));
@@ -1217,7 +1337,14 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
               </div>
               {fieldErrors.name && <p className="field-error">{fieldErrors.name}</p>}
               {fieldErrors.phone && <p className="field-error">{fieldErrors.phone}</p>}
-              <button ref={addressButtonRef} className={address.road_address ? "address-trigger filled" : fieldErrors.address ? "address-trigger error" : "address-trigger"} type="button" onClick={() => setAddressModalOpen(true)}>
+              <button
+                ref={addressButtonRef}
+                className={address.road_address ? "address-trigger filled" : fieldErrors.address ? "address-trigger error" : "address-trigger"}
+                type="button"
+                aria-required="true"
+                aria-invalid={Boolean(fieldErrors.address)}
+                onClick={() => setAddressModalOpen(true)}
+              >
                 <MapPin size={20} />
                 <strong>
                   {address.road_address || (
@@ -1236,7 +1363,12 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
                 <input
                   ref={detailAddressInputRef}
                   className={fieldErrors.detail_address ? "error" : ""}
+                  type="text"
                   value={address.detail_address}
+                  required
+                  aria-required="true"
+                  aria-invalid={Boolean(fieldErrors.detail_address)}
+                  autoComplete="address-line2"
                   onChange={(event) => {
                     setAddress((current) => ({ ...current, detail_address: event.target.value }));
                     setFieldErrors((current) => ({ ...current, detail_address: "" }));
@@ -1246,6 +1378,25 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
                 <small className="field-help">동/호수 또는 층 정보를 입력해야 방문이 가능합니다.</small>
               </label>
               {fieldErrors.detail_address && <p className="field-error">{fieldErrors.detail_address}</p>}
+              <label className={fieldErrors.customer_consent ? "customer-info-consent error" : "customer-info-consent"}>
+                <input
+                  ref={customerInfoConsentRef}
+                  type="checkbox"
+                  checked={customerInfoConsent}
+                  aria-invalid={Boolean(fieldErrors.customer_consent)}
+                  onChange={(event) => {
+                    setCustomerInfoConsent(event.target.checked);
+                    setFieldErrors((current) => ({ ...current, customer_consent: "" }));
+                  }}
+                />
+                <span>
+                  <strong>
+                    개인정보 수집·이용 동의 <em>(필수)</em>
+                  </strong>
+                  <a href="/privacy" target="_blank" rel="noreferrer">내용보기</a>
+                </span>
+              </label>
+              {fieldErrors.customer_consent && <p className="field-error">{fieldErrors.customer_consent}</p>}
               <AddressModal open={addressModalOpen} onClose={() => setAddressModalOpen(false)} onSelect={handleAddressSelect} />
               {previousOrdersLoading && <p className="returning-note">이전 시공 이력을 확인하고 있어요.</p>}
               {previousOrders.length > 0 && <PreviousOrderCard order={previousOrders[0]} />}
@@ -1296,7 +1447,8 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
                   const isSelected = iso === date;
                   const slotDay = slotDaysByDate[iso];
                   const availableSlots = availableSlotsForDate(iso);
-                  const partiallyBooked = Boolean(slotDay?.hasReservation && availableSlots.length > 0 && !slotDay?.allFull);
+                  const closedSlotLabel = calendarClosedSlotLabel(slotDay);
+                  const partiallyBooked = Boolean(closedSlotLabel && availableSlots.length > 0 && !slotDay?.allFull);
                   const disabled = slotsLoading || !slotsReady || Boolean(slotDay?.beforeMinDate || slotDay?.blocked || slotDay?.allFull) || iso < minSelectableDate || availableSlots.length === 0;
                   return (
                     <button
@@ -1322,7 +1474,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
                       }}
                     >
                       <span>{day.getDate()}</span>
-                      {partiallyBooked ? <small>일부마감</small> : slotDay?.allFull ? <i aria-hidden="true">•</i> : null}
+                      {partiallyBooked ? <small>{closedSlotLabel}</small> : slotDay?.allFull ? <i aria-hidden="true">•</i> : null}
                     </button>
                   );
                 })}
@@ -1407,14 +1559,17 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
             paymentAvailable={paymentAvailable}
             mockPaymentMode={mockPaymentMode}
             loading={loading}
-            onPayment={() => setQuoteConfirmOpen(true)}
+            onPayment={() => {
+              setQuoteConfirmError("");
+              setQuoteConfirmOpen(true);
+            }}
             onPaymentBlocked={handlePaymentBlocked}
             selectionReady={productSelectionReady}
             selectionMessage={`${productCatalog?.customConsultLabel ?? "제품"} 제품을 먼저 선택해 주세요.`}
             mobileSummaryLabel={mobileSummaryLabel}
             summaryTitle={showProductCatalog ? "오늘 결제할 금액" : "결제 요약"}
-            paymentButtonLabel="최종 견적 확인하기"
-            paymentReadyMessage={showProductCatalog ? "최종 견적서를 확인한 뒤 제품값은 계좌이체로 진행합니다. 시공비는 시공 완료 후 현장에서 결제합니다." : "최종 견적서를 확인한 뒤 계좌이체로 진행합니다."}
+            paymentButtonLabel="결제"
+            paymentReadyMessage={showProductCatalog ? "" : "최종 견적 확인 후 계좌이체로 진행합니다."}
             productSelection={
               showProductCatalog ? (
                 <div className="sticky-selected-products" aria-label="선택 제품 요약">
@@ -1432,7 +1587,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
                     ) : (
                       <strong>제품을 선택해 주세요.</strong>
                     )}
-                    {hiddenSelectedProductCount > 0 && <b className="sticky-selected-product-more">나머지 {hiddenSelectedProductCount}개 제품은 결제 전 선택 목록에서 확인해 주세요.</b>}
+                    {hiddenSelectedProductCount > 0 && <b className="sticky-selected-product-more">외 {hiddenSelectedProductCount}개</b>}
                     <small>{selectedProductMeta}</small>
                   </div>
                   {selectedProductItems.length > 0 && (
@@ -1442,7 +1597,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
                         <strong>{won(onsitePaymentTotal)}</strong>
                       </div>
                       <div>
-                        <span>예상 총액</span>
+                        <span>시공비+제품가</span>
                         <strong>{won(total)}</strong>
                       </div>
                     </div>
@@ -1463,7 +1618,13 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
             transferAmount={onlinePaymentTotal}
             onsiteAmount={onsitePaymentTotal}
             productCatalogMode={showProductCatalog}
+            cashReceipt={cashReceipt}
+            receiptError={quoteConfirmError}
             loading={loading}
+            onCashReceiptChange={(nextCashReceipt) => {
+              setCashReceipt(nextCashReceipt);
+              setQuoteConfirmError("");
+            }}
             onClose={() => setQuoteConfirmOpen(false)}
             onConfirm={handleQuoteConfirmPayment}
           />
@@ -1485,7 +1646,10 @@ function QuoteConfirmModal({
   transferAmount,
   onsiteAmount,
   productCatalogMode,
+  cashReceipt,
+  receiptError,
   loading,
+  onCashReceiptChange,
   onClose,
   onConfirm
 }: {
@@ -1500,7 +1664,10 @@ function QuoteConfirmModal({
   transferAmount: number;
   onsiteAmount: number;
   productCatalogMode: boolean;
+  cashReceipt: CashReceiptInfo;
+  receiptError: string;
   loading: boolean;
+  onCashReceiptChange: (cashReceipt: CashReceiptInfo) => void;
   onClose: () => void;
   onConfirm: () => void;
 }) {
@@ -1535,7 +1702,7 @@ function QuoteConfirmModal({
 
         <div className="quote-confirm-grid" aria-label="견적서">
           <div className="quote-confirm-grid-head" aria-hidden="true">
-            <span>견적서 사진</span>
+            <span>제품사진</span>
             <span>제품명</span>
             <span>품번</span>
             <span>가격</span>
@@ -1544,7 +1711,7 @@ function QuoteConfirmModal({
           </div>
           {rows.map((row) => (
             <div className="quote-confirm-grid-row" key={row.id}>
-              <div className="quote-confirm-photo" data-label="견적서 사진">
+              <div className="quote-confirm-photo" data-label="제품사진">
                 {row.image ? <img src={row.image} alt={`${row.productName} 제품 사진`} /> : <span>사진</span>}
               </div>
               <strong className="quote-confirm-product" data-label="제품명">
@@ -1569,13 +1736,64 @@ function QuoteConfirmModal({
             <strong>{won(laborTotal)}</strong>
           </div>
           <div>
-            <span>예상 총액</span>
+            <span>시공비+제품가</span>
             <strong>{won(finalTotal)}</strong>
           </div>
           <div className="quote-confirm-transfer">
             <span>계좌이체 금액</span>
             <strong>{won(transferAmount)}</strong>
           </div>
+        </div>
+
+        <div className="quote-confirm-bank" aria-label="계좌이체 안내">
+          <div>
+            <span>입금 계좌</span>
+            <strong>계좌번호 안내 예정</strong>
+            <small>주문 확인 후 카톡으로 계좌와 입금 방법을 안내드립니다.</small>
+          </div>
+          <div>
+            <span>입금 금액</span>
+            <strong>{won(transferAmount)}</strong>
+            <small>입금자명은 주문자 이름으로 보내주세요.</small>
+          </div>
+        </div>
+
+        <div className="quote-confirm-receipt" aria-label="현금영수증 정보">
+          <div className="quote-confirm-receipt-head">
+            <div>
+              <span>현금영수증</span>
+              <strong>필요한 경우 정보를 남겨주세요.</strong>
+            </div>
+            <small>입금 확인 후 입력된 정보 기준으로 처리합니다.</small>
+          </div>
+          <div className="quote-receipt-options" role="radiogroup" aria-label="현금영수증 신청 방식">
+            {(["none", "personal", "business"] as const).map((type) => (
+              <label key={type} className={cashReceipt.type === type ? "selected" : ""}>
+                <input
+                  type="radio"
+                  name="cash-receipt-type"
+                  value={type}
+                  checked={cashReceipt.type === type}
+                  onChange={() => onCashReceiptChange({ type, value: "" })}
+                />
+                <span>{cashReceiptOptionLabel(type)}</span>
+              </label>
+            ))}
+          </div>
+          {cashReceipt.type !== "none" && (
+            <label className="quote-receipt-field">
+              <span>{cashReceipt.type === "personal" ? "휴대폰 번호" : "사업자등록번호"}</span>
+              <input
+                type="tel"
+                inputMode="numeric"
+                value={cashReceipt.value}
+                placeholder={cashReceipt.type === "personal" ? "01012345678" : "1234567890"}
+                aria-invalid={Boolean(receiptError)}
+                onChange={(event) => onCashReceiptChange({ ...cashReceipt, value: event.target.value })}
+              />
+            </label>
+          )}
+          {receiptError && <p className="quote-confirm-error">{receiptError}</p>}
         </div>
 
         {productCatalogMode && onsiteAmount > 0 && (
@@ -1585,7 +1803,7 @@ function QuoteConfirmModal({
         <div className="quote-confirm-actions">
           <button type="button" className="quote-confirm-secondary" onClick={onClose}>다시 확인하기</button>
           <button type="button" className="quote-confirm-primary" onClick={onConfirm} disabled={loading}>
-            {loading ? "계좌이체 안내 준비 중..." : "확인 후 계좌이체 진행"}
+            {loading ? "계좌이체 안내 준비 중..." : "결제"}
           </button>
         </div>
       </section>
@@ -1613,6 +1831,8 @@ function ReplacementProductCatalog({
   const [productScope, setProductScope] = useState("all");
   const [brandFilter, setBrandFilter] = useState("all");
   const [priceFilter, setPriceFilter] = useState<ProductPriceFilterId>("all");
+  const [productPage, setProductPage] = useState(1);
+  const [productGridColumns, setProductGridColumns] = useState(3);
   const [previewProduct, setPreviewProduct] = useState<ReplacementProduct | null>(null);
   const brandOptions = useMemo(() => sortedBrandOptions(catalog.products), [catalog.products]);
   const recommendedProducts = useMemo(
@@ -1642,6 +1862,14 @@ function ReplacementProductCatalog({
       : productScope === "all"
         ? groupViews.flatMap((group) => group.products).sort(productDisplaySort)
         : activeGroupView?.products ?? [];
+  const shouldPaginateAllProducts = productScope === "all";
+  const productPageSize = PRODUCT_ROWS_PER_PAGE * productGridColumns;
+  const productPageCount = shouldPaginateAllProducts ? Math.max(1, Math.ceil(scopedProducts.length / productPageSize)) : 1;
+  const currentProductPage = Math.min(productPage, productPageCount);
+  const productPageStartIndex = shouldPaginateAllProducts ? (currentProductPage - 1) * productPageSize : 0;
+  const visibleScopedProducts = shouldPaginateAllProducts ? scopedProducts.slice(productPageStartIndex, productPageStartIndex + productPageSize) : scopedProducts;
+  const productPageEndIndex = shouldPaginateAllProducts ? productPageStartIndex + visibleScopedProducts.length : scopedProducts.length;
+  const showProductPagination = shouldPaginateAllProducts && productPageCount > 1;
   const scopedTitle =
     productScope === "recommended"
       ? "추천 제품"
@@ -1660,9 +1888,37 @@ function ReplacementProductCatalog({
   }
 
   function selectProductScope(scope: string) {
+    setProductPage(1);
     setProductScope(scope);
     window.requestAnimationFrame(() => scrollToProductSection("product-results"));
   }
+
+  function moveProductPage(nextPage: number) {
+    const boundedPage = Math.min(Math.max(nextPage, 1), productPageCount);
+    setProductPage(boundedPage);
+    window.requestAnimationFrame(() => scrollToProductSection("product-results"));
+  }
+
+  useEffect(() => {
+    function updateProductGridColumns() {
+      const width = window.innerWidth;
+      if (width <= 720) setProductGridColumns(1);
+      else if (width <= 900) setProductGridColumns(2);
+      else setProductGridColumns(3);
+    }
+
+    updateProductGridColumns();
+    window.addEventListener("resize", updateProductGridColumns);
+    return () => window.removeEventListener("resize", updateProductGridColumns);
+  }, []);
+
+  useEffect(() => {
+    setProductPage(1);
+  }, [catalog.serviceCode, productScope, brandFilter, priceFilter, productPageSize]);
+
+  useEffect(() => {
+    if (productPage > productPageCount) setProductPage(productPageCount);
+  }, [productPage, productPageCount]);
 
   useEffect(() => {
     setProductScope("all");
@@ -1689,20 +1945,6 @@ function ReplacementProductCatalog({
       </div>
       <p className="data-guide-text">{catalog.sourceNote}</p>
 
-      <div className="product-index-chips" aria-label={`${catalog.customConsultLabel} 제품 목차`}>
-        <button type="button" className={productScope === "all" ? "active" : ""} onClick={() => selectProductScope("all")}>
-          전체
-        </button>
-        <button type="button" className={productScope === "recommended" ? "active" : ""} onClick={() => selectProductScope("recommended")}>
-          추천
-        </button>
-        {catalog.groups.map((group) => (
-          <button key={group.id} type="button" className={productScope === group.id ? "active" : ""} onClick={() => selectProductScope(group.id)}>
-            {group.name}
-          </button>
-        ))}
-      </div>
-
       <div className="toilet-filter-row" aria-label={`${catalog.customConsultLabel} 제품 필터`}>
         <div className="filter-chip-group" aria-label="브랜드 필터">
           <span>브랜드</span>
@@ -1723,6 +1965,22 @@ function ReplacementProductCatalog({
             {PRODUCT_PRICE_FILTERS.map((filter) => (
               <button key={filter.id} type="button" className={priceFilter === filter.id ? "active" : ""} onClick={() => setPriceFilter(filter.id)}>
                 {filter.label.replace("전체 가격대", "전체")}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="filter-chip-group product-index-group" aria-label={`${catalog.customConsultLabel} 제품 유형 필터`}>
+          <span>제품 유형</span>
+          <div className="product-index-chips">
+            <button type="button" className={productScope === "all" ? "active" : ""} onClick={() => selectProductScope("all")}>
+              전체
+            </button>
+            <button type="button" className={productScope === "recommended" ? "active" : ""} onClick={() => selectProductScope("recommended")}>
+              추천
+            </button>
+            {catalog.groups.map((group) => (
+              <button key={group.id} type="button" className={productScope === group.id ? "active" : ""} onClick={() => selectProductScope(group.id)}>
+                {group.name}
               </button>
             ))}
           </div>
@@ -1763,21 +2021,57 @@ function ReplacementProductCatalog({
         {scopedProducts.length === 0 ? (
           <div className="toilet-filter-empty">조건에 맞는 제품이 없습니다. 다른 브랜드나 가격대를 선택해 주세요.</div>
         ) : (
-          <div className={productScope === "recommended" ? "recommended-product-grid" : "toilet-product-grid all-product-list"}>
-            {scopedProducts.map((product) => (
-              <ReplacementProductCard
-                key={product.id}
-                product={product}
-                qty={selectedQuantities[product.id] ?? 0}
-                selectedProductCount={selectedProductCount}
-                recommended={productScope === "recommended"}
-                onProductReplace={onProductReplace}
-                onQuantityChange={onQuantityChange}
-                onQuantityDelta={onQuantityDelta}
-                onImagePreview={setPreviewProduct}
-              />
-            ))}
-          </div>
+          <>
+            {shouldPaginateAllProducts && (
+              <div className="product-pagination-summary">
+                전체 {scopedProducts.length}개 중 {productPageStartIndex + 1}-{productPageEndIndex}개
+              </div>
+            )}
+            <div className={productScope === "recommended" ? "recommended-product-grid" : "toilet-product-grid all-product-list"}>
+              {visibleScopedProducts.map((product) => (
+                <ReplacementProductCard
+                  key={product.id}
+                  product={product}
+                  qty={selectedQuantities[product.id] ?? 0}
+                  selectedProductCount={selectedProductCount}
+                  recommended={productScope === "recommended"}
+                  onProductReplace={onProductReplace}
+                  onQuantityChange={onQuantityChange}
+                  onQuantityDelta={onQuantityDelta}
+                  onImagePreview={setPreviewProduct}
+                />
+              ))}
+            </div>
+            {showProductPagination && (
+              <nav className="product-pagination" aria-label="전체 제품 페이지 이동">
+                <button type="button" onClick={() => moveProductPage(currentProductPage - 1)} disabled={currentProductPage === 1}>
+                  이전
+                </button>
+                <div className="product-page-buttons">
+                  {productPaginationItems(currentProductPage, productPageCount).map((item, index) =>
+                    typeof item === "number" ? (
+                      <button
+                        key={item}
+                        type="button"
+                        className={item === currentProductPage ? "active" : ""}
+                        aria-current={item === currentProductPage ? "page" : undefined}
+                        onClick={() => moveProductPage(item)}
+                      >
+                        {item}
+                      </button>
+                    ) : (
+                      <span key={`${item}-${index}`} className="product-pagination-ellipsis" aria-hidden="true">
+                        ...
+                      </span>
+                    )
+                  )}
+                </div>
+                <button type="button" onClick={() => moveProductPage(currentProductPage + 1)} disabled={currentProductPage === productPageCount}>
+                  다음
+                </button>
+              </nav>
+            )}
+          </>
         )}
       </section>
 
@@ -1789,6 +2083,7 @@ function ReplacementProductCatalog({
                 <span>{previewProduct.brand}</span>
                 <strong>{previewProduct.model}</strong>
                 <small>품번 {previewProduct.sku.trim() || "-"}</small>
+                {replacementProductSizeLabel(previewProduct) && <small>{replacementProductSizeLabel(previewProduct)}</small>}
               </div>
               <button type="button" onClick={() => setPreviewProduct(null)} aria-label="제품 사진 크게 보기 닫기">
                 닫기
@@ -1831,6 +2126,8 @@ function ReplacementProductCard({
   const selected = qty > 0;
   const priceAvailable = typeof product.price === "number";
   const skuLabel = product.sku.trim() || "-";
+  const fullSizeLabel = replacementProductSizeLabel(product);
+  const compactSizeLabel = replacementProductCompactSizeLabel(product);
   const noteText = compactProductNote(product.note);
 
   return (
@@ -1853,8 +2150,13 @@ function ReplacementProductCard({
         </div>
         <h3>{product.model}</h3>
         <p className="toilet-product-sku">품번 {skuLabel}</p>
+        {compactSizeLabel && (
+          <p className="toilet-product-size" title={fullSizeLabel}>
+            {compactSizeLabel}
+          </p>
+        )}
         <strong className="toilet-product-price">{priceAvailable ? won(product.price ?? 0) : "가격 확인 필요"}</strong>
-        {!recommended && (
+        {!recommended && noteText && (
           <p className="toilet-product-note compact" title={product.note}>
             {noteText}
           </p>
@@ -2000,19 +2302,67 @@ const quoteCss = `
     line-height: var(--leading-sm);
     font-weight: 700;
   }
-  .hero-price-breakdown p {
-    margin: 0;
+  .hero-price-basis-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: stretch;
+    gap: 8px;
     padding-top: 10px;
     border-top: 1px solid rgba(207, 197, 181, 0.86);
-    color: var(--color-text-muted);
-    font-size: var(--text-sm);
-    line-height: 1.55;
-    font-weight: 600;
   }
-  .hero-price-breakdown small {
+  .hero-price-basis-card {
+    min-width: 0;
+    display: grid;
+    align-content: start;
+    gap: 5px;
+    border: 1px solid rgba(207, 197, 181, 0.78);
+    border-radius: 8px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.52);
+  }
+  .hero-price-basis-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--color-text-muted);
+    font-size: var(--text-caption);
+    line-height: 1.3;
+    font-weight: 800;
+  }
+  .hero-price-basis-label svg {
+    color: #667085;
+    stroke-width: 2;
+  }
+  .hero-price-basis-card strong {
+    color: var(--color-text);
+    font-size: var(--text-price-sub);
+    line-height: var(--leading-price-sub);
+    font-weight: 800;
+    word-break: keep-all;
+    font-variant-numeric: tabular-nums;
+  }
+  .hero-price-basis-card small {
     color: var(--color-text-muted);
     font-size: var(--text-caption);
     line-height: 1.45;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+  .hero-price-basis-plus {
+    display: grid;
+    place-items: center;
+    color: var(--color-text);
+    font-size: 26px;
+    line-height: 1;
+    font-weight: 800;
+  }
+  .hero-price-note {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--text-caption);
+    line-height: 1.45;
+    font-weight: 600;
+    word-break: keep-all;
   }
   .quote-flow-note {
     display: grid;
@@ -2232,6 +2582,53 @@ const quoteCss = `
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
+  .customer-info-consent {
+    display: inline-grid;
+    grid-template-columns: 18px minmax(0, max-content);
+    align-items: center;
+    gap: 8px;
+    width: fit-content;
+    max-width: 100%;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: rgba(255, 250, 241, 0.78);
+    padding: 8px 10px;
+    color: var(--color-text-muted);
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 700;
+  }
+  .customer-info-consent.error {
+    border-color: #dc2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+  }
+  .customer-info-consent input {
+    width: 16px;
+    height: 16px;
+    min-height: 16px;
+    margin: 0;
+    padding: 0;
+    accent-color: var(--color-primary);
+  }
+  .customer-info-consent span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .customer-info-consent strong {
+    color: var(--color-text);
+  }
+  .customer-info-consent em {
+    color: var(--color-text-muted);
+    font-style: normal;
+  }
+  .customer-info-consent a {
+    color: var(--color-primary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
   .field-label textarea {
     width: 100%;
     border: 1px solid var(--color-border);
@@ -2409,8 +2806,9 @@ const quoteCss = `
   .product-index-chips {
     display: flex;
     gap: 8px;
+    min-width: 0;
     overflow-x: auto;
-    padding: 2px 0 8px;
+    padding: 0;
     scroll-snap-type: x proximity;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
@@ -2468,6 +2866,59 @@ const quoteCss = `
     gap: 12px;
     scroll-margin-top: 78px;
   }
+  .product-pagination-summary {
+    margin-top: -2px;
+    color: var(--color-text-muted);
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 700;
+  }
+  .product-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 2px;
+  }
+  .product-page-buttons {
+    min-width: 0;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .product-pagination button {
+    min-height: 36px;
+    min-width: 36px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 0 12px;
+    background: #fff;
+    color: var(--color-text);
+    font: inherit;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .product-pagination button:hover:not(:disabled),
+  .product-pagination button.active {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: var(--color-cream);
+  }
+  .product-pagination button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .product-pagination-ellipsis {
+    min-width: 24px;
+    display: grid;
+    place-items: center;
+    color: var(--color-text-muted);
+    font-size: var(--text-label);
+    font-weight: 700;
+  }
   .recommended-product-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2488,7 +2939,7 @@ const quoteCss = `
   }
   .filter-chip-group {
     display: grid;
-    grid-template-columns: 46px minmax(0, 1fr);
+    grid-template-columns: 58px minmax(0, 1fr);
     gap: 7px 8px;
     align-items: center;
   }
@@ -2790,6 +3241,17 @@ const quoteCss = `
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .toilet-product-card .toilet-product-size {
+    margin: -3px 0 0;
+    color: #6d665d;
+    font-size: 11px;
+    line-height: 1.25;
+    font-weight: 600;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+  }
   .toilet-product-grid .toilet-product-card p {
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -2812,6 +3274,12 @@ const quoteCss = `
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .toilet-product-grid .toilet-product-card .toilet-product-size {
+    margin: -3px 0 0;
+    font-size: 10px;
+    line-height: 1.2;
+    -webkit-line-clamp: 1;
   }
   .toilet-card-actions {
     display: flex;
@@ -2919,6 +3387,10 @@ const quoteCss = `
     line-height: 1.2;
   }
   .all-product-list .toilet-product-card .toilet-product-sku {
+    font-size: 10px;
+    line-height: 1.2;
+  }
+  .all-product-list .toilet-product-card .toilet-product-size {
     font-size: 10px;
     line-height: 1.2;
   }
@@ -3806,6 +4278,150 @@ const quoteCss = `
     border-color: rgba(199, 146, 42, 0.5);
     background: var(--color-primary-highlight);
   }
+  .quote-confirm-bank {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    border: 1px solid rgba(199, 146, 42, 0.5);
+    border-radius: 8px;
+    background: var(--color-primary-highlight);
+    padding: 12px;
+  }
+  .quote-confirm-bank div {
+    min-width: 0;
+    display: grid;
+    gap: 5px;
+  }
+  .quote-confirm-bank span,
+  .quote-confirm-receipt span {
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-weight: 800;
+  }
+  .quote-confirm-bank strong,
+  .quote-confirm-receipt strong {
+    color: var(--color-text);
+    font-size: var(--text-base);
+    line-height: 1.35;
+    font-weight: 800;
+  }
+  .quote-confirm-bank small,
+  .quote-confirm-receipt small {
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    line-height: 1.4;
+    font-weight: 700;
+  }
+  .quote-confirm-receipt {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.64);
+    padding: 8px 10px;
+  }
+  .quote-confirm-receipt-head {
+    min-width: 0;
+    display: grid;
+    align-items: center;
+    gap: 1px;
+  }
+  .quote-confirm-receipt-head div {
+    display: grid;
+    gap: 1px;
+  }
+  .quote-confirm-receipt strong {
+    font-size: var(--text-sm);
+    line-height: var(--leading-sm);
+  }
+  .quote-confirm-receipt small {
+    font-size: 11px;
+    line-height: 1.25;
+  }
+  .quote-receipt-options {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 5px;
+  }
+  .quote-receipt-options label {
+    position: relative;
+    min-height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    padding: 4px 9px;
+    cursor: pointer;
+  }
+  .quote-receipt-options label::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    border: 1px solid var(--color-border-strong);
+    background: #fff;
+  }
+  .quote-receipt-options label.selected {
+    border-color: var(--color-primary);
+    background: var(--color-primary-highlight);
+  }
+  .quote-receipt-options label.selected::before {
+    border-color: var(--color-text);
+    background: var(--color-text);
+  }
+  .quote-receipt-options input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    min-height: 1px;
+    padding: 0;
+    margin: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .quote-receipt-options label span {
+    color: var(--color-text);
+    font-size: 11px;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  .quote-receipt-field {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 82px minmax(0, 1fr);
+    gap: 6px;
+    align-items: center;
+  }
+  .quote-receipt-field input {
+    min-height: 30px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--color-text);
+    padding: 0 12px;
+    margin: 0;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .quote-receipt-field input[aria-invalid="true"] {
+    border-color: #b42318;
+    box-shadow: 0 0 0 3px rgba(180, 35, 24, 0.08);
+  }
+  .quote-confirm-error {
+    grid-column: 1 / -1;
+    margin: -2px 0 0;
+    color: #b42318;
+    font-size: var(--text-label);
+    line-height: var(--leading-label);
+    font-weight: 800;
+  }
   .quote-confirm-note {
     margin: 0;
     border-radius: 8px;
@@ -3957,6 +4573,11 @@ const quoteCss = `
     word-break: keep-all;
     overflow-wrap: anywhere;
   }
+  .sticky-selected-product-list li + li {
+    margin-top: 6px;
+    border-top: 1px solid rgba(34, 33, 29, 0.12);
+    padding-top: 8px;
+  }
   .sticky-selected-product-more {
     display: block;
     color: var(--color-text-muted);
@@ -3994,27 +4615,38 @@ const quoteCss = `
     font-size: var(--text-body-sm);
     line-height: var(--leading-body-sm);
   }
-  .payment-method-notice {
+  .payment-method-list {
     grid-column: 1 / -1;
     display: grid;
-    grid-template-columns: 26px minmax(0, 1fr);
-    align-items: center;
-    min-height: 48px;
-    gap: 10px;
-    border-radius: 12px;
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .payment-method-notice {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    align-items: start;
+    min-height: 44px;
+    gap: 8px;
+    border-radius: 8px;
     border: 1px solid var(--color-primary);
     background: var(--color-primary-highlight);
     color: var(--color-text);
-    padding: 8px 12px;
+    padding: 7px 10px;
     font-size: var(--text-sm);
     font-weight: 700;
     box-shadow: 0 0 0 1px rgba(33, 32, 27, 0.06);
   }
+  .payment-method-notice.pending {
+    border-color: var(--color-border);
+    background: rgba(255, 250, 241, 0.78);
+    color: var(--color-text-muted);
+    box-shadow: none;
+  }
   .payment-method-check {
     display: grid;
     place-items: center;
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     border: 2px solid var(--color-border-strong);
     border-radius: 7px;
     color: transparent;
@@ -4024,11 +4656,17 @@ const quoteCss = `
     border-color: var(--color-primary);
     background: var(--color-primary);
     color: #fffaf1;
+    margin-top: 1px;
+  }
+  .payment-method-notice.pending .payment-method-check {
+    border-color: var(--color-border);
+    background: var(--color-surface-2);
+    color: var(--color-text-muted);
   }
   .payment-method-notice > span:last-child {
     display: grid;
-    gap: 2px;
     min-width: 0;
+    gap: 1px;
   }
   .payment-method-notice strong {
     color: var(--color-text);
@@ -4039,8 +4677,14 @@ const quoteCss = `
   .payment-method-notice small {
     color: var(--color-text-muted);
     font-size: var(--text-xs);
-    line-height: 1.35;
+    line-height: 1.25;
     font-weight: 600;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+  .payment-method-notice.pending strong,
+  .payment-method-notice.pending small {
+    color: var(--color-text-muted);
   }
   .payment-consent-group {
     grid-column: 1 / -1;
@@ -4147,6 +4791,9 @@ const quoteCss = `
       min-width: 0;
       gap: 10px;
       padding: 14px;
+    }
+    .hero-price-basis-grid {
+      grid-template-columns: 1fr;
     }
     .quote-flow-note {
       grid-template-columns: 1fr;
@@ -5210,6 +5857,25 @@ const quoteCss = `
     .quote-confirm-summary .quote-confirm-transfer {
       order: -2;
     }
+    .quote-confirm-bank,
+    .quote-receipt-options {
+      grid-template-columns: 1fr;
+    }
+    .quote-confirm-receipt {
+      grid-template-columns: 1fr;
+      align-items: start;
+    }
+    .quote-receipt-options {
+      justify-content: flex-start;
+    }
+    .quote-confirm-receipt-head {
+      display: grid;
+      gap: 6px;
+    }
+    .quote-receipt-field {
+      grid-template-columns: 1fr;
+      gap: 6px;
+    }
     .quote-confirm-actions {
       grid-template-columns: 1fr;
       position: sticky;
@@ -5301,6 +5967,11 @@ const quoteCss = `
       gap: 6px;
       padding: 10px;
     }
+    .hero-price-note {
+      margin: 0;
+      font-size: var(--text-caption);
+      line-height: 1.45;
+    }
     .toilet-product-catalog {
       gap: 10px;
       padding: 14px 12px;
@@ -5327,8 +5998,10 @@ const quoteCss = `
     }
     .product-index-chips {
       gap: 6px;
-      margin-inline: -12px;
-      padding: 0 12px 4px;
+      margin-inline: 0;
+      padding: 0;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
     }
     .product-index-chips button,
     .filter-chip-group button {
@@ -5343,7 +6016,7 @@ const quoteCss = `
       overflow: hidden;
     }
     .filter-chip-group {
-      grid-template-columns: 48px minmax(0, 1fr);
+      grid-template-columns: 58px minmax(0, 1fr);
       gap: 6px;
       padding-inline: 10px;
     }
@@ -5371,6 +6044,9 @@ const quoteCss = `
       padding-inline: 6px;
       text-align: center;
     }
+    .product-index-group .product-index-chips {
+      padding-right: 10px;
+    }
     .product-subsection-title {
       gap: 2px;
     }
@@ -5386,6 +6062,19 @@ const quoteCss = `
     .product-results {
       gap: 8px;
       scroll-margin-top: 72px;
+    }
+    .product-pagination {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px;
+    }
+    .product-page-buttons {
+      grid-column: 1 / -1;
+      order: -1;
+      justify-content: center;
+    }
+    .product-pagination > button {
+      width: 100%;
     }
     .recommended-product-grid,
     .toilet-product-grid {
@@ -5461,6 +6150,15 @@ const quoteCss = `
       overflow: hidden;
       font-size: var(--text-body-sm);
       line-height: var(--leading-body-sm);
+    }
+    .toilet-product-card .toilet-product-size {
+      font-size: 11px;
+      line-height: 1.25;
+      -webkit-line-clamp: 1;
+    }
+    .all-product-list .toilet-product-card .toilet-product-size {
+      font-size: 10px;
+      line-height: 1.2;
     }
     .toilet-card-actions {
       gap: 6px;
@@ -5557,7 +6255,7 @@ const quoteCss = `
       top: 74px;
       bottom: auto;
       width: 352px;
-      max-height: calc(100vh - 98px);
+      max-height: calc(100vh - 74px);
       gap: 12px;
       padding: 20px;
       border: 1px solid rgba(25, 26, 23, 0.1);
@@ -5566,19 +6264,19 @@ const quoteCss = `
       box-shadow: 0 14px 34px rgba(25, 26, 23, 0.1);
     }
     .sticky-cta.has-product-selection {
-      gap: 12px;
-      padding: 20px;
+      gap: 6px;
+      padding: 14px;
     }
     .sticky-cta.has-product-selection .sticky-cta-head {
-      padding-bottom: 12px;
+      padding-bottom: 6px;
     }
     .sticky-cta.has-product-selection .sticky-summary {
       grid-template-columns: 1fr;
-      padding: 0 10px;
+      padding: 0 8px;
     }
     .sticky-cta.has-product-selection .sticky-summary div {
       grid-template-columns: 44px minmax(0, 1fr);
-      min-height: 34px;
+      min-height: 28px;
       gap: 8px;
       border-bottom: 1px solid var(--color-border);
     }
@@ -5591,15 +6289,34 @@ const quoteCss = `
     }
     .sticky-cta.has-product-selection .sticky-message,
     .sticky-cta.has-product-selection .payment-consent-group {
-      padding: 6px 8px;
+      padding: 4px 6px;
       font-size: var(--text-caption);
-      line-height: 1.38;
+      line-height: 1.3;
+    }
+    .sticky-cta.has-product-selection .sticky-selected-products {
+      gap: 6px;
+      padding: 7px 9px;
+    }
+    .sticky-cta.has-product-selection .sticky-selected-product-summary {
+      padding-top: 7px;
+    }
+    .sticky-cta.has-product-selection .sticky-selected-product-list li + li {
+      margin-top: 4px;
+      padding-top: 6px;
+    }
+    .sticky-cta.has-product-selection .sticky-payment-breakdown {
+      padding-top: 6px;
+    }
+    .sticky-cta.has-product-selection .sticky-payment-breakdown div {
+      min-height: 26px;
     }
     .sticky-cta.has-product-selection .payment-method-notice {
-      min-height: 44px;
+      min-height: 40px;
+      padding: 4px 8px;
+      border-radius: 9px;
     }
     .sticky-cta.has-product-selection .payment-button {
-      min-height: 56px;
+      min-height: 38px;
     }
   }
   @media (max-width: 720px) {

@@ -1,12 +1,13 @@
 import type { ServiceItem } from "@/lib/types";
 
 export const DEFAULT_VISIT_FEE = 15000;
-export const TOILET_REPLACE_LABOR_PRICE = 80000;
-export const FAUCET_REPLACE_LABOR_PRICE = 59000;
-export const VENTILATOR_REPLACE_LABOR_PRICE = 70000;
-export const BASIN_REPLACE_LABOR_PRICE = 100000;
+export const TOILET_REPLACE_LABOR_PRICE = 100000;
+export const FAUCET_REPLACE_LABOR_PRICE = 40000;
+export const VENTILATOR_REPLACE_LABOR_PRICE = 60000;
+export const BASIN_REPLACE_LABOR_PRICE = 80000;
 export const BIDET_INSTALL_LABOR_PRICE = 60000;
 export const SASH_HANDLE_REPLACE_LABOR_PRICE = 45000;
+export const DOOR_HANDLE_REPLACE_LABOR_PRICE = 30000;
 
 export const FALLBACK_SERVICE_ITEMS: ServiceItem[] = [
   {
@@ -19,7 +20,7 @@ export const FALLBACK_SERVICE_ITEMS: ServiceItem[] = [
   {
     service_type_code: "kitchen_faucet",
     display_name: "주방 수전 교체",
-    base_price: 90000,
+    base_price: 40000,
     estimated_minutes: 90,
     metadata: { category: "kitchen" }
   },
@@ -33,28 +34,28 @@ export const FALLBACK_SERVICE_ITEMS: ServiceItem[] = [
   {
     service_type_code: "door_handle",
     display_name: "도어 핸들 교체",
-    base_price: 35000,
+    base_price: 30000,
     estimated_minutes: 30,
     metadata: { category: "door" }
   },
   {
     service_type_code: "toilet_replace",
     display_name: "변기 교체",
-    base_price: 80000,
+    base_price: 100000,
     estimated_minutes: 120,
     metadata: { category: "bathroom" }
   },
   {
     service_type_code: "basin_replace",
     display_name: "세면대 교체",
-    base_price: 100000,
+    base_price: 80000,
     estimated_minutes: 120,
     metadata: { category: "bathroom" }
   },
   {
     service_type_code: "bath_fan",
     display_name: "욕실 환풍기 교체",
-    base_price: 70000,
+    base_price: 60000,
     estimated_minutes: 80,
     metadata: { category: "bathroom" }
   },

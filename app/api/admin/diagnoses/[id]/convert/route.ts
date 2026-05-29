@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { fail, ok } from "@/lib/api-response";
+import { parseAddressApt, parseAddressDong } from "@/lib/address-parse";
 import { requireAdmin } from "@/lib/admin-auth";
 import { readJson, validationError } from "@/lib/errors";
 import { createOrderDateKey, createOrderNumber } from "@/lib/orders";
@@ -145,11 +146,13 @@ export async function POST(request: Request, context: Context) {
     ?? "toilet_replace";
 
   let order = null;
-  const rawCustomer = typeof diagnosis.raw_response === "object" && diagnosis.raw_response !== null
-    ? (diagnosis.raw_response as { customer?: { name?: string | null; phone?: string | null } }).customer
+  const rawResponse = typeof diagnosis.raw_response === "object" && diagnosis.raw_response !== null
+    ? diagnosis.raw_response as { customer?: { name?: string | null; phone?: string | null; address?: string | null }; address?: string | null }
     : null;
+  const rawCustomer = rawResponse?.customer ?? null;
   let customerPhone: string | null = diagnosis.customer_phone ?? rawCustomer?.phone ?? null;
   const customerName = diagnosis.customer_name ?? rawCustomer?.name ?? null;
+  const customerAddress = rawCustomer?.address ?? rawResponse?.address ?? null;
   let customerId: string | null = null;
 
   try {
@@ -171,13 +174,16 @@ export async function POST(request: Request, context: Context) {
       const customer = await upsertCustomer(supabase, customerPhone, customerName);
       customerId = customer.id;
 
-      const addressFull = "사진확인 상담 - 주소 미확인";
+      const addressFull = customerAddress?.trim() || "사진확인 상담 - 주소 미확인";
+      const addressDong = customerAddress
+        ? parseAddressDong(addressFull) ?? parseAddressApt(addressFull) ?? addressFull.split(/\s+/).slice(0, 2).join(" ")
+        : "주소 미확인";
       const { data: home, error: homeError } = await supabase
         .from("homes")
         .insert({
           customer_id: customer.id,
           address_full: addressFull,
-          address_dong: "주소 미확인",
+          address_dong: addressDong,
           size_pyung: 0,
           building_type: "unknown"
         })
