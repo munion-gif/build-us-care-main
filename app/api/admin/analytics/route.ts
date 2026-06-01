@@ -1,5 +1,6 @@
 import { fail, ok } from "@/lib/api-response";
 import { requireAdmin } from "@/lib/admin-auth";
+import { ADMIN_FUNNEL_STEPS, buildAdminFunnelReport, findAdminFunnelStep, formatAdminFunnelPercent } from "@/lib/admin-funnel";
 import { EVENT_TYPES } from "@/lib/event-types";
 import { measure } from "@/lib/perf";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
@@ -60,16 +61,8 @@ export async function GET(request: Request) {
     measure("api.admin.analytics.fetchDiagnoses", () => supabase.from("diagnoses").select("result").eq("is_test", false).gte("created_at", since)),
     measure("api.admin.analytics.fetchEvents", () => supabase
       .from("events")
-      .select("event_type")
-      .in("event_type", [
-        EVENT_TYPES.QUOTE_STARTED,
-        EVENT_TYPES.QUOTE_PAGE_VIEW,
-        EVENT_TYPES.QUOTE_SUBMITTED,
-        EVENT_TYPES.ORDER_CREATED,
-        EVENT_TYPES.QUOTE_ACCEPTED,
-        EVENT_TYPES.PAYMENT_COMPLETED,
-        EVENT_TYPES.DIAGNOSIS_REQUESTED
-      ])
+      .select("id,event_type,session_id,source,properties")
+      .in("event_type", [...ADMIN_FUNNEL_STEPS])
       .gte("occurred_at", since)),
     measure("api.admin.analytics.fetchWarrantyJobs", () => supabase
       .from("jobs")
@@ -102,11 +95,11 @@ export async function GET(request: Request) {
   }
 
   const eventRows = events.data ?? [];
-  const countEvent = (types: string[]) => eventRows.filter((row: any) => types.includes(row.event_type)).length;
-  const diagnosisRequested = countEvent([EVENT_TYPES.DIAGNOSIS_REQUESTED]);
-  const quoteStarted = countEvent([EVENT_TYPES.QUOTE_STARTED, EVENT_TYPES.QUOTE_PAGE_VIEW]);
-  const quoteSubmitted = countEvent([EVENT_TYPES.QUOTE_SUBMITTED, EVENT_TYPES.ORDER_CREATED, EVENT_TYPES.QUOTE_ACCEPTED]);
-  const paymentCompleted = countEvent([EVENT_TYPES.PAYMENT_COMPLETED]);
+  const funnel = buildAdminFunnelReport(eventRows as any[]);
+  const diagnosisRequested = findAdminFunnelStep(funnel, EVENT_TYPES.DIAGNOSIS_REQUESTED);
+  const quoteStarted = findAdminFunnelStep(funnel, EVENT_TYPES.QUOTE_PAGE_VIEW);
+  const quoteSubmitted = findAdminFunnelStep(funnel, EVENT_TYPES.ORDER_CREATED);
+  const paymentCompleted = findAdminFunnelStep(funnel, EVENT_TYPES.PAYMENT_COMPLETED);
 
   return ok({
     period: period === "30d" || period === "month" ? "month" : "week",
@@ -120,13 +113,15 @@ export async function GET(request: Request) {
       byResult
     },
     funnel: {
-      diagnosisRequested,
-      quoteStarted,
-      quoteSubmitted,
-      paymentCompleted,
-      quoteStartRate: percent(quoteStarted, diagnosisRequested),
-      quoteSubmitRate: percent(quoteSubmitted, quoteStarted),
-      paymentCompletionRate: percent(paymentCompleted, quoteSubmitted)
+      steps: funnel.steps,
+      channels: funnel.channels,
+      diagnosisRequested: diagnosisRequested?.sessions ?? 0,
+      quoteStarted: quoteStarted?.sessions ?? 0,
+      quoteSubmitted: quoteSubmitted?.sessions ?? 0,
+      paymentCompleted: paymentCompleted?.sessions ?? 0,
+      quoteStartRate: formatAdminFunnelPercent(quoteStarted?.conversionFromPrevious),
+      quoteSubmitRate: formatAdminFunnelPercent(quoteSubmitted?.conversionFromPrevious),
+      paymentCompletionRate: formatAdminFunnelPercent(paymentCompleted?.conversionFromPrevious)
     },
     warrantyExpiringSoon: {
       count: warrantyJobs.data?.length ?? 0,
