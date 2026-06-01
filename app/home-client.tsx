@@ -5,6 +5,7 @@ import {
   AirVent,
   ChevronRight,
   DoorOpen,
+  Paintbrush,
   PanelsTopLeft,
   ShowerHead,
   SoapDispenserDroplet,
@@ -33,7 +34,8 @@ const SERVICE_ICON_ITEMS: Array<{ label: string; Icon: LucideIcon; href: string 
   { label: "비데", Icon: Waves, href: "/quote/bidet_install" },
   { label: "환풍기", Icon: AirVent, href: "/quote/ventilator_replace" },
   { label: "샷시손잡이", Icon: PanelsTopLeft, href: "/quote/sash_handle" },
-  { label: "도어핸들", Icon: DoorOpen, href: "/quote/door_handle" }
+  { label: "도어핸들", Icon: DoorOpen, href: "/quote/door_handle" },
+  { label: "실리콘", Icon: Paintbrush, href: "/quote/silicone_repair" }
 ];
 
 export function HomeClient({ services, kakaoUrl, faqs }: HomeClientProps) {
@@ -584,7 +586,7 @@ const homeCss = `
   }
   .service-icon-strip {
     display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
+    grid-template-columns: repeat(8, minmax(0, 1fr));
     gap: 0;
     margin: 0 auto;
     padding-block: 22px;

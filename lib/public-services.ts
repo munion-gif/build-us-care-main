@@ -6,6 +6,7 @@ export const PUBLIC_SERVICE_CODES = [
   "ventilator_replace",
   "sash_handle",
   "door_handle",
+  "silicone_repair",
 ] as const;
 
 export const PUBLIC_SERVICE_CODE_SET = new Set<string>(PUBLIC_SERVICE_CODES);

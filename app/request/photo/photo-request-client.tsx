@@ -24,7 +24,8 @@ const PHOTO_SERVICE_LABELS: Record<string, string> = {
   bidet_install: "비데",
   ventilator_replace: "환풍기",
   sash_handle: "샷시손잡이",
-  door_handle: "도어핸들"
+  door_handle: "도어핸들",
+  silicone_repair: "실리콘"
 };
 
 function normalizePhone(phone: string) {
