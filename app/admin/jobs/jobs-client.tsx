@@ -25,7 +25,7 @@ export function JobActions({ job, materials = [], isLate = false }: { job: any; 
     const signed = await fetch(`/api/admin/jobs/${job.id}/media/upload-url`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fileName: file.name, contentType: file.type, type })
+      body: JSON.stringify({ fileName: file.name, contentType: file.type, fileSize: file.size, type })
     }).then((res) => res.json());
     const uploadUrl = signed?.data?.uploadUrl ?? signed?.uploadUrl;
     const filePath = signed?.data?.file_path ?? signed?.data?.filePath ?? signed?.file_path;

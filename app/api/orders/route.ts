@@ -7,10 +7,16 @@ import { readJson, validationError } from "@/lib/errors";
 import { notifyNewOrder } from "@/lib/notify-admin";
 import { createOrderDateKey, createOrderNumber } from "@/lib/orders";
 import { calculateQuote } from "@/lib/quote";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { createOrderSchema } from "@/lib/validation";
 
 type SupabaseAdmin = ReturnType<typeof getSupabaseAdmin>;
+
+const ORDER_CREATE_LIMIT = 4;
+const ORDER_CREATE_WINDOW_MS = 15 * 60 * 1000;
+const ORDER_PHONE_LOOKUP_LIMIT = 8;
+const ORDER_PHONE_LOOKUP_WINDOW_MS = 10 * 60 * 1000;
 
 function compactAddress(address: { road_address: string; detail_address?: string }) {
   return [address.road_address, address.detail_address].filter(Boolean).join(" ").trim();
@@ -63,6 +69,16 @@ export async function POST(request: Request) {
   if (isAdminTest) {
     const authError = requireAdmin(request);
     if (authError) return authError;
+  } else {
+    const normalizedPhone = parsed.data.customer.phone.replace(/\D/g, "");
+    const rateLimit = checkRateLimit(`order-create:${getClientIp(request.headers)}:${normalizedPhone}`, {
+      limit: ORDER_CREATE_LIMIT,
+      windowMs: ORDER_CREATE_WINDOW_MS
+    });
+
+    if (!rateLimit.allowed) {
+      return rateLimitResponse(rateLimit.retryAfterSeconds, "주문 요청이 많습니다. 잠시 후 다시 시도해주세요.");
+    }
   }
 
   const supabase = getSupabaseAdmin();
@@ -347,6 +363,15 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const phone = searchParams.get("phone")?.replace(/\D/g, "");
   if (!phone || phone.length < 8) return fail("BAD_REQUEST", "phone is required.", 400);
+
+  const rateLimit = checkRateLimit(`orders-phone-lookup:${getClientIp(request.headers)}:${phone}`, {
+    limit: ORDER_PHONE_LOOKUP_LIMIT,
+    windowMs: ORDER_PHONE_LOOKUP_WINDOW_MS
+  });
+
+  if (!rateLimit.allowed) {
+    return rateLimitResponse(rateLimit.retryAfterSeconds, "조회 요청이 많습니다. 잠시 후 다시 시도해주세요.");
+  }
 
   const supabase = getSupabaseAdmin();
   const { data: customer, error: customerError } = await supabase.from("customers").select("id").eq("phone", phone).maybeSingle();

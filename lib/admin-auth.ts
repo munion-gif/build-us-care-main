@@ -1,4 +1,5 @@
 import { fail } from "@/lib/api-response";
+import { verifyAdminSessionToken } from "@/lib/admin-session";
 import { fingerprintSecret } from "@/lib/operational-log";
 
 export function requireAdmin(request: Request) {
@@ -12,7 +13,7 @@ export function requireAdmin(request: Request) {
     .find((item) => item.startsWith("admin_session="))
     ?.slice("admin_session=".length);
 
-  if (sessionSecret && cookieSession === sessionSecret) {
+  if (verifyAdminSessionToken(cookieSession, sessionSecret)) {
     return null;
   }
 

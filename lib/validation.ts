@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_PHOTO_UPLOAD_BYTES } from "@/lib/storage";
 import { OPERATIONAL_ORDER_STATUSES, normalizeOrderStatusAlias } from "@/lib/types";
 
 export const uuidSchema = z.string().uuid();
@@ -108,6 +109,7 @@ export const uploadPhotosSchema = z.object({
 export const createPhotoUploadUrlSchema = z.object({
   fileName: z.string().min(1).max(180),
   contentType: z.enum(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]),
+  fileSize: z.number().int().positive().max(MAX_PHOTO_UPLOAD_BYTES).optional(),
   accessToken: accessTokenSchema.optional()
 });
 
@@ -119,6 +121,7 @@ export const createOrderMediaUploadUrlSchema = createPhotoUploadUrlSchema;
 export const createJobMediaUploadUrlSchema = z.object({
   fileName: z.string().min(1).max(180),
   contentType: z.enum(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]),
+  fileSize: z.number().int().positive().max(MAX_PHOTO_UPLOAD_BYTES).optional(),
   type: jobMediaTypeSchema
 });
 

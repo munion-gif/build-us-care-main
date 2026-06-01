@@ -8,6 +8,7 @@ export const BASIN_REPLACE_LABOR_PRICE = 80000;
 export const BIDET_INSTALL_LABOR_PRICE = 60000;
 export const SASH_HANDLE_REPLACE_LABOR_PRICE = 45000;
 export const DOOR_HANDLE_REPLACE_LABOR_PRICE = 30000;
+export const SILICONE_REPAIR_LABOR_PRICE = 6000;
 
 export const FALLBACK_SERVICE_ITEMS: ServiceItem[] = [
   {
@@ -37,6 +38,13 @@ export const FALLBACK_SERVICE_ITEMS: ServiceItem[] = [
     base_price: 30000,
     estimated_minutes: 30,
     metadata: { category: "door" }
+  },
+  {
+    service_type_code: "silicone_repair",
+    display_name: "실리콘 재시공",
+    base_price: 6000,
+    estimated_minutes: 90,
+    metadata: { category: "bathroom" }
   },
   {
     service_type_code: "toilet_replace",

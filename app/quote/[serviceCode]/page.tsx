@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
+import { verifyAdminSessionToken } from "@/lib/admin-session";
 import { getPublicAppConfig } from "@/lib/app-config";
 import { measure } from "@/lib/perf";
 import { getMaterialsBySku, getServiceItem } from "@/lib/service-items";
@@ -18,8 +19,7 @@ export default async function QuotePage({ params, searchParams }: QuotePageProps
   const adminTestRequested = resolvedSearchParams.adminTest === "1" || resolvedSearchParams.test === "1";
   const adminTest = Boolean(
     adminTestRequested &&
-    process.env.ADMIN_SESSION_SECRET &&
-    cookieStore.get("admin_session")?.value === process.env.ADMIN_SESSION_SECRET
+    verifyAdminSessionToken(cookieStore.get("admin_session")?.value, process.env.ADMIN_SESSION_SECRET)
   );
   const service = await measure("quote.service.fetchService", () => getServiceItem(serviceCode));
 

@@ -1,9 +1,13 @@
 import { fail, ok } from "@/lib/api-response";
 import { parseAdminKeys } from "@/lib/admin-auth";
 import { readJson, validationError } from "@/lib/errors";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { createOrderInquiryMediaPath, ORDER_PHOTO_UPLOAD_EXPIRES_IN, ORDER_PHOTOS_BUCKET } from "@/lib/storage";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { createOrderMediaUploadUrlSchema, uuidSchema } from "@/lib/validation";
+
+const ORDER_MEDIA_UPLOAD_URL_LIMIT = 10;
+const ORDER_MEDIA_UPLOAD_URL_WINDOW_MS = 10 * 60 * 1000;
 
 type Context = {
   params: Promise<{ id: string }>;
@@ -24,6 +28,15 @@ export async function POST(request: Request, context: Context) {
 
   if (!orderId.success) {
     return validationError(orderId.error, "Invalid order id.");
+  }
+
+  const rateLimit = checkRateLimit(`order-media-upload-url:${getClientIp(request.headers)}:${orderId.data}`, {
+    limit: ORDER_MEDIA_UPLOAD_URL_LIMIT,
+    windowMs: ORDER_MEDIA_UPLOAD_URL_WINDOW_MS
+  });
+
+  if (!rateLimit.allowed) {
+    return rateLimitResponse(rateLimit.retryAfterSeconds, "문의 업로드 요청이 많습니다. 잠시 후 다시 시도해주세요.");
   }
 
   const body = await readJson(request);

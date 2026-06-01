@@ -7,6 +7,7 @@ import {
   DoorOpen,
   Droplets,
   Fan,
+  Paintbrush,
   PanelsTopLeft,
   ShowerHead,
   SoapDispenserDroplet,
@@ -31,7 +32,8 @@ const categoriesByCode: Record<string, ServiceCategory[]> = {
   bidet_install: ["욕실"],
   ventilator_replace: ["욕실"],
   sash_handle: ["도어·손잡이"],
-  door_handle: ["도어·손잡이"]
+  door_handle: ["도어·손잡이"],
+  silicone_repair: ["욕실"]
 };
 
 const icons: Record<string, LucideIcon> = {
@@ -41,7 +43,8 @@ const icons: Record<string, LucideIcon> = {
   bidet_install: Droplets,
   ventilator_replace: Fan,
   sash_handle: PanelsTopLeft,
-  door_handle: DoorOpen
+  door_handle: DoorOpen,
+  silicone_repair: Paintbrush
 };
 
 const flowSteps = [

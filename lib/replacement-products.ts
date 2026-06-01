@@ -4,13 +4,22 @@ import {
   DOOR_HANDLE_REPLACE_LABOR_PRICE,
   FAUCET_REPLACE_LABOR_PRICE,
   SASH_HANDLE_REPLACE_LABOR_PRICE,
+  SILICONE_REPAIR_LABOR_PRICE,
   TOILET_REPLACE_LABOR_PRICE,
   VENTILATOR_REPLACE_LABOR_PRICE
 } from "@/lib/constants";
 import rawReplacementProducts from "./replacement-products.generated.json";
 import { TOILET_PRODUCTS, TOILET_PRODUCT_SOURCE_NOTE } from "./toilet-products";
 
-export type ReplacementProductServiceCode = "toilet_replace" | "basin_replace" | "faucet_replace" | "bidet_install" | "ventilator_replace" | "sash_handle" | "door_handle";
+export type ReplacementProductServiceCode =
+  | "toilet_replace"
+  | "basin_replace"
+  | "faucet_replace"
+  | "bidet_install"
+  | "ventilator_replace"
+  | "sash_handle"
+  | "door_handle"
+  | "silicone_repair";
 
 export type ReplacementProduct = {
   id: string;
@@ -65,7 +74,8 @@ const SERVICE_ALIASES: Record<string, ReplacementProductServiceCode> = {
   ventilator_replace: "ventilator_replace",
   bath_fan: "ventilator_replace",
   sash_handle: "sash_handle",
-  door_handle: "door_handle"
+  door_handle: "door_handle",
+  silicone_repair: "silicone_repair"
 };
 
 const SERVICE_LABELS: Record<ReplacementProductServiceCode, { title: string; customConsultLabel: string; sourceNote: string }> = {
@@ -103,6 +113,11 @@ const SERVICE_LABELS: Record<ReplacementProductServiceCode, { title: string; cus
     title: "도어핸들 종류와 제품가",
     customConsultLabel: "도어핸들",
     sourceNote: "엑셀 제품 리스트 기준 제품가입니다. 실제 주문 금액은 시공비, 기존 문 두께, 잠금장치 호환, 재고에 따라 확정됩니다."
+  },
+  silicone_repair: {
+    title: "실리콘 색상과 제품가",
+    customConsultLabel: "실리콘",
+    sourceNote: "엑셀 제품 리스트 기준 제품가입니다. 실제 주문 금액은 시공 길이, 기존 실리콘 제거 범위, 현장 마감 조건, 재고에 따라 확정됩니다."
   }
 };
 
@@ -271,6 +286,7 @@ export function getProductLaborPrice(serviceCode: string, product?: Pick<Replace
   if (canonical === "basin_replace") return BASIN_REPLACE_LABOR_PRICE;
   if (canonical === "sash_handle") return SASH_HANDLE_REPLACE_LABOR_PRICE;
   if (canonical === "door_handle") return DOOR_HANDLE_REPLACE_LABOR_PRICE;
+  if (canonical === "silicone_repair") return SILICONE_REPAIR_LABOR_PRICE;
   return 0;
 }
 

@@ -34,7 +34,7 @@ export function TechnicianPhotosClient({ jobId }: { jobId: string }) {
     const uploadResponse = await fetch(`/api/technician/jobs/${jobId}/media/upload-url`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fileName: file.name, contentType: file.type, type: active })
+      body: JSON.stringify({ fileName: file.name, contentType: file.type, fileSize: file.size, type: active })
     });
     const uploadPayload = await uploadResponse.json();
     if (!uploadResponse.ok) {

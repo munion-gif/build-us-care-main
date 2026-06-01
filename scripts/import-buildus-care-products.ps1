@@ -369,6 +369,9 @@ function Get-CategorySpec([string]$serviceCode, [string]$sheetName) {
   if ($serviceCode -eq "door_handle") {
     return @{ Id = "door-handle"; Name = "도어핸들"; Summary = "방문에 설치하는 도어핸들입니다. 기존 문 두께, 잠금 방식, 레버 규격을 확인해 선택합니다."; Hint = "방문 손잡이 교체" }
   }
+  if ($serviceCode -eq "silicone_repair") {
+    return @{ Id = "silicone"; Name = "실리콘"; Summary = "욕실·주방·창호 주변 마감에 사용하는 실리콘입니다. 기존 실리콘 제거 범위와 색상 호환을 확인해 선택합니다."; Hint = "실리콘 색상·마감 교체" }
+  }
   return $null
 }
 
@@ -380,6 +383,7 @@ function Get-ServiceCodeForWorkbook([string]$fileName) {
   if ($fileName -like "*환풍기*") { return "ventilator_replace" }
   if ($fileName -like "*샷시*손잡이*" -or $fileName -like "*샷시손잡이*") { return "sash_handle" }
   if ($fileName -like "*도어핸들*" -or $fileName -like "*도어*손잡이*" -or $fileName -like "*방문*손잡이*") { return "door_handle" }
+  if ($fileName -like "*실리콘*") { return "silicone_repair" }
   return $null
 }
 
@@ -391,6 +395,7 @@ function Get-ServiceAssetDir([string]$serviceCode) {
   if ($serviceCode -eq "ventilator_replace") { return "ventilators" }
   if ($serviceCode -eq "sash_handle") { return "sash-handles" }
   if ($serviceCode -eq "door_handle") { return "door-handles" }
+  if ($serviceCode -eq "silicone_repair") { return "silicones" }
   return "misc"
 }
 
@@ -421,11 +426,13 @@ function Get-ImageCandidates([string]$sourceDir) {
     }
 }
 
-function Find-ProductImage($imageCandidates, [string]$serviceCode, [string]$brandRoot, [string]$sheetName, [string]$model, [string[]]$skuCodes) {
+function Find-ProductImage($imageCandidates, [string]$serviceCode, [string]$brandRoot, [string]$sheetName, [string]$model, [string[]]$skuCodes, [string]$color = "") {
   $brandImages = @($imageCandidates | Where-Object { $_.BrandRoot -eq $brandRoot })
   if ($brandImages.Count -eq 0) { return $null }
   $sheetKey = Normalize-Key $sheetName
   $modelKey = Normalize-Key $model
+  $colorKey = Normalize-Key $color
+  if ($colorKey -eq "다크그레이") { $colorKey = "다크크레이" }
   $looseModelKey = Normalize-ImageModelKey $model
   $strictImageMatch = $serviceCode -eq "sash_handle"
   $modelTokens = [regex]::Matches($model.ToUpperInvariant(), "[A-Z0-9]{3,}") | ForEach-Object { [string]$_.Value } | Where-Object { $_ -notmatch "^[0-9]+$" }
@@ -440,6 +447,8 @@ function Find-ProductImage($imageCandidates, [string]$serviceCode, [string]$bran
     }
     if ($modelKey -and $image.NameKey.Length -ge 4 -and ($modelKey.Contains($image.NameKey) -or $image.NameKey.Contains($modelKey))) { $score += 95 }
     if ($modelKey -and $image.PathKey.Length -ge 4 -and ($modelKey.Contains($image.PathKey) -or $image.PathKey.Contains($modelKey))) { $score += 70 }
+    if ($colorKey -and $image.NameKey -eq $colorKey) { $score += 180 }
+    elseif ($colorKey -and $image.PathKey.Contains($colorKey)) { $score += 120 }
     if ($looseModelKey -and $looseImageKey.Length -ge 3 -and ($looseModelKey.Contains($looseImageKey) -or $looseImageKey.Contains($looseModelKey))) { $score += 80 }
     if ($sheetKey -and $image.PathKey.Contains($sheetKey) -and -not $strictImageMatch) { $score += 15 }
     foreach ($token in $modelTokens) {
@@ -469,7 +478,7 @@ function Reset-AssetDir([string]$dir) {
 }
 
 $imageCandidates = @(Get-ImageCandidates $SourceDir)
-$serviceAssetDirs = @("toilets", "basins", "faucets", "bidets", "ventilators", "sash-handles", "door-handles")
+$serviceAssetDirs = @("toilets", "basins", "faucets", "bidets", "ventilators", "sash-handles", "door-handles", "silicones")
 foreach ($assetDir in $serviceAssetDirs) {
   Reset-AssetDir (Join-Path $publicProductsDir $assetDir)
 }
@@ -518,7 +527,7 @@ foreach ($workbookFile in $workbooks) {
       $fileSlug = "$($serviceCode -replace "_", "-")-$($sequence.ToString("000"))-$slug"
       $embeddedEntryPath = if ($embeddedImageMap.ContainsKey($rowIndex)) { [string]$embeddedImageMap[$rowIndex] } else { $null }
       $preferEmbeddedImage = $serviceCode -eq "sash_handle" -and $embeddedEntryPath
-      $sourceImage = if ($preferEmbeddedImage) { $null } else { Find-ProductImage $imageCandidates $serviceCode $brandRoot $sheet.Name $model $skuCodes }
+      $sourceImage = if ($preferEmbeddedImage) { $null } else { Find-ProductImage $imageCandidates $serviceCode $brandRoot $sheet.Name $model $skuCodes $color }
       $imagePath = $null
       if ($preferEmbeddedImage) {
         $ext = ([System.IO.Path]::GetExtension($embeddedEntryPath)).ToLowerInvariant()
@@ -566,7 +575,7 @@ foreach ($workbookFile in $workbooks) {
         popular = $false
         image = $imagePath
         sourceWorkbook = $workbookFile.Name
-        sourceSheet = $sheet.Name
+        sourceSheet = if ($serviceCode -eq "silicone_repair") { "실리콘" } else { $sheet.Name }
         sourceRow = $rowIndex + 1
       }
       if (-not $counts.ContainsKey($serviceCode)) { $counts[$serviceCode] = 0 }
