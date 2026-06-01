@@ -87,6 +87,8 @@ export const createOrderSchema = z.object({
   service_type_code: z.string().min(1).optional(),
   special_requests: z.string().optional(),
   visit_fee: z.number().int().min(0).optional(),
+  admin_test: z.boolean().optional(),
+  test_note: z.string().max(500).optional(),
   items: z.array(quoteItemSchema).min(1)
 });
 

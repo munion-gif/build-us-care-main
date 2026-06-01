@@ -8,6 +8,8 @@ import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { OPERATIONAL_ORDER_STATUSES } from "@/lib/types";
 import { CancellationActions } from "./cancellation-actions-client";
 import { OrderAssignmentButton } from "./order-assignment-client";
+import { OrderTestActions } from "./order-test-actions-client";
+import { OrderTrashActions } from "./order-trash-actions-client";
 
 export const dynamic = "force-dynamic";
 
@@ -22,9 +24,12 @@ const workflowFilters = [
   { key: "paid", label: "결제완료", href: "/admin/orders?flow=paid" },
   { key: "visit", label: "방문 예정", href: "/admin/orders?flow=visit" },
   { key: "complete", label: "완료", href: "/admin/orders?flow=complete" },
-  { key: "issue", label: "취소/A/S", href: "/admin/orders?flow=issue" }
+  { key: "issue", label: "취소/A/S", href: "/admin/orders?flow=issue" },
+  { key: "test", label: "테스트", href: "/admin/orders?test=1" },
+  { key: "trash", label: "휴지통", href: "/admin/orders?trash=1" }
 ] as const;
 const quickFilters = [
+  { label: "테스트 주문 생성", href: "/admin/orders/test-new" },
   { label: "오늘 접수", href: `/admin/orders?date_from=${new Date().toISOString().slice(0, 10)}&flow=intake` },
   { label: "결제완료 미배정", href: "/admin/orders?flow=paid" },
   { label: "방문 예정", href: "/admin/orders?flow=visit" },
@@ -41,7 +46,9 @@ function badgeClass(status?: string | null) {
 }
 
 async function getOrders(params: Record<string, string | undefined>) {
-  if (!hasSupabaseEnv()) return { orders: [], count: 0, page: 1, limit: 20 };
+  const trashMode = params.trash === "1" || params.flow === "trash";
+  const testMode = !trashMode && (params.test === "1" || params.flow === "test");
+  if (!hasSupabaseEnv()) return { orders: [], count: 0, page: 1, limit: 20, trashMode, testMode };
   const page = Math.max(Number(params.page ?? 1), 1);
   const limit = 20;
   const from = (page - 1) * limit;
@@ -49,7 +56,7 @@ async function getOrders(params: Record<string, string | undefined>) {
     .from("orders")
     .select(
       `
-      id, order_number, status, total_amount, created_at, channel, service_type_code, skus,
+      id, order_number, status, total_amount, created_at, channel, service_type_code, skus, deleted_at, deleted_by, deleted_reason, is_test, test_marked_at, test_note,
       customers(name,phone,acquisition_source),
       homes(address_full),
       reservations(id,reserved_date,time_slot,status,created_at),
@@ -59,10 +66,16 @@ async function getOrders(params: Record<string, string | undefined>) {
     `,
       { count: "exact" }
     )
-    .order("created_at", { ascending: false })
+    .order(trashMode ? "deleted_at" : "created_at", { ascending: false })
     .range(from, from + limit - 1);
 
-  if (params.flow && !params.status) {
+  if (trashMode) {
+    query = query.not("deleted_at", "is", null);
+  } else {
+    query = query.is("deleted_at", null).eq("is_test", testMode);
+  }
+
+  if (params.flow && !params.status && !trashMode && !testMode) {
     if (params.flow === "intake") query = query.in("status", ["inquiry", "submitted"]);
     if (params.flow === "quote") query = query.in("status", ["quoted", "payment_pending", "pending_product_payment"]);
     if (params.flow === "paid") query = query.in("status", ["paid", "product_paid"]);
@@ -81,7 +94,7 @@ async function getOrders(params: Record<string, string | undefined>) {
   if (params.search) query = query.ilike("order_number", `%${params.search}%`);
 
   const { data, count } = await query;
-  return { orders: data ?? [], count: count ?? 0, page, limit };
+  return { orders: data ?? [], count: count ?? 0, page, limit, trashMode, testMode };
 }
 
 async function getActiveTechnicians() {
@@ -109,6 +122,12 @@ function activeWorkflowKey(status?: string, flow?: string) {
   if (status === "completed" || status === "done") return "complete";
   if (status === "cancel_requested" || status === "canceled" || status === "warranty" || status === "issue") return "issue";
   return "all";
+}
+
+function deletedMeta(order: any) {
+  if (!order.deleted_at) return null;
+  const reason = order.deleted_reason ? ` · ${order.deleted_reason}` : "";
+  return `휴지통 이동: ${formatKRDate(order.deleted_at)}${reason}`;
 }
 
 function activeReservation(order: any) {
@@ -158,7 +177,7 @@ function nextActionLabel(order: any) {
 
 export default async function AdminOrdersPage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const [{ orders, count, page, limit }, services, technicians] = await Promise.all([
+  const [{ orders, count, page, limit, trashMode, testMode }, services, technicians] = await Promise.all([
     measure("admin.orders.fetchOrders", () => getOrders(params)),
     measure("admin.orders.fetchServices", () => getAllServiceItems()),
     measure("admin.orders.fetchTechnicians", () => getActiveTechnicians())
@@ -174,12 +193,18 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
     <>
       <header className="adm-page-header">
         <h1 className="adm-page-title">주문 관리</h1>
-        <p className="adm-page-sub">접수, 결제, 배정, 방문 순서로 처리합니다. 주소와 집 정보는 상세에서 확인합니다.</p>
+        <p className="adm-page-sub">
+          {trashMode
+            ? "휴지통으로 이동한 주문을 복구하거나 완전 삭제합니다."
+            : testMode
+              ? "관리자 테스트 주문만 따로 확인합니다. 운영 주문, 통계, 고객 조회에는 노출하지 않습니다."
+              : "접수, 결제, 배정, 방문 순서로 처리합니다. 주소와 집 정보는 상세에서 확인합니다."}
+        </p>
       </header>
       <div className="adm-content">
         <nav className="adm-workflow-tabs" aria-label="주문 처리 단계">
           {workflowFilters.map((item) => (
-            <Link className={activeWorkflowKey(params.status, params.flow) === item.key ? "active" : ""} href={item.href} key={item.key}>
+            <Link className={(trashMode ? "trash" : testMode ? "test" : activeWorkflowKey(params.status, params.flow)) === item.key ? "active" : ""} href={item.href} key={item.key}>
               {item.label}
             </Link>
           ))}
@@ -192,6 +217,8 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
           ))}
         </nav>
         <form className="adm-filter-bar">
+          {testMode ? <input type="hidden" name="test" value="1" /> : null}
+          {trashMode ? <input type="hidden" name="trash" value="1" /> : null}
           <select className="adm-filter-select" name="status" defaultValue={params.status ?? ""}>
             <option value="">전체 상태</option>
             {statuses.filter(Boolean).map((status) => <option key={status} value={status}>{formatOrderStatus(status)}</option>)}
@@ -211,9 +238,9 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
         </form>
         <section className="adm-queue-summary adm-section">
           <article><strong>{count}</strong><span>검색 결과</span></article>
-          <article><strong>{visibleSummary.needsAssign}</strong><span>배정 필요</span></article>
-          <article><strong>{visibleSummary.visits}</strong><span>방문/진행</span></article>
-          <article><strong>{visibleSummary.issues}</strong><span>예외 처리</span></article>
+          <article><strong>{trashMode || testMode ? count : visibleSummary.needsAssign}</strong><span>{trashMode ? "휴지통 주문" : testMode ? "테스트 주문" : "배정 필요"}</span></article>
+          <article><strong>{trashMode || testMode ? 0 : visibleSummary.visits}</strong><span>{trashMode ? "복구 가능" : testMode ? "운영 제외" : "방문/진행"}</span></article>
+          <article><strong>{trashMode || testMode ? 0 : visibleSummary.issues}</strong><span>{trashMode ? "완전삭제 가능" : testMode ? "통계 제외" : "예외 처리"}</span></article>
         </section>
         <section className="adm-order-queue-list" aria-label="주문 처리 큐">
           {orders.length === 0 ? (
@@ -228,10 +255,12 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
                   <div className="adm-order-queue-title">
                     <Link className="adm-link" href={`/admin/orders/${order.id}`}>{order.order_number}</Link>
                     <span className={`adm-badge ${badgeClass(order.status)}`}>{formatOrderStatus(order.status)}</span>
+                    {order.is_test ? <span className="adm-badge adm-badge-sky">테스트</span> : null}
                   </div>
                   <strong>{formatServiceName(firstServiceCode(order))}</strong>
                   <p>{maskName(order.customers?.name)} · {maskPhone(order.customers?.phone)} · {formatChannel(order.channel)} · {formatKRDate(order.created_at)}</p>
                   <p>{addressPreview(order)}</p>
+                  {trashMode && deletedMeta(order) ? <p className="adm-trash-meta">{deletedMeta(order)}</p> : null}
                 </div>
                 <div className="adm-order-queue-meta">
                   <span><b>예약</b>{reservation ? `${reservation.reserved_date} ${slotLabel(reservation.time_slot)}` : "예약 없음"}</span>
@@ -242,12 +271,21 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
                   {pendingCancellation ? (
                     <CancellationActions cancellationId={pendingCancellation.id} refundAmount={Number(pendingCancellation.refund_amount ?? 0)} refundRate={Number(pendingCancellation.refund_rate ?? 0)} />
                   ) : (
-                    <>
-                      <Link className="adm-btn adm-btn-primary adm-btn-sm" href={`/admin/orders/${order.id}`}>{nextActionLabel(order)}</Link>
-                      {["paid", "product_paid"].includes(String(order.status)) && (
-                        <OrderAssignmentButton compact orderId={order.id} orderNumber={order.order_number} orderStatus={order.status} reservations={Array.isArray(order.reservations) ? order.reservations : []} jobs={Array.isArray(order.jobs) ? order.jobs : []} technicians={technicians} />
-                      )}
-                    </>
+                    trashMode ? (
+                      <>
+                        <Link className="adm-btn adm-btn-secondary adm-btn-sm" href={`/admin/orders/${order.id}`}>상세 확인</Link>
+                        <OrderTrashActions compact mode="trash" orderId={order.id} orderNumber={order.order_number} />
+                      </>
+                    ) : (
+                      <>
+                        <Link className="adm-btn adm-btn-primary adm-btn-sm" href={`/admin/orders/${order.id}`}>{nextActionLabel(order)}</Link>
+                        {["paid", "product_paid"].includes(String(order.status)) && (
+                          <OrderAssignmentButton compact orderId={order.id} orderNumber={order.order_number} orderStatus={order.status} reservations={Array.isArray(order.reservations) ? order.reservations : []} jobs={Array.isArray(order.jobs) ? order.jobs : []} technicians={technicians} />
+                        )}
+                        <OrderTestActions compact isTest={Boolean(order.is_test)} orderId={order.id} orderNumber={order.order_number} />
+                        <OrderTrashActions compact orderId={order.id} orderNumber={order.order_number} />
+                      </>
+                    )
                   )}
                 </div>
               </article>

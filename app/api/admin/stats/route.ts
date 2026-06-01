@@ -32,14 +32,14 @@ export async function GET(request: Request) {
   const tomorrow = startOfTomorrow();
   const week = startOfWeek();
   const [todayOrders, todayPaid, pendingDiagnoses, weekCompletedJobs, weekPayments, feedbacks, pendingQuotes, issueJobs] = await Promise.all([
-    supabase.from("orders").select("id", { count: "exact", head: true }).gte("created_at", today).lt("created_at", tomorrow),
+    supabase.from("orders").select("id", { count: "exact", head: true }).eq("is_test", false).is("deleted_at", null).gte("created_at", today).lt("created_at", tomorrow),
     supabase.from("payments").select("id", { count: "exact", head: true }).eq("status", "done").gte("paid_at", today).lt("paid_at", tomorrow),
-    supabase.from("diagnoses").select("id", { count: "exact", head: true }).is("result", null),
+    supabase.from("diagnoses").select("id", { count: "exact", head: true }).eq("is_test", false).is("result", null),
     supabase.from("jobs").select("id", { count: "exact", head: true }).eq("status", "inspected").gte("ended_at", week),
     supabase.from("payments").select("amount").eq("status", "done").gte("paid_at", week),
     supabase.from("feedbacks").select("nps").not("nps", "is", null),
     supabase.from("quotes").select("id", { count: "exact", head: true }).is("accepted_at", null),
-    supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "issue")
+    supabase.from("orders").select("id", { count: "exact", head: true }).eq("is_test", false).is("deleted_at", null).eq("status", "issue")
   ]);
 
   const npsRows = feedbacks.data ?? [];

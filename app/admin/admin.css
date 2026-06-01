@@ -66,6 +66,16 @@
 .adm-order-queue-meta em { width: fit-content; font-style: normal; }
 .adm-order-queue-actions { align-self: stretch; display: grid; align-content: center; justify-items: stretch; gap: 8px; min-width: 0; }
 .adm-order-queue-actions .adm-btn { width: 100%; min-height: 36px; white-space: nowrap; }
+.adm-trash-actions { display: grid; gap: 8px; align-items: start; }
+.adm-trash-actions.compact { width: 100%; }
+.adm-trash-message { color: #991b1b; font-size: 0.75rem; line-height: 1.35; }
+.adm-trash-meta { margin: 0; color: #991b1b; font-size: 0.8125rem; line-height: 1.45; }
+.adm-trash-panel { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center; border-color: #fed7aa; background: #fffaf3; }
+.adm-trash-panel.is-deleted { border-color: #fecaca; background: #fff7f7; }
+.adm-test-actions { display: grid; gap: 8px; align-items: start; }
+.adm-test-actions.compact { width: 100%; }
+.adm-test-panel { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center; border-color: #c7e5e4; background: #f4fbfa; }
+.adm-test-panel.is-test { border-color: #7db7b9; background: #eefafa; }
 /* Table */
 .adm-table-wrap { background: #fff; border: 1px solid #e8e5e0; border-radius: 12px; overflow: auto; }
 .adm-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }

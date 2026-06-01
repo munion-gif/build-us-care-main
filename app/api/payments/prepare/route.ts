@@ -1,4 +1,5 @@
 import { fail, ok } from "@/lib/api-response";
+import { requireAdmin } from "@/lib/admin-auth";
 import { EVENT_TYPES } from "@/lib/event-types";
 import { readJson, validationError } from "@/lib/errors";
 import {
@@ -78,6 +79,7 @@ export async function POST(request: Request) {
     .from("orders")
     .select("*")
     .eq("id", orderId)
+    .is("deleted_at", null)
     .single();
 
   if (orderError || !order) {
@@ -90,6 +92,11 @@ export async function POST(request: Request) {
       errorCode: "NOT_FOUND"
     });
     return fail("not_found", "Order not found.", 404);
+  }
+
+  if (order.is_test) {
+    const authError = requireAdmin(request);
+    if (authError) return fail("not_found", "Order not found.", 404);
   }
 
   const quoteQuery = supabase
@@ -219,27 +226,29 @@ export async function POST(request: Request) {
       .eq("id", order.id);
   }
 
-  await supabase.from("events").insert({
-    event_type: EVENT_TYPES.PAYMENT_STARTED,
-    order_id: order.id,
-    customer_id: order.customer_id ?? null,
-    session_id: order.session_id ?? null,
-    source: order.source ?? order.channel ?? null,
-    campaign: order.campaign ?? null,
-    landing_path: order.landing_path ?? null,
-    device_type: order.device_type ?? null,
-    service_code: order.service_type_code ?? null,
-    region_code: order.region_code ?? null,
-    properties: {
-      payment_id: payment.id,
-      provider_order_id: providerOrderId,
-      provider,
-      quote_id: acceptedQuote.id,
-      product_amount: amounts.productAmount,
-      service_fee_amount: amounts.serviceFeeAmount,
-      total_amount: amounts.totalAmount
-    }
-  });
+  if (!order.is_test) {
+    await supabase.from("events").insert({
+      event_type: EVENT_TYPES.PAYMENT_STARTED,
+      order_id: order.id,
+      customer_id: order.customer_id ?? null,
+      session_id: order.session_id ?? null,
+      source: order.source ?? order.channel ?? null,
+      campaign: order.campaign ?? null,
+      landing_path: order.landing_path ?? null,
+      device_type: order.device_type ?? null,
+      service_code: order.service_type_code ?? null,
+      region_code: order.region_code ?? null,
+      properties: {
+        payment_id: payment.id,
+        provider_order_id: providerOrderId,
+        provider,
+        quote_id: acceptedQuote.id,
+        product_amount: amounts.productAmount,
+        service_fee_amount: amounts.serviceFeeAmount,
+        total_amount: amounts.totalAmount
+      }
+    });
+  }
 
   logOperation({
     requestId,

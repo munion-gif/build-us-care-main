@@ -12,6 +12,43 @@ type Context = {
   params: Promise<{ id: string }>;
 };
 
+export const dynamic = "force-dynamic";
+
+const ORDER_STATUS_SELECT = `
+      id,
+      order_number,
+      status,
+      is_test,
+      service_type_code,
+      source,
+      campaign,
+      channel,
+      session_id,
+      landing_path,
+      device_type,
+      region_code,
+      skus,
+      total_amount,
+      online_payment_amount,
+      onsite_payment_amount,
+      onsite_payment_status,
+      special_requests,
+      access_token,
+      created_at,
+      customers (*),
+      homes (*),
+      quotes (*),
+      reservations (*),
+      jobs (*, technicians (id, name, phone, experience_years, specialties, bio, profile_image_url)),
+      payments (*),
+      media (*),
+      feedbacks (*)
+    `;
+const ORDER_STATUS_SELECT_COMPAT = ORDER_STATUS_SELECT.replace(
+  "      online_payment_amount,\n      onsite_payment_amount,\n      onsite_payment_status,\n",
+  ""
+);
+
 function hasValidAdminKey(request: Request) {
   const provided = request.headers.get("x-admin-key");
   return Boolean(provided && parseAdminKeys().includes(provided));
@@ -122,6 +159,25 @@ function sanitizePayments(payments: any[] | null | undefined, isAdmin: boolean) 
   }));
 }
 
+function isSchemaCompatibilityError(error: any) {
+  const message = String(error?.message ?? "");
+  return error?.code === "PGRST204" || error?.code === "42703" || message.includes("Could not find") || message.includes("column");
+}
+
+function orderStatusQuery(supabase: ReturnType<typeof getSupabaseAdmin>, select: string, orderId: string, accessToken: string | null, isAdmin: boolean) {
+  let query = supabase
+    .from("orders")
+    .select(select)
+    .eq("id", orderId)
+    .is("deleted_at", null);
+
+  if (!isAdmin) {
+    query = query.eq("access_token", accessToken);
+  }
+
+  return query.single();
+}
+
 export async function GET(request: Request, context: Context) {
   if (!hasSupabaseEnv()) {
     return fail("supabase_not_configured", "Supabase is required to read order status.", 500);
@@ -147,52 +203,14 @@ export async function GET(request: Request, context: Context) {
     }
   }
 
-  const { data: exists } = await supabase.from("orders").select("id").eq("id", orderId.data).maybeSingle();
-
-  if (!exists) {
-    return fail("not_found", "Order not found.", 404);
+  const initialResult = await orderStatusQuery(supabase, ORDER_STATUS_SELECT, orderId.data, accessToken, isAdmin);
+  let data: any = initialResult.data;
+  let error = initialResult.error;
+  if (error && isSchemaCompatibilityError(error)) {
+    const fallback = await orderStatusQuery(supabase, ORDER_STATUS_SELECT_COMPAT, orderId.data, accessToken, isAdmin);
+    data = fallback.data;
+    error = fallback.error;
   }
-
-  let query = supabase
-    .from("orders")
-    .select(
-      `
-      id,
-      order_number,
-      status,
-      service_type_code,
-      source,
-      campaign,
-      channel,
-      session_id,
-      landing_path,
-      device_type,
-      region_code,
-      skus,
-      total_amount,
-      online_payment_amount,
-      onsite_payment_amount,
-      onsite_payment_status,
-      special_requests,
-      access_token,
-      created_at,
-      customers (*),
-      homes (*),
-      quotes (*),
-      reservations (*),
-      jobs (*, technicians (id, name, phone, experience_years, specialties, bio, profile_image_url)),
-      payments (*),
-      media (*),
-      feedbacks (*)
-    `
-    )
-    .eq("id", orderId.data);
-
-  if (!isAdmin) {
-    query = query.eq("access_token", accessToken);
-  }
-
-  const { data, error } = await query.single();
 
   if (error || !data) {
     return isAdmin
@@ -201,7 +219,7 @@ export async function GET(request: Request, context: Context) {
   }
 
   const signedMedia = await Promise.all(
-    (data.media ?? []).map(async (photo: { id: string; file_path: string; sort_order: number; type: string; job_id?: string | null; order_id?: string | null }) => {
+    ((data.media ?? []) as any[]).map(async (photo: { id: string; file_path: string; sort_order: number; type: string; job_id?: string | null; order_id?: string | null }) => {
         const { data: signed } = await supabase.storage
           .from(ORDER_PHOTOS_BUCKET)
           .createSignedUrl(photo.file_path, ORDER_PHOTO_VIEW_EXPIRES_IN);
@@ -223,7 +241,7 @@ export async function GET(request: Request, context: Context) {
   const customer = Array.isArray(customers) ? customers[0] : customers;
   const home = Array.isArray(homes) ? homes[0] : homes;
 
-  if (!isAdmin) {
+  if (!isAdmin && data.is_test !== true) {
     await supabase.from("events").insert({
       event_type: EVENT_TYPES.STATUS_PAGE_VIEW,
       session_id: data.session_id ?? null,
@@ -247,7 +265,7 @@ export async function GET(request: Request, context: Context) {
       quotes: sanitizeQuotes(quotes, isAdmin),
       payments: sanitizePayments(payments, isAdmin),
       media: signedMedia,
-      photos: signedMedia.filter((media) => media.type === "inquiry"),
+      photos: signedMedia.filter((media: any) => media.type === "inquiry"),
       feedbacks: feedbacks ?? []
     }
   });

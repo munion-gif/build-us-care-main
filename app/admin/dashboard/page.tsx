@@ -164,15 +164,15 @@ async function getTodaySummary(supabase: SupabaseAdmin, ranges: DashboardRanges)
     issueOrders,
     weekCompletedJobs
   ] = await Promise.all([
-    supabase.from("orders").select("id", { count: "exact", head: true }).gte("created_at", ranges.today.start).lt("created_at", ranges.today.end),
+    supabase.from("orders").select("id", { count: "exact", head: true }).eq("is_test", false).is("deleted_at", null).gte("created_at", ranges.today.start).lt("created_at", ranges.today.end),
     supabase.from("payments").select("id", { count: "exact", head: true }).eq("status", "done").gte("paid_at", ranges.today.start).lt("paid_at", ranges.today.end),
     supabase.from("jobs").select("id", { count: "exact", head: true }).in("status", VISIT_SCHEDULED_STATUSES).gte("scheduled_at", ranges.today.start).lt("scheduled_at", ranges.today.end),
     supabase.from("warranty_cases").select("id", { count: "exact", head: true }).gte("created_at", ranges.today.start).lt("created_at", ranges.today.end),
     supabase.from("payments").select("amount").eq("status", "done").gte("paid_at", week),
-    supabase.from("diagnoses").select("id", { count: "exact", head: true }).is("result", null),
+    supabase.from("diagnoses").select("id", { count: "exact", head: true }).eq("is_test", false).is("result", null),
     supabase.from("feedbacks").select("nps").not("nps", "is", null),
     supabase.from("quotes").select("id", { count: "exact", head: true }).is("accepted_at", null),
-    supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "issue"),
+    supabase.from("orders").select("id", { count: "exact", head: true }).eq("is_test", false).is("deleted_at", null).eq("status", "issue"),
     supabase.from("jobs").select("id", { count: "exact", head: true }).eq("status", "inspected").gte("ended_at", week)
   ]);
 
@@ -202,6 +202,8 @@ async function getUnassignedPaidOrders(supabase: SupabaseAdmin) {
       jobs(id,technician_id,assigned_technician_name,status,scheduled_at,created_at)
     `
     )
+    .eq("is_test", false)
+    .is("deleted_at", null)
     .in("status", ["paid", "product_paid"])
     .order("created_at", { ascending: true })
     .limit(80);
@@ -216,7 +218,7 @@ async function getTomorrowUnassignedReservations(supabase: SupabaseAdmin, tomorr
       `
       id, order_id, reserved_date, time_slot, status, created_at,
       orders(
-        id, order_number, status, created_at, service_type_code, skus,
+        id, order_number, status, created_at, service_type_code, skus, is_test,
         customers(name,phone),
         jobs(id,technician_id,assigned_technician_name,status,scheduled_at,created_at)
       )
@@ -230,7 +232,7 @@ async function getTomorrowUnassignedReservations(supabase: SupabaseAdmin, tomorr
   return (data ?? [])
     .filter((reservation: any) => {
       const order = asOne(reservation.orders);
-      return ["paid", "product_paid", "scheduled"].includes(String(order?.status)) && !hasActiveAssignedJob(order?.jobs);
+      return order?.is_test !== true && ["paid", "product_paid", "scheduled"].includes(String(order?.status)) && !hasActiveAssignedJob(order?.jobs);
     })
     .slice(0, 10);
 }
@@ -243,7 +245,7 @@ async function getTodayTomorrowJobs(supabase: SupabaseAdmin, ranges: DashboardRa
       id, order_id, technician_id, assigned_technician_name, status, scheduled_at, scheduled_date, created_at,
       technicians(name),
       orders(
-        id, order_number, status, service_type_code, skus,
+        id, order_number, status, service_type_code, skus, is_test,
         homes(address_full),
         addresses(road_address,detail_address)
       )
@@ -256,7 +258,7 @@ async function getTodayTomorrowJobs(supabase: SupabaseAdmin, ranges: DashboardRa
     .order("scheduled_at", { ascending: true })
     .limit(80);
 
-  const jobs = data ?? [];
+  const jobs = (data ?? []).filter((job: any) => asOne(job.orders)?.is_test !== true);
   return {
     today: jobs.filter((job: any) => kstDateOnly(job.scheduled_at) === ranges.todayDate),
     tomorrow: jobs.filter((job: any) => kstDateOnly(job.scheduled_at) === ranges.tomorrowDate)
@@ -284,6 +286,7 @@ async function getRecentDiagnoses(supabase: SupabaseAdmin, ranges: DashboardRang
   const { data, count } = await supabase
     .from("diagnoses")
     .select("id,result,service_type_code,service_code,suggested_service_code,created_at", { count: "exact" })
+    .eq("is_test", false)
     .gte("created_at", ranges.recent24h)
     .order("created_at", { ascending: false })
     .limit(500);
