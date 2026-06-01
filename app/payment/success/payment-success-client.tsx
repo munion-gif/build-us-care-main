@@ -42,7 +42,7 @@ export function PaymentSuccessClient() {
         const response = await fetch("/api/payments/confirm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ paymentKey, orderId, amount })
+          body: JSON.stringify({ paymentKey, orderId, ...(accessToken ? { accessToken } : {}), amount })
         });
         const json = await response.json().catch(() => null);
 

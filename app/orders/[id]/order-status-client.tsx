@@ -344,7 +344,7 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
         const response = await fetch("/api/payments/toss/confirm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ paymentKey, orderId, amount: Number(amount) })
+          body: JSON.stringify({ paymentKey, orderId, accessToken, amount: Number(amount) })
         });
         const json = await response.json();
         if (!response.ok) {

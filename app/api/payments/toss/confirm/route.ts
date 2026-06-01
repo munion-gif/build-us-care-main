@@ -1,8 +1,10 @@
 import { fail, ok } from "@/lib/api-response";
+import { hasAdminAccess, requireAdmin } from "@/lib/admin-auth";
 import { EVENT_TYPES } from "@/lib/event-types";
 import { readJson, validationError } from "@/lib/errors";
 import { notifyPaymentCompleted } from "@/lib/notify-admin";
 import { createRequestId, logOperation } from "@/lib/operational-log";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { isProductSelectionService } from "@/lib/replacement-products";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { confirmTossPayment } from "@/lib/toss";
@@ -28,6 +30,13 @@ function expectedPaymentAmount(quote: any) {
 
 export async function POST(request: Request) {
   const requestId = createRequestId();
+  const rateLimit = checkRateLimit(`payment-toss-confirm:${getClientIp(request.headers)}`, {
+    limit: 30,
+    windowMs: 60_000
+  });
+  if (!rateLimit.allowed) {
+    return rateLimitResponse(rateLimit.retryAfterSeconds, "결제 확인 요청이 많습니다. 잠시 후 다시 시도해주세요.");
+  }
 
   if (!hasSupabaseEnv()) {
     logOperation({
@@ -71,6 +80,16 @@ export async function POST(request: Request) {
       errorCode: "NOT_FOUND"
     });
     return fail("not_found", "Order not found.", 404);
+  }
+
+  const isGuest = parsed.data.accessToken && parsed.data.accessToken === order.access_token;
+  if (!isGuest && !hasAdminAccess(request)) {
+    return fail("forbidden", "A valid accessToken is required.", 403);
+  }
+
+  if (order.is_test) {
+    const authError = requireAdmin(request);
+    if (authError) return fail("not_found", "Order not found.", 404);
   }
 
   const { data: acceptedQuote, error: quoteError } = await supabase

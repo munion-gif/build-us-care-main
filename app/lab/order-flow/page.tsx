@@ -148,7 +148,8 @@ export default function OrderFlowLabPage() {
         reserved_date: state.reservedDate,
         time_slot: state.timeSlot,
         status: "confirmed",
-        notes: "order-flow lab"
+        notes: "order-flow lab",
+        accessToken: state.accessToken
       })
     });
   }
@@ -160,6 +161,7 @@ export default function OrderFlowLabPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         orderId: state.orderId,
+        accessToken: state.accessToken,
         paymentKey: `mock-lab-${Date.now()}`,
         amount: state.amount,
         orderName: state.orderName
@@ -261,7 +263,8 @@ export default function OrderFlowLabPage() {
           reserved_date: state.reservedDate,
           time_slot: state.timeSlot,
           status: "confirmed",
-          notes: "order-flow lab full run"
+          notes: "order-flow lab full run",
+          accessToken
         })
       });
 
@@ -270,6 +273,7 @@ export default function OrderFlowLabPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           orderId,
+          accessToken,
           paymentKey: `mock-lab-${Date.now()}`,
           amount: totalAmount,
           orderName

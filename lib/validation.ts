@@ -23,6 +23,7 @@ export const quoteItemSchema = z.object({
 
 export const quoteRequestSchema = z.object({
   order_id: z.string().uuid().optional(),
+  accessToken: accessTokenSchema.optional(),
   visit_fee: z.number().int().min(0).optional(),
   items: z.array(quoteItemSchema).min(1),
   discount: z.number().int().min(0).default(0)
@@ -155,6 +156,7 @@ export const createMediaSchema = z.object({
 });
 
 export const reservationSchema = z.object({
+  accessToken: accessTokenSchema.optional(),
   reserved_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   time_slot: z.enum(["morning", "afternoon", "all_day"]),
   status: z.enum(["pending", "confirmed"]).default("confirmed"),
@@ -163,6 +165,7 @@ export const reservationSchema = z.object({
 
 export const tossConfirmSchema = z.object({
   orderId: z.string().uuid(),
+  accessToken: accessTokenSchema.optional(),
   paymentKey: z.string().min(1).max(200),
   amount: z.number().int().min(0),
   orderName: z.string().min(1).optional()
@@ -172,6 +175,7 @@ export const paymentPrepareSchema = z.object({
   orderId: z.string().uuid().optional(),
   quoteId: z.string().uuid().optional(),
   reservationId: z.string().uuid().optional(),
+  accessToken: accessTokenSchema.optional(),
   provider: z.enum(["bank_transfer", "toss"]).default("bank_transfer")
 }).refine((value) => Boolean(value.orderId || value.quoteId || value.reservationId), {
   message: "orderId, quoteId, reservationId 중 하나가 필요합니다."
@@ -180,6 +184,7 @@ export const paymentPrepareSchema = z.object({
 export const paymentConfirmSchema = z.object({
   paymentKey: z.string().min(1).max(200),
   orderId: z.string().min(1).max(80),
+  accessToken: accessTokenSchema.optional(),
   amount: z.coerce.number().int().min(0)
 });
 

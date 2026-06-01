@@ -1,9 +1,11 @@
 import { fail, ok } from "@/lib/api-response";
+import { hasAdminAccess } from "@/lib/admin-auth";
 import { EVENT_TYPES } from "@/lib/event-types";
 import { readJson, validationError } from "@/lib/errors";
 import { notifyPaymentCompleted } from "@/lib/notify-admin";
 import { createRequestId, logOperation } from "@/lib/operational-log";
 import { calculatePreparedPaymentAmounts } from "@/lib/payment-amounts";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { confirmTossPayment } from "@/lib/toss";
 import { paymentConfirmSchema } from "@/lib/validation";
@@ -29,7 +31,7 @@ function looksLikeUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
-async function confirmPreparedPayment(input: { paymentKey: string; orderId: string; amount: number }, requestId: string) {
+async function confirmPreparedPayment(input: { paymentKey: string; orderId: string; accessToken?: string; amount: number }, request: Request, requestId: string) {
   if (!hasSupabaseEnv()) {
     logOperation({
       requestId,
@@ -96,6 +98,11 @@ async function confirmPreparedPayment(input: { paymentKey: string; orderId: stri
   const quote = payment.quotes;
   if (!order || !quote) {
     return fail("QUOTE_REQUIRED", "Order and accepted quote are required before payment.", 400);
+  }
+
+  const isGuest = input.accessToken && input.accessToken === order.access_token;
+  if (!isGuest && !hasAdminAccess(request)) {
+    return fail("forbidden", "A valid accessToken is required.", 403);
   }
 
   const amounts = calculatePreparedPaymentAmounts(quote);
@@ -349,6 +356,14 @@ async function confirmPreparedPayment(input: { paymentKey: string; orderId: stri
 
 export async function POST(request: Request) {
   const requestId = createRequestId();
+  const rateLimit = checkRateLimit(`payment-confirm:${getClientIp(request.headers)}`, {
+    limit: 30,
+    windowMs: 60_000
+  });
+  if (!rateLimit.allowed) {
+    return rateLimitResponse(rateLimit.retryAfterSeconds, "결제 승인 요청이 많습니다. 잠시 후 다시 시도해주세요.");
+  }
+
   const body = await readJson(request);
   const parsed = paymentConfirmSchema.safeParse(body);
 
@@ -363,15 +378,24 @@ export async function POST(request: Request) {
     return validationError(parsed.error, "Invalid payment confirm request.");
   }
 
-  return confirmPreparedPayment(parsed.data, requestId);
+  return confirmPreparedPayment(parsed.data, request, requestId);
 }
 
 export async function GET(request: Request) {
   const requestId = createRequestId();
+  const rateLimit = checkRateLimit(`payment-confirm:${getClientIp(request.headers)}`, {
+    limit: 30,
+    windowMs: 60_000
+  });
+  if (!rateLimit.allowed) {
+    return rateLimitResponse(rateLimit.retryAfterSeconds, "결제 승인 요청이 많습니다. 잠시 후 다시 시도해주세요.");
+  }
+
   const { searchParams } = new URL(request.url);
   const parsed = paymentConfirmSchema.safeParse({
     paymentKey: searchParams.get("paymentKey"),
     orderId: searchParams.get("orderId"),
+    accessToken: searchParams.get("accessToken") ?? undefined,
     amount: searchParams.get("amount")
   });
 
@@ -386,5 +410,5 @@ export async function GET(request: Request) {
     return validationError(parsed.error, "Invalid payment confirm request.");
   }
 
-  return confirmPreparedPayment(parsed.data, requestId);
+  return confirmPreparedPayment(parsed.data, request, requestId);
 }

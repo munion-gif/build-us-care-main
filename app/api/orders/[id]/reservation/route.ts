@@ -1,5 +1,7 @@
 import { fail, ok } from "@/lib/api-response";
+import { hasAdminAccess } from "@/lib/admin-auth";
 import { readJson, validationError } from "@/lib/errors";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { fallbackMaxSlotsPerPeriod, periodCapFromConfig, resolveDefaultSlotCap, type SlotPeriod } from "@/lib/slot-capacity";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { reservationSchema, uuidSchema } from "@/lib/validation";
@@ -74,6 +76,14 @@ export async function POST(request: Request, context: Context) {
     return validationError(orderId.error, "Invalid order id.");
   }
 
+  const rateLimit = checkRateLimit(`reservation:${getClientIp(request.headers)}:${orderId.data}`, {
+    limit: 20,
+    windowMs: 10 * 60_000
+  });
+  if (!rateLimit.allowed) {
+    return rateLimitResponse(rateLimit.retryAfterSeconds, "예약 요청이 많습니다. 잠시 후 다시 시도해주세요.");
+  }
+
   const body = await readJson(request);
   const normalizedBody =
     body && typeof body === "object"
@@ -100,12 +110,17 @@ export async function POST(request: Request, context: Context) {
   const supabase = getSupabaseAdmin();
   const { data: order, error: orderError } = await supabase
     .from("orders")
-    .select("id,status,is_test")
+    .select("id,status,is_test,access_token")
     .eq("id", orderId.data)
     .single();
 
   if (orderError || !order) {
     return fail("not_found", "Order not found.", 404);
+  }
+
+  const isGuest = parsed.data.accessToken && parsed.data.accessToken === order.access_token;
+  if (!isGuest && !hasAdminAccess(request)) {
+    return fail("forbidden", "A valid accessToken is required.", 403);
   }
 
   const { data: existingReservation, error: existingReservationError } = await supabase

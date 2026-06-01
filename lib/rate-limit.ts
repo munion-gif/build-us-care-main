@@ -11,6 +11,16 @@ type RateLimitEntry = {
 };
 
 const buckets = new Map<string, RateLimitEntry>();
+let lastSweepAt = 0;
+
+function sweepExpiredBuckets(now: number) {
+  if (now - lastSweepAt < 60_000) return;
+  lastSweepAt = now;
+
+  for (const [key, entry] of buckets.entries()) {
+    if (entry.resetAt <= now) buckets.delete(key);
+  }
+}
 
 export function getClientIp(headers: Headers) {
   const forwardedFor = headers.get("x-forwarded-for")?.split(",")[0]?.trim();
@@ -19,6 +29,7 @@ export function getClientIp(headers: Headers) {
 
 export function checkRateLimit(key: string, options: RateLimitOptions) {
   const now = Date.now();
+  sweepExpiredBuckets(now);
   const current = buckets.get(key);
 
   if (!current || current.resetAt <= now) {

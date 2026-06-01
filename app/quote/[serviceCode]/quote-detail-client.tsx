@@ -1028,7 +1028,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl, adminT
     await requestJson(`/api/orders/${orderId}/reservation`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reserved_date: date, time_slot: slot, status: "confirmed" })
+      body: JSON.stringify({ reserved_date: date, time_slot: slot, status: "confirmed", accessToken })
     });
 
     const quote = await requestJson("/api/quote", {
@@ -1036,12 +1036,17 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl, adminT
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         order_id: orderId,
+        accessToken,
         items: quoteItems,
         visit_fee: quoteVisitFee,
         discount: 0
       })
     });
-    await requestJson(`/api/quotes/${quote.quote.id}/accept`, { method: "POST" });
+    await requestJson(`/api/quotes/${quote.quote.id}/accept`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken })
+    });
     void track(EVENT_TYPES.QUOTE_ACCEPTED, { service_code: service.service_type_code, total_final: quote.quote.total_final }, { orderId });
 
     const paymentReady = {
@@ -1061,11 +1066,11 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl, adminT
     return paymentReady;
   }
 
-  async function preparePayment(orderId: string): Promise<PreparedPayment> {
+  async function preparePayment(orderId: string, accessToken: string): Promise<PreparedPayment> {
     const prepared = await requestJson("/api/payments/prepare", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orderId, provider: "bank_transfer" })
+      body: JSON.stringify({ orderId, accessToken, provider: "bank_transfer" })
     }) as PreparedPayment;
 
     if (Number(prepared.amount) !== Number(prepared.productAmount)) {
@@ -1080,7 +1085,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl, adminT
     setMessage("계좌이체 안내를 준비하고 있어요.");
     try {
       const paymentReady = await createOrderAndQuote();
-      const preparedPayment = await preparePayment(paymentReady.orderId);
+      const preparedPayment = await preparePayment(paymentReady.orderId, paymentReady.accessToken);
       void track(
         EVENT_TYPES.PAYMENT_STARTED,
         {

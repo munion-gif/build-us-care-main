@@ -2,6 +2,7 @@ import { z } from "zod";
 import { fail, ok } from "@/lib/api-response";
 import { normalizeFunnelEventType, pickTrackingContext } from "@/lib/data-collection";
 import { readJson, validationError } from "@/lib/errors";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 
 const schema = z.object({
@@ -15,26 +16,14 @@ const schema = z.object({
   occurredAt: z.string().datetime().optional()
 });
 
-const buckets = new Map<string, { count: number; resetAt: number }>();
-
-function clientIp(request: Request) {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
-}
-
-function rateLimited(request: Request) {
-  const key = clientIp(request);
-  const now = Date.now();
-  const bucket = buckets.get(key);
-  if (!bucket || bucket.resetAt < now) {
-    buckets.set(key, { count: 1, resetAt: now + 60_000 });
-    return false;
-  }
-  bucket.count += 1;
-  return bucket.count > 60;
-}
-
 export async function POST(request: Request) {
-  if (rateLimited(request)) return fail("RATE_LIMITED", "Too many events.", 429);
+  const rateLimit = checkRateLimit(`events:${getClientIp(request.headers)}`, {
+    limit: 60,
+    windowMs: 60_000
+  });
+  if (!rateLimit.allowed) {
+    return rateLimitResponse(rateLimit.retryAfterSeconds, "이벤트 요청이 많습니다. 잠시 후 다시 시도해주세요.");
+  }
   if (!hasSupabaseEnv() && process.env.NODE_ENV !== "production") {
     return ok({ skipped: true, reason: "supabase_not_configured" }, { status: 202 });
   }

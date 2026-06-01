@@ -1,12 +1,21 @@
 import { fail, ok } from "@/lib/api-response";
-import { requireAdmin } from "@/lib/admin-auth";
+import { hasAdminAccess, requireAdmin } from "@/lib/admin-auth";
 import { readJson, validationError } from "@/lib/errors";
 import { calculateQuote } from "@/lib/quote";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { calculateServerQuote } from "@/lib/server-quote";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { quoteRequestSchema } from "@/lib/validation";
 
 export async function POST(request: Request) {
+  const rateLimit = checkRateLimit(`quote:${getClientIp(request.headers)}`, {
+    limit: 60,
+    windowMs: 60_000
+  });
+  if (!rateLimit.allowed) {
+    return rateLimitResponse(rateLimit.retryAfterSeconds, "견적 요청이 많습니다. 잠시 후 다시 시도해주세요.");
+  }
+
   const body = await readJson(request);
   const parsed = quoteRequestSchema.safeParse(body);
 
@@ -25,12 +34,17 @@ export async function POST(request: Request) {
   const supabase = getSupabaseAdmin();
   const { data: order, error: orderError } = await supabase
     .from("orders")
-    .select("id,is_test")
+    .select("id,is_test,access_token")
     .eq("id", parsed.data.order_id)
     .single();
 
   if (orderError || !order) {
     return fail("not_found", "Order not found.", 404);
+  }
+
+  const isGuest = parsed.data.accessToken && parsed.data.accessToken === order.access_token;
+  if (!isGuest && !hasAdminAccess(request)) {
+    return fail("forbidden", "A valid accessToken is required.", 403);
   }
 
   if (order.is_test) {

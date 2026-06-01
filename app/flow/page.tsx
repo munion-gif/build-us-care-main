@@ -435,7 +435,8 @@ export default function FlowPage() {
           reserved_date: reservedDate,
           time_slot: reservation.time_slot,
           status: "confirmed",
-          notes: reservation.notes
+          notes: reservation.notes,
+          accessToken: flow.accessToken
         })
       });
       const json = (await response.json()) as { ok?: boolean; data?: Record<string, unknown>; error?: { code?: string; message?: string } };
@@ -461,7 +462,7 @@ export default function FlowPage() {
   }
 
   async function confirmPayment() {
-    if (!flow.orderId) throw new Error("주문을 먼저 생성하세요.");
+    if (!flow.orderId || !flow.accessToken) throw new Error("주문과 accessToken이 필요합니다.");
     const itemName = selectedItem?.display_name ?? "Buildus Care order";
 
     setMessage("토스 테스트 결제 승인 중");
@@ -470,6 +471,7 @@ export default function FlowPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         orderId: flow.orderId,
+        accessToken: flow.accessToken,
         paymentKey: `mock-flow-${Date.now()}`,
         amount: flow.totalAmount,
         orderName: `${itemName} ${flow.orderNumber}`.trim()

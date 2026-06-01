@@ -249,11 +249,18 @@ export async function GET(request: Request) {
     .sort((a, b) => a.name.localeCompare(b.name, "ko"));
   const regions = [...new Set(supportedCases.map((item) => item.region).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ko")).slice(0, 12);
 
-  return ok({
-    cases: filtered,
-    count: filtered.length,
-    facets: { services, regions },
-    limit,
-    offset
-  });
+  return ok(
+    {
+      cases: filtered,
+      count: filtered.length,
+      facets: { services, regions },
+      limit,
+      offset
+    },
+    {
+      headers: {
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=1800"
+      }
+    }
+  );
 }

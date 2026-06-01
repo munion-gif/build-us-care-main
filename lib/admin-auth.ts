@@ -3,19 +3,12 @@ import { verifyAdminSessionToken } from "@/lib/admin-session";
 import { fingerprintSecret } from "@/lib/operational-log";
 
 export function requireAdmin(request: Request) {
-  const expected = parseAdminKeys();
-  const provided = request.headers.get("x-admin-key");
-  const sessionSecret = process.env.ADMIN_SESSION_SECRET;
-  const cookieSession = request.headers
-    .get("cookie")
-    ?.split(";")
-    .map((item) => item.trim())
-    .find((item) => item.startsWith("admin_session="))
-    ?.slice("admin_session=".length);
-
-  if (verifyAdminSessionToken(cookieSession, sessionSecret)) {
+  if (hasAdminAccess(request)) {
     return null;
   }
+
+  const expected = parseAdminKeys();
+  const provided = request.headers.get("x-admin-key");
 
   if (!provided) {
     return fail("unauthorized", "Missing or invalid x-admin-key header.", 401);
@@ -30,6 +23,24 @@ export function requireAdmin(request: Request) {
   }
 
   return null;
+}
+
+export function hasAdminAccess(request: Request) {
+  const sessionSecret = process.env.ADMIN_SESSION_SECRET;
+  const cookieSession = request.headers
+    .get("cookie")
+    ?.split(";")
+    .map((item) => item.trim())
+    .find((item) => item.startsWith("admin_session="))
+    ?.slice("admin_session=".length);
+
+  if (verifyAdminSessionToken(cookieSession, sessionSecret)) {
+    return true;
+  }
+
+  const provided = request.headers.get("x-admin-key");
+  const expected = parseAdminKeys();
+  return Boolean(provided && expected.includes(provided));
 }
 
 export function parseAdminKeys() {
