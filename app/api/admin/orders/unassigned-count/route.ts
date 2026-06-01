@@ -14,14 +14,19 @@ export async function GET(request: Request) {
     supabase
     .from("orders")
     .select("id,jobs(id,technician_id,status)")
+      .eq("is_test", false)
+      .is("deleted_at", null)
       .in("status", ["paid", "product_paid"]),
     supabase
       .from("orders")
       .select("id", { count: "exact", head: true })
+      .eq("is_test", false)
+      .is("deleted_at", null)
       .eq("status", "cancel_requested"),
     supabase
       .from("diagnoses")
       .select("id", { count: "exact", head: true })
+      .eq("is_test", false)
       .is("result", null)
   ]);
 

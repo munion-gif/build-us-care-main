@@ -81,6 +81,8 @@ export async function POST(request: Request) {
     `
     )
     .in("customer_id", customerIds)
+    .is("deleted_at", null)
+    .eq("is_test", false)
     .order("created_at", { ascending: false })
     .limit(20);
 

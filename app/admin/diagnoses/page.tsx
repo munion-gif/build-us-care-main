@@ -1,4 +1,5 @@
 import { DiagnosisPanel } from "./diagnoses-client";
+import { DiagnosisTestActions } from "./diagnosis-test-actions-client";
 import { formatKRDateTime, formatServiceName } from "@/lib/format";
 import { measure } from "@/lib/perf";
 import { ORDER_PHOTO_VIEW_EXPIRES_IN, ORDER_PHOTOS_BUCKET } from "@/lib/storage";
@@ -6,7 +7,7 @@ import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
-type PageProps = { searchParams: Promise<{ result?: string; id?: string; offset?: string; page?: string; order?: string }> };
+type PageProps = { searchParams: Promise<{ result?: string; id?: string; offset?: string; page?: string; order?: string; test?: string }> };
 
 const RESULT_LABELS: Record<string, string> = {
   교체추천: "교체추천",
@@ -53,12 +54,13 @@ function orderNumber(diagnosis: any) {
   return order?.order_number ?? diagnosis.raw_response?.receipt_number ?? diagnosis.raw_response?.order_number ?? null;
 }
 
-function diagnosesHref(params: { result: string; id?: string; page?: number; orderSearch?: string }) {
+function diagnosesHref(params: { result: string; id?: string; page?: number; orderSearch?: string; testMode?: boolean }) {
   const query = new URLSearchParams();
   query.set("result", params.result);
   if (params.id) query.set("id", params.id);
   if (params.page && params.page > 1) query.set("page", String(params.page));
   if (params.orderSearch) query.set("order", params.orderSearch);
+  if (params.testMode) query.set("test", "1");
   return `/admin/diagnoses?${query.toString()}`;
 }
 
@@ -148,7 +150,7 @@ async function findDiagnosisIdsByOrderNumber(search: string) {
   return [...ids];
 }
 
-async function getDiagnoses(result = "all", page = 1, orderSearch = "") {
+async function getDiagnoses(result = "all", page = 1, orderSearch = "", testMode = false) {
   if (!hasSupabaseEnv()) return { list: [], count: 0, page: 1, limit: 20 };
   const limit = 20;
   const from = (Math.max(page, 1) - 1) * limit;
@@ -160,7 +162,8 @@ async function getDiagnoses(result = "all", page = 1, orderSearch = "") {
 
   let query = supabase
     .from("diagnoses")
-    .select("id,order_id,service_type_code,service_code,image_urls,photos,result,confidence,reason,details,recommendation,raw_response,created_at,orders(order_number)", { count: "exact" })
+    .select("id,order_id,service_type_code,service_code,image_urls,photos,result,confidence,reason,details,recommendation,raw_response,created_at,is_test,test_marked_at,test_note,orders(order_number)", { count: "exact" })
+    .eq("is_test", testMode)
     .order("created_at", { ascending: false })
     .range(from, from + limit - 1);
 
@@ -175,9 +178,10 @@ async function getDiagnoses(result = "all", page = 1, orderSearch = "") {
 export default async function AdminDiagnosesPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const result = params.result ?? "all";
+  const testMode = params.test === "1";
   const orderSearch = (params.order ?? "").trim();
   const page = Math.max(Number(params.offset ? Math.floor(Number(params.offset) / 20) + 1 : params.page ?? 1), 1);
-  const { list, count, limit } = await measure("admin.diagnoses.getDiagnoses", () => getDiagnoses(result, page, orderSearch));
+  const { list, count, limit } = await measure("admin.diagnoses.getDiagnoses", () => getDiagnoses(result, page, orderSearch, testMode));
   const totalPages = Math.max(Math.ceil(count / limit), 1);
   const selected = params.id ? list.find((item: any) => item.id === params.id) : null;
   const filters = ["all", "교체추천", "교체불필요", "보류", "현장확인필요"];
@@ -191,21 +195,28 @@ export default async function AdminDiagnosesPage({ searchParams }: PageProps) {
     <>
       <header className="adm-page-header">
         <h1 className="adm-page-title">사진확인</h1>
-        <p className="adm-page-sub">홈 사진확인에서 접수된 요청을 접수번호로 찾고, 상담원이 사진과 연락처를 확인합니다.</p>
+        <p className="adm-page-sub">
+          {testMode ? "관리자 테스트 사진확인 접수만 따로 확인합니다. 운영 큐와 통계에는 포함하지 않습니다." : "홈 사진확인에서 접수된 요청을 접수번호로 찾고, 상담원이 사진과 연락처를 확인합니다."}
+        </p>
       </header>
       <div className="adm-content">
+        <nav className="adm-workflow-tabs" aria-label="사진확인 데이터 구분">
+          <a className={!testMode ? "active" : ""} href={diagnosesHref({ result, orderSearch })}>운영 접수</a>
+          <a className={testMode ? "active" : ""} href={diagnosesHref({ result, orderSearch, testMode: true })}>테스트 접수</a>
+        </nav>
         <form className="adm-card adm-section adm-diagnosis-search" action="/admin/diagnoses">
           <input type="hidden" name="result" value={result} />
+          {testMode ? <input type="hidden" name="test" value="1" /> : null}
           <label>
             <span className="adm-label">접수번호로 사진 접수 조회</span>
             <input className="adm-input" name="order" defaultValue={orderSearch} placeholder="예: BO-20260520-0001" />
           </label>
           <button className="adm-btn adm-btn-primary" type="submit">조회</button>
-          {orderSearch ? <a className="adm-btn adm-btn-secondary" href={diagnosesHref({ result })}>초기화</a> : null}
+          {orderSearch ? <a className="adm-btn adm-btn-secondary" href={diagnosesHref({ result, testMode })}>초기화</a> : null}
         </form>
         <nav className="adm-filter-bar">
           {filters.map((filter) => (
-            <a className={`adm-btn ${result === filter ? "adm-btn-primary" : "adm-btn-secondary"}`} href={diagnosesHref({ result: filter, orderSearch })} key={filter}>
+            <a className={`adm-btn ${result === filter ? "adm-btn-primary" : "adm-btn-secondary"}`} href={diagnosesHref({ result: filter, orderSearch, testMode })} key={filter}>
               {filter === "all" ? "전체" : filter}
             </a>
           ))}
@@ -213,7 +224,7 @@ export default async function AdminDiagnosesPage({ searchParams }: PageProps) {
         <section className="adm-diagnosis-summary" aria-label="사진확인 처리 요약">
           <article>
             <strong>{count}</strong>
-            <span>조회 결과</span>
+            <span>{testMode ? "테스트 접수" : "조회 결과"}</span>
           </article>
           <article>
             <strong>{summary.waiting}</strong>
@@ -235,7 +246,10 @@ export default async function AdminDiagnosesPage({ searchParams }: PageProps) {
                 <h2 className="adm-card-title">선택한 접수 상세</h2>
                 <p className="adm-muted adm-section-note">{orderNumber(selected) ?? "접수번호 미연결"} · {formatServiceName(selected.service_type_code ?? selected.service_code)}</p>
               </div>
-              <a className="adm-btn adm-btn-secondary" href={diagnosesHref({ result, orderSearch })}>목록만 보기</a>
+              <div className="adm-action-row-buttons">
+                <DiagnosisTestActions diagnosisId={selected.id} isTest={Boolean(selected.is_test)} receiptNumber={orderNumber(selected)} />
+                <a className="adm-btn adm-btn-secondary" href={diagnosesHref({ result, orderSearch, testMode })}>목록만 보기</a>
+              </div>
             </div>
             <DiagnosisPanel diagnosis={selected} />
           </section>
@@ -247,12 +261,13 @@ export default async function AdminDiagnosesPage({ searchParams }: PageProps) {
             ) : list.map((item: any) => (
               <a
                 className={selected?.id === item.id ? "adm-queue-card active" : "adm-queue-card"}
-                href={diagnosesHref({ result, id: item.id, orderSearch })}
+                href={diagnosesHref({ result, id: item.id, orderSearch, testMode })}
                 key={item.id}
               >
                 <div className="adm-queue-main">
                   <div className="adm-queue-card-top">
                     <span className={`adm-badge ${badgeClass(item.result)}`}>{statusLabel(item.result)}</span>
+                    {item.is_test ? <span className="adm-badge adm-badge-sky">테스트</span> : null}
                     <span className="adm-queue-action">{nextActionLabel(item.result)}</span>
                   </div>
                   <strong>{orderNumber(item) ?? "접수번호 미연결"}</strong>
@@ -277,9 +292,9 @@ export default async function AdminDiagnosesPage({ searchParams }: PageProps) {
           </section>
         </div>
         <div className="adm-filter-bar" style={{ marginTop: 16 }}>
-          {page > 1 && <a className="adm-btn adm-btn-secondary" href={diagnosesHref({ result, page: page - 1, orderSearch })}>이전</a>}
+          {page > 1 && <a className="adm-btn adm-btn-secondary" href={diagnosesHref({ result, page: page - 1, orderSearch, testMode })}>이전</a>}
           <span className="adm-help" style={{ marginTop: 0 }}>페이지 {page} / {totalPages} · 총 {count}건</span>
-          {page < totalPages && <a className="adm-btn adm-btn-secondary" href={diagnosesHref({ result, page: page + 1, orderSearch })}>다음</a>}
+          {page < totalPages && <a className="adm-btn adm-btn-secondary" href={diagnosesHref({ result, page: page + 1, orderSearch, testMode })}>다음</a>}
         </div>
       </div>
     </>

@@ -19,7 +19,7 @@ export async function GET(_request: Request, context: Context) {
     return validationError(parsed.error, "Invalid diagnosis id.");
   }
 
-  const { data, error } = await getSupabaseAdmin().from("diagnoses").select("*").eq("id", parsed.data).maybeSingle();
+  const { data, error } = await getSupabaseAdmin().from("diagnoses").select("*").eq("id", parsed.data).eq("is_test", false).maybeSingle();
 
   if (error) {
     return fail("internal_error", error.message, 500);

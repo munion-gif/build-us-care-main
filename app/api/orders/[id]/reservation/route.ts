@@ -76,7 +76,7 @@ export async function POST(request: Request, context: Context) {
   const supabase = getSupabaseAdmin();
   const { data: order, error: orderError } = await supabase
     .from("orders")
-    .select("id,status")
+    .select("id,status,is_test")
     .eq("id", orderId.data)
     .single();
 
@@ -101,6 +101,40 @@ export async function POST(request: Request, context: Context) {
     return ok({ reservation: existingReservation, order_status: order.status, idempotent: true });
   }
 
+  const protectedStatuses = ["paid", "product_paid", "scheduled", "in_progress", "completed", "done", "canceled", "issue", "warranty"];
+  const nextOrderStatus = protectedStatuses.includes(order.status)
+    ? order.status
+    : parsed.data.status === "confirmed"
+      ? "scheduled"
+      : order.status;
+
+  if (order.is_test === true) {
+    const { data: reservation, error: reservationInsertError } = await supabase
+      .from("reservations")
+      .insert({
+        order_id: orderId.data,
+        reserved_date: parsed.data.reserved_date,
+        time_slot: parsed.data.time_slot,
+        status: parsed.data.status,
+        notes: parsed.data.notes ?? null
+      })
+      .select("*")
+      .single();
+
+    if (reservationInsertError) {
+      return fail("internal_error", reservationInsertError.message, 500);
+    }
+
+    if (nextOrderStatus !== order.status) {
+      const { error: orderUpdateError } = await supabase.from("orders").update({ status: nextOrderStatus }).eq("id", orderId.data);
+      if (orderUpdateError) {
+        return fail("internal_error", orderUpdateError.message, 500);
+      }
+    }
+
+    return ok({ reservation, order_status: nextOrderStatus }, { status: 201 });
+  }
+
   const { data: reservation, error } = await supabase
     .rpc("reserve_order_slot", {
       p_order_id: orderId.data,
@@ -115,13 +149,6 @@ export async function POST(request: Request, context: Context) {
   if (error) {
     return reservationError(error);
   }
-
-  const protectedStatuses = ["paid", "product_paid", "scheduled", "in_progress", "completed", "done", "canceled", "issue", "warranty"];
-  const nextOrderStatus = protectedStatuses.includes(order.status)
-    ? order.status
-    : parsed.data.status === "confirmed"
-      ? "scheduled"
-      : order.status;
 
   return ok({ reservation, order_status: nextOrderStatus }, { status: 201 });
 }

@@ -130,6 +130,8 @@ async function getConsultationData() {
         payments(id,status,amount,paid_at,approved_at)
       `
       )
+      .eq("is_test", false)
+      .is("deleted_at", null)
       .in("status", ["paid", "product_paid"])
       .order("created_at", { ascending: false })
       .limit(30),
@@ -139,7 +141,7 @@ async function getConsultationData() {
         `
         id, reserved_date, time_slot, status, created_at,
         orders(
-          id, order_number, status, total_amount, channel, service_type_code, skus, created_at,
+          id, order_number, status, total_amount, channel, service_type_code, skus, created_at, is_test,
           customers(name,phone),
           homes(address_full),
           jobs(id,status,technician_id,assigned_technician_name,scheduled_at,created_at)
@@ -160,6 +162,7 @@ async function getConsultationData() {
         orders(id,order_number,status,channel,service_type_code,skus,customers(name,phone),homes(address_full))
       `
       )
+      .eq("is_test", false)
       .or("result.is.null,result.in.(hold,site_check_required,replace_recommended,replacement_recommended,보류,현장확인필요,교체추천)")
       .order("created_at", { ascending: false })
       .limit(30)
@@ -169,7 +172,7 @@ async function getConsultationData() {
   const paidNeedsReview = paidRows
     .filter((order: any) => !hasActiveAssignedJob(order))
     .slice(0, 12);
-  const upcomingReservations = (reservations.data ?? []).slice(0, 16);
+  const upcomingReservations = (reservations.data ?? []).filter((reservation: any) => asOne(reservation.orders)?.is_test !== true).slice(0, 16);
   const pendingDiagnoses = diagnoses.data ?? [];
 
   return {

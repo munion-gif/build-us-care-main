@@ -14,7 +14,11 @@ const IMPORTANT_BLOCKED_TARGETS: OperationalOrderStatus[] = ["quoted", "payment_
 export function OrderStatusTransitionPanel({ orderId, currentStatus }: Props) {
   const [savingStatus, setSavingStatus] = useState<OperationalOrderStatus | null>(null);
   const [message, setMessage] = useState("");
-  const allowed = getAllowedOrderTransitions(currentStatus);
+  const allowed = getAllowedOrderTransitions(currentStatus).filter((status) => {
+    if (currentStatus === "payment_pending" && status === "paid") return false;
+    if (currentStatus === "pending_product_payment" && status === "product_paid") return false;
+    return true;
+  });
   const ux = getOrderStatusUx(currentStatus);
 
   async function transitionTo(nextStatus: OperationalOrderStatus) {
@@ -85,6 +89,13 @@ export function OrderStatusTransitionPanel({ orderId, currentStatus }: Props) {
         <div className="adm-blocked-note" aria-label="상태 전이 차단 안내">
           <span>{getOrderStatusUx(primaryBlockedHint.target).adminLabel} 차단</span>
           <p>{primaryBlockedHint.hint}</p>
+        </div>
+      )}
+
+      {(currentStatus === "payment_pending" || currentStatus === "pending_product_payment") && (
+        <div className="adm-blocked-note" aria-label="입금 확인 안내">
+          <span>입금 확인 필요</span>
+          <p>계좌이체 입금 확인은 상태 변경이 아니라 빠른 처리의 입금 확인 버튼으로 처리해야 결제 이력과 통계가 함께 반영됩니다.</p>
         </div>
       )}
 

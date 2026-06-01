@@ -50,6 +50,10 @@ function slotFromScheduledAt(value: string | null): SlotPeriod | null {
   return kstHour(value) < 13 ? "morning" : "afternoon";
 }
 
+function asOne(value: any) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 function monthRange(year: number, month: number) {
   const startDate = new Date(Date.UTC(year, month - 1, 1));
   const endDate = new Date(Date.UTC(year, month, 0));
@@ -158,14 +162,14 @@ export async function GET(request: Request) {
   const [jobsResult, reservationsResult, configsResult, capConfigResult, activeTechniciansResult] = await Promise.all([
     supabase
       .from("jobs")
-      .select("id,scheduled_at,status")
+      .select("id,order_id,scheduled_at,status,orders(is_test)")
       .not("scheduled_at", "is", null)
       .neq("status", "cancelled")
       .gte("scheduled_at", range.queryStart)
       .lt("scheduled_at", range.queryEnd),
     supabase
       .from("reservations")
-      .select("id,reserved_date,time_slot,status")
+      .select("id,order_id,reserved_date,time_slot,status,orders(is_test)")
       .gte("reserved_date", range.startDate)
       .lte("reserved_date", range.endDate)
       .neq("status", "cancelled"),
@@ -210,6 +214,7 @@ export async function GET(request: Request) {
   };
 
   for (const job of jobsResult.data ?? []) {
+    if (asOne((job as any).orders)?.is_test === true) continue;
     const period = slotFromScheduledAt(job.scheduled_at);
     if (!period) continue;
     const day = kstDateOnly(job.scheduled_at);
@@ -217,6 +222,7 @@ export async function GET(request: Request) {
   }
 
   for (const reservation of reservationsResult.data ?? []) {
+    if (asOne((reservation as any).orders)?.is_test === true) continue;
     if (reservation.time_slot === "morning" || reservation.time_slot === "afternoon") {
       addCount(reservation.reserved_date, reservation.time_slot);
     }

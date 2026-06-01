@@ -47,9 +47,9 @@ async function getAnalytics() {
   const warrantyUpper = new Date(now - Math.max(warrantyDays - reminderDays, 0) * 24 * 60 * 60 * 1000).toISOString();
 
   const [orders, paidOrders, diagnoses, events, warrantyJobs] = await Promise.all([
-    measure("admin.analytics.countOrders", () => supabase.from("orders").select("id", { count: "exact", head: true }).gte("created_at", since)),
-    measure("admin.analytics.countPaidOrders", () => supabase.from("orders").select("id", { count: "exact", head: true }).in("status", ["paid", "product_paid"]).gte("created_at", since)),
-    measure("admin.analytics.fetchDiagnoses", () => supabase.from("diagnoses").select("result").gte("created_at", since)),
+    measure("admin.analytics.countOrders", () => supabase.from("orders").select("id", { count: "exact", head: true }).eq("is_test", false).is("deleted_at", null).gte("created_at", since)),
+    measure("admin.analytics.countPaidOrders", () => supabase.from("orders").select("id", { count: "exact", head: true }).eq("is_test", false).is("deleted_at", null).in("status", ["paid", "product_paid"]).gte("created_at", since)),
+    measure("admin.analytics.fetchDiagnoses", () => supabase.from("diagnoses").select("result").eq("is_test", false).gte("created_at", since)),
     measure("admin.analytics.fetchEvents", () => supabase
       .from("events")
       .select("event_type")

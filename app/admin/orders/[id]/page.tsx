@@ -10,7 +10,10 @@ import {
 } from "@/lib/format";
 import { OrderAssignmentButton, OrderScheduleConfirmButton } from "../order-assignment-client";
 import { OrderEditPanel } from "../order-edit-panel-client";
+import { OrderBankTransferConfirmButton } from "../order-payment-actions-client";
 import { OrderStatusTransitionPanel } from "../order-status-transition-panel-client";
+import { OrderTestActions } from "../order-test-actions-client";
+import { OrderTrashActions } from "../order-trash-actions-client";
 import { getOrderStatusUx } from "@/lib/order-status-ux";
 import { ORDER_PHOTO_VIEW_EXPIRES_IN, ORDER_PHOTOS_BUCKET } from "@/lib/storage";
 import type { OrderStatus } from "@/lib/types";
@@ -87,6 +90,15 @@ function slotLabel(slot?: string | null) {
 
 function latestPayment(order: any) {
   return asArray(order.payments).sort((a: any, b: any) => String(b.created_at ?? b.paid_at ?? "").localeCompare(String(a.created_at ?? a.paid_at ?? "")))[0];
+}
+
+function canConfirmBankTransfer(order: any, payment: any) {
+  const status = String(order?.status ?? "");
+  return (
+    payment?.provider === "bank_transfer" &&
+    ["pending", "ready"].includes(String(payment?.status ?? "")) &&
+    ["payment_pending", "pending_product_payment"].includes(status)
+  );
 }
 
 function notificationRawError(notification: any) {
@@ -275,9 +287,12 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
   const feedback = asArray(order.feedbacks)[0];
   const skus = Array.isArray(order.skus) ? order.skus : [];
   const action = currentAction(order);
+  const isDeleted = Boolean(order.deleted_at);
+  const isTest = Boolean(order.is_test);
   const reservation = activeReservation(order);
   const activeJob = activeAssignedJob(order);
   const payment = latestPayment(order);
+  const showBankTransferConfirm = canConfirmBankTransfer(order, payment);
   const photoInputs = [
     ...asArray(order.inquiry_photos),
     ...media.filter((m: any) => m.type === "inquiry").map((m: any) => m.file_path),
@@ -293,7 +308,12 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
     <>
       <header className="adm-page-header">
         <h1 className="adm-page-title">{order.order_number}</h1>
-        <p className="adm-page-sub"><span className="adm-badge adm-badge-sky">{formatOrderStatus(order.status)}</span> <span className="adm-badge adm-badge-green">{formatChannel(order.channel ?? "web")}</span></p>
+        <p className="adm-page-sub">
+          <span className="adm-badge adm-badge-sky">{formatOrderStatus(order.status)}</span>{" "}
+          <span className="adm-badge adm-badge-green">{formatChannel(order.channel ?? "web")}</span>{" "}
+          {isTest ? <span className="adm-badge adm-badge-sky">테스트</span> : null}
+          {isDeleted ? <span className="adm-badge adm-badge-red">휴지통</span> : null}
+        </p>
       </header>
       <div className="adm-content adm-stack">
         <section className="adm-card adm-current-action">
@@ -302,6 +322,34 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
             <h2>{action.title}</h2>
             <p>{action.summary}</p>
           </div>
+        </section>
+
+        {!isDeleted ? (
+          <section className={isTest ? "adm-card adm-test-panel is-test" : "adm-card adm-test-panel"}>
+            <div>
+              <h2 className="adm-card-title">{isTest ? "테스트 주문입니다" : "테스트 데이터 관리"}</h2>
+              <p className="adm-muted">
+                {isTest
+                  ? "이 주문은 관리자 테스트 데이터로 분리되어 고객 조회, 운영 통계, 기본 주문 목록에서 제외됩니다."
+                  : "운영 데이터와 섞이면 안 되는 확인용 주문은 테스트 주문으로 표시해 따로 관리합니다."}
+              </p>
+              {order.test_note ? <p className="adm-trash-meta">테스트 메모: {order.test_note}</p> : null}
+            </div>
+            <OrderTestActions isTest={isTest} orderId={order.id} orderNumber={order.order_number} />
+          </section>
+        ) : null}
+
+        <section className={isDeleted ? "adm-card adm-trash-panel is-deleted" : "adm-card adm-trash-panel"}>
+          <div>
+            <h2 className="adm-card-title">{isDeleted ? "휴지통에 있는 주문입니다" : "주문 삭제 관리"}</h2>
+            <p className="adm-muted">
+              {isDeleted
+                ? `이 주문은 ${formatKRDateTime(order.deleted_at)}에 휴지통으로 이동했습니다. 복구하거나 완전 삭제할 수 있습니다.`
+                : "잘못 접수된 테스트/중복 주문은 먼저 휴지통으로 이동한 뒤, 휴지통에서 확인 후 완전 삭제합니다."}
+            </p>
+            {order.deleted_reason ? <p className="adm-trash-meta">삭제 메모: {order.deleted_reason}</p> : null}
+          </div>
+          <OrderTrashActions mode={isDeleted ? "trash" : "active"} orderId={order.id} orderNumber={order.order_number} />
         </section>
 
         <section className="adm-order-brief-grid">
@@ -327,35 +375,44 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
           </article>
         </section>
 
-        <section className="adm-detail-ops-grid">
-          <div className="adm-stack">
-            <OrderStatusTransitionPanel orderId={order.id} currentStatus={order.status as OrderStatus} />
-            <article className="adm-card adm-quick-panel">
-              <div>
-                <h2 className="adm-card-title">빠른 처리</h2>
-                <p className="adm-muted">유저 플로우 기준 다음 운영 작업만 먼저 처리합니다.</p>
-              </div>
-              <div className="adm-quick-actions">
-                <OrderAssignmentButton
-                  orderId={order.id}
-                  orderNumber={order.order_number}
-                  orderStatus={order.status}
-                  reservations={asArray(order.reservations)}
-                  jobs={asArray(order.jobs)}
-                  technicians={technicians}
-                />
-                {String(order.status) !== "scheduled" && (
-                  <OrderScheduleConfirmButton
+        {!isDeleted && (
+          <section className="adm-detail-ops-grid">
+            <div className="adm-stack">
+              <OrderStatusTransitionPanel orderId={order.id} currentStatus={order.status as OrderStatus} />
+              <article className="adm-card adm-quick-panel">
+                <div>
+                  <h2 className="adm-card-title">빠른 처리</h2>
+                  <p className="adm-muted">유저 플로우 기준 다음 운영 작업만 먼저 처리합니다.</p>
+                </div>
+                <div className="adm-quick-actions">
+                  {showBankTransferConfirm ? (
+                    <OrderBankTransferConfirmButton
+                      orderId={order.id}
+                      orderNumber={order.order_number}
+                      amount={Number(payment?.amount ?? order.total_amount ?? 0)}
+                    />
+                  ) : null}
+                  <OrderAssignmentButton
                     orderId={order.id}
-                    disabled={!activeJob || (!reservation && !activeJob?.scheduled_at)}
-                    reason={!activeJob ? "예약 확정 전 담당 기사를 먼저 배정해주세요." : "예약 확정 전 예약 날짜와 시간대를 먼저 저장해주세요."}
+                    orderNumber={order.order_number}
+                    orderStatus={order.status}
+                    reservations={asArray(order.reservations)}
+                    jobs={asArray(order.jobs)}
+                    technicians={technicians}
                   />
-                )}
-              </div>
-            </article>
-          </div>
-          <OrderEditPanel order={order} technicians={technicians} />
-        </section>
+                  {String(order.status) !== "scheduled" && (
+                    <OrderScheduleConfirmButton
+                      orderId={order.id}
+                      disabled={!activeJob || (!reservation && !activeJob?.scheduled_at)}
+                      reason={!activeJob ? "예약 확정 전 담당 기사를 먼저 배정해주세요." : "예약 확정 전 예약 날짜와 시간대를 먼저 저장해주세요."}
+                    />
+                  )}
+                </div>
+              </article>
+            </div>
+            <OrderEditPanel order={order} technicians={technicians} />
+          </section>
+        )}
 
         <section className="adm-detail-accordion">
           <details className="adm-card adm-details-card" open>

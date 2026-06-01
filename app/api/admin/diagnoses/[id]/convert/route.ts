@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { fail, ok } from "@/lib/api-response";
 import { parseAddressApt, parseAddressDong } from "@/lib/address-parse";
-import { requireAdmin } from "@/lib/admin-auth";
+import { getAdminKeyId, requireAdmin } from "@/lib/admin-auth";
 import { readJson, validationError } from "@/lib/errors";
 import { createOrderDateKey, createOrderNumber } from "@/lib/orders";
 import { calculateServerQuote } from "@/lib/server-quote";
@@ -166,6 +166,17 @@ export async function POST(request: Request, context: Context) {
       order = existingOrder;
       customerId = existingOrder.customer_id ?? existingOrder.customers?.id ?? null;
       customerPhone = customerPhone ?? existingOrder.customers?.phone ?? null;
+      if (diagnosis.is_test && !existingOrder.is_test) {
+        await supabase
+          .from("orders")
+          .update({
+            is_test: true,
+            test_marked_at: new Date().toISOString(),
+            test_marked_by: getAdminKeyId(request) ?? "admin_session",
+            test_note: "테스트 사진확인에서 주문 전환"
+          })
+          .eq("id", existingOrder.id);
+      }
     } else {
       if (!customerPhone) {
         return fail("bad_request", "사진확인 접수에 고객 연락처가 없어 주문 전환을 할 수 없습니다.", 400);
@@ -217,7 +228,11 @@ export async function POST(request: Request, context: Context) {
           urgency: "flexible",
           self_diagnosis: parsed.data.reason ?? diagnosis.reason ?? diagnosis.recommendation ?? null,
           inquiry_photos: diagnosis.image_urls ?? diagnosis.photos ?? [],
-          special_requests: diagnosis.details ?? null
+          special_requests: diagnosis.details ?? null,
+          is_test: Boolean(diagnosis.is_test),
+          test_marked_at: diagnosis.is_test ? new Date().toISOString() : null,
+          test_marked_by: diagnosis.is_test ? getAdminKeyId(request) ?? "admin_session" : null,
+          test_note: diagnosis.is_test ? "테스트 사진확인에서 주문 전환" : null
         })
         .select("*")
         .single();
@@ -255,20 +270,22 @@ export async function POST(request: Request, context: Context) {
       })
       .eq("id", diagnosis.id);
 
-    await supabase.from("events").insert({
-      event_type: "diagnosis_converted_to_quote",
-      order_id: order.id,
-      customer_id: customerId,
-      service_code: serviceCode,
-      properties: {
-        diagnosis_id: diagnosis.id,
-        quote_id: quote.id,
-        order_number: order.order_number,
-        total_final: pricing.total_final
-      }
-    });
+    if (!diagnosis.is_test) {
+      await supabase.from("events").insert({
+        event_type: "diagnosis_converted_to_quote",
+        order_id: order.id,
+        customer_id: customerId,
+        service_code: serviceCode,
+        properties: {
+          diagnosis_id: diagnosis.id,
+          quote_id: quote.id,
+          order_number: order.order_number,
+          total_final: pricing.total_final
+        }
+      });
+    }
 
-    if (customerPhone) {
+    if (customerPhone && !diagnosis.is_test) {
       const statusUrl = order.access_token
         ? `${process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "https://buildus-care-flow.vercel.app"}/orders/${order.id}?accessToken=${order.access_token}`
         : null;

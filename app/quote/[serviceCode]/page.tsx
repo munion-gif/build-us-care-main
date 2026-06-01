@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
 import { getPublicAppConfig } from "@/lib/app-config";
 import { measure } from "@/lib/perf";
 import { getMaterialsBySku, getServiceItem } from "@/lib/service-items";
@@ -13,6 +14,13 @@ type QuotePageProps = {
 export default async function QuotePage({ params, searchParams }: QuotePageProps) {
   const { serviceCode } = await params;
   const resolvedSearchParams = await searchParams;
+  const cookieStore = await cookies();
+  const adminTestRequested = resolvedSearchParams.adminTest === "1" || resolvedSearchParams.test === "1";
+  const adminTest = Boolean(
+    adminTestRequested &&
+    process.env.ADMIN_SESSION_SECRET &&
+    cookieStore.get("admin_session")?.value === process.env.ADMIN_SESSION_SECRET
+  );
   const service = await measure("quote.service.fetchService", () => getServiceItem(serviceCode));
 
   if (!service) {
@@ -26,5 +34,5 @@ export default async function QuotePage({ params, searchParams }: QuotePageProps
     getPublicAppConfig()
   ]);
 
-  return <QuoteDetailClient service={service} materials={materials} preset={preset} kakaoUrl={appConfig.kakaoChannelUrl} />;
+  return <QuoteDetailClient service={service} materials={materials} preset={preset} kakaoUrl={appConfig.kakaoChannelUrl} adminTest={adminTest} />;
 }

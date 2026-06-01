@@ -1,5 +1,6 @@
 import { fail, ok } from "@/lib/api-response";
 import { parseAddressApt, parseAddressDong } from "@/lib/address-parse";
+import { getAdminKeyId, requireAdmin } from "@/lib/admin-auth";
 import { inferDeviceType, normalizeCampaign, normalizeSource } from "@/lib/data-collection";
 import { EVENT_TYPES } from "@/lib/event-types";
 import { readJson, validationError } from "@/lib/errors";
@@ -56,6 +57,12 @@ export async function POST(request: Request) {
 
   if (!parsed.success) {
     return validationError(parsed.error, "Invalid order request.");
+  }
+
+  const isAdminTest = parsed.data.admin_test === true;
+  if (isAdminTest) {
+    const authError = requireAdmin(request);
+    if (authError) return authError;
   }
 
   const supabase = getSupabaseAdmin();
@@ -225,7 +232,11 @@ export async function POST(request: Request) {
       visit_fee: quote.visit_fee,
       subtotal_amount: quote.subtotal_amount,
       total_amount: quote.total_amount,
-      special_requests: parsed.data.special_requests ?? null
+      special_requests: parsed.data.special_requests ?? null,
+      is_test: isAdminTest,
+      test_marked_at: isAdminTest ? new Date().toISOString() : null,
+      test_marked_by: isAdminTest ? getAdminKeyId(request) ?? "admin_session" : null,
+      test_note: isAdminTest ? parsed.data.test_note ?? "관리자 실제 주문 흐름 테스트" : null
     })
     .select("*")
     .single();
@@ -234,24 +245,26 @@ export async function POST(request: Request) {
     return fail("internal_error", orderError.message, 500);
   }
 
-  await supabase.from("events").insert({
-    event_type: EVENT_TYPES.QUOTE_SUBMITTED,
-    session_id: parsed.data.session_id ?? null,
-    order_id: order.id,
-    customer_id: customer.id,
-    source,
-    campaign,
-    landing_path: parsed.data.landing_path ?? null,
-    device_type: deviceType,
-    service_code: order.service_type_code,
-    region_code: parsed.data.region_code ?? parsed.data.home?.address_dong ?? null,
-    properties: {
-      order_number: order.order_number,
-      total_amount: order.total_amount
-    }
-  });
+  if (!isAdminTest) {
+    await supabase.from("events").insert({
+      event_type: EVENT_TYPES.QUOTE_SUBMITTED,
+      session_id: parsed.data.session_id ?? null,
+      order_id: order.id,
+      customer_id: customer.id,
+      source,
+      campaign,
+      landing_path: parsed.data.landing_path ?? null,
+      device_type: deviceType,
+      service_code: order.service_type_code,
+      region_code: parsed.data.region_code ?? parsed.data.home?.address_dong ?? null,
+      properties: {
+        order_number: order.order_number,
+        total_amount: order.total_amount
+      }
+    });
+  }
 
-  if (parsed.data.session_id) {
+  if (!isAdminTest && parsed.data.session_id) {
     const sessionRow = {
       session_id: parsed.data.session_id,
       first_event_time: new Date().toISOString(),
@@ -296,22 +309,24 @@ export async function POST(request: Request) {
     memo: "주문 생성과 함께 작업 접수"
   });
 
-  await supabase.from("notifications").insert({
-    order_id: order.id,
-    channel: "mock",
-    template_code: "order_submitted",
-    recipient: parsed.data.customer.phone,
-    send_status: "queued",
-    payload: { order_number: order.order_number }
-  });
+  if (!isAdminTest) {
+    await supabase.from("notifications").insert({
+      order_id: order.id,
+      channel: "mock",
+      template_code: "order_submitted",
+      recipient: parsed.data.customer.phone,
+      send_status: "queued",
+      payload: { order_number: order.order_number }
+    });
 
-  void notifyNewOrder({
-    orderId: order.id,
-    orderNumber: order.order_number,
-    customerName: customer.name ?? parsed.data.customer.name ?? "고객",
-    serviceType: parsed.data.service_type_code ?? parsed.data.items[0]?.service_type_code ?? "unknown",
-    addressFull
-  });
+    void notifyNewOrder({
+      orderId: order.id,
+      orderNumber: order.order_number,
+      customerName: customer.name ?? parsed.data.customer.name ?? "고객",
+      serviceType: parsed.data.service_type_code ?? parsed.data.items[0]?.service_type_code ?? "unknown",
+      addressFull
+    });
+  }
 
   return ok(
     {
@@ -342,6 +357,8 @@ export async function GET(request: Request) {
     .from("orders")
     .select("id,order_number,status,created_at,service_type_code,skus,jobs(id,assigned_technician_name,status,completed_at)")
     .eq("customer_id", customer.id)
+    .is("deleted_at", null)
+    .eq("is_test", false)
     .order("created_at", { ascending: false })
     .limit(5);
 

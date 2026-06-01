@@ -31,6 +31,7 @@ type QuoteDetailClientProps = {
   materials: MaterialItem[];
   preset: QuotePreset;
   kakaoUrl: string | null;
+  adminTest?: boolean;
 };
 
 type TossPaymentClient = {
@@ -360,7 +361,7 @@ function compactProductNote(note: string) {
   return compactWords.length > 0 ? compactWords.join(" ") : firstSegment.slice(0, 12).trim();
 }
 
-export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: QuoteDetailClientProps) {
+export function QuoteDetailClient({ service, materials, preset, kakaoUrl, adminTest = false }: QuoteDetailClientProps) {
   const productGrade: "standard" = "standard";
   const [productQuantities, setProductQuantities] = useState<Record<string, number>>({});
   const [files, setFiles] = useState<File[]>([]);
@@ -396,7 +397,8 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
   const addressButtonRef = useRef<HTMLButtonElement | null>(null);
   const detailAddressInputRef = useRef<HTMLInputElement | null>(null);
   const customerInfoConsentRef = useRef<HTMLInputElement | null>(null);
-  const { track } = useTracking();
+  const { track: rawTrack } = useTracking();
+  const track = adminTest ? ((..._args: Parameters<typeof rawTrack>) => Promise.resolve()) : rawTrack;
   const kakaoChatUrl = getKakaoChannelChatUrl(kakaoUrl);
 
   const standardMaterial = materials.find((material) => material.sku === service.standard_material_sku) ?? materials[0];
@@ -1010,7 +1012,9 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
         },
         items: orderItems,
         visit_fee: quoteVisitFee,
-        special_requests: specialRequestText || undefined
+        special_requests: specialRequestText || undefined,
+        admin_test: adminTest,
+        test_note: adminTest ? "관리자 실제 주문 흐름 테스트" : undefined
       })
     });
 
@@ -1168,6 +1172,12 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl }: Quot
   return (
     <main className="quote-page">
       <style>{quoteCss}</style>
+      {adminTest && (
+        <section className="quote-admin-test-banner" aria-label="관리자 테스트 모드">
+          <strong>관리자 테스트 모드</strong>
+          <span>이 흐름에서 생성되는 주문은 테스트 주문으로 분리되어 운영 목록, 고객 조회, 통계, 예약 슬롯 계산에서 제외됩니다.</span>
+        </section>
+      )}
       {preset.banner && (
         <div className="context-banner">
           <MessageCircle size={18} />
@@ -2230,6 +2240,27 @@ const quoteCss = `
   }
   .quote-page :where(p, small, label) {
     text-wrap: pretty;
+  }
+  .quote-admin-test-banner {
+    max-width: 980px;
+    margin: 0 auto 12px;
+    border: 1px solid rgba(194, 143, 35, 0.42);
+    background: rgba(194, 143, 35, 0.12);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--color-text);
+  }
+  .quote-admin-test-banner strong {
+    flex: 0 0 auto;
+    font-size: 0.9rem;
+  }
+  .quote-admin-test-banner span {
+    color: var(--color-muted);
+    font-size: 0.86rem;
+    line-height: 1.55;
   }
   .context-banner {
     max-width: 980px;

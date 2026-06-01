@@ -1,4 +1,5 @@
 import { fail, ok } from "@/lib/api-response";
+import { requireAdmin } from "@/lib/admin-auth";
 import { readJson, validationError } from "@/lib/errors";
 import { calculateQuote } from "@/lib/quote";
 import { calculateServerQuote } from "@/lib/server-quote";
@@ -24,12 +25,17 @@ export async function POST(request: Request) {
   const supabase = getSupabaseAdmin();
   const { data: order, error: orderError } = await supabase
     .from("orders")
-    .select("id")
+    .select("id,is_test")
     .eq("id", parsed.data.order_id)
     .single();
 
   if (orderError || !order) {
     return fail("not_found", "Order not found.", 404);
+  }
+
+  if (order.is_test) {
+    const authError = requireAdmin(request);
+    if (authError) return fail("not_found", "Order not found.", 404);
   }
 
   let quoteResult;
@@ -74,15 +80,17 @@ export async function POST(request: Request) {
     return fail("internal_error", quoteError.message, 500);
   }
 
-  await supabase.from("events").insert({
-    event_type: "quote_generated",
-    order_id: parsed.data.order_id,
-    properties: {
-      quote_id: quote.id,
-      version,
-      total_final: quote.total_final
-    }
-  });
+  if (!order.is_test) {
+    await supabase.from("events").insert({
+      event_type: "quote_generated",
+      order_id: parsed.data.order_id,
+      properties: {
+        quote_id: quote.id,
+        version,
+        total_final: quote.total_final
+      }
+    });
+  }
 
   await supabase
     .from("orders")

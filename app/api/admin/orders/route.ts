@@ -27,6 +27,8 @@ export async function GET(request: Request) {
   const dateFrom = searchParams.get("date_from");
   const dateTo = searchParams.get("date_to");
   const search = searchParams.get("search");
+  const trashMode = searchParams.get("trash") === "1" || searchParams.get("flow") === "trash";
+  const testMode = !trashMode && (searchParams.get("test") === "1" || searchParams.get("flow") === "test");
   const offset = Math.max(Number(searchParams.get("offset") ?? 0), 0);
   const page = Math.max(Number(searchParams.get("page") ?? 1), 1);
   const limit = Math.min(Number(searchParams.get("limit") ?? 20), 100);
@@ -37,7 +39,7 @@ export async function GET(request: Request) {
     .from("orders")
     .select(
       `
-      id, order_number, status, total_amount, created_at, channel, urgency, service_type_code, skus,
+      id, order_number, status, total_amount, created_at, channel, urgency, service_type_code, skus, deleted_at, deleted_by, deleted_reason, is_test, test_marked_at, test_note,
       customers(id,name,phone,acquisition_source),
       homes(id,address_full,building_type,size_pyung,year_built),
       quotes(id,version,total_final,accepted_at,created_at),
@@ -48,8 +50,14 @@ export async function GET(request: Request) {
     `,
       { count: "exact" }
     )
-    .order("created_at", { ascending: false })
+    .order(trashMode ? "deleted_at" : "created_at", { ascending: false })
     .range(from, from + limit - 1);
+
+  if (trashMode) {
+    query = query.not("deleted_at", "is", null);
+  } else {
+    query = query.is("deleted_at", null).eq("is_test", testMode);
+  }
 
   if (status) {
     query = query.eq("status", status);
@@ -81,7 +89,7 @@ export async function GET(request: Request) {
   }
 
   if (search) {
-    query = query.or(`order_number.ilike.%${search}%,customers.phone.ilike.%${search}%`);
+    query = query.ilike("order_number", `%${search}%`);
   }
 
   const { data, error, count } = await measure("api.admin.orders.query", () => query);
