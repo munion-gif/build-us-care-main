@@ -9,7 +9,6 @@ import {
   Camera,
   ClipboardList,
   Gauge,
-  LineChart,
   MessageCircle,
   Settings,
   UserRoundCog,
@@ -25,7 +24,6 @@ const menus = [
   [UserRoundCog, "기사 관리", "/admin/technicians"],
   [CalendarDays, "슬롯 관리", "/admin/slots"],
   [BarChart3, "운영 분석", "/admin/analytics"],
-  [LineChart, "퍼널 분석", "/admin/funnel"],
   [Settings, "설정", "/admin/settings"]
 ] as const;
 
