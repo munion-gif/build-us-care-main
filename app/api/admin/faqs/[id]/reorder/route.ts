@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { revalidateTag } from "next/cache";
 import { fail, ok } from "@/lib/api-response";
 import { requireAdmin } from "@/lib/admin-auth";
 import { readJson, validationError } from "@/lib/errors";
@@ -29,5 +30,6 @@ export async function PATCH(request: Request, context: Context) {
     .single();
 
   if (error) return fail("internal_error", error.message, 500);
+  revalidateTag("public-faqs");
   return ok({ faq: data });
 }

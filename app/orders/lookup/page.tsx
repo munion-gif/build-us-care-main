@@ -7,6 +7,8 @@ export const metadata = {
   description: "예약 시 입력한 이름과 전화번호로 주문 목록을 확인하세요."
 };
 
+export const revalidate = 3600;
+
 export default async function OrderLookupPage() {
   const appConfig = await measure("orders.lookup.fetchAppConfig", () => getPublicAppConfig());
 

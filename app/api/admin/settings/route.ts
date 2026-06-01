@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { revalidateTag } from "next/cache";
 import { fail, ok } from "@/lib/api-response";
 import { requireAdmin } from "@/lib/admin-auth";
 import { readJson, validationError } from "@/lib/errors";
@@ -129,6 +130,7 @@ export async function POST(request: Request) {
   if (rows.length > 0) {
     const { error } = await supabase.from("app_configs").upsert(rows, { onConflict: "key" });
     if (error) return fail("internal_error", error.message, 500);
+    revalidateTag("public-app-config");
   }
 
   if (parsed.data.slot_cap !== undefined) {
@@ -139,6 +141,7 @@ export async function POST(request: Request) {
         supabase.from("slot_configs").delete().eq("type", "cap")
       ]);
       if (appConfigError ?? slotConfigError) return fail("internal_error", (appConfigError ?? slotConfigError)!.message, 500);
+      revalidateTag("public-app-config");
     }
   }
 

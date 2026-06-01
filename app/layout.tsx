@@ -3,8 +3,6 @@ import { getPublicAppConfig } from "@/lib/app-config";
 import { PublicShell } from "@/components/layout/PublicShell";
 import "./globals.css";
 
-export const dynamic = "force-dynamic";
-
 const siteTitle = "Build us Care";
 const siteDescription = "집 안의 작은 교체, 먼저 확인하세요";
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://builduscare.co.kr";

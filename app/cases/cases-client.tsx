@@ -4,33 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, MapPin, Star } from "lucide-react";
 import { EVENT_TYPES } from "@/lib/event-types";
 import { formatKRDate, formatKRW } from "@/lib/format";
+import type { PublicCaseItem } from "@/lib/public-cases";
 import { appendSourceParams, readClientSourceContext } from "@/lib/traffic-source";
 import { useTracking } from "@/lib/use-tracking";
 
-type CaseItem = {
-  id: string;
-  job_id: string | null;
-  service_code: string;
-  service_name: string;
-  category: string;
-  completed_at: string | null;
-  image_url: string | null;
-  before_image_url: string | null;
-  rating: number | null;
-  total_price: number | null;
-  labor_price: number | null;
-  material_price: number | null;
-  visit_fee: number | null;
-  price_note: string;
-  summary: string;
-  problem: string;
-  work: string;
-  region: string;
-  building_type: string;
-  tags: string[];
-  quote_href: string;
-  photo_href: string;
-};
+type CaseItem = PublicCaseItem;
 
 const TABS = [
   { key: "all", label: "전체" },
@@ -80,12 +58,17 @@ function hasCasePhoto(item: CaseItem) {
   return Boolean(item.image_url || item.before_image_url);
 }
 
-export function CasesClient() {
+type CasesClientProps = {
+  initialCases?: CaseItem[];
+};
+
+export function CasesClient({ initialCases = [] }: CasesClientProps) {
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]["key"]>("all");
-  const [cases, setCases] = useState<CaseItem[]>([]);
+  const [cases, setCases] = useState<CaseItem[]>(initialCases);
   const [sourceContext, setSourceContext] = useState(() => readClientSourceContext());
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(initialCases.length === 0);
   const [error, setError] = useState<string | null>(null);
+  const [hasUsedInitialCases, setHasUsedInitialCases] = useState(initialCases.length > 0);
   const { track } = useTracking();
 
   useEffect(() => {
@@ -93,6 +76,13 @@ export function CasesClient() {
   }, []);
 
   useEffect(() => {
+    if (activeTab === "all" && hasUsedInitialCases) {
+      setLoading(false);
+      setError(null);
+      setHasUsedInitialCases(false);
+      return;
+    }
+
     const controller = new AbortController();
 
     async function loadCases() {
