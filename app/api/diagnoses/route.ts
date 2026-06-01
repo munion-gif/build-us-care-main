@@ -3,10 +3,14 @@ import { fail, ok } from "@/lib/api-response";
 import { EVENT_TYPES } from "@/lib/event-types";
 import { readJson, validationError } from "@/lib/errors";
 import { createOrderDateKey, createOrderNumber } from "@/lib/orders";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { ORDER_PHOTO_VIEW_EXPIRES_IN, ORDER_PHOTOS_BUCKET } from "@/lib/storage";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 
 type SupabaseAdmin = ReturnType<typeof getSupabaseAdmin>;
+
+const DIAGNOSIS_CREATE_LIMIT = 5;
+const DIAGNOSIS_CREATE_WINDOW_MS = 10 * 60 * 1000;
 
 const createDiagnosisSchema = z
   .object({
@@ -80,6 +84,16 @@ export async function POST(request: Request) {
 
   if (!parsed.success) {
     return validationError(parsed.error, "Invalid diagnosis request.");
+  }
+
+  const rateLimitPhone = parsed.data.phone?.replace(/\D/g, "") || "anonymous";
+  const rateLimit = checkRateLimit(`diagnosis-create:${getClientIp(request.headers)}:${rateLimitPhone}`, {
+    limit: DIAGNOSIS_CREATE_LIMIT,
+    windowMs: DIAGNOSIS_CREATE_WINDOW_MS
+  });
+
+  if (!rateLimit.allowed) {
+    return rateLimitResponse(rateLimit.retryAfterSeconds, "사진 확인 접수 요청이 많습니다. 잠시 후 다시 시도해주세요.");
   }
 
   const serviceTypeCode = parsed.data.serviceTypeCode ?? parsed.data.service_code ?? "toilet_replace";

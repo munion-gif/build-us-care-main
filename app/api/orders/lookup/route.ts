@@ -1,9 +1,11 @@
 import { fail, ok } from "@/lib/api-response";
 import { readJson } from "@/lib/errors";
 import { formatServiceName } from "@/lib/format";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 
-const attempts = new Map<string, number[]>();
+const ORDER_LOOKUP_LIMIT = 5;
+const ORDER_LOOKUP_WINDOW_MS = 10 * 60 * 1000;
 
 function normalizePhone(value: unknown) {
   return String(value ?? "").replace(/\D/g, "");
@@ -11,14 +13,6 @@ function normalizePhone(value: unknown) {
 
 function normalizeName(value: unknown) {
   return String(value ?? "").trim().replace(/\s+/g, " ");
-}
-
-function limited(key: string) {
-  const now = Date.now();
-  const recent = (attempts.get(key) ?? []).filter((time) => now - time < 5 * 60 * 1000);
-  recent.push(now);
-  attempts.set(key, recent);
-  return recent.length > 3;
 }
 
 function asArray(value: any) {
@@ -56,7 +50,15 @@ export async function POST(request: Request) {
   const phone = normalizePhone(body?.phone);
   if (name.length < 1) return fail("BAD_REQUEST", "이름을 입력해주세요.", 400);
   if (phone.length < 8) return fail("BAD_REQUEST", "전화번호를 다시 확인해주세요.", 400);
-  if (limited(`${name}:${phone}`)) return fail("RATE_LIMITED", "요청이 많습니다. 5분 뒤 다시 시도해주세요.", 429);
+
+  const rateLimit = checkRateLimit(`order-lookup:${getClientIp(request.headers)}:${name}:${phone}`, {
+    limit: ORDER_LOOKUP_LIMIT,
+    windowMs: ORDER_LOOKUP_WINDOW_MS
+  });
+
+  if (!rateLimit.allowed) {
+    return rateLimitResponse(rateLimit.retryAfterSeconds, "조회 요청이 많습니다. 잠시 후 다시 시도해주세요.");
+  }
 
   const supabase = getSupabaseAdmin();
   const { data: customers, error: customerError } = await supabase

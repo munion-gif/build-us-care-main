@@ -4,6 +4,7 @@ import path from "node:path";
 export const ORDER_PHOTOS_BUCKET = "buildus-order-photos";
 export const ORDER_PHOTO_UPLOAD_EXPIRES_IN = 60 * 60 * 2;
 export const ORDER_PHOTO_VIEW_EXPIRES_IN = 60 * 15;
+export const MAX_PHOTO_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 export const ALLOWED_PHOTO_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"] as const;
 

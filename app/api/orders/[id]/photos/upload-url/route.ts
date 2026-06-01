@@ -1,9 +1,13 @@
 import { fail, ok } from "@/lib/api-response";
 import { parseAdminKeys } from "@/lib/admin-auth";
 import { readJson, validationError } from "@/lib/errors";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { createOrderPhotoPath, ORDER_PHOTO_UPLOAD_EXPIRES_IN, ORDER_PHOTOS_BUCKET } from "@/lib/storage";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { createPhotoUploadUrlSchema, uuidSchema } from "@/lib/validation";
+
+const ORDER_PHOTO_UPLOAD_URL_LIMIT = 10;
+const ORDER_PHOTO_UPLOAD_URL_WINDOW_MS = 10 * 60 * 1000;
 
 type Context = {
   params: Promise<{ id: string }>;
@@ -24,6 +28,15 @@ export async function POST(request: Request, context: Context) {
 
   if (!orderId.success) {
     return validationError(orderId.error, "Invalid order id.");
+  }
+
+  const rateLimit = checkRateLimit(`order-photo-upload-url:${getClientIp(request.headers)}:${orderId.data}`, {
+    limit: ORDER_PHOTO_UPLOAD_URL_LIMIT,
+    windowMs: ORDER_PHOTO_UPLOAD_URL_WINDOW_MS
+  });
+
+  if (!rateLimit.allowed) {
+    return rateLimitResponse(rateLimit.retryAfterSeconds, "사진 업로드 요청이 많습니다. 잠시 후 다시 시도해주세요.");
   }
 
   const body = await readJson(request);

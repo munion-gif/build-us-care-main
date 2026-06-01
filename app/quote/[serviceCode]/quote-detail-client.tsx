@@ -865,7 +865,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl, adminT
       const upload = await requestJson(`/api/orders/${orderId}/media/upload-url`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName: file.name, contentType: file.type || "image/jpeg", accessToken })
+        body: JSON.stringify({ fileName: file.name, contentType: file.type || "image/jpeg", fileSize: file.size, accessToken })
       });
 
       await fetch(upload.uploadUrl, {

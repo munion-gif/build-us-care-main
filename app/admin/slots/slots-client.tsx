@@ -77,7 +77,7 @@ export function AdminSlotsClient() {
       const startDate = toIsoDate(new Date(target.getFullYear(), target.getMonth(), 1));
       const endDate = toIsoDate(new Date(target.getFullYear(), target.getMonth() + 1, 1));
       const [slotsResponse, configResponse, jobsResponse] = await Promise.all([
-        fetch(`/api/slots?year=${target.getFullYear()}&month=${target.getMonth() + 1}`),
+        fetch(`/api/slots?year=${target.getFullYear()}&month=${target.getMonth() + 1}&fresh=1`, { cache: "no-store" }),
         fetch("/api/admin/slot-configs"),
         fetch(`/api/admin/jobs?date_from=${startDate}T00:00:00%2B09:00&date_to=${endDate}T00:00:00%2B09:00&limit=100`, { cache: "no-store" })
       ]);

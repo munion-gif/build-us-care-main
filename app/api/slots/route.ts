@@ -6,6 +6,14 @@ export const revalidate = 30;
 type SlotPeriod = "morning" | "afternoon";
 
 const DEFAULT_MAX_SLOTS = 3;
+const SLOT_CACHE_HEADERS = {
+  "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120"
+};
+const SLOT_NO_STORE_HEADERS = {
+  "Cache-Control": "no-store"
+};
+
+let skipTestOrderLookup = false;
 
 function boundedNumber(value: string | null, fallback: number, min: number, max: number) {
   const parsed = Number(value ?? fallback);
@@ -56,12 +64,15 @@ function isMissingColumnError(error: any, column: string) {
 }
 
 async function fetchTestOrderIds(supabase: ReturnType<typeof getSupabaseAdmin>, orderIds: Array<string | null | undefined>) {
+  if (skipTestOrderLookup) return new Set<string>();
+
   const uniqueOrderIds = [...new Set(orderIds.filter(Boolean) as string[])];
   if (uniqueOrderIds.length === 0) return new Set<string>();
 
   const { data, error } = await supabase.from("orders").select("id,is_test").in("id", uniqueOrderIds);
   if (error) {
     if (isMissingColumnError(error, "is_test")) {
+      skipTestOrderLookup = true;
       console.warn("[api/slots] orders.is_test is missing. Test orders will be included in slot counts until the migration is applied.");
       return new Set<string>();
     }
@@ -170,7 +181,8 @@ export async function GET(request: Request) {
   const defaultMonth = Number(kstDateOnly(now).slice(5, 7));
   const year = boundedNumber(searchParams.get("year"), defaultYear, 2026, 2100);
   const month = boundedNumber(searchParams.get("month"), defaultMonth, 1, 12);
-  if (!hasSupabaseEnv()) return ok(mockSlotPayload(year, month));
+  const responseHeaders = searchParams.get("fresh") === "1" ? SLOT_NO_STORE_HEADERS : SLOT_CACHE_HEADERS;
+  if (!hasSupabaseEnv()) return ok(mockSlotPayload(year, month), { headers: responseHeaders });
 
   const defaultCap = maxSlotsPerPeriod();
   const range = monthRange(year, month);
@@ -342,5 +354,5 @@ export async function GET(request: Request) {
     closed,
     usage,
     days
-  });
+  }, { headers: responseHeaders });
 }

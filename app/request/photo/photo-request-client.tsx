@@ -111,7 +111,7 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
     const response = await fetch("/api/storage/upload-temp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fileName: file.name, contentType: file.type || "image/jpeg" })
+      body: JSON.stringify({ fileName: file.name, contentType: file.type || "image/jpeg", fileSize: file.size })
     });
     const json = await response.json();
     if (!response.ok) throw new Error(customerErrorMessage(json?.error, "사진 업로드 준비를 완료하지 못했어요."));

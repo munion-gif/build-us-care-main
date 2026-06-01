@@ -75,6 +75,7 @@ function PhotoUploadLabContent() {
         body: JSON.stringify({
           fileName: file.name,
           contentType: file.type,
+          fileSize: file.size,
           accessToken
         })
       });
