@@ -1,3 +1,4 @@
+import { buildAdminFunnelReport, findAdminFunnelStep, formatAdminFunnelPercent, ADMIN_FUNNEL_STEPS } from "@/lib/admin-funnel";
 import { EVENT_TYPES } from "@/lib/event-types";
 import { formatKRDate } from "@/lib/format";
 import { measure } from "@/lib/perf";
@@ -31,7 +32,7 @@ async function getAnalytics() {
   const fallback = {
     orders: { total: 0, paid: 0, conversionRate: "0%" },
     diagnoses: { total: 0, byResult: { 교체추천: 0, 교체불필요: 0, 보류: 0, 현장확인필요: 0 } },
-    funnel: { diagnosisRequested: 0, quoteStarted: 0, quoteSubmitted: 0, paymentCompleted: 0, quoteStartRate: "0%", quoteSubmitRate: "0%", paymentCompletionRate: "0%" },
+    funnel: buildAdminFunnelReport([]),
     warrantyExpiringSoon: { count: 0, orders: [] as Array<{ orderNumber: string; customerName: string; phone: string; completedAt: string }> }
   };
   if (!hasSupabaseEnv()) return fallback;
@@ -52,16 +53,8 @@ async function getAnalytics() {
     measure("admin.analytics.fetchDiagnoses", () => supabase.from("diagnoses").select("result").eq("is_test", false).gte("created_at", since)),
     measure("admin.analytics.fetchEvents", () => supabase
       .from("events")
-      .select("event_type")
-      .in("event_type", [
-        EVENT_TYPES.QUOTE_STARTED,
-        EVENT_TYPES.QUOTE_PAGE_VIEW,
-        EVENT_TYPES.QUOTE_SUBMITTED,
-        EVENT_TYPES.ORDER_CREATED,
-        EVENT_TYPES.QUOTE_ACCEPTED,
-        EVENT_TYPES.PAYMENT_COMPLETED,
-        EVENT_TYPES.DIAGNOSIS_REQUESTED
-      ])
+      .select("id,event_type,session_id,source,properties")
+      .in("event_type", [...ADMIN_FUNNEL_STEPS])
       .gte("occurred_at", since)),
     measure("admin.analytics.fetchWarrantyJobs", () => supabase
       .from("jobs")
@@ -82,10 +75,7 @@ async function getAnalytics() {
   }
 
   const eventRows = events.data ?? [];
-  const diagnosisRequested = eventRows.filter((row: any) => row.event_type === EVENT_TYPES.DIAGNOSIS_REQUESTED).length;
-  const quoteStarted = eventRows.filter((row: any) => [EVENT_TYPES.QUOTE_STARTED, EVENT_TYPES.QUOTE_PAGE_VIEW].includes(row.event_type)).length;
-  const quoteSubmitted = eventRows.filter((row: any) => [EVENT_TYPES.QUOTE_SUBMITTED, EVENT_TYPES.ORDER_CREATED, EVENT_TYPES.QUOTE_ACCEPTED].includes(row.event_type)).length;
-  const paymentCompleted = eventRows.filter((row: any) => row.event_type === EVENT_TYPES.PAYMENT_COMPLETED).length;
+  const funnel = buildAdminFunnelReport(eventRows as any[]);
 
   return {
     orders: {
@@ -97,15 +87,7 @@ async function getAnalytics() {
       total: diagnosisRows.length,
       byResult
     },
-    funnel: {
-      diagnosisRequested,
-      quoteStarted,
-      quoteSubmitted,
-      paymentCompleted,
-      quoteStartRate: percent(quoteStarted, diagnosisRequested),
-      quoteSubmitRate: percent(quoteSubmitted, quoteStarted),
-      paymentCompletionRate: percent(paymentCompleted, quoteSubmitted)
-    },
+    funnel,
     warrantyExpiringSoon: {
       count: warrantyJobs.data?.length ?? 0,
       orders: (warrantyJobs.data ?? []).map((job: any) => ({
@@ -120,6 +102,7 @@ async function getAnalytics() {
 
 export default async function AdminAnalyticsPage() {
   const data = await measure("admin.analytics.getAnalytics", () => getAnalytics());
+  const paymentStep = findAdminFunnelStep(data.funnel, EVENT_TYPES.PAYMENT_COMPLETED);
 
   return (
     <>
@@ -132,7 +115,7 @@ export default async function AdminAnalyticsPage() {
           <article className="adm-kpi-card"><div className="adm-kpi-label">신규 주문</div><div className="adm-kpi-value">{data.orders.total}</div><div className="adm-kpi-sub">건</div></article>
           <article className="adm-kpi-card"><div className="adm-kpi-label">결제 완료</div><div className="adm-kpi-value">{data.orders.paid}</div><div className="adm-kpi-sub">전환율 {data.orders.conversionRate}</div></article>
           <article className="adm-kpi-card"><div className="adm-kpi-label">사진 판정 요청</div><div className="adm-kpi-value">{data.diagnoses.total}</div><div className="adm-kpi-sub">건</div></article>
-          <article className="adm-kpi-card"><div className="adm-kpi-label">결제 완료 이벤트</div><div className="adm-kpi-value">{data.funnel.paymentCompleted}</div><div className="adm-kpi-sub">{data.funnel.paymentCompletionRate}</div></article>
+          <article className="adm-kpi-card"><div className="adm-kpi-label">결제 완료 세션</div><div className="adm-kpi-value">{paymentStep?.sessions ?? 0}</div><div className="adm-kpi-sub">직전 단계 전환율 {formatAdminFunnelPercent(paymentStep?.conversionFromPrevious)}</div></article>
           <article className="adm-kpi-card"><div className="adm-kpi-label">A/S 만료 임박</div><div className="adm-kpi-value">{data.warrantyExpiringSoon.count}</div><div className="adm-kpi-sub">30일 내 만료 예정</div></article>
         </section>
         <section className="adm-card adm-section">
@@ -150,12 +133,15 @@ export default async function AdminAnalyticsPage() {
         <section className="adm-table-wrap">
           <table className="adm-table">
             <caption className="adm-card-title">퍼널 전환</caption>
-            <thead><tr><th>단계</th><th>건수</th><th>전환율</th></tr></thead>
+            <thead><tr><th>단계</th><th>고유 세션</th><th>직전 단계 전환율</th></tr></thead>
             <tbody>
-              <tr><td>사진 판정 요청</td><td>{data.funnel.diagnosisRequested}</td><td>-</td></tr>
-              <tr><td>견적 시작</td><td>{data.funnel.quoteStarted}</td><td>{data.funnel.quoteStartRate}</td></tr>
-              <tr><td>견적 제출</td><td>{data.funnel.quoteSubmitted}</td><td>{data.funnel.quoteSubmitRate}</td></tr>
-              <tr><td>결제 완료</td><td>{data.funnel.paymentCompleted}</td><td>{data.funnel.paymentCompletionRate}</td></tr>
+              {data.funnel.steps.map((step) => (
+                <tr key={step.eventType}>
+                  <td>{step.label}</td>
+                  <td>{step.sessions.toLocaleString("ko-KR")}건</td>
+                  <td>{formatAdminFunnelPercent(step.conversionFromPrevious)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </section>
