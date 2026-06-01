@@ -17,11 +17,15 @@ export function requireAdmin(request: Request) {
     return null;
   }
 
+  if (!provided) {
+    return fail("unauthorized", "Missing or invalid x-admin-key header.", 401);
+  }
+
   if (expected.length === 0) {
     return fail("CONFIGURATION_ERROR", "ADMIN_API_KEY is not configured.", 503);
   }
 
-  if (!provided || !expected.includes(provided)) {
+  if (!expected.includes(provided)) {
     return fail("unauthorized", "Missing or invalid x-admin-key header.", 401);
   }
 
