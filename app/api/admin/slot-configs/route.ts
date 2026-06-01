@@ -2,6 +2,7 @@ import { fail, ok } from "@/lib/api-response";
 import { getAdminKeyId, requireAdmin } from "@/lib/admin-auth";
 import { readJson } from "@/lib/errors";
 import { createRequestId, logOperation } from "@/lib/operational-log";
+import { resolveDefaultSlotCap } from "@/lib/slot-capacity";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 
 function datePattern(value: unknown) {
@@ -25,27 +26,25 @@ export async function GET(request: Request) {
   if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
 
   const supabase = getSupabaseAdmin();
-  const [configsResult, capConfigResult, activeTechniciansResult] = await Promise.all([
-    supabase.from("slot_configs").select("*").order("date", { ascending: true }),
-    supabase.from("app_configs").select("value").eq("key", "slot_cap").maybeSingle(),
-    supabase.from("technicians").select("id", { count: "exact", head: true }).eq("is_active", true)
-  ]);
-  const error = configsResult.error ?? capConfigResult.error ?? activeTechniciansResult.error;
+  let configsResult: any;
+  let capResult: Awaited<ReturnType<typeof resolveDefaultSlotCap>>;
+
+  try {
+    [configsResult, capResult] = await Promise.all([
+      supabase.from("slot_configs").select("*").order("date", { ascending: true }),
+      resolveDefaultSlotCap(supabase)
+    ]);
+  } catch (error) {
+    return fail("internal_error", error instanceof Error ? error.message : "Failed to resolve slot capacity.", 500);
+  }
+
+  const error = configsResult.error;
   if (error) return fail("internal_error", error.message, 500);
-  const manualCap = Number(capConfigResult.data?.value);
-  const activeTechnicianCount = activeTechniciansResult.count ?? 0;
-  const fallbackCap = Number(process.env.MAX_SLOTS_PER_PERIOD ?? 3);
-  const cap =
-    Number.isFinite(manualCap) && manualCap > 0
-      ? Math.min(Math.max(Math.trunc(manualCap), 1), 20)
-      : activeTechnicianCount > 0
-        ? Math.min(Math.max(activeTechnicianCount, 1), 20)
-        : fallbackCap;
   return ok({
     configs: configsResult.data?.filter((row: any) => row.type !== "cap") ?? [],
-    cap,
-    capSource: Number.isFinite(manualCap) && manualCap > 0 ? "manual" : activeTechnicianCount > 0 ? "active_technicians" : "fallback",
-    activeTechnicianCount
+    cap: capResult.cap,
+    capSource: capResult.capSource,
+    activeTechnicianCount: capResult.activeTechnicianCount
   });
 }
 
@@ -72,7 +71,8 @@ export async function POST(request: Request) {
       ]);
       const deleteError = appConfigError ?? slotConfigError;
       if (deleteError) return fail("internal_error", deleteError.message, 500);
-      return ok({ config: null, capSource: "active_technicians" });
+      const nextCap = await resolveDefaultSlotCap(supabase);
+      return ok({ config: null, cap: nextCap.cap, capSource: nextCap.capSource, activeTechnicianCount: nextCap.activeTechnicianCount });
     }
     const { data, error } = await supabase
       .from("app_configs")

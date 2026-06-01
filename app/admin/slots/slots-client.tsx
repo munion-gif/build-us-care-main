@@ -60,9 +60,9 @@ function kstTime(value?: string | null) {
 export function AdminSlotsClient() {
   const [month, setMonth] = useState(() => new Date());
   const [days, setDays] = useState<Record<string, SlotDay>>({});
-  const [cap, setCap] = useState(3);
+  const [cap, setCap] = useState(0);
   const [draftCap, setDraftCap] = useState("");
-  const [capSource, setCapSource] = useState("active_technicians");
+  const [capSource, setCapSource] = useState("no_active_technicians");
   const [jobs, setJobs] = useState<AdminJob[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,7 +89,7 @@ export function AdminSlotsClient() {
       setDays(slotsJson.data?.days ?? {});
       const nextCap = Number(configJson.data?.cap ?? slotsJson.data?.effectiveMaxSlotsPerPeriod ?? 3);
       setCap(nextCap);
-      setCapSource(configJson.data?.capSource ?? slotsJson.data?.capSource ?? "fallback");
+      setCapSource(configJson.data?.capSource ?? slotsJson.data?.capSource ?? "no_active_technicians");
       setDraftCap(configJson.data?.capSource === "manual" ? String(nextCap) : "");
       setJobs(jobsResponse.ok ? jobsJson.data?.jobs ?? [] : []);
     } catch (error) {
@@ -169,7 +169,7 @@ export function AdminSlotsClient() {
       <section className="adm-card adm-section adm-slot-controls">
         <div>
           <h2 className="adm-section-title">전체 예약 cap</h2>
-          <p className="adm-muted">날짜별 설정이 없으면 오전/오후 각각 이 값을 사용합니다. 현재 {cap}건입니다. ({capSource === "manual" ? "수동 설정" : capSource === "active_technicians" ? "활성 기사 수 자동 연동" : "기본값"})</p>
+          <p className="adm-muted">날짜별 설정이 없으면 오전/오후 각각 이 값을 사용합니다. 현재 {cap}건입니다. ({capSource === "manual" ? "수동 설정" : capSource === "active_technicians" ? "활성 기사 수 자동 연동" : "활성 기사 없음"})</p>
         </div>
         <label className="adm-slot-cap">
           <span>슬롯당 최대 건수</span>

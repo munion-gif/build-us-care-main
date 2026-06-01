@@ -1,17 +1,12 @@
 import { fail, ok } from "@/lib/api-response";
 import { readJson, validationError } from "@/lib/errors";
+import { fallbackMaxSlotsPerPeriod, periodCapFromConfig, resolveDefaultSlotCap, type SlotPeriod } from "@/lib/slot-capacity";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { reservationSchema, uuidSchema } from "@/lib/validation";
 
 type Context = {
   params: Promise<{ id: string }>;
 };
-
-function maxSlotsPerPeriod() {
-  const parsed = Number(process.env.MAX_SLOTS_PER_PERIOD ?? 3);
-  if (!Number.isFinite(parsed)) return 3;
-  return Math.min(Math.max(Math.trunc(parsed), 1), 20);
-}
 
 function reservationError(error: { message?: string } | null) {
   const message = error?.message ?? "";
@@ -20,6 +15,31 @@ function reservationError(error: { message?: string } | null) {
   if (message.includes("SLOT_CLOSED")) return fail("SLOT_CLOSED", "선택한 날짜는 예약이 마감되었습니다.", 409);
   if (message.includes("SLOT_FULL")) return fail("SLOT_FULL", "선택한 시간대는 마감되었습니다. 다른 시간대를 선택해주세요.", 409);
   return fail("conflict", message || "Reservation could not be created.", 409);
+}
+
+async function resolveRequestedSlotCap(params: {
+  supabase: ReturnType<typeof getSupabaseAdmin>;
+  reservedDate: string;
+  timeSlot: SlotPeriod;
+}) {
+  const { supabase, reservedDate, timeSlot } = params;
+  const [configResult, capResult] = await Promise.all([
+    supabase
+      .from("slot_configs")
+      .select("date,morning_cap,afternoon_cap,blocked,type,cap_value")
+      .eq("type", "date")
+      .eq("date", reservedDate)
+      .maybeSingle(),
+    resolveDefaultSlotCap(supabase)
+  ]);
+
+  if (configResult.error) throw new Error(configResult.error.message);
+  return {
+    blocked: Boolean(configResult.data?.blocked),
+    cap: periodCapFromConfig(configResult.data, timeSlot, capResult.cap),
+    capSource: capResult.capSource,
+    activeTechnicianCount: capResult.activeTechnicianCount
+  };
 }
 
 function kstDateOnly(value: string | Date) {
@@ -71,6 +91,10 @@ export async function POST(request: Request, context: Context) {
 
   if (parsed.data.reserved_date < minReservationDateText()) {
     return fail("INVALID_DATE", "제품과 일정 준비 기간 때문에 예약은 오늘 기준 3일 이후 날짜부터 가능합니다.", 400);
+  }
+
+  if (parsed.data.time_slot !== "morning" && parsed.data.time_slot !== "afternoon") {
+    return fail("INVALID_TIME_SLOT", "현재 예약은 오전 또는 오후 시간대만 선택할 수 있습니다.", 400);
   }
 
   const supabase = getSupabaseAdmin();
@@ -135,6 +159,31 @@ export async function POST(request: Request, context: Context) {
     return ok({ reservation, order_status: nextOrderStatus }, { status: 201 });
   }
 
+  try {
+    const slotCap = await resolveRequestedSlotCap({
+      supabase,
+      reservedDate: parsed.data.reserved_date,
+      timeSlot: parsed.data.time_slot
+    });
+
+    if (slotCap.blocked) {
+      return fail("SLOT_CLOSED", "선택한 날짜는 예약이 마감되었습니다.", 409);
+    }
+
+    if (slotCap.cap <= 0) {
+      return fail(
+        "SLOT_UNAVAILABLE",
+        slotCap.capSource === "no_active_technicians"
+          ? "현재 예약 가능한 기사 일정이 없습니다. 카톡 상담으로 가능 일정을 확인해주세요."
+          : "선택한 시간대는 마감되었습니다. 다른 시간대를 선택해주세요.",
+        409,
+        { activeTechnicianCount: slotCap.activeTechnicianCount }
+      );
+    }
+  } catch (error) {
+    return fail("internal_error", error instanceof Error ? error.message : "Failed to resolve slot capacity.", 500);
+  }
+
   const { data: reservation, error } = await supabase
     .rpc("reserve_order_slot", {
       p_order_id: orderId.data,
@@ -142,7 +191,7 @@ export async function POST(request: Request, context: Context) {
       p_time_slot: parsed.data.time_slot,
       p_status: parsed.data.status,
       p_notes: parsed.data.notes ?? null,
-      p_default_cap: maxSlotsPerPeriod()
+      p_default_cap: fallbackMaxSlotsPerPeriod()
     })
     .single();
 

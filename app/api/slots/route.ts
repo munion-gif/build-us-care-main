@@ -1,11 +1,15 @@
 import { fail, ok } from "@/lib/api-response";
+import {
+  boundedNumber,
+  fallbackMaxSlotsPerPeriod,
+  periodCapFromConfig,
+  resolveDefaultSlotCap,
+  type SlotPeriod
+} from "@/lib/slot-capacity";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 
 export const revalidate = 30;
 
-type SlotPeriod = "morning" | "afternoon";
-
-const DEFAULT_MAX_SLOTS = 3;
 const SLOT_CACHE_HEADERS = {
   "Cache-Control": "public, s-maxage=30, stale-while-revalidate=120"
 };
@@ -15,14 +19,8 @@ const SLOT_NO_STORE_HEADERS = {
 
 let skipTestOrderLookup = false;
 
-function boundedNumber(value: string | null, fallback: number, min: number, max: number) {
-  const parsed = Number(value ?? fallback);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.min(Math.max(Math.trunc(parsed), min), max);
-}
-
 function maxSlotsPerPeriod() {
-  return boundedNumber(process.env.MAX_SLOTS_PER_PERIOD ?? null, DEFAULT_MAX_SLOTS, 1, 20);
+  return fallbackMaxSlotsPerPeriod();
 }
 
 function dateOnly(date: Date) {
@@ -184,68 +182,57 @@ export async function GET(request: Request) {
   const responseHeaders = searchParams.get("fresh") === "1" ? SLOT_NO_STORE_HEADERS : SLOT_CACHE_HEADERS;
   if (!hasSupabaseEnv()) return ok(mockSlotPayload(year, month), { headers: responseHeaders });
 
-  const defaultCap = maxSlotsPerPeriod();
   const range = monthRange(year, month);
   const supabase = getSupabaseAdmin();
 
-  const [jobsResult, reservationsResult, configsResult, capConfigResult, activeTechniciansResult] = await Promise.all([
-    supabase
-      .from("jobs")
-      .select("id,order_id,scheduled_at,status")
-      .not("scheduled_at", "is", null)
-      .neq("status", "cancelled")
-      .gte("scheduled_at", range.queryStart)
-      .lt("scheduled_at", range.queryEnd),
-    supabase
-      .from("reservations")
-      .select("id,order_id,reserved_date,time_slot,status")
-      .gte("reserved_date", range.startDate)
-      .lte("reserved_date", range.endDate)
-      .neq("status", "cancelled"),
-    supabase
-      .from("slot_configs")
-      .select("date,morning_cap,afternoon_cap,blocked,type,cap_value,reason")
-      .eq("type", "date")
-      .gte("date", range.startDate)
-      .lte("date", range.endDate),
-    supabase
-      .from("app_configs")
-      .select("value")
-      .eq("key", "slot_cap")
-      .maybeSingle(),
-    supabase
-      .from("technicians")
-      .select("id", { count: "exact", head: true })
-      .eq("is_active", true)
-  ]);
+  let jobsResult: any;
+  let reservationsResult: any;
+  let configsResult: any;
+  let capResult: Awaited<ReturnType<typeof resolveDefaultSlotCap>>;
 
-  const firstError = jobsResult.error ?? reservationsResult.error ?? configsResult.error ?? capConfigResult.error ?? activeTechniciansResult.error;
+  try {
+    [jobsResult, reservationsResult, configsResult, capResult] = await Promise.all([
+      supabase
+        .from("jobs")
+        .select("id,order_id,scheduled_at,status")
+        .not("scheduled_at", "is", null)
+        .neq("status", "cancelled")
+        .gte("scheduled_at", range.queryStart)
+        .lt("scheduled_at", range.queryEnd),
+      supabase
+        .from("reservations")
+        .select("id,order_id,reserved_date,time_slot,status")
+        .gte("reserved_date", range.startDate)
+        .lte("reserved_date", range.endDate)
+        .neq("status", "cancelled"),
+      supabase
+        .from("slot_configs")
+        .select("date,morning_cap,afternoon_cap,blocked,type,cap_value,reason")
+        .eq("type", "date")
+        .gte("date", range.startDate)
+        .lte("date", range.endDate),
+      resolveDefaultSlotCap(supabase)
+    ]);
+  } catch (error) {
+    return fail("internal_error", error instanceof Error ? error.message : "Failed to resolve slot capacity.", 500);
+  }
+
+  const firstError = jobsResult.error ?? reservationsResult.error ?? configsResult.error;
   if (firstError) return fail("internal_error", firstError.message, 500);
 
   let testOrderIds = new Set<string>();
   try {
+    const jobRows = (jobsResult.data ?? []) as Array<{ order_id?: string | null }>;
+    const reservationRows = (reservationsResult.data ?? []) as Array<{ order_id?: string | null }>;
     testOrderIds = await fetchTestOrderIds(supabase, [
-      ...(jobsResult.data ?? []).map((job) => job.order_id),
-      ...(reservationsResult.data ?? []).map((reservation) => reservation.order_id)
+      ...jobRows.map((job) => job.order_id),
+      ...reservationRows.map((reservation) => reservation.order_id)
     ]);
   } catch (error: any) {
     return fail("internal_error", error?.message ?? "Failed to load order test flags.", 500);
   }
 
-  const manualCap = Number(capConfigResult.data?.value);
-  const activeTechnicianCount = activeTechniciansResult.count ?? 0;
-  const defaultCapFromDb =
-    Number.isFinite(manualCap) && manualCap > 0
-      ? boundedNumber(String(manualCap), defaultCap, 1, 20)
-      : activeTechnicianCount > 0
-        ? boundedNumber(String(activeTechnicianCount), defaultCap, 1, 20)
-        : defaultCap;
-  const capSource =
-    Number.isFinite(manualCap) && manualCap > 0
-      ? "manual"
-      : activeTechnicianCount > 0
-        ? "active_technicians"
-        : "fallback";
+  const defaultCapFromDb = capResult.cap;
 
   const counts = new Map<string, Record<SlotPeriod, number>>();
   const addCount = (dateText: string, period: SlotPeriod) => {
@@ -253,22 +240,32 @@ export async function GET(request: Request) {
     counts.get(dateText)![period] += 1;
   };
 
-  for (const job of jobsResult.data ?? []) {
+  const jobRows = (jobsResult.data ?? []) as Array<{ order_id?: string | null; scheduled_at: string | null }>;
+  const reservationRows = (reservationsResult.data ?? []) as Array<{
+    order_id?: string | null;
+    reserved_date: string;
+    time_slot: string | null;
+  }>;
+
+  for (const job of jobRows) {
     if (job.order_id && testOrderIds.has(job.order_id)) continue;
+    if (!job.scheduled_at) continue;
     const period = slotFromScheduledAt(job.scheduled_at);
     if (!period) continue;
     const day = kstDateOnly(job.scheduled_at);
     if (day >= range.startDate && day <= range.endDate) addCount(day, period);
   }
 
-  for (const reservation of reservationsResult.data ?? []) {
+  for (const reservation of reservationRows) {
     if (reservation.order_id && testOrderIds.has(reservation.order_id)) continue;
     if (reservation.time_slot === "morning" || reservation.time_slot === "afternoon") {
       addCount(reservation.reserved_date, reservation.time_slot);
     }
   }
 
-  const configs = new Map((configsResult.data ?? []).map((config) => [config.date, config]));
+  const configs = new Map<string, { date: string; morning_cap?: unknown; afternoon_cap?: unknown; blocked?: boolean | null }>(
+    ((configsResult.data ?? []) as Array<{ date: string; morning_cap?: unknown; afternoon_cap?: unknown; blocked?: boolean | null }>).map((config) => [config.date, config])
+  );
   const slots: Record<string, SlotPeriod[]> = {};
   const closed: Record<string, SlotPeriod[]> = {};
   const usage: Record<string, Record<SlotPeriod, { used: number; cap: number }>> = {};
@@ -288,8 +285,8 @@ export async function GET(request: Request) {
     const config = configs.get(day);
     const dayCounts = counts.get(day) ?? { morning: 0, afternoon: 0 };
     const caps = {
-      morning: Number(config?.morning_cap ?? defaultCapFromDb),
-      afternoon: Number(config?.afternoon_cap ?? defaultCapFromDb)
+      morning: periodCapFromConfig(config, "morning", defaultCapFromDb),
+      afternoon: periodCapFromConfig(config, "afternoon", defaultCapFromDb)
     };
     const morningFull = dayCounts.morning >= caps.morning;
     const afternoonFull = dayCounts.afternoon >= caps.afternoon;
@@ -346,10 +343,10 @@ export async function GET(request: Request) {
     year,
     month,
     maxSlotsPerPeriod: defaultCapFromDb,
-    fallbackMaxSlotsPerPeriod: defaultCap,
+    fallbackMaxSlotsPerPeriod: capResult.fallbackMaxSlotsPerPeriod,
     effectiveMaxSlotsPerPeriod: defaultCapFromDb,
-    capSource,
-    activeTechnicianCount,
+    capSource: capResult.capSource,
+    activeTechnicianCount: capResult.activeTechnicianCount,
     slots,
     closed,
     usage,

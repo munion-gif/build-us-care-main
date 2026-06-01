@@ -2,6 +2,7 @@ import { z } from "zod";
 import { fail, ok } from "@/lib/api-response";
 import { readJson, validationError } from "@/lib/errors";
 import { insertJobStatusLog } from "@/lib/jobs";
+import { periodCapFromConfig, resolveDefaultSlotCap } from "@/lib/slot-capacity";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { accessTokenSchema, uuidSchema } from "@/lib/validation";
 
@@ -12,7 +13,6 @@ type Context = {
 type SlotPeriod = "morning" | "afternoon";
 type JobAction = "kept" | "updated" | "released";
 
-const DEFAULT_MAX_SLOTS = 3;
 const ACTIVE_RESERVATION_STATUSES = ["pending", "confirmed"];
 const FINAL_JOB_STATUSES = ["in_progress", "done", "inspected"];
 const RESCHEDULABLE_ORDER_STATUSES = ["paid", "product_paid", "scheduled"];
@@ -24,16 +24,6 @@ const rescheduleSchema = z.object({
   timeSlot: z.enum(["morning", "afternoon"]).optional(),
   time_slot: z.enum(["morning", "afternoon"]).optional()
 });
-
-function boundedNumber(value: string | null, fallback: number, min: number, max: number) {
-  const parsed = Number(value ?? fallback);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.min(Math.max(Math.trunc(parsed), min), max);
-}
-
-function maxSlotsPerPeriod() {
-  return boundedNumber(process.env.MAX_SLOTS_PER_PERIOD ?? null, DEFAULT_MAX_SLOTS, 1, 20);
-}
 
 function kstDateOnly(value: string | Date) {
   const date = typeof value === "string" ? new Date(value) : value;
@@ -99,23 +89,6 @@ function primaryActiveJob(jobs: any[]) {
   return sortLatest(jobs.filter((job) => String(job.status) !== "cancelled"))[0] ?? null;
 }
 
-async function effectiveDefaultCap(supabase: ReturnType<typeof getSupabaseAdmin>) {
-  const fallback = maxSlotsPerPeriod();
-  const [capConfigResult, activeTechniciansResult] = await Promise.all([
-    supabase.from("app_configs").select("value").eq("key", "slot_cap").maybeSingle(),
-    supabase.from("technicians").select("id", { count: "exact", head: true }).eq("is_active", true)
-  ]);
-
-  if (capConfigResult.error) throw new Error(capConfigResult.error.message);
-  if (activeTechniciansResult.error) throw new Error(activeTechniciansResult.error.message);
-
-  const manualCap = Number(capConfigResult.data?.value);
-  if (Number.isFinite(manualCap) && manualCap > 0) return boundedNumber(String(manualCap), fallback, 1, 20);
-
-  const activeTechnicianCount = activeTechniciansResult.count ?? 0;
-  return activeTechnicianCount > 0 ? boundedNumber(String(activeTechnicianCount), fallback, 1, 20) : fallback;
-}
-
 async function assertSlotAvailable(params: {
   supabase: ReturnType<typeof getSupabaseAdmin>;
   orderId: string;
@@ -127,15 +100,31 @@ async function assertSlotAvailable(params: {
     return fail("INVALID_DATE", "제품과 일정 준비 기간 때문에 예약 변경은 오늘 기준 3일 이후 날짜부터 가능합니다.", 400);
   }
 
-  const { data: config, error: configError } = await supabase
-    .from("slot_configs")
-    .select("date,morning_cap,afternoon_cap,blocked,type,cap_value")
-    .eq("type", "date")
-    .eq("date", reservedDate)
-    .maybeSingle();
+  const [configResult, capResult] = await Promise.all([
+    supabase
+      .from("slot_configs")
+      .select("date,morning_cap,afternoon_cap,blocked,type,cap_value")
+      .eq("type", "date")
+      .eq("date", reservedDate)
+      .maybeSingle(),
+    resolveDefaultSlotCap(supabase)
+  ]);
 
-  if (configError) return fail("INTERNAL_ERROR", configError.message, 500);
+  if (configResult.error) return fail("INTERNAL_ERROR", configResult.error.message, 500);
+  const config = configResult.data;
   if (config?.blocked) return fail("SLOT_CLOSED", "선택한 날짜는 예약이 마감되었습니다.", 409);
+
+  const cap = periodCapFromConfig(config, timeSlot, capResult.cap);
+  if (cap <= 0) {
+    return fail(
+      "SLOT_UNAVAILABLE",
+      capResult.capSource === "no_active_technicians"
+        ? "현재 예약 가능한 기사 일정이 없습니다. 카톡 상담으로 가능 일정을 확인해주세요."
+        : "선택한 시간대는 마감되었습니다. 다른 시간대를 선택해주세요.",
+      409,
+      { activeTechnicianCount: capResult.activeTechnicianCount }
+    );
+  }
 
   const range = kstDayUtcRange(reservedDate);
   const [jobsResult, reservationsResult] = await Promise.all([
@@ -156,9 +145,6 @@ async function assertSlotAvailable(params: {
   const firstError = jobsResult.error ?? reservationsResult.error;
   if (firstError) return fail("INTERNAL_ERROR", firstError.message, 500);
 
-  const cap = timeSlot === "morning"
-    ? Number(config?.morning_cap ?? await effectiveDefaultCap(supabase))
-    : Number(config?.afternoon_cap ?? await effectiveDefaultCap(supabase));
   const sameSlotJobCount = (jobsResult.data ?? []).filter((job) => job.order_id !== orderId && slotFromScheduledAt(job.scheduled_at) === timeSlot).length;
   const sameSlotReservationCount = (reservationsResult.data ?? []).filter(
     (reservation) =>
