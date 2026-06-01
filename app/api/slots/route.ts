@@ -50,8 +50,25 @@ function slotFromScheduledAt(value: string | null): SlotPeriod | null {
   return kstHour(value) < 13 ? "morning" : "afternoon";
 }
 
-function asOne(value: any) {
-  return Array.isArray(value) ? value[0] : value;
+function isMissingColumnError(error: any, column: string) {
+  const message = String(error?.message ?? "");
+  return error?.code === "42703" || (message.includes(column) && message.includes("does not exist"));
+}
+
+async function fetchTestOrderIds(supabase: ReturnType<typeof getSupabaseAdmin>, orderIds: Array<string | null | undefined>) {
+  const uniqueOrderIds = [...new Set(orderIds.filter(Boolean) as string[])];
+  if (uniqueOrderIds.length === 0) return new Set<string>();
+
+  const { data, error } = await supabase.from("orders").select("id,is_test").in("id", uniqueOrderIds);
+  if (error) {
+    if (isMissingColumnError(error, "is_test")) {
+      console.warn("[api/slots] orders.is_test is missing. Test orders will be included in slot counts until the migration is applied.");
+      return new Set<string>();
+    }
+    throw error;
+  }
+
+  return new Set((data ?? []).filter((order) => order.is_test === true).map((order) => order.id));
 }
 
 function monthRange(year: number, month: number) {
@@ -162,14 +179,14 @@ export async function GET(request: Request) {
   const [jobsResult, reservationsResult, configsResult, capConfigResult, activeTechniciansResult] = await Promise.all([
     supabase
       .from("jobs")
-      .select("id,order_id,scheduled_at,status,orders(is_test)")
+      .select("id,order_id,scheduled_at,status")
       .not("scheduled_at", "is", null)
       .neq("status", "cancelled")
       .gte("scheduled_at", range.queryStart)
       .lt("scheduled_at", range.queryEnd),
     supabase
       .from("reservations")
-      .select("id,order_id,reserved_date,time_slot,status,orders(is_test)")
+      .select("id,order_id,reserved_date,time_slot,status")
       .gte("reserved_date", range.startDate)
       .lte("reserved_date", range.endDate)
       .neq("status", "cancelled"),
@@ -192,6 +209,17 @@ export async function GET(request: Request) {
 
   const firstError = jobsResult.error ?? reservationsResult.error ?? configsResult.error ?? capConfigResult.error ?? activeTechniciansResult.error;
   if (firstError) return fail("internal_error", firstError.message, 500);
+
+  let testOrderIds = new Set<string>();
+  try {
+    testOrderIds = await fetchTestOrderIds(supabase, [
+      ...(jobsResult.data ?? []).map((job) => job.order_id),
+      ...(reservationsResult.data ?? []).map((reservation) => reservation.order_id)
+    ]);
+  } catch (error: any) {
+    return fail("internal_error", error?.message ?? "Failed to load order test flags.", 500);
+  }
+
   const manualCap = Number(capConfigResult.data?.value);
   const activeTechnicianCount = activeTechniciansResult.count ?? 0;
   const defaultCapFromDb =
@@ -214,7 +242,7 @@ export async function GET(request: Request) {
   };
 
   for (const job of jobsResult.data ?? []) {
-    if (asOne((job as any).orders)?.is_test === true) continue;
+    if (job.order_id && testOrderIds.has(job.order_id)) continue;
     const period = slotFromScheduledAt(job.scheduled_at);
     if (!period) continue;
     const day = kstDateOnly(job.scheduled_at);
@@ -222,7 +250,7 @@ export async function GET(request: Request) {
   }
 
   for (const reservation of reservationsResult.data ?? []) {
-    if (asOne((reservation as any).orders)?.is_test === true) continue;
+    if (reservation.order_id && testOrderIds.has(reservation.order_id)) continue;
     if (reservation.time_slot === "morning" || reservation.time_slot === "afternoon") {
       addCount(reservation.reserved_date, reservation.time_slot);
     }
