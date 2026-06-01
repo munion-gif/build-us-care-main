@@ -322,7 +322,7 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
             {!receipt ? (
               <>
                 <h1>사진 확인 접수를 완료하였습니다.</h1>
-                <p>올려주신 사진과 연락처를 기준으로 호환 가능한 제품과 견적 가능 여부를 확인하며</p>
+                <p>올려주신 사진과 연락처를 기준으로 호환 제품과 견적 가능 여부를 확인합니다.</p>
                 <p>영업시간 기준 24시간 이내에 결과 안내를 이어갈게요.</p>
                 <div className="done-panel-actions">
                   <button type="button" onClick={submitDiagnosis} disabled={loading}>
@@ -339,19 +339,21 @@ export function PhotoRequestClient({ services, kakaoUrl }: PhotoRequestClientPro
           )}
 
         {message && <p className="flow-message">{message}</p>}
-        <div className={step === 3 ? "flow-actions confirm-actions" : "flow-actions"}>
-          {step > 1 && (
-            <button type="button" className="secondary" onClick={() => setStep((current) => current - 1)} disabled={loading}>
-              <ChevronLeft size={18} />
-              이전
-            </button>
-          )}
-          {step < PHOTO_REQUEST_TOTAL_STEPS && (
-            <button type="button" onClick={goNext}>
-              {step === 2 ? "접수 확인" : "다음"}
-            </button>
-          )}
-        </div>
+        {!(step === 3 && receipt) && (
+          <div className={step === 3 ? "flow-actions confirm-actions" : "flow-actions"}>
+            {step > 1 && (
+              <button type="button" className="secondary" onClick={() => setStep((current) => current - 1)} disabled={loading}>
+                <ChevronLeft size={18} />
+                이전
+              </button>
+            )}
+            {step < PHOTO_REQUEST_TOTAL_STEPS && (
+              <button type="button" onClick={goNext}>
+                {step === 2 ? "접수 확인" : "다음"}
+              </button>
+            )}
+          </div>
+        )}
         </div>
       </section>
     </main>
@@ -379,9 +381,9 @@ function ReceiptComplete({ receipt, kakaoChatUrl }: { receipt: any; kakaoChatUrl
       <span>접수완료</span>
       <h1>사진 확인 접수가 완료됐어요</h1>
       <p>올려주신 사진을 확인한 뒤 호환 제품과 견적 가능 여부를 안내할게요.</p>
-      <p>원하시는 제품이 있다면 카톡으로 상담 부탁드립니다.</p>
-      <p>카톡 상담방에 접수번호를 보내주시면 상담원이 더 빠르게 이어서 확인할 수 있어요.</p>
-      <p>방문은 교체가 가능한 경우에만 예약확정 후 방문합니다.</p>
+      <p>원하시는 제품은 카톡 상담으로 보내주세요.</p>
+      <p>접수번호를 카톡에 보내주시면 더 빠르게 확인할 수 있어요.</p>
+      <p>방문은 교체 가능한 경우에만 예약 확정 후 진행합니다.</p>
       {receiptNumber ? <strong>접수번호 {receiptNumber}</strong> : null}
       {copied ? <p className="receipt-copy-message">접수번호가 복사됐어요. 카톡에 붙여넣어 보내주세요.</p> : null}
       <div className="result-actions">
@@ -961,6 +963,8 @@ const photoRequestCss = `
   .done-panel p {
     max-width: 680px;
     line-height: 1.7;
+    word-break: keep-all;
+    overflow-wrap: break-word;
   }
   .done-panel-actions {
     display: flex;
@@ -994,6 +998,11 @@ const photoRequestCss = `
   .diagnosis-result p {
     margin: 0;
   }
+  .diagnosis-result p {
+    line-height: 1.65;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
   .diagnosis-result strong {
     font-size: var(--text-sm);
   }
@@ -1016,6 +1025,7 @@ const photoRequestCss = `
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 8px;
     border: 0;
     border-radius: var(--radius-full);
     padding: 0 var(--space-5, 1.25rem);
@@ -1097,6 +1107,33 @@ const photoRequestCss = `
     .notice-choice {
       min-height: 80px;
       padding: 0.875rem 1rem;
+    }
+    .diagnosis-result {
+      gap: 0.75rem;
+      padding: 1rem 0 0;
+    }
+    .diagnosis-result.info {
+      background: transparent;
+    }
+    .diagnosis-result h1 {
+      line-height: 1.3;
+    }
+    .diagnosis-result p {
+      font-size: var(--text-sm);
+      line-height: 1.7;
+    }
+    .result-actions {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.625rem;
+      margin-top: 0.25rem;
+    }
+    .result-actions a,
+    .result-actions button {
+      width: 100%;
+      min-height: 48px;
+      border-radius: 8px;
     }
     .flow-actions {
       position: sticky;
