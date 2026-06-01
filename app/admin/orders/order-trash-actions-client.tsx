@@ -57,8 +57,7 @@ export function OrderTrashActions({ orderId, orderNumber, mode = "active", compa
   }
 
   async function permanentDelete() {
-    const confirmation = window.prompt(`${label}을(를) 완전 삭제합니다. 복구할 수 없습니다.\n계속하려면 "완전삭제"를 입력해주세요.`);
-    if (confirmation !== "완전삭제") return;
+    if (!window.confirm(`${label}을(를) 완전 삭제할까요?\n삭제 후에는 복구할 수 없습니다.`)) return;
     setLoading("delete");
     setMessage("");
     const response = await fetch(`/api/admin/orders/${orderId}/trash`, { method: "DELETE" });
