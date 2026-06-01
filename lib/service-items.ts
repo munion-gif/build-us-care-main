@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { DOOR_HANDLE_REPLACE_LABOR_PRICE, FALLBACK_SERVICE_ITEMS } from "@/lib/constants";
 import { CANONICAL_SERVICE_CODES, SUPPORTED_SERVICE_CODES } from "@/lib/service-catalog";
@@ -278,7 +279,7 @@ function getFallbackServiceItem(serviceCode: string) {
   return fallbackByCode.get(serviceCode) ?? null;
 }
 
-export async function getAllServiceItems(): Promise<QuoteServiceItem[]> {
+async function loadAllServiceItems(): Promise<QuoteServiceItem[]> {
   if (!hasSupabaseEnv()) return HOME_FALLBACK_ITEMS;
 
   const supabase = getSupabaseAdmin();
@@ -296,3 +297,8 @@ export async function getAllServiceItems(): Promise<QuoteServiceItem[]> {
     (item): item is QuoteServiceItem => Boolean(item)
   );
 }
+
+export const getAllServiceItems = unstable_cache(loadAllServiceItems, ["all-service-items"], {
+  revalidate: 3600,
+  tags: ["service-items"]
+});

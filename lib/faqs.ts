@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 
 export type FAQItem = {
@@ -60,7 +61,7 @@ export const DEFAULT_FAQS: FAQItem[] = [
   }
 ];
 
-export async function getPublicFaqs(): Promise<FAQItem[]> {
+async function loadPublicFaqs(): Promise<FAQItem[]> {
   if (!hasSupabaseEnv()) return DEFAULT_FAQS;
 
   const { data, error } = await getSupabaseAdmin()
@@ -73,6 +74,11 @@ export async function getPublicFaqs(): Promise<FAQItem[]> {
   if (error || !data) return DEFAULT_FAQS;
   return data.length > 0 ? data : DEFAULT_FAQS;
 }
+
+export const getPublicFaqs = unstable_cache(loadPublicFaqs, ["public-faqs"], {
+  revalidate: 300,
+  tags: ["public-faqs"]
+});
 
 export async function getAdminFaqs(): Promise<FAQItem[]> {
   if (!hasSupabaseEnv()) return DEFAULT_FAQS;

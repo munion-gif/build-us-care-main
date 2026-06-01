@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { KAKAO_CHANNEL_URL } from "@/lib/config";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 
@@ -20,7 +21,7 @@ function normalizeNullable(value: unknown) {
   return trimmed;
 }
 
-export async function getPublicAppConfig(): Promise<PublicAppConfig> {
+async function loadPublicAppConfig(): Promise<PublicAppConfig> {
   if (!hasSupabaseEnv()) return DEFAULTS;
 
   try {
@@ -41,3 +42,8 @@ export async function getPublicAppConfig(): Promise<PublicAppConfig> {
     return DEFAULTS;
   }
 }
+
+export const getPublicAppConfig = unstable_cache(loadPublicAppConfig, ["public-app-config"], {
+  revalidate: 300,
+  tags: ["public-app-config"]
+});

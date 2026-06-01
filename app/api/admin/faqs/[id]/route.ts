@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { revalidateTag } from "next/cache";
 import { fail, ok } from "@/lib/api-response";
 import { requireAdmin } from "@/lib/admin-auth";
 import { readJson, validationError } from "@/lib/errors";
@@ -34,6 +35,7 @@ export async function PATCH(request: Request, context: Context) {
     .single();
 
   if (error) return fail("internal_error", error.message, 500);
+  revalidateTag("public-faqs");
   return ok({ faq: data });
 }
 
@@ -45,5 +47,6 @@ export async function DELETE(request: Request, context: Context) {
   const { id } = await context.params;
   const { error } = await getSupabaseAdmin().from("faqs").delete().eq("id", id);
   if (error) return fail("internal_error", error.message, 500);
+  revalidateTag("public-faqs");
   return ok({ deleted: true });
 }
