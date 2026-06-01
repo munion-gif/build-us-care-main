@@ -1,0 +1,8 @@
+.env
+.env.*
+.next/
+.next-dev-logs/
+.vercel/
+node_modules/
+backups/
+npm-debug.log*

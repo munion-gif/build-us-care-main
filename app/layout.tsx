@@ -5,7 +5,7 @@ import "./globals.css";
 
 const siteTitle = "Build us Care";
 const siteDescription = "집 안의 작은 교체, 먼저 확인하세요";
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://builduscare.co.kr";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://builduscare.co.kr";
 
 export const metadata = {
   metadataBase: new URL(siteUrl),

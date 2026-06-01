@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { getAllServiceItems } from "@/lib/service-items";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://builduscare.co.kr";
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "https://builduscare.co.kr";
   const services = await getAllServiceItems();
   const staticPaths = ["/", "/services", "/request/photo", "/cases"];
   return [
