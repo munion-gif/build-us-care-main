@@ -7,6 +7,7 @@ import { ORDER_PHOTO_VIEW_EXPIRES_IN, ORDER_PHOTOS_BUCKET } from "@/lib/storage"
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { accessTokenSchema, uuidSchema } from "@/lib/validation";
 import { validationError } from "@/lib/errors";
+import { isSchemaCompatibilityError } from "@/lib/schema-compat";
 
 type Context = {
   params: Promise<{ id: string }>;
@@ -44,10 +45,9 @@ const ORDER_STATUS_SELECT = `
       media (*),
       feedbacks (*)
     `;
-const ORDER_STATUS_SELECT_COMPAT = ORDER_STATUS_SELECT.replace(
-  "      online_payment_amount,\n      onsite_payment_amount,\n      onsite_payment_status,\n",
-  ""
-);
+const ORDER_STATUS_SELECT_COMPAT = ORDER_STATUS_SELECT
+  .replace("      is_test,\n", "")
+  .replace("      online_payment_amount,\n      onsite_payment_amount,\n      onsite_payment_status,\n", "");
 
 function hasValidAdminKey(request: Request) {
   const provided = request.headers.get("x-admin-key");
@@ -159,17 +159,15 @@ function sanitizePayments(payments: any[] | null | undefined, isAdmin: boolean) 
   }));
 }
 
-function isSchemaCompatibilityError(error: any) {
-  const message = String(error?.message ?? "");
-  return error?.code === "PGRST204" || error?.code === "42703" || message.includes("Could not find") || message.includes("column");
-}
-
-function orderStatusQuery(supabase: ReturnType<typeof getSupabaseAdmin>, select: string, orderId: string, accessToken: string | null, isAdmin: boolean) {
+function orderStatusQuery(supabase: ReturnType<typeof getSupabaseAdmin>, select: string, orderId: string, accessToken: string | null, isAdmin: boolean, includeLifecycleFilter = true) {
   let query = supabase
     .from("orders")
     .select(select)
-    .eq("id", orderId)
-    .is("deleted_at", null);
+    .eq("id", orderId);
+
+  if (includeLifecycleFilter) {
+    query = query.is("deleted_at", null);
+  }
 
   if (!isAdmin) {
     query = query.eq("access_token", accessToken);
@@ -207,7 +205,7 @@ export async function GET(request: Request, context: Context) {
   let data: any = initialResult.data;
   let error = initialResult.error;
   if (error && isSchemaCompatibilityError(error)) {
-    const fallback = await orderStatusQuery(supabase, ORDER_STATUS_SELECT_COMPAT, orderId.data, accessToken, isAdmin);
+    const fallback = await orderStatusQuery(supabase, ORDER_STATUS_SELECT_COMPAT, orderId.data, accessToken, isAdmin, false);
     data = fallback.data;
     error = fallback.error;
   }

@@ -4,6 +4,7 @@ import { measure } from "@/lib/perf";
 import { maskAddress, maskName, maskPhone } from "@/lib/pii";
 import { getServiceFilterCodes } from "@/lib/service-catalog";
 import { getAllServiceItems } from "@/lib/service-items";
+import { isLifecycleSchemaError } from "@/lib/schema-compat";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { OPERATIONAL_ORDER_STATUSES } from "@/lib/types";
 import { CancellationActions } from "./cancellation-actions-client";
@@ -39,6 +40,16 @@ const quickFilters = [
   { label: "취소/A/S", href: "/admin/orders?flow=issue" }
 ] as const;
 
+const lifecycleColumns = "deleted_at, deleted_by, deleted_reason, is_test, test_marked_at, test_note";
+const orderListRelations = `
+      customers(name,phone,acquisition_source),
+      homes(address_full),
+      reservations(id,reserved_date,time_slot,status,created_at),
+      payments(id,status,amount,paid_at,approved_at,requested_at,method,provider,provider_status,online_payment_amount,onsite_payment_amount,onsite_payment_status),
+      jobs(id,technician_id,assigned_technician_name,scheduled_at,status,technicians(id,name)),
+      cancellations(id,status,refund_amount,refund_rate,reason,requested_at)
+    `;
+
 function badgeClass(status?: string | null) {
   if (status === "paid" || status === "product_paid" || status === "quoted" || status === "payment_pending" || status === "pending_product_payment") return "adm-badge-blue";
   if (status === "scheduled") return "adm-badge-sky";
@@ -48,34 +59,31 @@ function badgeClass(status?: string | null) {
   return "adm-badge-gray";
 }
 
-async function getOrders(params: Record<string, string | undefined>) {
+function buildOrdersQuery(params: Record<string, string | undefined>, options: { includeLifecycle: boolean }) {
   const trashMode = params.trash === "1" || params.flow === "trash";
   const testMode = !trashMode && (params.test === "1" || params.flow === "test");
-  if (!hasSupabaseEnv()) return { orders: [], count: 0, page: 1, limit: 20, trashMode, testMode };
   const page = Math.max(Number(params.page ?? 1), 1);
   const limit = 20;
   const from = (page - 1) * limit;
+  const lifecycleSelect = options.includeLifecycle ? `, ${lifecycleColumns}` : "";
   let query = getSupabaseAdmin()
     .from("orders")
     .select(
       `
-      id, order_number, status, total_amount, created_at, channel, service_type_code, skus, deleted_at, deleted_by, deleted_reason, is_test, test_marked_at, test_note,
-      customers(name,phone,acquisition_source),
-      homes(address_full),
-      reservations(id,reserved_date,time_slot,status,created_at),
-      payments(id,status,amount,paid_at,approved_at,requested_at,method,provider,provider_status,online_payment_amount,onsite_payment_amount,onsite_payment_status),
-      jobs(id,technician_id,assigned_technician_name,scheduled_at,status,technicians(id,name)),
-      cancellations(id,status,refund_amount,refund_rate,reason,requested_at)
+      id, order_number, status, total_amount, created_at, channel, service_type_code, skus${lifecycleSelect},
+      ${orderListRelations}
     `,
       { count: "exact" }
     )
-    .order(trashMode ? "deleted_at" : "created_at", { ascending: false })
+    .order(trashMode && options.includeLifecycle ? "deleted_at" : "created_at", { ascending: false })
     .range(from, from + limit - 1);
 
-  if (trashMode) {
-    query = query.not("deleted_at", "is", null);
-  } else {
-    query = query.is("deleted_at", null).eq("is_test", testMode);
+  if (options.includeLifecycle) {
+    if (trashMode) {
+      query = query.not("deleted_at", "is", null);
+    } else {
+      query = query.is("deleted_at", null).eq("is_test", testMode);
+    }
   }
 
   if (params.flow && !params.status && !trashMode && !testMode) {
@@ -97,8 +105,42 @@ async function getOrders(params: Record<string, string | undefined>) {
   if (params.date_to) query = query.lte("created_at", params.date_to);
   if (params.search) query = query.ilike("order_number", `%${params.search}%`);
 
-  const { data, count } = await query;
-  return { orders: data ?? [], count: count ?? 0, page, limit, trashMode, testMode };
+  return { from, limit, page, query, testMode, trashMode };
+}
+
+async function getOrders(params: Record<string, string | undefined>) {
+  const trashMode = params.trash === "1" || params.flow === "trash";
+  const testMode = !trashMode && (params.test === "1" || params.flow === "test");
+  if (!hasSupabaseEnv()) {
+    return { orders: [], count: 0, error: "Supabase 환경변수가 설정되어 있지 않습니다.", page: 1, limit: 20, trashMode, testMode };
+  }
+  const primary = buildOrdersQuery(params, { includeLifecycle: true });
+  const primaryResult = await primary.query;
+  if (!primaryResult.error) {
+    return { orders: primaryResult.data ?? [], count: primaryResult.count ?? 0, error: null, page: primary.page, limit: primary.limit, schemaWarning: null, trashMode, testMode };
+  }
+
+  if (!isLifecycleSchemaError(primaryResult.error)) {
+    return { orders: [], count: 0, error: primaryResult.error.message, page: primary.page, limit: primary.limit, schemaWarning: null, trashMode, testMode };
+  }
+
+  const schemaWarning = "DB에 테스트/휴지통 컬럼이 REST API 기준으로 아직 반영되지 않았습니다. 일반 주문 목록은 호환 모드로 표시하고, 테스트/휴지통 분리는 제한합니다.";
+  if (trashMode || testMode) {
+    return { orders: [], count: 0, error: null, page: primary.page, limit: primary.limit, schemaWarning, trashMode, testMode };
+  }
+
+  const fallback = buildOrdersQuery(params, { includeLifecycle: false });
+  const fallbackResult = await fallback.query;
+  return {
+    orders: fallbackResult.data ?? [],
+    count: fallbackResult.count ?? 0,
+    error: fallbackResult.error?.message ?? null,
+    page: fallback.page,
+    limit: fallback.limit,
+    schemaWarning,
+    trashMode,
+    testMode
+  };
 }
 
 async function getActiveTechnicians() {
@@ -251,7 +293,7 @@ function nextActionLabel(order: any) {
 
 export default async function AdminOrdersPage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const [{ orders, count, page, limit, trashMode, testMode }, services, technicians] = await Promise.all([
+  const [{ orders, count, error, schemaWarning, page, limit, trashMode, testMode }, services, technicians] = await Promise.all([
     measure("admin.orders.fetchOrders", () => getOrders(params)),
     measure("admin.orders.fetchServices", () => getAllServiceItems()),
     measure("admin.orders.fetchTechnicians", () => getActiveTechnicians())
@@ -311,6 +353,13 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
           <input className="adm-filter-input" name="search" placeholder="주문번호 검색" defaultValue={params.search ?? ""} />
           <button className="adm-btn adm-btn-primary">검색</button>
         </form>
+        {schemaWarning ? (
+          <section className="adm-card adm-admin-warning" role="status">
+            <strong>스키마 반영 확인이 필요합니다.</strong>
+            <p>{schemaWarning}</p>
+            <small>Supabase SQL editor에서 `202606010001_order_trash.sql`, `202606010002_test_flags.sql` 적용 여부와 REST 스키마 캐시를 확인해 주세요.</small>
+          </section>
+        ) : null}
         <section className="adm-queue-summary adm-section">
           <article><strong>{count}</strong><span>검색 결과</span></article>
           <article><strong>{trashMode || testMode ? count : visibleSummary.needsPayment}</strong><span>{trashMode ? "휴지통 주문" : testMode ? "테스트 주문" : "입금 확인 필요"}</span></article>
@@ -319,7 +368,13 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
           <article><strong>{trashMode || testMode ? 0 : visibleSummary.issues}</strong><span>{trashMode ? "삭제 검토" : testMode ? "운영 제외" : "예외 처리"}</span></article>
         </section>
         <section className="adm-order-queue-list" aria-label="주문 처리 큐">
-          {orders.length === 0 ? (
+          {error ? (
+            <div className="adm-card adm-admin-error" role="alert">
+              <strong>주문 데이터를 불러오지 못했습니다.</strong>
+              <p>DB 스키마나 Supabase REST 캐시가 현재 코드와 맞지 않을 수 있습니다. 마이그레이션과 환경변수를 확인해 주세요.</p>
+              <small>{error}</small>
+            </div>
+          ) : orders.length === 0 ? (
             <div className="adm-card adm-empty-line">조건에 맞는 주문이 없습니다.</div>
           ) : orders.map((order: any) => {
             const reservation = activeReservation(order);

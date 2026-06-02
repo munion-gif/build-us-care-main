@@ -8,6 +8,7 @@ import { notifyNewOrder } from "@/lib/notify-admin";
 import { createOrderDateKey, createOrderNumber } from "@/lib/orders";
 import { calculateQuote } from "@/lib/quote";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
+import { isLifecycleSchemaError } from "@/lib/schema-compat";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { createOrderSchema } from "@/lib/validation";
 
@@ -226,36 +227,52 @@ export async function POST(request: Request) {
     return fail("internal_error", error instanceof Error ? error.message : "Failed to create order number.", 500);
   }
 
-  const { data: order, error: orderError } = await supabase
+  const orderPayload = {
+    order_number: orderNumber,
+    customer_id: customer.id,
+    home_id: home.id,
+    status: "inquiry",
+    skus,
+    channel,
+    source,
+    campaign,
+    session_id: parsed.data.session_id ?? null,
+    landing_path: parsed.data.landing_path ?? null,
+    device_type: deviceType,
+    region_code: parsed.data.region_code ?? parsed.data.home?.address_dong ?? null,
+    reason,
+    urgency,
+    self_diagnosis: selfDiagnosis,
+    service_type_code: parsed.data.service_type_code ?? parsed.data.items[0]?.service_type_code ?? null,
+    visit_fee: quote.visit_fee,
+    subtotal_amount: quote.subtotal_amount,
+    total_amount: quote.total_amount,
+    special_requests: parsed.data.special_requests ?? null,
+    is_test: isAdminTest,
+    test_marked_at: isAdminTest ? new Date().toISOString() : null,
+    test_marked_by: isAdminTest ? getAdminKeyId(request) ?? "admin_session" : null,
+    test_note: isAdminTest ? parsed.data.test_note ?? "관리자 실제 주문 흐름 테스트" : null
+  };
+
+  let { data: order, error: orderError } = await supabase
     .from("orders")
-    .insert({
-      order_number: orderNumber,
-      customer_id: customer.id,
-      home_id: home.id,
-      status: "inquiry",
-      skus,
-      channel,
-      source,
-      campaign,
-      session_id: parsed.data.session_id ?? null,
-      landing_path: parsed.data.landing_path ?? null,
-      device_type: deviceType,
-      region_code: parsed.data.region_code ?? parsed.data.home?.address_dong ?? null,
-      reason,
-      urgency,
-      self_diagnosis: selfDiagnosis,
-      service_type_code: parsed.data.service_type_code ?? parsed.data.items[0]?.service_type_code ?? null,
-      visit_fee: quote.visit_fee,
-      subtotal_amount: quote.subtotal_amount,
-      total_amount: quote.total_amount,
-      special_requests: parsed.data.special_requests ?? null,
-      is_test: isAdminTest,
-      test_marked_at: isAdminTest ? new Date().toISOString() : null,
-      test_marked_by: isAdminTest ? getAdminKeyId(request) ?? "admin_session" : null,
-      test_note: isAdminTest ? parsed.data.test_note ?? "관리자 실제 주문 흐름 테스트" : null
-    })
+    .insert(orderPayload)
     .select("*")
     .single();
+
+  if (orderError && isLifecycleSchemaError(orderError)) {
+    if (isAdminTest) {
+      return fail("schema_migration_required", "테스트 주문 분리 컬럼이 아직 REST API에 반영되지 않았습니다. 일반 주문으로 저장되지 않도록 테스트 생성을 중단합니다.", 500);
+    }
+    const { is_test: _isTest, test_marked_at: _testMarkedAt, test_marked_by: _testMarkedBy, test_note: _testNote, ...legacyOrderPayload } = orderPayload;
+    const fallback = await supabase
+      .from("orders")
+      .insert(legacyOrderPayload)
+      .select("*")
+      .single();
+    order = fallback.data;
+    orderError = fallback.error;
+  }
 
   if (orderError) {
     return fail("internal_error", orderError.message, 500);
@@ -378,7 +395,7 @@ export async function GET(request: Request) {
   if (customerError) return fail("internal_error", customerError.message, 500);
   if (!customer) return ok({ orders: [] });
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("orders")
     .select("id,order_number,status,created_at,service_type_code,skus,jobs(id,assigned_technician_name,status,completed_at)")
     .eq("customer_id", customer.id)
@@ -386,6 +403,17 @@ export async function GET(request: Request) {
     .eq("is_test", false)
     .order("created_at", { ascending: false })
     .limit(5);
+
+  if (error && isLifecycleSchemaError(error)) {
+    const fallback = await supabase
+      .from("orders")
+      .select("id,order_number,status,created_at,service_type_code,skus,jobs(id,assigned_technician_name,status,completed_at)")
+      .eq("customer_id", customer.id)
+      .order("created_at", { ascending: false })
+      .limit(5);
+    data = fallback.data;
+    error = fallback.error;
+  }
 
   if (error) return fail("internal_error", error.message, 500);
   return ok({ orders: data ?? [] });

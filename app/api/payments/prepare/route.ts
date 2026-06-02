@@ -9,6 +9,7 @@ import {
 } from "@/lib/payment-amounts";
 import { createRequestId, logOperation } from "@/lib/operational-log";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
+import { isLifecycleSchemaError } from "@/lib/schema-compat";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { paymentPrepareSchema } from "@/lib/validation";
 
@@ -83,12 +84,22 @@ export async function POST(request: Request) {
     return fail("not_found", "Order not found.", 404);
   }
 
-  const { data: order, error: orderError } = await supabase
+  let { data: order, error: orderError } = await supabase
     .from("orders")
     .select("*")
     .eq("id", orderId)
     .is("deleted_at", null)
     .single();
+
+  if (orderError && isLifecycleSchemaError(orderError)) {
+    const fallback = await supabase
+      .from("orders")
+      .select("*")
+      .eq("id", orderId)
+      .single();
+    order = fallback.data;
+    orderError = fallback.error;
+  }
 
   if (orderError || !order) {
     logOperation({

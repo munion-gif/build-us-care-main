@@ -70,6 +70,14 @@
 .adm-bank-confirm-compact { display: grid; width: 100%; }
 .adm-bank-confirm-compact .adm-btn { width: 100%; min-height: 36px; }
 .adm-bank-confirm-compact .adm-form-message { margin: 0; font-size: 0.75rem; line-height: 1.35; }
+.adm-admin-error { display: grid; gap: 8px; border-color: #fecaca; background: #fff7f7; color: #991b1b; }
+.adm-admin-error strong { color: #7f1d1d; font-size: 0.9375rem; }
+.adm-admin-error p { margin: 0; color: #7f1d1d; font-size: 0.875rem; line-height: 1.55; }
+.adm-admin-error small { color: #991b1b; font-size: 0.75rem; line-height: 1.45; overflow-wrap: anywhere; }
+.adm-admin-warning { display: grid; gap: 8px; margin-bottom: 16px; border-color: #fed7aa; background: #fffaf3; color: #92400e; }
+.adm-admin-warning strong { color: #7c2d12; font-size: 0.9375rem; }
+.adm-admin-warning p { margin: 0; color: #7c2d12; font-size: 0.875rem; line-height: 1.55; }
+.adm-admin-warning small { color: #92400e; font-size: 0.75rem; line-height: 1.45; overflow-wrap: anywhere; }
 .adm-order-queue-actions { align-self: stretch; display: grid; align-content: center; justify-items: stretch; gap: 8px; min-width: 0; }
 .adm-order-queue-actions .adm-btn { width: 100%; min-height: 36px; white-space: nowrap; }
 .adm-trash-actions { display: grid; gap: 8px; align-items: start; }
@@ -200,6 +208,7 @@ textarea.adm-input { min-height: 96px; resize: vertical; line-height: 1.5; }
 .adm-empty-sub { font-size: 0.8125rem; }
 .adm-muted { color: #7a7974; }
 .adm-empty-line { margin: 0; padding: 12px 0; }
+.adm-card.adm-empty-line { padding: 18px 20px; color: #5c5a54; font-weight: 700; }
 .adm-dashboard-grid { display: grid; grid-template-columns: minmax(320px, 0.82fr) minmax(0, 1.18fr); gap: 16px; align-items: start; }
 .adm-dashboard-alerts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
 .adm-visit-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }

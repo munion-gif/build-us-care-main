@@ -2,6 +2,7 @@ import { z } from "zod";
 import { fail, ok } from "@/lib/api-response";
 import { hasAdminAccess, requireAdmin } from "@/lib/admin-auth";
 import { readJson, validationError } from "@/lib/errors";
+import { isLifecycleSchemaError } from "@/lib/schema-compat";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { accessTokenSchema, uuidSchema } from "@/lib/validation";
 
@@ -42,11 +43,23 @@ export async function POST(request: Request, context: Context) {
     return fail("not_found", "Quote not found.", 404);
   }
 
-  const { data: order, error: orderError } = await supabase
+  const orderLookup = await supabase
     .from("orders")
     .select("id,is_test,access_token")
     .eq("id", quote.order_id)
     .single();
+  let order: any = orderLookup.data;
+  let orderError = orderLookup.error;
+
+  if (orderError && isLifecycleSchemaError(orderError)) {
+    const fallback = await supabase
+      .from("orders")
+      .select("id,access_token")
+      .eq("id", quote.order_id)
+      .single();
+    order = fallback.data;
+    orderError = fallback.error;
+  }
 
   if (orderError || !order) {
     return fail("not_found", "Order not found.", 404);

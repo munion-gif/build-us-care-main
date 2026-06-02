@@ -2,6 +2,7 @@ import { fail, ok } from "@/lib/api-response";
 import { readJson } from "@/lib/errors";
 import { formatServiceName } from "@/lib/format";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
+import { isLifecycleSchemaError } from "@/lib/schema-compat";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 
 const ORDER_LOOKUP_LIMIT = 5;
@@ -72,7 +73,7 @@ export async function POST(request: Request) {
   }
 
   const customerIds = customers.map((customer) => customer.id);
-  const { data: orders, error: orderError } = await supabase
+  let { data: orders, error: orderError } = await supabase
     .from("orders")
     .select(
       `
@@ -87,6 +88,24 @@ export async function POST(request: Request) {
     .eq("is_test", false)
     .order("created_at", { ascending: false })
     .limit(20);
+
+  if (orderError && isLifecycleSchemaError(orderError)) {
+    const fallback = await supabase
+      .from("orders")
+      .select(
+        `
+        id,order_number,access_token,status,created_at,service_type_code,skus,
+        payments(id,status,paid_at,approved_at,created_at),
+        reservations(id,reserved_date,time_slot,status,created_at),
+        jobs(id,status,scheduled_at,created_at)
+      `
+      )
+      .in("customer_id", customerIds)
+      .order("created_at", { ascending: false })
+      .limit(20);
+    orders = fallback.data;
+    orderError = fallback.error;
+  }
 
   if (orderError) return fail("internal_error", orderError.message, 500);
   if (!orders?.length) {
