@@ -70,8 +70,6 @@ const SUPPORTED_CASE_SERVICE_CODES = new Set([
   "basin_replace",
   "faucet_replace",
   "kitchen_faucet",
-  "light_replace",
-  "outlet_replace",
   "door_handle",
   "bidet_install",
   "ventilator_replace",

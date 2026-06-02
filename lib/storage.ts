@@ -5,6 +5,7 @@ export const ORDER_PHOTOS_BUCKET = "buildus-order-photos";
 export const ORDER_PHOTO_UPLOAD_EXPIRES_IN = 60 * 60 * 2;
 export const ORDER_PHOTO_VIEW_EXPIRES_IN = 60 * 15;
 export const MAX_PHOTO_UPLOAD_BYTES = 10 * 1024 * 1024;
+export const DIAGNOSIS_TEMP_PHOTO_PREFIX = "diagnoses/temp/";
 
 export const ALLOWED_PHOTO_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"] as const;
 
@@ -47,7 +48,7 @@ export function createJobMediaPath(jobId: string, type: string, fileName: string
 }
 
 export function createDiagnosisTempPhotoPath(fileName: string, contentType: string) {
-  return `diagnoses/temp/${randomUUID()}_${sanitizeFileName(fileName, contentType)}`;
+  return `${DIAGNOSIS_TEMP_PHOTO_PREFIX}${randomUUID()}_${sanitizeFileName(fileName, contentType)}`;
 }
 
 export function isOrderPhotoPath(orderId: string, filePath: string) {
@@ -60,4 +61,8 @@ export function isOrderInquiryMediaPath(orderId: string, filePath: string) {
 
 export function isJobMediaPath(jobId: string, type: string, filePath: string) {
   return filePath.startsWith(`jobs/${jobId}/${type}/`) && !filePath.includes("..") && !filePath.startsWith("/");
+}
+
+export function isDiagnosisTempPhotoPath(filePath: string) {
+  return filePath.startsWith(DIAGNOSIS_TEMP_PHOTO_PREFIX) && !filePath.includes("..") && !filePath.startsWith("/");
 }

@@ -2,8 +2,6 @@ export const CANONICAL_SERVICE_OPTIONS = [
   { code: "toilet_replace", label: "변기", displayName: "변기 교체" },
   { code: "basin_replace", label: "세면대", displayName: "세면대 교체" },
   { code: "faucet_replace", label: "수전", displayName: "수전 교체" },
-  { code: "light_replace", label: "전등", displayName: "전등 교체" },
-  { code: "outlet_replace", label: "콘센트", displayName: "콘센트 교체" },
   { code: "door_handle", label: "도어핸들", displayName: "도어핸들 교체" },
   { code: "bidet_install", label: "비데", displayName: "비데 설치" },
   { code: "ventilator_replace", label: "환풍기", displayName: "환풍기 교체" },

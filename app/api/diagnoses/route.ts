@@ -4,7 +4,7 @@ import { EVENT_TYPES } from "@/lib/event-types";
 import { readJson, validationError } from "@/lib/errors";
 import { createOrderDateKey, createOrderNumber } from "@/lib/orders";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
-import { ORDER_PHOTO_VIEW_EXPIRES_IN, ORDER_PHOTOS_BUCKET } from "@/lib/storage";
+import { ORDER_PHOTO_VIEW_EXPIRES_IN, ORDER_PHOTOS_BUCKET, isDiagnosisTempPhotoPath } from "@/lib/storage";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 
 type SupabaseAdmin = ReturnType<typeof getSupabaseAdmin>;
@@ -29,18 +29,13 @@ const createDiagnosisSchema = z
   })
   .strict();
 
-function isRemoteUrl(value: string) {
-  return /^https?:\/\//i.test(value);
-}
-
 async function resolveImageUrls(inputs: string[]) {
   const supabase = getSupabaseAdmin();
   const urls: string[] = [];
 
   for (const input of inputs) {
-    if (isRemoteUrl(input)) {
-      urls.push(input);
-      continue;
+    if (!isDiagnosisTempPhotoPath(input)) {
+      throw new Error("IMAGE_URL_UNREADABLE");
     }
 
     const { data, error } = await supabase.storage

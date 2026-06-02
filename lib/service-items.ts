@@ -177,36 +177,6 @@ const HOME_FALLBACK_ITEMS: QuoteServiceItem[] = [
     addon_skus: []
   },
   {
-    service_type_code: "light_replace",
-    display_name: "전등 교체",
-    base_price: 48000,
-    estimated_minutes: 40,
-    category: "lighting",
-    standardizable: true,
-    photo_guide: FALLBACK_GUIDES.light_replace,
-    included_items: ["기존 철거", "신규 설치", "점등 테스트", "1년 A/S"],
-    excluded_items: [],
-    warranty_policy: "시공 하자 1년 무상 A/S",
-    standard_material_sku: "light_standard",
-    premium_material_sku: "light_premium",
-    addon_skus: []
-  },
-  {
-    service_type_code: "outlet_replace",
-    display_name: "콘센트 교체",
-    base_price: 73000,
-    estimated_minutes: 40,
-    category: "electric",
-    standardizable: true,
-    photo_guide: FALLBACK_GUIDES.outlet_replace,
-    included_items: ["기존 철거", "신규 설치", "전원 테스트", "1년 A/S"],
-    excluded_items: [],
-    warranty_policy: "시공 하자 1년 무상 A/S",
-    standard_material_sku: "outlet_standard",
-    premium_material_sku: "outlet_premium",
-    addon_skus: []
-  },
-  {
     service_type_code: "door_handle",
     display_name: "도어핸들 교체",
     base_price: 30000,
