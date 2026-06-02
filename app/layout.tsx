@@ -34,6 +34,11 @@ export const metadata = {
     description: siteDescription,
     images: ["/og-image.png"]
   },
+  verification: {
+    other: {
+      "naver-site-verification": "f510836c862f58b14245fbcc6f2c01c9ee6a9a14"
+    }
+  },
   icons: {
     icon: "/icon.svg",
     shortcut: "/icon.svg"
