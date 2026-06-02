@@ -11,6 +11,7 @@
 | `changelog/` | Phase 1 변경 로그와 배포 리포트 |
 | `refactors/` | 기능별 리팩터링 검토 및 테스트 문서 |
 | `data/` | 운영 데이터 엑셀, 데이터 수집 매뉴얼, 로컬 FAQ JSON |
+| `operations/` | 배포, 관리자 접근, DB, SEO 운영 체크리스트 |
 
 ## 자주 보는 문서
 
@@ -18,6 +19,7 @@
 - 현재 구조 분석: `specs/PROJECT_ARCHITECTURE_OVERVIEW.md`
 - 웹 타이포그래피 시스템: `specs/builduscare_typography_system_research.md`
 - 로드맵: `specs/ROADMAP.md`
+- 운영 체크리스트: `operations/README.md`
 - 전체 진행 기록: `reports/PROJECT_PROGRESS_FULL.md`
 - Phase 1 변경 로그: `changelog/CHANGES_PHASE1.md`
 
