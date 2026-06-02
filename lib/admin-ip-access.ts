@@ -28,8 +28,8 @@ function ipMatchesRule(ip: string, rule: string) {
   return (baseLong & mask) === (ipLong & mask);
 }
 
-function adminAllowedIpRules() {
-  return (process.env.ADMIN_ALLOWED_IPS ?? "")
+function adminAllowedIpRules(allowedIps = process.env.ADMIN_ALLOWED_IPS) {
+  return (allowedIps ?? "")
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
@@ -41,13 +41,13 @@ function getRequestIps(headers: HeaderReader) {
   return [...forwarded, realIp].filter(Boolean);
 }
 
-export function isAdminIpBypassEnabled() {
-  const value = (process.env.ADMIN_IP_BYPASS_LOGIN ?? "").trim().toLowerCase();
+export function isAdminIpBypassEnabled(flag = process.env.ADMIN_IP_BYPASS_LOGIN) {
+  const value = (flag ?? "").trim().toLowerCase();
   return value === "1" || value === "true" || value === "yes";
 }
 
-export function isAdminIpAllowed(headers: HeaderReader, host: string | null = headers.get("host")) {
-  const rules = adminAllowedIpRules();
+export function isAdminIpAllowed(headers: HeaderReader, host: string | null = headers.get("host"), allowedIps = process.env.ADMIN_ALLOWED_IPS) {
+  const rules = adminAllowedIpRules(allowedIps);
   if (rules.length === 0) return true;
 
   const normalizedHost = host ?? "";

@@ -45,12 +45,12 @@ export async function middleware(req: NextRequest) {
   }
 
   if (req.nextUrl.pathname.startsWith("/admin") || req.nextUrl.pathname.startsWith("/api/admin")) {
-    const allowedByIp = isAdminIpAllowed(req.headers);
+    const allowedByIp = isAdminIpAllowed(req.headers, req.headers.get("host"), process.env.ADMIN_ALLOWED_IPS);
     if (!allowedByIp) {
       return new NextResponse("Not Found", { status: 404 });
     }
 
-    const bypassLogin = allowedByIp && isAdminIpBypassEnabled();
+    const bypassLogin = allowedByIp && isAdminIpBypassEnabled(process.env.ADMIN_IP_BYPASS_LOGIN);
     if (bypassLogin && req.nextUrl.pathname === "/admin/login") {
       return NextResponse.redirect(new URL("/admin/dashboard", req.url));
     }
