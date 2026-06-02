@@ -173,8 +173,8 @@ function buildStatusGuidance(params: {
 
   if (orderStatus === "payment_pending") {
     return [
-      "견적 확인이 완료되었습니다.",
-      "결제가 완료되면 기사 배정과 방문 일정 안내가 시작됩니다."
+      "계좌이체 안내가 완료되었습니다.",
+      "입금 확인이 완료되면 기사 배정과 방문 일정 안내가 시작됩니다."
     ];
   }
 
@@ -196,12 +196,12 @@ function nextHappensForStatus(status?: string | null) {
       items: ["작업 범위와 견적을 준비합니다."]
     },
     quoted: {
-      title: "견적 확인 후 결제로 이어집니다",
-      items: ["금액과 범위를 확인하고 결제해주세요."]
+      title: "견적 확인 후 입금 안내로 이어집니다",
+      items: ["금액과 범위를 확인하고 계좌이체 안내를 확인해주세요."]
     },
     payment_pending: {
-      title: "결제 완료 후 일정이 확정됩니다",
-      items: ["결제가 끝나면 기사 배정이 시작됩니다."]
+      title: "입금 확인 후 일정이 확정됩니다",
+      items: ["입금 확인이 끝나면 기사 배정이 시작됩니다."]
     },
     paid: {
       title: "기사 배정과 예약 확정을 진행합니다",

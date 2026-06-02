@@ -70,7 +70,8 @@ function firstServiceCode(order: any) {
 function paymentStatusLabel(status?: string | null) {
   if (status === "done") return "결제완료";
   if (status === "failed") return "결제실패";
-  if (status === "pending") return "결제대기";
+  if (status === "pending") return "입금 확인 대기";
+  if (status === "ready") return "결제 준비";
   return status ?? "-";
 }
 
@@ -90,6 +91,33 @@ function slotLabel(slot?: string | null) {
 
 function latestPayment(order: any) {
   return asArray(order.payments).sort((a: any, b: any) => String(b.created_at ?? b.paid_at ?? "").localeCompare(String(a.created_at ?? a.paid_at ?? "")))[0];
+}
+
+function isBankTransfer(payment: any) {
+  return payment?.provider === "bank_transfer" || payment?.method === "transfer";
+}
+
+function paymentOperationLabel(order: any, payment: any) {
+  const status = String(order?.status ?? "");
+  if (payment?.status === "done" || status === "paid" || status === "product_paid") {
+    return isBankTransfer(payment) ? "입금 완료" : "결제 완료";
+  }
+  if (isBankTransfer(payment) && ["pending", "ready"].includes(String(payment?.status ?? "")) && ["payment_pending", "pending_product_payment"].includes(status)) {
+    return "입금 확인 필요";
+  }
+  if (status === "quoted") return "견적 확인 대기";
+  return paymentStatusLabel(payment?.status ?? null);
+}
+
+function paymentOperationHelp(order: any, payment: any) {
+  const onsiteAmount = Number(payment?.onsite_payment_amount ?? order?.onsite_payment_amount ?? 0);
+  if (payment?.status === "done" || order?.status === "paid" || order?.status === "product_paid") {
+    return onsiteAmount > 0 ? `현장결제 ${formatKRW(onsiteAmount)} 예정` : "기사 배정 또는 예약 확정으로 진행합니다.";
+  }
+  if (isBankTransfer(payment) && ["pending", "ready"].includes(String(payment?.status ?? ""))) {
+    return "입금 내역 확인 후 입금 확인을 누르면 다음 단계로 이동합니다.";
+  }
+  return "견적 또는 결제 진행 여부를 확인합니다.";
 }
 
 function canConfirmBankTransfer(order: any, payment: any) {
@@ -229,11 +257,18 @@ function currentAction(order: any) {
       badge: "접수"
     };
   }
-  if (status === "quoted" || status === "payment_pending") {
+  if (status === "quoted") {
     return {
-      title: hasAcceptedQuote ? "결제 진행 상태 확인" : "견적 수락 여부 확인",
-      summary: "고객이 견적을 확인한 단계입니다. 결제 대기 또는 결제 완료 상태로 이어지는지 확인하세요.",
+      title: hasAcceptedQuote ? "입금 안내 전 상태 확인" : "견적 수락 여부 확인",
+      summary: "고객이 견적을 확인하는 단계입니다. 최종 견적 확인 후 계좌이체 안내로 이어지는지 확인하세요.",
       badge: "견적"
+    };
+  }
+  if (status === "payment_pending" || status === "pending_product_payment") {
+    return {
+      title: "입금 확인 필요",
+      summary: "고객에게 계좌이체 안내가 나간 주문입니다. 입금 내역을 확인한 뒤 입금 확인을 누르면 기사 배정 단계로 넘어갑니다.",
+      badge: "입금"
     };
   }
   if (status === "paid" || hasDonePayment) {
@@ -365,8 +400,8 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
           </article>
           <article className="adm-card adm-brief-card">
             <span>결제</span>
-            <strong>{paymentStatusLabel(payment?.status ?? (order.status === "paid" ? "done" : null))}</strong>
-            <small>{formatKRW(Number(payment?.amount ?? order.total_amount ?? 0))}</small>
+            <strong>{paymentOperationLabel(order, payment)}</strong>
+            <small>{formatKRW(Number(payment?.amount ?? order.online_payment_amount ?? order.total_amount ?? 0))} · {paymentOperationHelp(order, payment)}</small>
           </article>
           <article className="adm-card adm-brief-card">
             <span>담당</span>
@@ -382,7 +417,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
               <article className="adm-card adm-quick-panel">
                 <div>
                   <h2 className="adm-card-title">빠른 처리</h2>
-                  <p className="adm-muted">유저 플로우 기준 다음 운영 작업만 먼저 처리합니다.</p>
+                  <p className="adm-muted">입금 확인, 기사 배정, 예약 확정처럼 운영자가 바로 처리할 항목만 모았습니다.</p>
                 </div>
                 <div className="adm-quick-actions">
                   {showBankTransferConfirm ? (
@@ -454,10 +489,12 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
           <summary>결제 정보</summary>
           {asArray(order.payments).length ? asArray(order.payments).map((payment: any) => (
             <div key={payment.id} className="adm-section">
-              <p>상태: <span className="adm-badge adm-badge-blue">{paymentStatusLabel(payment.status)}</span></p>
+              <p>상태: <span className="adm-badge adm-badge-blue">{paymentOperationLabel(order, payment)}</span></p>
+              <p>수단: {isBankTransfer(payment) ? "계좌이체" : payment.provider ?? payment.method ?? "-"}</p>
               <p>금액: {formatKRW(Number(payment.amount ?? 0))}</p>
+              <p>현장결제 예정: {formatKRW(Number(payment.onsite_payment_amount ?? order.onsite_payment_amount ?? 0))}</p>
               <p>결제일: {formatKRDateTime(payment.paid_at ?? payment.approved_at)}</p>
-              <p>토스 상태: {payment.provider_status ?? "-"}</p>
+              <p>처리 상태: {payment.provider_status ?? "-"}</p>
             </div>
           )) : <div className="adm-empty"><div className="adm-empty-title">아직 결제 정보가 없습니다.</div></div>}
         </details>

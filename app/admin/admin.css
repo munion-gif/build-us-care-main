@@ -48,7 +48,7 @@
 .adm-quick-filter-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
 .adm-quick-filter { display: inline-flex; align-items: center; min-height: 34px; border-radius: 999px; border: 1px solid #e8e5e0; background: #fbfaf7; padding: 6px 12px; color: #5c5a54; text-decoration: none; font-size: 0.8125rem; font-weight: 700; }
 .adm-quick-filter:hover { border-color: #01696f; color: #01696f; background: #f0fdfa; }
-.adm-queue-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.adm-queue-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
 .adm-queue-summary article { min-height: 80px; display: grid; align-content: center; gap: 4px; border: 1px solid #e8e5e0; border-radius: 12px; background: #fff; padding: 14px 16px; }
 .adm-queue-summary strong { color: #01696f; font-size: 1.5rem; line-height: 1; font-variant-numeric: tabular-nums; }
 .adm-queue-summary span { color: #7a7974; font-size: 0.8125rem; font-weight: 700; }
@@ -64,6 +64,12 @@
 .adm-order-queue-meta span { min-height: 82px; display: grid; align-content: start; gap: 5px; min-width: 0; border: 1px solid #f0ede8; border-radius: 8px; background: #fbfaf7; padding: 10px 12px; color: #28251d; font-size: 0.8125rem; line-height: 1.35; overflow-wrap: anywhere; }
 .adm-order-queue-meta b { color: #7a7974; font-size: var(--text-caption); text-transform: uppercase; letter-spacing: 0.05em; }
 .adm-order-queue-meta em { width: fit-content; font-style: normal; }
+.adm-order-queue-meta small { color: #7a7974; font-size: 0.75rem; line-height: 1.35; }
+.adm-payment-amount { color: #1c1b19; font-size: 0.9375rem; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.adm-payment-needs-confirm { border-color: #fed7aa !important; background: #fff7ed !important; }
+.adm-bank-confirm-compact { display: grid; width: 100%; }
+.adm-bank-confirm-compact .adm-btn { width: 100%; min-height: 36px; }
+.adm-bank-confirm-compact .adm-form-message { margin: 0; font-size: 0.75rem; line-height: 1.35; }
 .adm-order-queue-actions { align-self: stretch; display: grid; align-content: center; justify-items: stretch; gap: 8px; min-width: 0; }
 .adm-order-queue-actions .adm-btn { width: 100%; min-height: 36px; white-space: nowrap; }
 .adm-trash-actions { display: grid; gap: 8px; align-items: start; }

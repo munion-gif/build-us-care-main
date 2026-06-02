@@ -121,7 +121,7 @@ const statusLabels: Record<string, string> = {
   submitted: "문의 접수",
   draft: "문의 접수",
   quoted: "견적 완료",
-  payment_pending: "결제 대기",
+  payment_pending: "입금 확인 대기",
   received: "작업 접수",
   confirmed: "예약 확정",
   reservation_pending: "예약 대기",

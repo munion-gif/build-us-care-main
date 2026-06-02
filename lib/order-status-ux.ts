@@ -21,21 +21,21 @@ export const ORDER_STATUS_UX: Record<OrderStatus, OrderStatusUx> = {
     customerLabel: "견적 안내",
     adminLabel: "견적 완료",
     customerSummary: "견적이 준비되었습니다. 금액과 작업 범위를 확인해 주세요.",
-    adminSummary: "견적 확인 후 결제 대기 상태로 전환할 수 있습니다.",
+    adminSummary: "견적 확인 후 계좌이체 안내 상태로 전환할 수 있습니다.",
     warrantyHint: "아직 A/S 대상 단계가 아닙니다."
   },
   payment_pending: {
-    customerLabel: "결제 대기",
-    adminLabel: "결제 대기",
-    customerSummary: "결제가 완료되면 기사 배정과 일정 안내가 시작됩니다.",
-    adminSummary: "결제 진행 여부를 확인해야 합니다.",
+    customerLabel: "입금 확인 대기",
+    adminLabel: "입금 확인 대기",
+    customerSummary: "입금 확인이 완료되면 기사 배정과 일정 안내가 시작됩니다.",
+    adminSummary: "계좌이체 입금 내역 확인이 필요합니다.",
     warrantyHint: "아직 A/S 대상 단계가 아닙니다."
   },
   pending_product_payment: {
-    customerLabel: "제품값 결제 대기",
-    adminLabel: "제품값 결제 대기",
-    customerSummary: "제품값 결제가 완료되면 주문 확인과 방문 안내가 시작됩니다.",
-    adminSummary: "제품값 선결제 진행 여부를 확인해야 합니다.",
+    customerLabel: "제품값 입금 확인 대기",
+    adminLabel: "제품값 입금 확인 대기",
+    customerSummary: "제품값 입금 확인이 완료되면 주문 확인과 방문 안내가 시작됩니다.",
+    adminSummary: "제품값 계좌이체 입금 내역 확인이 필요합니다.",
     warrantyHint: "아직 A/S 대상 단계가 아닙니다."
   },
   paid: {
@@ -137,10 +137,10 @@ export const ORDER_STATUS_UX: Record<OrderStatus, OrderStatusUx> = {
     warrantyHint: "A/S는 최종 완료 후 가능합니다."
   },
   reservation_pending: {
-    customerLabel: "결제 대기",
+    customerLabel: "입금 확인 대기",
     adminLabel: "Legacy 예약 대기",
-    customerSummary: "결제 또는 예약 확인이 필요합니다.",
-    adminSummary: "legacy 예약 대기 상태입니다. 결제/예약 상태를 확인합니다.",
+    customerSummary: "입금 또는 예약 확인이 필요합니다.",
+    adminSummary: "legacy 예약 대기 상태입니다. 입금/예약 상태를 확인합니다.",
     warrantyHint: "A/S는 최종 완료 후 가능합니다."
   },
   reservation_confirmed: {
@@ -175,7 +175,7 @@ export const ORDER_STATUS_UX: Record<OrderStatus, OrderStatusUx> = {
 
 export const BLOCKED_TRANSITION_HINTS: Partial<Record<OrderStatus, Partial<Record<OperationalOrderStatus, string>>>> = {
   inquiry: {
-    payment_pending: "문의 접수 상태에서는 결제 대기로 바로 넘길 수 없습니다. 먼저 견적 완료로 전환하세요."
+    payment_pending: "문의 접수 상태에서는 입금 확인 대기로 바로 넘길 수 없습니다. 먼저 견적 완료로 전환하세요."
   },
   completed: {
     warranty: "작업 완료 확인 중에는 A/S로 바로 전환할 수 없습니다. 최종 완료(done) 후 접수하세요."

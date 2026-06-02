@@ -46,7 +46,7 @@ export function OrderCurrentStatusPanel({ order, job, reservation, payment, quot
 function nextStatusCopy(orderStatus?: string | null, jobStatus?: string | null) {
   const normalizedOrderStatus = normalizeOrderStatusForUi(orderStatus);
   if (normalizedOrderStatus === "quoted") return "견적이 준비됐어요. 결제를 진행하면 기사 배정이 시작됩니다.";
-  if (normalizedOrderStatus === "payment_pending") return "결제 대기 중이에요. 결제가 완료되면 방문 일정을 안내드릴게요.";
+  if (normalizedOrderStatus === "payment_pending") return "입금 확인 대기 중이에요. 확인이 완료되면 방문 일정을 안내드릴게요.";
   if (normalizedOrderStatus === "paid" && jobStatus === "assigned") return "담당 기사가 배정됐어요. 방문 일정 최종 확인 후 확정 안내드릴게요.";
   if (normalizedOrderStatus === "paid") return "결제가 완료됐어요. 기사 배정 후 방문 일정을 안내드릴게요.";
   if (normalizedOrderStatus === "scheduled" || jobStatus === "scheduled") return "방문 일정이 확정됐어요. 변경이 필요하면 아래에서 요청하세요.";

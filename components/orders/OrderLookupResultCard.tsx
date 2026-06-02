@@ -29,7 +29,7 @@ function slotLabel(slot?: string | null) {
 function paymentLabel(order: LookupOrder) {
   if (order.paymentStatus === "done" || order.isPaid) return "결제 완료";
   if (order.paymentStatus === "failed") return "결제 실패";
-  if (order.paymentStatus === "pending" || order.paymentStatus === "ready") return "결제 대기";
+  if (order.paymentStatus === "pending" || order.paymentStatus === "ready") return "입금 확인 대기";
   return "결제 확인 중";
 }
 

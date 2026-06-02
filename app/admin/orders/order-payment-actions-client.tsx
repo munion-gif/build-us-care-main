@@ -6,13 +6,14 @@ type Props = {
   orderId: string;
   orderNumber: string;
   amount: number;
+  compact?: boolean;
 };
 
 function won(value: number) {
   return `${Number(value ?? 0).toLocaleString("ko-KR")}원`;
 }
 
-export function OrderBankTransferConfirmButton({ orderId, orderNumber, amount }: Props) {
+export function OrderBankTransferConfirmButton({ orderId, orderNumber, amount, compact = false }: Props) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -38,8 +39,8 @@ export function OrderBankTransferConfirmButton({ orderId, orderNumber, amount }:
   }
 
   return (
-    <div className="adm-inline-actions">
-      <button className="adm-btn adm-btn-primary" type="button" onClick={confirmPayment} disabled={saving}>
+    <div className={compact ? "adm-inline-actions adm-bank-confirm-compact" : "adm-inline-actions"}>
+      <button className={compact ? "adm-btn adm-btn-primary adm-btn-sm" : "adm-btn adm-btn-primary"} type="button" onClick={confirmPayment} disabled={saving}>
         {saving ? "처리 중" : "입금 확인"}
       </button>
       {message ? <p className={message.includes("실패") ? "adm-form-message adm-form-message-error" : "adm-form-message"}>{message}</p> : null}

@@ -8,6 +8,7 @@ import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { OPERATIONAL_ORDER_STATUSES } from "@/lib/types";
 import { CancellationActions } from "./cancellation-actions-client";
 import { OrderAssignmentButton } from "./order-assignment-client";
+import { OrderBankTransferConfirmButton } from "./order-payment-actions-client";
 import { OrderTestActions } from "./order-test-actions-client";
 import { OrderTrashActions } from "./order-trash-actions-client";
 
@@ -20,7 +21,8 @@ const channels = ["", "kakao", "web", "phone", "store", "instagram"];
 const workflowFilters = [
   { key: "all", label: "전체", href: "/admin/orders" },
   { key: "intake", label: "신규", href: "/admin/orders?flow=intake" },
-  { key: "quote", label: "견적/결제", href: "/admin/orders?flow=quote" },
+  { key: "quote", label: "견적", href: "/admin/orders?flow=quote" },
+  { key: "payment", label: "입금 확인", href: "/admin/orders?flow=payment" },
   { key: "paid", label: "결제완료", href: "/admin/orders?flow=paid" },
   { key: "visit", label: "방문 예정", href: "/admin/orders?flow=visit" },
   { key: "complete", label: "완료", href: "/admin/orders?flow=complete" },
@@ -31,6 +33,7 @@ const workflowFilters = [
 const quickFilters = [
   { label: "테스트 주문 생성", href: "/admin/orders/test-new" },
   { label: "오늘 접수", href: `/admin/orders?date_from=${new Date().toISOString().slice(0, 10)}&flow=intake` },
+  { label: "입금 확인 필요", href: "/admin/orders?flow=payment" },
   { label: "결제완료 미배정", href: "/admin/orders?flow=paid" },
   { label: "방문 예정", href: "/admin/orders?flow=visit" },
   { label: "취소/A/S", href: "/admin/orders?flow=issue" }
@@ -60,7 +63,7 @@ async function getOrders(params: Record<string, string | undefined>) {
       customers(name,phone,acquisition_source),
       homes(address_full),
       reservations(id,reserved_date,time_slot,status,created_at),
-      payments(id,status,amount,paid_at,approved_at),
+      payments(id,status,amount,paid_at,approved_at,requested_at,method,provider,provider_status,online_payment_amount,onsite_payment_amount,onsite_payment_status),
       jobs(id,technician_id,assigned_technician_name,scheduled_at,status,technicians(id,name)),
       cancellations(id,status,refund_amount,refund_rate,reason,requested_at)
     `,
@@ -77,7 +80,8 @@ async function getOrders(params: Record<string, string | undefined>) {
 
   if (params.flow && !params.status && !trashMode && !testMode) {
     if (params.flow === "intake") query = query.in("status", ["inquiry", "submitted"]);
-    if (params.flow === "quote") query = query.in("status", ["quoted", "payment_pending", "pending_product_payment"]);
+    if (params.flow === "quote") query = query.eq("status", "quoted");
+    if (params.flow === "payment") query = query.in("status", ["payment_pending", "pending_product_payment"]);
     if (params.flow === "paid") query = query.in("status", ["paid", "product_paid"]);
     if (params.flow === "visit") query = query.in("status", ["scheduled", "in_progress"]);
     if (params.flow === "complete") query = query.in("status", ["completed", "done"]);
@@ -116,7 +120,8 @@ function activeWorkflowKey(status?: string, flow?: string) {
   if (flow) return flow;
   if (!status) return "all";
   if (status === "inquiry") return "intake";
-  if (status === "quoted" || status === "payment_pending" || status === "pending_product_payment") return "quote";
+  if (status === "quoted") return "quote";
+  if (status === "payment_pending" || status === "pending_product_payment") return "payment";
   if (status === "paid" || status === "product_paid") return "paid";
   if (status === "scheduled" || status === "in_progress") return "visit";
   if (status === "completed" || status === "done") return "complete";
@@ -146,9 +151,77 @@ function slotLabel(slot?: string | null) {
 
 function paymentState(order: any) {
   const payments = Array.isArray(order.payments) ? order.payments : [];
-  if (payments.some((payment: any) => payment.status === "done") || order.status === "paid" || order.status === "product_paid") return { label: "결제완료", className: "adm-badge-blue" };
-  if (order.status === "payment_pending" || order.status === "pending_product_payment" || order.status === "quoted") return { label: "결제대기", className: "adm-badge-orange" };
-  return { label: "미결제", className: "adm-badge-gray" };
+  const payment = latestPayment(order);
+  const donePayment = payments.some((item: any) => item.status === "done");
+  const amount = Number(payment?.amount ?? order.online_payment_amount ?? order.total_amount ?? 0);
+  const onsiteAmount = Number(payment?.onsite_payment_amount ?? order.onsite_payment_amount ?? 0);
+
+  if (donePayment || order.status === "paid" || order.status === "product_paid") {
+    return {
+      amount,
+      className: "adm-badge-blue",
+      detail: onsiteAmount > 0 ? `현장결제 ${formatKRW(onsiteAmount)} 예정` : "다음 단계 진행 가능",
+      label: isBankTransfer(payment) ? "입금완료" : "결제완료",
+      needsConfirmation: false
+    };
+  }
+
+  if (bankTransferNeedsConfirmation(order)) {
+    return {
+      amount,
+      className: "adm-badge-orange",
+      detail: "계좌이체 입금 내역 확인 후 처리",
+      label: "입금 확인 필요",
+      needsConfirmation: true
+    };
+  }
+
+  if (order.status === "payment_pending" || order.status === "pending_product_payment") {
+    return {
+      amount,
+      className: "adm-badge-orange",
+      detail: "계좌이체 결제 이력 확인 필요",
+      label: "입금 정보 확인",
+      needsConfirmation: false
+    };
+  }
+
+  if (order.status === "quoted") {
+    return {
+      amount: Number(order.total_amount ?? 0),
+      className: "adm-badge-sky",
+      detail: "고객 견적 확인 전",
+      label: "견적 확인 대기",
+      needsConfirmation: false
+    };
+  }
+
+  return {
+    amount: Number(order.total_amount ?? 0),
+    className: "adm-badge-gray",
+    detail: "견적 또는 결제 정보 없음",
+    label: "미결제",
+    needsConfirmation: false
+  };
+}
+
+function latestPayment(order: any) {
+  const payments = Array.isArray(order.payments) ? order.payments : [];
+  return [...payments].sort((a: any, b: any) => String(b.created_at ?? b.requested_at ?? b.paid_at ?? "").localeCompare(String(a.created_at ?? a.requested_at ?? a.paid_at ?? "")))[0] ?? null;
+}
+
+function isBankTransfer(payment: any) {
+  return payment?.provider === "bank_transfer" || payment?.method === "transfer";
+}
+
+function isPendingPayment(payment: any) {
+  return ["pending", "ready"].includes(String(payment?.status ?? ""));
+}
+
+function bankTransferNeedsConfirmation(order: any) {
+  const payment = latestPayment(order);
+  const status = String(order.status ?? "");
+  return isBankTransfer(payment) && isPendingPayment(payment) && ["payment_pending", "pending_product_payment"].includes(status) ? payment : null;
 }
 
 function assignedTechnician(order: any) {
@@ -166,7 +239,8 @@ function addressPreview(order: any) {
 function nextActionLabel(order: any) {
   const status = String(order.status ?? "");
   if (status === "paid" || status === "product_paid") return assignedTechnician(order) === "미배정" ? "기사 배정" : "방문 전 확인";
-  if (status === "quoted" || status === "payment_pending" || status === "pending_product_payment") return "결제 확인";
+  if (status === "payment_pending" || status === "pending_product_payment") return "입금 확인";
+  if (status === "quoted") return "견적 확인";
   if (status === "scheduled") return "방문 준비";
   if (status === "in_progress") return "완료 처리";
   if (status === "completed") return "검수 완료";
@@ -184,6 +258,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
   ]);
   const totalPages = Math.max(Math.ceil(count / limit), 1);
   const visibleSummary = {
+    needsPayment: orders.filter((order: any) => paymentState(order).needsConfirmation).length,
     needsAssign: orders.filter((order: any) => ["paid", "product_paid"].includes(String(order.status)) && assignedTechnician(order) === "미배정").length,
     visits: orders.filter((order: any) => ["scheduled", "in_progress"].includes(String(order.status))).length,
     issues: orders.filter((order: any) => ["cancel_requested", "issue", "warranty"].includes(String(order.status))).length
@@ -238,9 +313,10 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
         </form>
         <section className="adm-queue-summary adm-section">
           <article><strong>{count}</strong><span>검색 결과</span></article>
-          <article><strong>{trashMode || testMode ? count : visibleSummary.needsAssign}</strong><span>{trashMode ? "휴지통 주문" : testMode ? "테스트 주문" : "배정 필요"}</span></article>
-          <article><strong>{trashMode || testMode ? 0 : visibleSummary.visits}</strong><span>{trashMode ? "복구 가능" : testMode ? "운영 제외" : "방문/진행"}</span></article>
-          <article><strong>{trashMode || testMode ? 0 : visibleSummary.issues}</strong><span>{trashMode ? "완전삭제 가능" : testMode ? "통계 제외" : "예외 처리"}</span></article>
+          <article><strong>{trashMode || testMode ? count : visibleSummary.needsPayment}</strong><span>{trashMode ? "휴지통 주문" : testMode ? "테스트 주문" : "입금 확인 필요"}</span></article>
+          <article><strong>{trashMode || testMode ? 0 : visibleSummary.needsAssign}</strong><span>{trashMode ? "복구 가능" : testMode ? "운영 제외" : "배정 필요"}</span></article>
+          <article><strong>{trashMode || testMode ? 0 : visibleSummary.visits}</strong><span>{trashMode ? "완전삭제 가능" : testMode ? "통계 제외" : "방문/진행"}</span></article>
+          <article><strong>{trashMode || testMode ? 0 : visibleSummary.issues}</strong><span>{trashMode ? "삭제 검토" : testMode ? "운영 제외" : "예외 처리"}</span></article>
         </section>
         <section className="adm-order-queue-list" aria-label="주문 처리 큐">
           {orders.length === 0 ? (
@@ -264,7 +340,12 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
                 </div>
                 <div className="adm-order-queue-meta">
                   <span><b>예약</b>{reservation ? `${reservation.reserved_date} ${slotLabel(reservation.time_slot)}` : "예약 없음"}</span>
-                  <span><b>결제</b><em className={`adm-badge ${payment.className}`}>{payment.label}</em>{formatKRW(Number(order.total_amount ?? 0))}</span>
+                  <span className={payment.needsConfirmation ? "adm-payment-needs-confirm" : ""}>
+                    <b>결제</b>
+                    <em className={`adm-badge ${payment.className}`}>{payment.label}</em>
+                    <strong className="adm-payment-amount">{formatKRW(payment.amount)}</strong>
+                    <small>{payment.detail}</small>
+                  </span>
                   <span><b>담당</b>{assignedTechnician(order)}</span>
                 </div>
                 <div className="adm-order-queue-actions">
@@ -278,6 +359,14 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
                       </>
                     ) : (
                       <>
+                        {payment.needsConfirmation ? (
+                          <OrderBankTransferConfirmButton
+                            amount={payment.amount}
+                            compact
+                            orderId={order.id}
+                            orderNumber={order.order_number}
+                          />
+                        ) : null}
                         <Link className="adm-btn adm-btn-primary adm-btn-sm" href={`/admin/orders/${order.id}`}>{nextActionLabel(order)}</Link>
                         {["paid", "product_paid"].includes(String(order.status)) && (
                           <OrderAssignmentButton compact orderId={order.id} orderNumber={order.order_number} orderStatus={order.status} reservations={Array.isArray(order.reservations) ? order.reservations : []} jobs={Array.isArray(order.jobs) ? order.jobs : []} technicians={technicians} />

@@ -153,8 +153,8 @@ export function getOrderStatusLabel(params: {
 
   if (orderStatus === "payment_pending") {
     return {
-      label: "결제 대기 중",
-      description: "견적 확인이 완료되었습니다. 결제가 완료되면 기사 배정이 시작됩니다."
+      label: "입금 확인 대기 중",
+      description: "계좌이체 입금 확인이 완료되면 기사 배정이 시작됩니다."
     };
   }
 
@@ -197,7 +197,7 @@ export function getOrderTimelineSteps(params: {
   const includeWarranty = orderStatus === "warranty";
   const isCanceled = orderStatus === "canceled" || orderStatus === "cancelled" || orderStatus === "cancel_requested";
   const baseSteps: Array<Omit<OrderTimelineStep, "state">> = [
-    { key: "payment", label: orderStatus === "inquiry" ? "문의 접수" : "견적/결제" },
+    { key: "payment", label: orderStatus === "inquiry" ? "문의 접수" : "견적/입금" },
     { key: "assignment", label: "기사 배정/예약 확정" },
     { key: "in_progress", label: "시공 중" },
     { key: "completed", label: orderStatus === "issue" ? "시공 후 문제 확인" : "시공 완료" }
