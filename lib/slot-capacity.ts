@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
 export type SlotPeriod = "morning" | "afternoon";
@@ -26,7 +27,7 @@ export function normalizeSlotCap(value: unknown, fallback: number, min = MIN_CAP
   return Math.min(Math.max(Math.trunc(parsed), min), MAX_CAP);
 }
 
-export async function resolveDefaultSlotCap(supabase: SupabaseAdmin) {
+async function loadDefaultSlotCap(supabase: SupabaseAdmin) {
   const fallbackCap = fallbackMaxSlotsPerPeriod();
   const [capConfigResult, activeTechniciansResult] = await Promise.all([
     supabase.from("app_configs").select("value").eq("key", "slot_cap").maybeSingle(),
@@ -63,6 +64,16 @@ export async function resolveDefaultSlotCap(supabase: SupabaseAdmin) {
     activeTechnicianCount,
     fallbackMaxSlotsPerPeriod: fallbackCap
   };
+}
+
+const getCachedDefaultSlotCap = unstable_cache(() => loadDefaultSlotCap(getSupabaseAdmin()), ["default-slot-cap"], {
+  revalidate: 60,
+  tags: ["slots", "technicians"]
+});
+
+export async function resolveDefaultSlotCap(supabase: SupabaseAdmin = getSupabaseAdmin(), options?: { cache?: boolean }) {
+  if (options?.cache) return getCachedDefaultSlotCap();
+  return loadDefaultSlotCap(supabase);
 }
 
 export function periodCapFromConfig(

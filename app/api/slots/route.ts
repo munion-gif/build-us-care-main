@@ -211,7 +211,7 @@ export async function GET(request: Request) {
         .eq("type", "date")
         .gte("date", range.startDate)
         .lte("date", range.endDate),
-      resolveDefaultSlotCap(supabase)
+      resolveDefaultSlotCap(supabase, { cache: true })
     ]);
   } catch (error) {
     return fail("internal_error", error instanceof Error ? error.message : "Failed to resolve slot capacity.", 500);

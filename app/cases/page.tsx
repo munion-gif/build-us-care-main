@@ -8,5 +8,5 @@ export default async function CasesPage() {
     cases: []
   }));
 
-  return <CasesClient initialCases={initialCases.cases} />;
+  return <CasesClient initialCases={initialCases.cases} initialLoaded />;
 }

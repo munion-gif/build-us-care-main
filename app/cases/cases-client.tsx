@@ -60,15 +60,16 @@ function hasCasePhoto(item: CaseItem) {
 
 type CasesClientProps = {
   initialCases?: CaseItem[];
+  initialLoaded?: boolean;
 };
 
-export function CasesClient({ initialCases = [] }: CasesClientProps) {
+export function CasesClient({ initialCases = [], initialLoaded = false }: CasesClientProps) {
   const [activeTab, setActiveTab] = useState<(typeof TABS)[number]["key"]>("all");
   const [cases, setCases] = useState<CaseItem[]>(initialCases);
   const [sourceContext, setSourceContext] = useState(() => readClientSourceContext());
-  const [loading, setLoading] = useState(initialCases.length === 0);
+  const [loading, setLoading] = useState(!initialLoaded);
   const [error, setError] = useState<string | null>(null);
-  const [hasUsedInitialCases, setHasUsedInitialCases] = useState(initialCases.length > 0);
+  const [hasUsedInitialCases, setHasUsedInitialCases] = useState(initialLoaded);
   const { track } = useTracking();
 
   useEffect(() => {
@@ -114,7 +115,7 @@ export function CasesClient({ initialCases = [] }: CasesClientProps) {
 
     loadCases();
     return () => controller.abort();
-  }, [activeTab]);
+  }, [activeTab, hasUsedInitialCases]);
 
   const visibleCases = useMemo(() => cases.filter(hasCasePhoto), [cases]);
   const selectedCaseType = TABS.find((tab) => tab.key === activeTab)?.label ?? "선택한 품목";

@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { formatServiceName } from "@/lib/format";
 import { ORDER_PHOTO_VIEW_EXPIRES_IN, ORDER_PHOTOS_BUCKET } from "@/lib/storage";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
@@ -121,7 +122,7 @@ function boundedNumber(value: number | undefined, fallback: number, min: number,
   return Math.min(Math.max(Math.trunc(value as number), min), max);
 }
 
-export async function getPublicCases(params: PublicCasesParams = {}): Promise<PublicCasesResult> {
+async function loadPublicCases(params: PublicCasesParams = {}): Promise<PublicCasesResult> {
   if (!hasSupabaseEnv()) {
     return {
       cases: [],
@@ -307,4 +308,24 @@ export async function getPublicCases(params: PublicCasesParams = {}): Promise<Pu
     limit,
     offset
   };
+}
+
+const getCachedPublicCases = unstable_cache(
+  async (paramsKey: string) => loadPublicCases(JSON.parse(paramsKey) as PublicCasesParams),
+  ["public-cases"],
+  {
+    revalidate: 300,
+    tags: ["public-cases"]
+  }
+);
+
+export async function getPublicCases(params: PublicCasesParams = {}): Promise<PublicCasesResult> {
+  const normalized = {
+    service: params.service ?? "all",
+    region: params.region ?? "all",
+    limit: boundedNumber(params.limit, 20, 1, 50),
+    offset: boundedNumber(params.offset, 0, 0, 10000)
+  };
+
+  return getCachedPublicCases(JSON.stringify(normalized));
 }
