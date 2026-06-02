@@ -30,6 +30,8 @@ function ipMatchesRule(ip: string, rule: string) {
 
 function adminAllowedIpRules(allowedIps = process.env.ADMIN_ALLOWED_IPS) {
   return (allowedIps ?? "")
+    .trim()
+    .replace(/^["']|["']$/g, "")
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
@@ -42,7 +44,7 @@ function getRequestIps(headers: HeaderReader) {
 }
 
 export function isAdminIpBypassEnabled(flag = process.env.ADMIN_IP_BYPASS_LOGIN) {
-  const value = (flag ?? "").trim().toLowerCase();
+  const value = (flag ?? "").trim().replace(/^["']|["']$/g, "").trim().toLowerCase();
   return value === "1" || value === "true" || value === "yes";
 }
 
