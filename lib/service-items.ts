@@ -69,7 +69,7 @@ function normalizeServiceItem(row: any): QuoteServiceItem {
   };
 }
 
-export async function getServiceItem(serviceCode: string) {
+async function loadServiceItem(serviceCode: string) {
   if (!hasSupabaseEnv()) return getFallbackServiceItem(serviceCode);
 
   const supabase = getSupabaseAdmin();
@@ -84,7 +84,17 @@ export async function getServiceItem(serviceCode: string) {
   return normalizeServiceItem(data);
 }
 
-export async function getMaterialsBySku(skus: string[]) {
+const getCachedServiceItem = unstable_cache(loadServiceItem, ["service-item"], {
+  revalidate: 3600,
+  tags: ["service-items"]
+});
+
+export async function getServiceItem(serviceCode: string) {
+  return getCachedServiceItem(serviceCode);
+}
+
+async function loadMaterialsBySku(skusKey: string) {
+  const skus = skusKey.split("|").filter(Boolean);
   if (!hasSupabaseEnv() || skus.length === 0) return [];
 
   const supabase = getSupabaseAdmin();
@@ -101,6 +111,17 @@ export async function getMaterialsBySku(skus: string[]) {
     category: row.category,
     retail_price: Number(row.retail_price ?? 0)
   })) satisfies MaterialItem[];
+}
+
+const getCachedMaterialsBySku = unstable_cache(loadMaterialsBySku, ["materials-by-sku"], {
+  revalidate: 3600,
+  tags: ["service-items"]
+});
+
+export async function getMaterialsBySku(skus: string[]) {
+  const normalizedSkus = Array.from(new Set(skus.filter(Boolean))).sort();
+  if (normalizedSkus.length === 0) return [];
+  return getCachedMaterialsBySku(normalizedSkus.join("|"));
 }
 
 export async function getServiceAddons(serviceCode: string) {

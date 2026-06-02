@@ -13,8 +13,7 @@ import { getKakaoChannelChatUrl } from "@/lib/kakao-channel";
 import { customerPhotoSlot } from "@/lib/photo-guides";
 import { cashReceiptSummary, type QuoteDocumentCashReceipt } from "@/lib/quote-document";
 import type { MaterialItem, QuoteServiceItem } from "@/lib/service-items";
-import type { QuotePreset } from "@/lib/quote-preset";
-import { regionLabel } from "@/lib/quote-preset";
+import { parseQuotePreset, regionLabel, type QuotePreset } from "@/lib/quote-preset";
 import {
   getProductLaborPrice,
   getReplacementProductCatalog,
@@ -259,6 +258,14 @@ function normalizeDraftAddress(value: Partial<AddressForm> | undefined): Address
   };
 }
 
+function searchParamsToRecord(searchParams: URLSearchParams): Record<string, string> {
+  const record: Record<string, string> = {};
+  searchParams.forEach((value, key) => {
+    record[key] = value;
+  });
+  return record;
+}
+
 function normalizeDraftCustomer(value: Partial<{ name: string; phone: string }> | undefined) {
   return {
     name: value?.name ?? "",
@@ -361,7 +368,10 @@ function compactProductNote(note: string) {
   return compactWords.length > 0 ? compactWords.join(" ") : firstSegment.slice(0, 12).trim();
 }
 
-export function QuoteDetailClient({ service, materials, preset, kakaoUrl, adminTest = false }: QuoteDetailClientProps) {
+export function QuoteDetailClient({ service, materials, preset: initialPreset, kakaoUrl, adminTest = false }: QuoteDetailClientProps) {
+  const [preset, setPreset] = useState(initialPreset);
+  const [adminTestEnabled, setAdminTestEnabled] = useState(adminTest);
+  const [queryParamsReady, setQueryParamsReady] = useState(false);
   const productGrade: "standard" = "standard";
   const [productQuantities, setProductQuantities] = useState<Record<string, number>>({});
   const [files, setFiles] = useState<File[]>([]);
@@ -376,7 +386,8 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl, adminT
   const [slotsByDate, setSlotsByDate] = useState<SlotsByDate>({});
   const [closedSlotsByDate, setClosedSlotsByDate] = useState<SlotsByDate>({});
   const [slotDaysByDate, setSlotDaysByDate] = useState<Record<string, SlotDay>>({});
-  const [slotsLoading, setSlotsLoading] = useState(true);
+  const [slotsRequested, setSlotsRequested] = useState(false);
+  const [slotsLoading, setSlotsLoading] = useState(false);
   const [slotsReady, setSlotsReady] = useState(false);
   const [slotsError, setSlotsError] = useState("");
   const [slotsReloadKey, setSlotsReloadKey] = useState(0);
@@ -398,7 +409,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl, adminT
   const detailAddressInputRef = useRef<HTMLInputElement | null>(null);
   const customerInfoConsentRef = useRef<HTMLInputElement | null>(null);
   const { track: rawTrack } = useTracking();
-  const track = adminTest ? ((..._args: Parameters<typeof rawTrack>) => Promise.resolve()) : rawTrack;
+  const track = adminTestEnabled ? ((..._args: Parameters<typeof rawTrack>) => Promise.resolve()) : rawTrack;
   const kakaoChatUrl = getKakaoChannelChatUrl(kakaoUrl);
 
   const standardMaterial = materials.find((material) => material.sku === service.standard_material_sku) ?? materials[0];
@@ -565,6 +576,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl, adminT
   }
 
   function moveToFormStep(step: number, section: HTMLElement | null, focusTarget?: HTMLElement | null) {
+    if (step >= 1) setSlotsRequested(true);
     setActiveFormStep(step);
     window.requestAnimationFrame(() => scrollToTarget(focusTarget ?? section, focusTarget));
   }
@@ -669,6 +681,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl, adminT
 
   useEffect(() => {
     if (hasRequiredBasicInfo) {
+      setSlotsRequested(true);
       setActiveFormStep((current) => Math.max(current, 1));
     }
   }, [hasRequiredBasicInfo]);
@@ -686,6 +699,37 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl, adminT
   */
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setPreset(parseQuotePreset(searchParamsToRecord(params)));
+
+    const adminTestRequested = params.get("adminTest") === "1" || params.get("test") === "1";
+    if (!adminTestRequested) {
+      setQueryParamsReady(true);
+      return;
+    }
+
+    let ignore = false;
+    async function verifyAdminTestSession() {
+      try {
+        const response = await fetch("/api/admin/session", { cache: "no-store" });
+        const json = await response.json();
+        if (!ignore && response.ok && json.ok) setAdminTestEnabled(true);
+      } catch {
+        if (!ignore) setAdminTestEnabled(false);
+      } finally {
+        if (!ignore) setQueryParamsReady(true);
+      }
+    }
+
+    void verifyAdminTestSession();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!queryParamsReady) return;
+
     if (preset.source === "instagram") {
       void track(EVENT_TYPES.LANDING_VIEW, {
         service_code: service.service_type_code,
@@ -755,7 +799,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl, adminT
     } catch {
       sessionStorage.removeItem(quoteDraftStorageKey(service.service_type_code));
     }
-  }, [productCatalog, service.service_type_code]);
+  }, [productCatalog, queryParamsReady, service.service_type_code]);
 
   useEffect(() => {
     const draft = { address, customer: { name: customerName, phone: customerPhone }, date, slot, productQuantities, requestNote, customerInfoConsent, cashReceipt };
@@ -790,6 +834,8 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl, adminT
   }, [customerPhone]);
 
   useEffect(() => {
+    if (!slotsRequested) return;
+
     let ignore = false;
     async function loadSlots() {
       setSlotsLoading(true);
@@ -821,7 +867,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl, adminT
     return () => {
       ignore = true;
     };
-  }, [calendarMonth, slotsReloadKey]);
+  }, [calendarMonth, slotsReloadKey, slotsRequested]);
 
   useEffect(() => {
     const available = availableSlotsForDate(date);
@@ -841,6 +887,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl, adminT
   }
 
   function changeCalendarMonth(offset: number) {
+    setSlotsRequested(true);
     setSlotsByDate({});
     setClosedSlotsByDate({});
     setSlotDaysByDate({});
@@ -1013,8 +1060,8 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl, adminT
         items: orderItems,
         visit_fee: quoteVisitFee,
         special_requests: specialRequestText || undefined,
-        admin_test: adminTest,
-        test_note: adminTest ? "관리자 실제 주문 흐름 테스트" : undefined
+        admin_test: adminTestEnabled,
+        test_note: adminTestEnabled ? "관리자 실제 주문 흐름 테스트" : undefined
       })
     });
 
@@ -1177,7 +1224,7 @@ export function QuoteDetailClient({ service, materials, preset, kakaoUrl, adminT
   return (
     <main className="quote-page">
       <style>{quoteCss}</style>
-      {adminTest && (
+      {adminTestEnabled && (
         <section className="quote-admin-test-banner" aria-label="관리자 테스트 모드">
           <strong>관리자 테스트 모드</strong>
           <span>이 흐름에서 생성되는 주문은 테스트 주문으로 분리되어 운영 목록, 고객 조회, 통계, 예약 슬롯 계산에서 제외됩니다.</span>

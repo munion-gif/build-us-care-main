@@ -1,38 +1,40 @@
 import { notFound } from "next/navigation";
-import { cookies } from "next/headers";
-import { verifyAdminSessionToken } from "@/lib/admin-session";
 import { getPublicAppConfig } from "@/lib/app-config";
 import { measure } from "@/lib/perf";
+import { CANONICAL_SERVICE_CODES } from "@/lib/service-catalog";
 import { getMaterialsBySku, getServiceItem } from "@/lib/service-items";
-import { parseQuotePreset } from "@/lib/quote-preset";
+import type { QuotePreset } from "@/lib/quote-preset";
 import { QuoteDetailClient } from "./quote-detail-client";
 
 type QuotePageProps = {
   params: Promise<{ serviceCode: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function QuotePage({ params, searchParams }: QuotePageProps) {
+export const revalidate = 300;
+
+const defaultPreset: QuotePreset = {
+  source: "web",
+  product: "standard",
+  addons: []
+};
+
+export function generateStaticParams() {
+  return CANONICAL_SERVICE_CODES.map((serviceCode) => ({ serviceCode }));
+}
+
+export default async function QuotePage({ params }: QuotePageProps) {
   const { serviceCode } = await params;
-  const resolvedSearchParams = await searchParams;
-  const cookieStore = await cookies();
-  const adminTestRequested = resolvedSearchParams.adminTest === "1" || resolvedSearchParams.test === "1";
-  const adminTest = Boolean(
-    adminTestRequested &&
-    verifyAdminSessionToken(cookieStore.get("admin_session")?.value, process.env.ADMIN_SESSION_SECRET)
-  );
   const service = await measure("quote.service.fetchService", () => getServiceItem(serviceCode));
 
   if (!service) {
     notFound();
   }
 
-  const preset = parseQuotePreset(resolvedSearchParams);
   const materialSkus = [service.standard_material_sku, service.premium_material_sku].filter(Boolean) as string[];
   const [materials, appConfig] = await Promise.all([
     measure("quote.service.fetchMaterials", () => getMaterialsBySku(materialSkus)),
     getPublicAppConfig()
   ]);
 
-  return <QuoteDetailClient service={service} materials={materials} preset={preset} kakaoUrl={appConfig.kakaoChannelUrl} adminTest={adminTest} />;
+  return <QuoteDetailClient service={service} materials={materials} preset={defaultPreset} kakaoUrl={appConfig.kakaoChannelUrl} />;
 }
