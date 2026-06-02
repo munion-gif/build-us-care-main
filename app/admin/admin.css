@@ -318,6 +318,40 @@ textarea.adm-input { min-height: 96px; resize: vertical; line-height: 1.5; }
 .adm-slot-panel-section { border-top: 1px solid #e8e5e0; padding-top: 12px; margin-top: 12px; }
 .adm-slot-panel-section h3 { margin: 0 0 8px; font-size: 0.9375rem; }
 .adm-slot-panel-section p { margin: 4px 0; color: #28251d; font-size: 0.875rem; }
+.adm-security-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); gap: 18px; align-items: center; border-color: rgba(1,105,111,0.18); background: linear-gradient(135deg, #fff, #f7fbfa); }
+.adm-security-hero-main { display: grid; gap: 8px; justify-items: start; }
+.adm-security-hero-main h2 { margin: 0; color: #1c1b19; font-size: 1.35rem; line-height: 1.25; letter-spacing: 0; }
+.adm-security-hero-main p { max-width: 680px; margin: 0; color: #5c5a54; font-size: 0.875rem; line-height: 1.55; }
+.adm-security-hero-side { min-height: 112px; display: grid; align-content: center; gap: 6px; border: 1px solid #e8e5e0; border-radius: 12px; background: #fff; padding: 16px 18px; }
+.adm-security-hero-side span,
+.adm-security-hero-side small { color: #7a7974; font-size: 0.75rem; font-weight: 700; }
+.adm-security-hero-side strong { color: #1c1b19; font-size: 1rem; line-height: 1.35; font-variant-numeric: tabular-nums; }
+.adm-security-list { display: grid; gap: 10px; }
+.adm-security-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+.adm-security-check { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: start; border: 1px solid #f0ede8; border-radius: 10px; background: #fbfaf7; padding: 13px 14px; }
+.adm-security-check h3 { margin: 0 0 4px; color: #1c1b19; font-size: 0.875rem; line-height: 1.35; }
+.adm-security-check strong { display: block; color: #28251d; font-size: 0.8125rem; line-height: 1.35; }
+.adm-security-check p { margin: 5px 0 0; color: #6b675f; font-size: 0.75rem; line-height: 1.45; overflow-wrap: anywhere; }
+.adm-security-status { width: fit-content; display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 5px 9px; font-size: 0.75rem; font-weight: 800; line-height: 1; white-space: nowrap; }
+.adm-security-status svg { flex: 0 0 auto; }
+.adm-security-status-pass { background: #dcfce7; color: #166534; }
+.adm-security-status-warn { background: #ffedd5; color: #c2410c; }
+.adm-security-status-fail { background: #fee2e2; color: #991b1b; }
+.adm-security-status-info { background: #e0f2fe; color: #0369a1; }
+.adm-security-followup { background: #fff; }
+.adm-security-followup-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.adm-security-followup-grid article { display: grid; gap: 6px; border: 1px solid #f0ede8; border-radius: 10px; background: #fbfaf7; padding: 14px 16px; }
+.adm-security-followup-grid strong { color: #1c1b19; font-size: 0.875rem; line-height: 1.35; }
+.adm-security-followup-grid p { margin: 0; color: #6b675f; font-size: 0.8125rem; line-height: 1.5; }
+.adm-security-traffic-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.adm-security-traffic-card,
+.adm-security-traffic-empty { min-height: 92px; display: grid; align-content: center; gap: 6px; border: 1px solid #e8e5e0; border-radius: 10px; background: #fbfaf7; padding: 14px 16px; }
+.adm-security-traffic-card span,
+.adm-security-traffic-empty strong { color: #7a7974; font-size: 0.75rem; font-weight: 800; line-height: 1.25; }
+.adm-security-traffic-card strong { color: #01696f; font-size: 1.5rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.adm-security-traffic-card small,
+.adm-security-traffic-empty p { margin: 0; color: #6b675f; font-size: 0.75rem; line-height: 1.4; }
+.adm-security-traffic-tables { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 @keyframes admSlotPulse { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 .admin-login-page { min-height: 100dvh; display: grid; place-items: center; padding: 16px; background: #f4f3f0; }
 .admin-login-page form { width: min(420px, 100%); display: grid; gap: 16px; box-shadow: 0 4px 16px rgba(26, 25, 22, 0.08); }
@@ -354,6 +388,9 @@ textarea.adm-input { min-height: 96px; resize: vertical; line-height: 1.5; }
   .adm-order-queue-actions { grid-column: auto; display: flex; justify-content: flex-start; border-top: 1px solid #f0ede8; padding-top: 10px; }
   .adm-order-queue-actions .adm-btn { width: auto; min-width: 128px; }
   .adm-dashboard-grid, .adm-dashboard-alerts, .adm-visit-columns { grid-template-columns: 1fr; }
+  .adm-security-hero { grid-template-columns: 1fr; }
+  .adm-security-followup-grid { grid-template-columns: 1fr; }
+  .adm-security-traffic-tables { grid-template-columns: 1fr; }
   .adm-action-row { grid-template-columns: 1fr; }
   .adm-action-row > span:last-child { justify-items: start; text-align: left; }
   .adm-diagnosis-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }

@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Gauge,
   MessageCircle,
+  ShieldCheck,
   Settings,
   UserRoundCog,
   Wrench
@@ -24,6 +25,7 @@ const menus = [
   [UserRoundCog, "기사 관리", "/admin/technicians"],
   [CalendarDays, "슬롯 관리", "/admin/slots"],
   [BarChart3, "운영 분석", "/admin/analytics"],
+  [ShieldCheck, "보안 점검", "/admin/security"],
   [Settings, "설정", "/admin/settings"]
 ] as const;
 
