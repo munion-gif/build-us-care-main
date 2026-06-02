@@ -31,14 +31,6 @@ const workflowFilters = [
   { key: "test", label: "테스트", href: "/admin/orders?test=1" },
   { key: "trash", label: "휴지통", href: "/admin/orders?trash=1" }
 ] as const;
-const quickFilters = [
-  { label: "테스트 주문 생성", href: "/admin/orders/test-new" },
-  { label: "오늘 접수", href: `/admin/orders?date_from=${new Date().toISOString().slice(0, 10)}&flow=intake` },
-  { label: "입금 확인 필요", href: "/admin/orders?flow=payment" },
-  { label: "결제완료 미배정", href: "/admin/orders?flow=paid" },
-  { label: "방문 예정", href: "/admin/orders?flow=visit" },
-  { label: "취소/A/S", href: "/admin/orders?flow=issue" }
-] as const;
 
 const lifecycleColumns = "deleted_at, deleted_by, deleted_reason, is_test, test_marked_at, test_note";
 const orderListRelations = `
@@ -169,6 +161,15 @@ function activeWorkflowKey(status?: string, flow?: string) {
   if (status === "completed" || status === "done") return "complete";
   if (status === "cancel_requested" || status === "canceled" || status === "warranty" || status === "issue") return "issue";
   return "all";
+}
+
+function todayKST() {
+  return new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Asia/Seoul",
+    year: "numeric"
+  }).format(new Date());
 }
 
 function deletedMeta(order: any) {
@@ -305,6 +306,37 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
     visits: orders.filter((order: any) => ["scheduled", "in_progress"].includes(String(order.status))).length,
     issues: orders.filter((order: any) => ["cancel_requested", "issue", "warranty"].includes(String(order.status))).length
   };
+  const activeKey = trashMode ? "trash" : testMode ? "test" : activeWorkflowKey(params.status, params.flow);
+  const priorityCards = [
+    {
+      count: trashMode || testMode ? 0 : visibleSummary.needsPayment,
+      helper: "계좌이체 입금 내역을 확인하고 다음 단계로 넘깁니다.",
+      href: "/admin/orders?flow=payment",
+      key: "payment",
+      label: "입금 확인 필요"
+    },
+    {
+      count: trashMode || testMode ? 0 : visibleSummary.needsAssign,
+      helper: "입금 완료 후 기사 배정이 필요한 주문입니다.",
+      href: "/admin/orders?flow=paid",
+      key: "paid",
+      label: "배정 필요"
+    },
+    {
+      count: trashMode || testMode ? 0 : visibleSummary.visits,
+      helper: "예약 방문 준비와 진행 상태를 확인합니다.",
+      href: "/admin/orders?flow=visit",
+      key: "visit",
+      label: "방문/진행"
+    },
+    {
+      count: trashMode || testMode ? 0 : visibleSummary.issues,
+      helper: "취소 요청, 이슈, A/S 주문을 따로 봅니다.",
+      href: "/admin/orders?flow=issue",
+      key: "issue",
+      label: "예외 처리"
+    }
+  ] as const;
 
   return (
     <>
@@ -319,20 +351,45 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
         </p>
       </header>
       <div className="adm-content">
-        <nav className="adm-workflow-tabs" aria-label="주문 처리 단계">
-          {workflowFilters.map((item) => (
-            <Link className={(trashMode ? "trash" : testMode ? "test" : activeWorkflowKey(params.status, params.flow)) === item.key ? "active" : ""} href={item.href} key={item.key}>
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        <nav className="adm-quick-filter-row" aria-label="빠른 주문 필터">
-          {quickFilters.map((item) => (
-            <Link className="adm-quick-filter" href={item.href} key={item.label}>
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        <section className="adm-ops-panel" aria-labelledby="order-priority-heading">
+          <div className="adm-ops-panel-head">
+            <div>
+              <span className="adm-ops-eyebrow">현재 조건 기준</span>
+              <h2 id="order-priority-heading">먼저 처리할 주문</h2>
+              <p>입금 확인, 배정, 방문, 예외 처리를 한 화면에서 바로 확인합니다.</p>
+            </div>
+            <div className="adm-ops-actions">
+              <Link className="adm-btn adm-btn-secondary adm-btn-sm" href={`/admin/orders?date_from=${todayKST()}&flow=intake`}>오늘 접수</Link>
+              <Link className="adm-btn adm-btn-secondary adm-btn-sm" href="/admin/orders/test-new">테스트 주문 생성</Link>
+              <Link className="adm-btn adm-btn-secondary adm-btn-sm" href="/admin/orders?trash=1">휴지통</Link>
+            </div>
+          </div>
+          <div className="adm-ops-priority-grid">
+            {priorityCards.map((card) => (
+              <Link className={`adm-ops-priority-card ${activeKey === card.key ? "active" : ""}`} href={card.href} key={card.key}>
+                <span>{card.label}</span>
+                <strong>{card.count}</strong>
+                <small>{card.helper}</small>
+              </Link>
+            ))}
+          </div>
+        </section>
+        <section className="adm-list-controls" aria-label="주문 목록 필터">
+          <div className="adm-section-head">
+            <div>
+              <h2 className="adm-section-title">목록 보기</h2>
+              <p className="adm-section-note adm-muted">상태, 서비스, 채널, 날짜, 주문번호로 목록을 좁힙니다.</p>
+            </div>
+            <strong className="adm-result-count">검색 결과 {count}건</strong>
+          </div>
+          <nav className="adm-workflow-tabs" aria-label="주문 처리 단계">
+            {workflowFilters.map((item) => (
+              <Link className={activeKey === item.key ? "active" : ""} href={item.href} key={item.key}>
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </section>
         <form className="adm-filter-bar">
           {testMode ? <input type="hidden" name="test" value="1" /> : null}
           {trashMode ? <input type="hidden" name="trash" value="1" /> : null}
@@ -360,13 +417,6 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
             <small>Supabase SQL editor에서 `202606010001_order_trash.sql`, `202606010002_test_flags.sql` 적용 여부와 REST 스키마 캐시를 확인해 주세요.</small>
           </section>
         ) : null}
-        <section className="adm-queue-summary adm-section">
-          <article><strong>{count}</strong><span>검색 결과</span></article>
-          <article><strong>{trashMode || testMode ? count : visibleSummary.needsPayment}</strong><span>{trashMode ? "휴지통 주문" : testMode ? "테스트 주문" : "입금 확인 필요"}</span></article>
-          <article><strong>{trashMode || testMode ? 0 : visibleSummary.needsAssign}</strong><span>{trashMode ? "복구 가능" : testMode ? "운영 제외" : "배정 필요"}</span></article>
-          <article><strong>{trashMode || testMode ? 0 : visibleSummary.visits}</strong><span>{trashMode ? "완전삭제 가능" : testMode ? "통계 제외" : "방문/진행"}</span></article>
-          <article><strong>{trashMode || testMode ? 0 : visibleSummary.issues}</strong><span>{trashMode ? "삭제 검토" : testMode ? "운영 제외" : "예외 처리"}</span></article>
-        </section>
         <section className="adm-order-queue-list" aria-label="주문 처리 큐">
           {error ? (
             <div className="adm-card adm-admin-error" role="alert">
