@@ -1,4 +1,5 @@
 import { fail } from "@/lib/api-response";
+import { isAdminIpAllowed, isAdminIpBypassEnabled } from "@/lib/admin-ip-access";
 import { verifyAdminSessionToken } from "@/lib/admin-session";
 import { fingerprintSecret } from "@/lib/operational-log";
 
@@ -26,6 +27,10 @@ export function requireAdmin(request: Request) {
 }
 
 export function hasAdminAccess(request: Request) {
+  if (isAdminIpBypassEnabled() && isAdminIpAllowed(request.headers)) {
+    return true;
+  }
+
   const sessionSecret = process.env.ADMIN_SESSION_SECRET;
   const cookieSession = request.headers
     .get("cookie")

@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, Info, ShieldCheck, XCircle } from "lucide-react";
+import { isAdminIpBypassEnabled } from "@/lib/admin-ip-access";
 import { ADMIN_SESSION_MAX_AGE_SECONDS, verifyAdminSessionToken } from "@/lib/admin-session";
 import { hasSupabaseEnv, getSupabaseAdmin } from "@/lib/supabase";
 
@@ -398,6 +399,7 @@ function CheckCard({ check }: { check: SecurityCheck }) {
 export default async function AdminSecurityPage() {
   const cookieStore = await cookies();
   const currentSessionValid = verifyAdminSessionToken(cookieStore.get("admin_session")?.value, process.env.ADMIN_SESSION_SECRET);
+  const ipBypassEnabled = isAdminIpBypassEnabled();
   const securityData = await loadSecurityData();
   const envChecks: SecurityCheck[] = [
     secretCheck("관리자 비밀번호", process.env.ADMIN_PASSWORD, 12, "관리자 로그인에 사용하는 비밀번호입니다. 운영에서는 충분히 긴 비밀번호를 사용해야 합니다."),
@@ -405,6 +407,7 @@ export default async function AdminSecurityPage() {
     envFlag("Supabase URL", process.env.NEXT_PUBLIC_SUPABASE_URL, true, "운영 DB 연결에 필요한 공개 URL입니다. 값 자체는 화면에 표시하지 않습니다."),
     secretCheck("Supabase service role key", process.env.SUPABASE_SERVICE_ROLE_KEY, 32, "서버에서만 사용하는 DB 관리자 키입니다. 클라이언트로 노출되면 안 됩니다."),
     adminAllowedIpsCheck(),
+    envFlag("관리자 IP 로그인 생략", process.env.ADMIN_IP_BYPASS_LOGIN, false, "설정하면 허용 IP에서는 비밀번호 입력 없이 관리자 화면으로 진입합니다."),
     envFlag("관리자 API key", process.env.ADMIN_API_KEY, false, "브라우저 관리자 화면은 쿠키 세션을 사용합니다. 외부 자동화가 필요할 때만 별도로 사용합니다."),
     envFlag("Cron secret", process.env.CRON_SECRET, false, "예약 알림 등 cron 엔드포인트 보호에 사용하는 선택 설정입니다."),
     envFlag("Toss webhook secret", process.env.TOSS_WEBHOOK_SECRET, false, "카드/간편결제 webhook을 다시 활성화할 때 필요한 서명 검증 키입니다.")
@@ -412,15 +415,19 @@ export default async function AdminSecurityPage() {
   const runtimeChecks: SecurityCheck[] = [
     {
       label: "현재 관리자 세션",
-      status: currentSessionValid ? "pass" : "fail",
-      summary: currentSessionValid ? "유효함" : "확인 실패",
-      detail: `관리자 세션은 최대 ${Math.floor(ADMIN_SESSION_MAX_AGE_SECONDS / 3600)}시간 동안 유지됩니다.`
+      status: currentSessionValid || ipBypassEnabled ? "pass" : "fail",
+      summary: currentSessionValid ? "유효함" : ipBypassEnabled ? "IP 통과 모드" : "확인 실패",
+      detail: ipBypassEnabled
+        ? "허용 IP에서는 관리자 세션 없이도 접근할 수 있습니다."
+        : `관리자 세션은 최대 ${Math.floor(ADMIN_SESSION_MAX_AGE_SECONDS / 3600)}시간 동안 유지됩니다.`
     },
     {
       label: "관리자 라우트 보호",
       status: "pass",
-      summary: "/admin/* 인증 필요",
-      detail: "middleware에서 로그인 페이지를 제외한 관리자 경로를 세션 쿠키로 보호합니다."
+      summary: ipBypassEnabled ? "허용 IP 자동 통과" : "/admin/* 인증 필요",
+      detail: ipBypassEnabled
+        ? "middleware에서 허용 IP만 관리자 경로와 관리자 API에 접근시키고, 로그인 페이지는 대시보드로 보냅니다."
+        : "middleware에서 로그인 페이지를 제외한 관리자 경로를 세션 쿠키로 보호합니다."
     },
     {
       label: "관리자 색인 차단",
