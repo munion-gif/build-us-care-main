@@ -4,7 +4,7 @@
    ============================================================================ */
 const HOUSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10.5V20h12v-9.5"/><path d="M10.5 20v-5h3v5"/></svg>';
 const KK = '<svg class="kkic" viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px;flex:none"><path d="M12 3.4C6.7 3.4 2.4 6.85 2.4 11.1c0 2.74 1.82 5.14 4.55 6.52-.2.72-.72 2.62-.83 3.03-.14.5.18.5.39.37.16-.1 2.5-1.7 3.52-2.4.51.07 1.03.11 1.57.11 5.3 0 9.6-3.45 9.6-7.63S17.3 3.4 12 3.4z"/></svg>';
-const KAKAO_CHANNEL_URL = 'https://pf.kakao.com/_PxkzsX';
+const KAKAO_CHANNEL_URL = 'https://pf.kakao.com/_PxkzsX/chat';
 
 const ITEM_EN = {'양변기 교체':'Toilet','세면대 교체':'Washbasin','수전 교체':'Faucet','비데 설치':'Bidet','환풍기 교체':'Ventilation','샷시손잡이':'Window Handle','도어핸들':'Door Handle','실리콘 재시공':'Silicone Reseal','욕실 악세서리':'Bath Accessory'};
 const ITEMS = [

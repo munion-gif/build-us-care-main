@@ -53,8 +53,8 @@ export function Header({ kakaoUrl }: HeaderProps) {
           <Link className="outline-cta" href="/request/photo">
             사진확인
           </Link>
-          {kakaoUrl ? (
-            <a className="filled-cta" href={kakaoUrl} target="_blank" rel="noreferrer">
+          {kakaoChatUrl ? (
+            <a className="filled-cta" href={kakaoChatUrl} target="_blank" rel="noreferrer">
               <span className="kakao-mark" aria-hidden="true">TALK</span>
               카톡 상담
             </a>

@@ -58,6 +58,12 @@ const referenceHomeCss = `
     display: none;
   }
   @media (max-width: 720px) {
+    .reference-home,
+    .reference-frame {
+      height: 100vh;
+      height: 100svh;
+      min-height: 100svh;
+    }
     .reference-frame-web {
       display: none;
     }
