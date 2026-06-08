@@ -343,6 +343,25 @@ function productPager(total, page){
     <button class="pager-btn" ${page>=totalPages?'aria-disabled="true"':''} onclick="setProductPage(${page+1})">다음 <i data-lucide="chevron-right"></i></button>
   </div>`;
 }
+function mobileCartbar(){
+  const n = S.selected.length;
+  return `<div class="cartbar" id="mCartbar">
+  <div class="grow"><div style="font-weight:700;color:var(--gray-900)">${n}개 선택</div><div class="p-sm">제품가 합계 ${won(subtotal())}원</div></div>
+  <button class="btn btn-primary btn-lg" aria-disabled="${n?'false':'true'}" onclick="${n?"nav('info')":''}">예약 정보 입력</button>
+</div>`;
+}
+function syncProductCards(){
+  document.querySelectorAll('.pcard[data-pid]').forEach(card=>card.classList.toggle('sel', productSelected(card.dataset.pid)));
+}
+function paintProductCart(){
+  const cart = document.getElementById('mCartbar');
+  if(cart) cart.outerHTML = mobileCartbar();
+}
+function syncProductListState(){
+  syncProductCards();
+  paintProductCart();
+  if(window.lucide) lucide.createIcons();
+}
 function toggleProductId(id){
   const variants = productGroupVariants(id);
   const selected = variants.filter(v=>S.selected.includes(v.id));
@@ -360,13 +379,13 @@ function selectSashVariant(sourceId, variantId, fromDetail){
   });
   if(!S.selected.includes(variantId)) S.selected.push(variantId);
   closeSheet();
-  if(fromDetail) back(); else render('list');
+  if(fromDetail) back(); else syncProductListState();
 }
 function openSashSizeSheet(id, fromDetail=false){
   const p = productById(id), choices = sashSizeChoices(id);
   if(!choices.length){
     toggleProductId(id);
-    if(fromDetail) back(); else render('list');
+    if(fromDetail) back(); else syncProductListState();
     return;
   }
   showSheet(`<div class="sheet-grip"></div><div class="between"><div><div class="h-md">손잡이 사이즈 선택</div><p class="p-sm mt4">${productDisplayName(p)}</p></div><button class="iconbtn" onclick="closeSheet()" aria-label="닫기"><i data-lucide="x"></i></button></div>
@@ -382,7 +401,7 @@ function toggleProduct(ev, id){
   if(ev?.stopPropagation) ev.stopPropagation();
   if(catalogCatOf(id)==='샷시손잡이'){ openSashSizeSheet(id); return; }
   toggleProductId(id);
-  render('list');
+  syncProductListState();
 }
 function openDetail(id){ S.detail = id; nav('detail'); }
 function detailAddContinue(){
@@ -747,7 +766,7 @@ function pcard(p, rec){
   const recTag = rec ? `<span class="tag-rec">${p.recommendLabel||'대표'}</span>` : '';
   const label = catalogCatOf(p.id)==='샷시손잡이' ? sashSizeLabel(p.id) : '';
   const sizeLabel = label ? `<div class="psizes">${label}</div>` : '';
-  return `<div class="pcard${sel?' sel':''}"${rec?' style="flex:none;width:152px"':''}>
+  return `<div class="pcard${sel?' sel':''}" data-pid="${esc(p.id)}"${rec?' style="flex:none;width:152px"':''}>
     <div class="pimg imgph tap${p.image?' has-img':''}" onclick="openDetail('${p.id}')">${productImg(p)}${recTag}</div>
     <div class="psel" onclick="toggleProduct(event,'${p.id}')"><i data-lucide="check"></i></div>
     <div class="pinfo tap" onclick="openDetail('${p.id}')"><div class="pbrand">${p.brand}</div><div class="pname">${productDisplayName(p)}</div><div class="pprice">${won(p.price)}<small> 원</small></div>${sizeLabel}</div>
@@ -1080,10 +1099,7 @@ ${appbar(`${S.item.replace(/\s*교체$/,'')} <span class="enlabel">${ITEM_EN[S.i
   ${productPager(list.length, S.productPage)}
   <button class="btn kkbtn btn-lg btnf mt16" onclick="openKakao('product')">${KK} 원하는 제품이 따로 있어요</button>
 </div></div>
-<div class="cartbar">
-  <div class="grow"><div style="font-weight:700;color:var(--gray-900)">${n}개 선택</div><div class="p-sm">제품가 합계 ${won(subtotal())}원</div></div>
-  <button class="btn btn-primary btn-lg" aria-disabled="${n?'false':'true'}" onclick="${n?"nav('info')":''}">예약 정보 입력</button>
-</div>`;
+${mobileCartbar()}`;
 },
 
 detail: () => {
