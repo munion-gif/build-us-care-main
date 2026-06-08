@@ -1484,8 +1484,10 @@ done: () => {
     </div>
     <div class="note info" style="margin-top:14px"><i data-lucide="info"></i><div>입금 확인은 영업시간 기준으로 순차 반영됩니다. 시공비와 최종 금액은 사진 확인 후 확정돼요.</div></div>`:''}
   </div>
-  <button class="web-btn sec" style="margin-top:16px" onclick="openFinalEstimate()"><i data-lucide="file-text" style="width:18px;height:18px"></i> 최종 견적서 보기</button>
-  <button class="web-btn kkbtn" style="margin-top:10px" onclick="webKakao('guide')">${WKK} 카카오톡으로 결과 알림 받기</button>
+  <div style="display:grid;gap:10px;max-width:360px;margin:16px auto 0">
+    <button class="web-btn sec lg block" onclick="openFinalEstimate()"><i data-lucide="file-text" style="width:18px;height:18px"></i> 최종 견적서 보기</button>
+    <button class="web-btn kkbtn lg block" onclick="webKakao('guide')">${WKK} 카카오톡으로 결과 알림 받기</button>
+  </div>
   <div class="row gap10" style="justify-content:center;margin-top:14px"><button class="web-btn ${hasTransfer?'sec':'pri'}" onclick="webnav('orderview')">주문 현황 보기</button><button class="web-btn sec" onclick="webnav('home')">홈으로</button></div>
 </div>`;
 },
