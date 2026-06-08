@@ -79,11 +79,13 @@ function asOne(value: any) {
 }
 
 function photoCount(order: any) {
+  const diagnosisPhotos = Array.isArray(order?.photos) ? order.photos : [];
+  const diagnosisImageUrls = Array.isArray(order?.image_urls) ? order.image_urls : [];
   const orderPhotos = Array.isArray(order?.inquiry_photos) ? order.inquiry_photos : [];
   const mediaPhotos = Array.isArray(order?.media)
     ? order.media.filter((item: any) => item.type === "inquiry").map((item: any) => item.file_path)
     : [];
-  return [...new Set([...orderPhotos, ...mediaPhotos].filter((item): item is string => typeof item === "string" && item.length > 0))].length;
+  return [...new Set([...diagnosisPhotos, ...diagnosisImageUrls, ...orderPhotos, ...mediaPhotos].filter((item): item is string => typeof item === "string" && item.length > 0))].length;
 }
 
 function hasActiveAssignedJob(jobs: any) {
@@ -135,12 +137,17 @@ function addressSummary(order: any) {
 }
 
 function customerName(order: any) {
-  return maskName(order?.customers?.name);
+  return maskName(order?.customer_name ?? order?.raw_response?.customer?.name ?? order?.customers?.name);
 }
 
 function firstServiceCode(order: any) {
   const sku = Array.isArray(order?.skus) ? order.skus[0] : null;
-  return sku?.service_type_code ?? sku?.sku ?? order?.service_type_code;
+  return sku?.service_type_code ?? sku?.sku ?? order?.service_type_code ?? order?.service_code;
+}
+
+function diagnosisOrderNumber(diagnosis: any) {
+  const order = asOne(diagnosis?.orders);
+  return order?.order_number ?? diagnosis?.raw_response?.receipt_number ?? diagnosis?.raw_response?.order_number ?? diagnosis?.id?.slice(0, 8) ?? "-";
 }
 
 function resultLabel(result?: string | null) {
@@ -245,22 +252,20 @@ async function getPaymentNeededOrders(supabase: SupabaseAdmin) {
 
 async function getPhotoReviewOrders(supabase: SupabaseAdmin) {
   const { data } = await supabase
-    .from("orders")
+    .from("diagnoses")
     .select(
       `
-      id, order_number, status, created_at, service_type_code, skus, inquiry_photos,
-      customers(name,phone),
-      homes(address_full),
-      media(id,type,file_path,created_at)
+      id, order_id, service_type_code, service_code, image_urls, photos, result, created_at,
+      customer_name, customer_phone, raw_response,
+      orders(order_number)
     `
     )
     .eq("is_test", false)
-    .is("deleted_at", null)
-    .in("status", ["inquiry", "submitted", "payment_pending", "pending_product_payment"])
+    .is("result", null)
     .order("created_at", { ascending: true })
-    .limit(80);
+    .limit(10);
 
-  return (data ?? []).filter((order: any) => photoCount(order) > 0).slice(0, 10);
+  return data ?? [];
 }
 
 async function getTomorrowUnassignedReservations(supabase: SupabaseAdmin, tomorrowDate: string) {
@@ -469,7 +474,7 @@ export default async function AdminDashboardPage() {
       label: "사진 확인",
       value: data.photoReviewOrders.length,
       sub: "사진 접수 확인",
-      href: "/admin/orders?flow=photo"
+      href: "/admin/diagnoses"
     },
     {
       step: "3",
@@ -657,21 +662,21 @@ export default async function AdminDashboardPage() {
           <article className="adm-card">
             <div className="adm-section-head">
               <h2 className="adm-card-title">사진 확인 접수</h2>
-              <Link className="adm-link" href="/admin/orders?flow=photo">사진 확인</Link>
+              <Link className="adm-link" href="/admin/diagnoses">사진 확인</Link>
             </div>
             <div className="adm-big-number">{data.photoReviewOrders.length}<span>건</span></div>
             {data.photoReviewOrders.length === 0 ? (
               <EmptyRow>확인할 접수 사진이 없습니다.</EmptyRow>
             ) : (
               <div className="adm-action-list">
-                {data.photoReviewOrders.slice(0, 5).map((order: any) => (
-                  <Link className="adm-action-row" href={`/admin/orders/${order.id}`} key={order.id}>
+                {data.photoReviewOrders.slice(0, 5).map((diagnosis: any) => (
+                  <Link className="adm-action-row" href={`/admin/diagnoses?result=all&id=${diagnosis.id}`} key={diagnosis.id}>
                     <span>
-                      <strong>{order.order_number} · 사진 {photoCount(order)}장</strong>
-                      <small>{customerName(order)} · {formatServiceName(firstServiceCode(order))}</small>
+                      <strong>{diagnosisOrderNumber(diagnosis)} · 사진 {photoCount(diagnosis)}장</strong>
+                      <small>{customerName(diagnosis)} · {formatServiceName(firstServiceCode(diagnosis))}</small>
                     </span>
                     <span>
-                      <b className={`adm-badge ${badgeClass(order.status)}`}>{formatOrderStatus(order.status)}</b>
+                      <b className={`adm-badge ${badgeClass(diagnosis.result)}`}>{resultLabel(diagnosis.result)}</b>
                     </span>
                   </Link>
                 ))}
