@@ -25,9 +25,9 @@ export function TransferPaymentClient() {
   const serviceFeeAmount = numberParam(searchParams.get("serviceFeeAmount"));
   const onsiteAmount = numberParam(searchParams.get("onsiteAmount"));
   const totalAmount = numberParam(searchParams.get("totalAmount")) || productAmount + serviceFeeAmount;
-  const bankName = process.env.NEXT_PUBLIC_BANK_TRANSFER_BANK ?? "";
-  const bankAccount = process.env.NEXT_PUBLIC_BANK_TRANSFER_ACCOUNT ?? "";
-  const accountHolder = process.env.NEXT_PUBLIC_BANK_TRANSFER_HOLDER ?? "";
+  const bankName = process.env.NEXT_PUBLIC_BANK_TRANSFER_BANK ?? "농협";
+  const bankAccount = process.env.NEXT_PUBLIC_BANK_TRANSFER_ACCOUNT ?? "355-0094-9209-33";
+  const accountHolder = process.env.NEXT_PUBLIC_BANK_TRANSFER_HOLDER ?? "주식회사 무니온";
   const hasBankAccount = Boolean(bankName && bankAccount && accountHolder);
   const statusUrl = orderId && accessToken ? `/orders/${orderId}?accessToken=${encodeURIComponent(accessToken)}` : null;
 

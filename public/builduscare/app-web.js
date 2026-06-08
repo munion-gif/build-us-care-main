@@ -6,6 +6,7 @@ const ITEM_EN = {'양변기 교체':'Toilet','세면대 교체':'Washbasin','수
 const ITEM_IMG = {'수전 교체':'assets/prod-faucet-1.png','양변기 교체':'assets/prod-toilet-1.png','세면대 교체':'assets/prod-washbasin-1.png','비데 설치':'assets/prod-bidet-1.png','환풍기 교체':'assets/prod-vent-1.png','샷시손잡이':'assets/prod-windowhandle-1.png','도어핸들':'assets/prod-doorhandle-1.png','실리콘 재시공':'assets/prod-silicone-1.png','욕실 악세서리':'assets/prod-accessory-1.png'};
 const CAT_ICON = {'수전 교체':'assets/prodicon-faucet.webp','양변기 교체':'assets/prodicon-toilet.webp','세면대 교체':'assets/prodicon-washbasin.webp','비데 설치':'assets/prodicon-bidet.webp','환풍기 교체':'assets/prodicon-vent.webp','샷시손잡이':'assets/prodicon-windowhandle.webp','도어핸들':'assets/prodicon-doorhandle.webp','실리콘 재시공':'assets/prodicon-silicone.webp','욕실 악세서리':'assets/prodicon-accessory.webp'};
 const LINEUP_IMG = {'수전 교체':'assets/lineup-faucet.png','양변기 교체':'assets/lineup-toilet.png','세면대 교체':'assets/lineup-washbasin.png','비데 설치':'assets/lineup-bidet.png','환풍기 교체':'assets/lineup-vent.png','샷시손잡이':'assets/lineup-windowhandle.png','도어핸들':'assets/lineup-doorhandle.png','실리콘 재시공':'assets/lineup-silicone.png','욕실 악세서리':'assets/lineup-accessory.png'};
+const W_KAKAO_CHANNEL_URL = 'https://pf.kakao.com/_PxkzsX';
 
 /* Warm the product-category icons up front so the 제품 선택 strip paints
    instantly instead of streaming in one PNG at a time on navigation. */
@@ -989,6 +990,12 @@ async function openFinalEstimate(){
   const w = window.open('', '_blank', 'width=780,height=920');
   if(w){ w.document.write(html); w.document.close(); }
 }
+function webOpenKakaoLink(){
+  const opened = window.open(W_KAKAO_CHANNEL_URL, '_blank');
+  if(!opened){
+    try{ window.top.location.href = W_KAKAO_CHANNEL_URL; }catch(_){ window.location.href = W_KAKAO_CHANNEL_URL; }
+  }
+}
 function webKakao(ctx){
   const msg = ctx==='product'
     ? '원하는 제품이 따로 있으신가요? 카카오톡으로 제품 링크를 보내주시면 설치 가능 여부를 확인해 드려요.'
@@ -997,7 +1004,7 @@ function webKakao(ctx){
     : '사진이 어려우시면 카카오톡으로 도와드려요. 어떤 부분이 헷갈리는지 편하게 보내주세요.';
   webModal(`<div class="row gap10"><span style="width:42px;height:42px;border-radius:13px;background:#FEE500;color:#191600;display:grid;place-items:center;flex:none">${WKK}</span><div><div class="h-sm">카카오톡 상담 · 보조</div><div class="p-sm">메인 접수는 사이트에서 그대로 진행돼요</div></div></div>
   <p class="p-md mt12">${msg}</p>
-  <button class="web-btn kkbtn block lg" style="margin-top:16px" onclick="webClose()">${WKK} 카카오톡 열기</button>
+  <button class="web-btn kkbtn block lg" style="margin-top:16px" onclick="webOpenKakaoLink();webClose()">${WKK} 카카오톡 열기</button>
   <button class="web-btn ghost block" style="margin-top:8px" onclick="webClose()">사이트에서 계속하기</button>`);
 }
 
@@ -1366,7 +1373,7 @@ checkout: () => `
   <div class="note info" style="margin-top:16px"><i data-lucide="shield-check"></i><div><b>추가 비용은 없어요.</b> 출장비도 받지 않아요. 사진과 현장이 같다면 위 금액 그대로 진행됩니다.</div></div>
   <div class="note" style="margin-top:10px;background:rgba(120,120,128,.08);color:var(--gray-600);display:flex;gap:9px;padding:13px 15px;border-radius:14px;font-size:13px"><i data-lucide="info" style="width:18px;height:18px;flex:none;color:var(--gray-500)"></i><div>기존 제품을 <b>직접 처리하시면 폐기물처리비가 제외</b>돼요.</div></div>
   ${W.submitErr?`<div class="note" style="margin-top:14px;background:#FDECEC;color:#B42318;display:flex;gap:9px;padding:13px 15px;border-radius:14px;font-size:13px"><i data-lucide="alert-circle" style="width:18px;height:18px;flex:none"></i><div>${esc(W.submitErr)}</div></div>`:''}
-  <button class="web-btn pri lg block" style="margin-top:20px" aria-disabled="${W.submitting?'true':'false'}" onclick="wSubmitOrder()">${W.submitting?'접수 저장 중...':'사진 확인 신청 접수하기'}</button>
+  <button class="web-btn pri lg block" style="margin-top:20px" aria-disabled="${W.submitting?'true':'false'}" onclick="wSubmitOrder()">${W.submitting?'접수 저장 중...':'주문 접수하기'}</button>
   <button class="web-btn sec lg block" style="margin-top:10px" onclick="openFinalEstimate()"><i data-lucide="file-text" style="width:18px;height:18px"></i> 최종 견적서 보기</button>
 </div>`,
 
@@ -1374,6 +1381,9 @@ done: () => {
   const payAmount = wPaymentAmount();
   const statusLabel = wPaymentStatusLabel();
   const hasTransfer = Boolean(W.remoteOrder?.transferUrl && payAmount > 0);
+  const bank = { bankName:'농협', bankAccount:'355-0094-9209-33', accountHolder:'주식회사 무니온' };
+  const orderNo = wOrderNo();
+  const payerName = `${W.remoteOrder?.customerName || W.name || '예약자'} ${String(orderNo).split('-').pop() || orderNo}`.trim();
   return `
 <div class="wrap narrow" style="text-align:center">
   <div class="featured-icon circle" style="width:76px;height:76px;background:var(--success-50);color:var(--success-600);margin:24px auto 0"><i data-lucide="check" style="width:38px;height:38px"></i></div>
@@ -1385,9 +1395,18 @@ done: () => {
     ${payAmount>0?`<div class="between" style="margin-top:8px"><div class="p-sm strong" style="color:var(--gray-700)">입금 금액</div><div class="p-sm strong">${won(payAmount)}원</div></div>`:''}
     <div class="divline" style="margin:12px 0"></div>
     <div class="row gap10"><span class="tile" style="width:38px;height:38px"><i data-lucide="droplet" style="width:20px;height:20px"></i></span><div class="grow"><div class="h-sm" style="font-size:14px">${W.item} · 사진 ${W.remoteOrder?.photoCount ?? 3}장</div><div class="p-sm">${W.region} · ${statusLabel}</div></div></div>
-    ${hasTransfer?`<div class="note info" style="margin-top:14px"><i data-lucide="info"></i><div>입금 확인은 영업시간 기준으로 순차 반영됩니다. 시공비와 최종 금액은 사진 확인 후 확정돼요.</div></div>`:''}
+    ${hasTransfer?`
+    <div class="divline" style="margin:14px 0"></div>
+    <div class="row gap10"><span class="tile" style="width:38px;height:38px;background:var(--brand-50);color:var(--brand-600)"><i data-lucide="wallet" style="width:20px;height:20px"></i></span><div class="grow"><div class="h-sm" style="font-size:14px">계좌이체 안내</div><div class="p-sm">제품 금액 입금 확인 후 주문이 진행돼요.</div></div></div>
+    <div class="col gap8" style="margin-top:12px">
+      <div class="between"><span class="p-sm" style="color:var(--gray-600)">예금주</span><span class="strong">${esc(bank.accountHolder)}</span></div>
+      <div class="between"><span class="p-sm" style="color:var(--gray-600)">입금 계좌</span><span class="strong">${esc(bank.bankName)} ${esc(bank.bankAccount)}</span></div>
+      <div class="between"><span class="p-sm" style="color:var(--gray-600)">입금자명</span><span class="strong">${esc(payerName)}</span></div>
+    </div>
+    <div class="note info" style="margin-top:14px"><i data-lucide="info"></i><div>입금 확인은 영업시간 기준으로 순차 반영됩니다. 시공비와 최종 금액은 사진 확인 후 확정돼요.</div></div>`:''}
   </div>
-  ${hasTransfer?`<button class="web-btn pri" style="margin-top:16px" onclick="wOpenTransfer()">계좌이체 안내 보기</button>`:`<button class="web-btn sec" style="margin-top:16px" onclick="openFinalEstimate()"><i data-lucide="file-text" style="width:18px;height:18px"></i> 최종 견적서 보기</button>`}
+  <button class="web-btn sec" style="margin-top:16px" onclick="openFinalEstimate()"><i data-lucide="file-text" style="width:18px;height:18px"></i> 최종 견적서 보기</button>
+  <button class="web-btn kkbtn" style="margin-top:10px" onclick="webKakao('guide')">${WKK} 카카오톡으로 결과 알림 받기</button>
   <div class="row gap10" style="justify-content:center;margin-top:14px"><button class="web-btn ${hasTransfer?'sec':'pri'}" onclick="webnav('orderview')">주문 현황 보기</button><button class="web-btn sec" onclick="webnav('home')">홈으로</button></div>
 </div>`;
 },

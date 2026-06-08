@@ -588,14 +588,14 @@ body{ background:#FFFFFF !important; }
 .mdrawer-scrim{ position:absolute; inset:0; background:rgba(0,0,0,.34); opacity:0;
   transition:opacity .3s ease; z-index:60; display:flex; justify-content:flex-end; }
 .mdrawer-scrim.show{ opacity:1; }
-.mdrawer{ width:80%; max-width:340px; height:100%; background:#fff; position:relative;
+.mdrawer{ width:80%; max-width:340px; height:100dvh; max-height:100%; background:#fff; position:relative;
   box-shadow:-10px 0 44px rgba(16,24,40,.18); transform:translateX(100%);
   transition:transform .34s cubic-bezier(.22,.61,.36,1); display:flex; flex-direction:column; padding-top:54px; }
 .mdrawer-scrim.show .mdrawer{ transform:translateX(0); }
 .mdrawer-x{ position:absolute; top:12px; right:12px; width:40px; height:40px; display:grid;
   place-items:center; border:none; background:transparent; color:var(--gray-700); cursor:pointer; }
 .mdrawer-x svg{ width:24px; height:24px; }
-.mdrawer-nav{ flex:1; overflow-y:auto; padding:4px 0 10px; }
+.mdrawer-nav{ flex:1; min-height:0; overflow-y:auto; padding:4px 0 14px; -webkit-overflow-scrolling:touch; }
 .mdrawer-item{ position:relative; width:100%; display:flex; align-items:center; justify-content:space-between; gap:10px;
   background:transparent; border:none; padding:13px 20px; font-size:16px; font-weight:400;
   color:var(--gray-900); letter-spacing:-.01em; text-align:left; cursor:pointer; font-family:inherit; }
@@ -620,7 +620,8 @@ body{ background:#FFFFFF !important; }
 .mdrawer-sub::after{ content:''; position:absolute; left:34px; right:0; bottom:0; height:1px; background:var(--gray-100); }
 .mdrawer-sub:active{ background:var(--gray-50); }
 .mdrawer-sub.strong{ color:var(--brand-600); font-weight:500; }
-.mdrawer-foot{ padding:14px 18px calc(16px + env(safe-area-inset-bottom)); border-top:1px solid var(--gray-100); }
+.mdrawer-foot{ flex:none; padding:14px 18px max(30px, calc(18px + env(safe-area-inset-bottom))); border-top:1px solid var(--gray-100); background:#fff; }
+.mdrawer-foot .btn{ min-height:48px; }
 
 /* ===== in-phone document viewer (견적서·접수증) ===== */
 .docview-scrim{ position:absolute; inset:0; z-index:70; background:#f5f5f7; display:flex; flex-direction:column;

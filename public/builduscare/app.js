@@ -4,6 +4,7 @@
    ============================================================================ */
 const HOUSE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10.5V20h12v-9.5"/><path d="M10.5 20v-5h3v5"/></svg>';
 const KK = '<svg class="kkic" viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px;flex:none"><path d="M12 3.4C6.7 3.4 2.4 6.85 2.4 11.1c0 2.74 1.82 5.14 4.55 6.52-.2.72-.72 2.62-.83 3.03-.14.5.18.5.39.37.16-.1 2.5-1.7 3.52-2.4.51.07 1.03.11 1.57.11 5.3 0 9.6-3.45 9.6-7.63S17.3 3.4 12 3.4z"/></svg>';
+const KAKAO_CHANNEL_URL = 'https://pf.kakao.com/_PxkzsX';
 
 const ITEM_EN = {'양변기 교체':'Toilet','세면대 교체':'Washbasin','수전 교체':'Faucet','비데 설치':'Bidet','환풍기 교체':'Ventilation','샷시손잡이':'Window Handle','도어핸들':'Door Handle','실리콘 재시공':'Silicone Reseal','욕실 악세서리':'Bath Accessory'};
 const ITEMS = [
@@ -385,10 +386,148 @@ function paymentStatusLabelM(){
   if(status==='pending') return '입금 대기';
   return '확인 중';
 }
-function openTransferM(){
+const DEFAULT_BANK_TRANSFER_M = {
+  bankName: '농협',
+  bankAccount: '355-0094-9209-33',
+  accountHolder: '주식회사 무니온'
+};
+let BANK_TRANSFER_CONFIG_M = null;
+function normalizeBankTransferConfigM(raw){
+  const cfg = raw || {};
+  return {
+    bankName: String(cfg.bankName || cfg.bank || '').trim(),
+    bankAccount: String(cfg.bankAccount || cfg.account || '').trim(),
+    accountHolder: String(cfg.accountHolder || cfg.holder || '').trim(),
+  };
+}
+function localBankTransferConfigM(){
+  return normalizeBankTransferConfigM({ ...DEFAULT_BANK_TRANSFER_M, ...(window.BUILDUSCARE_BANK_TRANSFER || {}) });
+}
+async function loadBankTransferConfigM(){
+  if(BANK_TRANSFER_CONFIG_M) return BANK_TRANSFER_CONFIG_M;
+  const local = localBankTransferConfigM();
+  BANK_TRANSFER_CONFIG_M = local;
+  try{
+    const res = await fetch('/api/builduscare/transfer-guide', { cache:'no-store' });
+    const json = await res.json().catch(()=>null);
+    if(res.ok && json?.ok) BANK_TRANSFER_CONFIG_M = normalizeBankTransferConfigM({ ...DEFAULT_BANK_TRANSFER_M, ...(json.data || {}) });
+  }catch(_){}
+  return BANK_TRANSFER_CONFIG_M;
+}
+function transferNumberM(value, fallback=0){
+  const n = Number(value ?? fallback ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+function transferGuideDataM(){
+  const remote = S.remoteOrder || {};
+  let params = null;
+  if(remote.transferUrl){
+    try{ params = new URL(remote.transferUrl, window.location.origin).searchParams; }catch(_){}
+  }
+  const amount = transferNumberM(params?.get('amount'), paymentAmountM());
+  const productAmount = transferNumberM(params?.get('productAmount'), amount);
+  const serviceFeeAmount = transferNumberM(params?.get('serviceFeeAmount'), remote?.totals?.onsitePaymentAmount || remote?.totals?.laborAmount || 0);
+  const onsiteAmount = transferNumberM(params?.get('onsiteAmount'), serviceFeeAmount);
+  const totalAmount = transferNumberM(params?.get('totalAmount'), productAmount + serviceFeeAmount);
+  const orderNo = remote.orderNumber || S.orderNo || mOrderNo();
+  const customerName = remote.customerName || S.info.name || '';
+  const payerName = `${customerName || '예약자'} ${String(orderNo).split('-').pop() || orderNo}`.trim();
+  return {
+    amount,
+    productAmount,
+    serviceFeeAmount,
+    onsiteAmount,
+    totalAmount,
+    orderNo,
+    payerName,
+    hasConfirmedTransfer: Boolean(remote.transferUrl && amount > 0),
+    transferUrl: remote.transferUrl || ''
+  };
+}
+async function copyTransferTextM(text, label){
+  if(!text) return;
+  let ok = false;
+  try{
+    if(navigator.clipboard?.writeText){
+      await navigator.clipboard.writeText(text);
+      ok = true;
+    }
+  }catch(_){}
+  if(!ok){
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly','');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try{ ok = document.execCommand('copy'); }catch(_){}
+    ta.remove();
+  }
+  const msg = document.getElementById('transferCopyMsg');
+  if(msg) msg.textContent = ok ? `${label} 복사됐어요.` : '복사하지 못했어요. 직접 선택해서 복사해 주세요.';
+}
+function copyTransferValueM(type){
+  const cfg = BANK_TRANSFER_CONFIG_M || localBankTransferConfigM();
+  const data = transferGuideDataM();
+  if(type==='account') return copyTransferTextM(`${cfg.bankName} ${cfg.bankAccount}`, '계좌번호');
+  if(type==='payer') return copyTransferTextM(data.payerName, '입금자명');
+  if(type==='amount') return copyTransferTextM(String(data.amount), '입금 금액');
+}
+function openTransferPageM(){
   const url = S.remoteOrder?.transferUrl;
   if(!url) return;
   try{ window.top.location.href = url; }catch(_){ window.location.href = url; }
+}
+function renderTransferGuideM(config){
+  const cfg = normalizeBankTransferConfigM(config);
+  const hasBankAccount = Boolean(cfg.bankName && cfg.bankAccount && cfg.accountHolder);
+  const data = transferGuideDataM();
+  const amountRows = data.hasConfirmedTransfer ? `
+    <div class="bcard pad mt14" style="text-align:left">
+      <div class="between"><span class="p-sm" style="color:var(--gray-600)">계좌이체 금액</span><strong>${won(data.amount)}원</strong></div>
+      <div class="divline" style="margin:12px 0"></div>
+      <div class="between"><span class="p-sm" style="color:var(--gray-600)">제품 가격</span><span class="strong">${won(data.productAmount)}원</span></div>
+      <div class="between mt8"><span class="p-sm" style="color:var(--gray-600)">시공비</span><span class="strong">${won(data.serviceFeeAmount)}원</span></div>
+      <div class="between mt8"><span class="p-sm" style="color:var(--gray-600)">예상 총액</span><span class="strong">${won(data.totalAmount)}원</span></div>
+      ${data.onsiteAmount>0?`<div class="note info mt12"><i data-lucide="info"></i><div>제품값은 계좌이체로 확인하고, 시공비 ${won(data.onsiteAmount)}원은 사진 확인 후 최종 안내드려요.</div></div>`:''}
+    </div>` : `
+    <div class="note info mt14"><i data-lucide="info"></i><div>사진 확인 후 최종 금액이 확정되면 입금 계좌와 금액을 안내드려요.</div></div>`;
+  const bankBlock = hasBankAccount ? `
+    <div class="bcard pad mt12" style="text-align:left">
+      <div class="p-sm strong" style="color:var(--gray-600)">입금 계좌</div>
+      <div class="h-sm mt8">${esc(cfg.bankName)} ${esc(cfg.bankAccount)}</div>
+      <div class="p-sm mt4">예금주 ${esc(cfg.accountHolder)}</div>
+      <button class="btn btn-secondary btn-md btnf mt12" onclick="copyTransferValueM('account')"><i data-lucide="copy"></i> 계좌번호 복사</button>
+    </div>` : `
+    <div class="bcard pad mt12" style="text-align:left">
+      <div class="p-sm strong" style="color:var(--gray-600)">입금 계좌</div>
+      <div class="h-sm mt8">카톡으로 계좌 안내 예정</div>
+      <div class="p-sm mt4">주문 확인 후 담당자가 입금 계좌와 진행 방법을 안내드립니다.</div>
+    </div>`;
+  showSheet(`<div class="sheet-grip"></div>
+    <div class="row gap10">
+      <span class="tile" style="width:42px;height:42px;background:var(--brand-50);color:var(--brand-600)"><i data-lucide="wallet"></i></span>
+      <div><div class="h-md">계좌이체 안내</div><div class="p-sm">접수번호 ${esc(data.orderNo)}</div></div>
+    </div>
+    <p class="p-sm mt12">${data.hasConfirmedTransfer?'아래 금액과 입금자명을 확인한 뒤 진행해 주세요. 입금 확인 후 주문 상태가 업데이트됩니다.':'아직 최종 금액 확정 전입니다. 입금은 안내가 활성화된 뒤 진행해 주세요.'}</p>
+    ${amountRows}
+    ${bankBlock}
+    <div class="bcard pad mt12" style="text-align:left">
+      <div class="p-sm strong" style="color:var(--gray-600)">입금자명</div>
+      <div class="h-sm mt8">${esc(data.payerName)}</div>
+      <button class="btn btn-secondary btn-md btnf mt12" onclick="copyTransferValueM('payer')"><i data-lucide="copy"></i> 입금자명 복사</button>
+    </div>
+    <p id="transferCopyMsg" class="p-sm mt10" style="min-height:18px;color:var(--brand-600)"></p>
+    ${data.transferUrl?`<button class="btn btn-tertiary btn-lg btnf mt8" onclick="openTransferPageM()">자세한 결제 페이지 열기</button>`:''}
+    <button class="btn btn-primary btn-lg btnf mt8" onclick="closeSheet()">확인</button>`);
+}
+async function openTransferM(){
+  renderTransferGuideM(BANK_TRANSFER_CONFIG_M || localBankTransferConfigM());
+  if(!BANK_TRANSFER_CONFIG_M){
+    const cfg = await loadBankTransferConfigM();
+    if(document.getElementById('sheet')) renderTransferGuideM(cfg);
+  }
 }
 async function submitIntake(){
   if(S.submitting) return;
@@ -415,6 +554,12 @@ async function submitIntake(){
 function submitAS(){ showSheet(`<div class="sheet-grip"></div><div style="text-align:center"><div class="featured-icon circle" style="width:60px;height:60px;background:var(--brand-50);color:var(--brand-600);margin:0 auto"><i data-lucide="check"></i></div><div class="h-md mt12">A/S 접수됐어요</div><p class="p-sm mt4">담당 매니저가 카카오톡으로 확인 일정을 안내드려요.</p><button class="btn btn-primary btn-xl btnf mt16" onclick="closeSheet();back()">확인</button></div>`); }
 
 /* ---- kakao fallback / sheets ---- */
+function openKakaoLink(){
+  const opened = window.open(KAKAO_CHANNEL_URL, '_blank');
+  if(!opened){
+    try{ window.top.location.href = KAKAO_CHANNEL_URL; }catch(_){ window.location.href = KAKAO_CHANNEL_URL; }
+  }
+}
 function openKakao(ctx){
   const msg = ctx==='product'
     ? '원하는 제품이 따로 있으신가요? 카카오톡으로 제품 링크를 보내주시면 설치 가능 여부를 확인해 드려요.'
@@ -427,14 +572,14 @@ function openKakao(ctx){
     <div class="row gap10"><span style="width:42px;height:42px;border-radius:13px;background:#FEE500;color:#191600;display:grid;place-items:center;flex:none">${KK}</span>
       <div><div class="h-sm">카카오톡 상담 · 보조</div><div class="p-sm">메인 접수는 앱에서 그대로 진행돼요</div></div></div>
     <p class="p-md mt12">${msg}</p>
-    <button class="btn kkbtn btn-xl btnf mt16" onclick="closeSheet()">${KK} 카카오톡 열기</button>
+    <button class="btn kkbtn btn-xl btnf mt16" onclick="openKakaoLink();closeSheet()">${KK} 카카오톡 열기</button>
     <button class="btn btn-tertiary btn-lg btnf mt8" onclick="closeSheet()">앱에서 계속하기</button>`);
 }
 function openChange(){
   showSheet(`<div class="sheet-grip"></div><div class="h-md">예약을 변경할까요?</div>
     <p class="p-sm mt4">방문 예정일이 가까우면 카카오톡으로 도와드려요.</p>
     <button class="btn btn-secondary btn-lg btnf mt16" onclick="closeSheet();nav('booking')">날짜 다시 고르기</button>
-    <button class="btn kkbtn btn-lg btnf mt8" onclick="closeSheet()">${KK} 카카오톡으로 문의</button>
+    <button class="btn kkbtn btn-lg btnf mt8" onclick="openKakaoLink();closeSheet()">${KK} 카카오톡으로 문의</button>
     <button class="btn btn-tertiary btn-lg btnf mt8" onclick="closeSheet()">닫기</button>`);
 }
 function openMenu(){
@@ -771,7 +916,7 @@ home: () => `
   <div class="m-foot">
     <div class="row gap10" style="justify-content:center">
       <a class="m-soc" href="https://www.instagram.com/builduscare" target="_blank" rel="noopener" aria-label="인스타그램"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:18px;height:18px"><rect x="2.5" y="2.5" width="19" height="19" rx="5.5"></rect><circle cx="12" cy="12" r="4.2"></circle><circle cx="17.4" cy="6.6" r="1.1" fill="currentColor" stroke="none"></circle></svg></a>
-      <a class="m-soc" href="http://pf.kakao.com/_PxkzsX" target="_blank" rel="noopener" aria-label="카카오톡"><svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px"><path d="M12 4.2C6.9 4.2 2.8 7.4 2.8 11.3c0 2.5 1.7 4.7 4.2 5.9-.2.6-.7 2.4-.8 2.7-.1.4.1.4.4.3.2-.1 2.7-1.8 3.7-2.5.5.1 1.1.1 1.7.1 5.1 0 9.2-3.2 9.2-7.1S17.1 4.2 12 4.2z"></path></svg></a>
+      <a class="m-soc" href="${KAKAO_CHANNEL_URL}" target="_blank" rel="noopener" aria-label="카카오톡"><svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px"><path d="M12 4.2C6.9 4.2 2.8 7.4 2.8 11.3c0 2.5 1.7 4.7 4.2 5.9-.2.6-.7 2.4-.8 2.7-.1.4.1.4.4.3.2-.1 2.7-1.8 3.7-2.5.5.1 1.1.1 1.7.1 5.1 0 9.2-3.2 9.2-7.1S17.1 4.2 12 4.2z"></path></svg></a>
     </div>
     <div class="m-foot-links">
       <a href="#">개인정보처리방침</a><span>·</span><a href="#">이용약관</a><span>·</span><a href="#">취소·환불</a><span>·</span><a href="#">A/S 기준</a>
@@ -1033,28 +1178,38 @@ ${appbar('접수 확인')}
   ${S.submitErr?`<div class="note mt12" style="background:#FDECEC;color:#B42318;display:flex;gap:9px;padding:12px 14px;border-radius:12px;font-size:12.5px"><i data-lucide="alert-circle" style="width:17px;height:17px;flex:none"></i><div>${esc(S.submitErr)}</div></div>`:''}
   <button class="btn btn-secondary btn-lg btnf mt12" onclick="openFinalEstimateM()"><i data-lucide="file-text"></i> 최종 견적서 보기</button>
 </div></div>
-<div class="cta-bar"><button class="btn btn-primary btn-xl btnf" aria-disabled="${S.submitting?'true':'false'}" onclick="submitIntake()">${S.submitting?'접수 저장 중...':'사진 확인 신청 접수하기'}</button></div>`,
+<div class="cta-bar"><button class="btn btn-primary btn-xl btnf" aria-disabled="${S.submitting?'true':'false'}" onclick="submitIntake()">${S.submitting?'접수 저장 중...':'주문 접수하기'}</button></div>`,
 
 done: () => {
   const payAmount = paymentAmountM();
   const statusLabel = paymentStatusLabelM();
   const hasTransfer = Boolean(S.remoteOrder?.transferUrl && payAmount > 0);
+  const bank = localBankTransferConfigM();
+  const transferData = transferGuideDataM();
   return `
 <div class="appbar bordered"><span class="title" style="padding-left:8px">접수 완료</span><span class="spacer"></span>${menu_btn}</div>
 <div class="body scroll"><div class="pad" style="text-align:center;padding-top:24px">
   <div class="featured-icon circle" style="width:72px;height:72px;background:var(--success-50);color:var(--success-600);margin:0 auto"><i data-lucide="check" style="width:36px;height:36px"></i></div>
   <h2 class="h-lg mt16">신청이 접수됐어요</h2>
-  <p class="p-md mt4">사진 확인 후 최종 견적을 안내드려요.${hasTransfer?' 선택 제품 예약을 위해 제품 금액 입금 안내를 확인해주세요.':' 매니저가 영업시간 기준 30분 내 안내드려요.'}</p>
+  <p class="p-md mt4">사진 확인 후 최종 견적을 안내드려요. 매니저가 영업시간 기준 30분 내 안내드려요.</p>
   <div class="bcard pad mt20" style="text-align:left">
     <div class="between"><div class="p-sm strong" style="color:var(--gray-700)">접수번호</div><div class="p-sm strong" style="color:var(--gray-900)">${mOrderNo()}</div></div>
     <div class="between mt8"><div class="p-sm strong" style="color:var(--gray-700)">현재 상태</div><span class="badge badge-warning dot">${statusLabel}</span></div>
     ${payAmount>0?`<div class="between mt8"><div class="p-sm strong" style="color:var(--gray-700)">입금 금액</div><div class="p-sm strong" style="color:var(--gray-900)">${won(payAmount)}원</div></div>`:''}
     <div class="divline" style="margin:12px 0"></div>
     <div class="row gap10"><span class="tile" style="width:38px;height:38px"><i data-lucide="droplet" style="width:20px;height:20px"></i></span><div class="grow" style="text-align:left"><div class="h-sm" style="font-size:14px">${S.item} · ${S.selected.length}개</div><div class="p-sm">${S.info.region} · ${statusLabel}</div></div></div>
-    ${hasTransfer?`<div class="note info mt12"><i data-lucide="info"></i><div>입금 확인은 영업시간 기준으로 순차 반영됩니다. 시공비와 최종 금액은 사진 확인 후 확정돼요.</div></div>`:''}
+    ${hasTransfer?`
+    <div class="divline" style="margin:14px 0"></div>
+    <div class="row gap10"><span class="tile" style="width:38px;height:38px;background:var(--brand-50);color:var(--brand-600)"><i data-lucide="wallet" style="width:20px;height:20px"></i></span><div class="grow" style="text-align:left"><div class="h-sm" style="font-size:14px">계좌이체 안내</div><div class="p-sm">제품 금액 입금 확인 후 주문이 진행돼요.</div></div></div>
+    <div class="col gap8 mt12">
+      <div class="between"><span class="p-sm" style="color:var(--gray-600)">예금주</span><span class="strong">${esc(bank.accountHolder)}</span></div>
+      <div class="between"><span class="p-sm" style="color:var(--gray-600)">입금 계좌</span><span class="strong">${esc(bank.bankName)} ${esc(bank.bankAccount)}</span></div>
+      <div class="between"><span class="p-sm" style="color:var(--gray-600)">입금자명</span><span class="strong">${esc(transferData.payerName)}</span></div>
+    </div>
+    <div class="note info mt12"><i data-lucide="info"></i><div>입금 확인은 영업시간 기준으로 순차 반영됩니다. 시공비와 최종 금액은 사진 확인 후 확정돼요.</div></div>`:''}
   </div>
-  ${hasTransfer?`<button class="btn btn-primary btn-lg btnf mt16" onclick="openTransferM()"><i data-lucide="wallet"></i> 계좌이체 안내 보기</button>`:`<button class="btn btn-secondary btn-lg btnf mt16" onclick="openFinalEstimateM()"><i data-lucide="file-text"></i> 최종 견적서 보기</button>`}
-  <div class="kakao mt12" style="text-align:left"><span class="kk-ic"><i data-lucide="message-circle" style="width:20px;height:20px"></i></span><div class="grow"><div class="kk-t">카카오톡으로 결과 알림 받기</div><div class="kk-d">추가 질문도 톡으로 편하게</div></div><i data-lucide="chevron-right" style="color:#3C1E1E"></i></div>
+  <button class="btn btn-secondary btn-lg btnf mt16" onclick="openFinalEstimateM()"><i data-lucide="file-text"></i> 최종 견적서 보기</button>
+  <div class="kakao mt12" style="text-align:left;cursor:pointer" onclick="openKakao('guide')" role="button" tabindex="0"><span class="kk-ic"><i data-lucide="message-circle" style="width:20px;height:20px"></i></span><div class="grow"><div class="kk-t">카카오톡으로 결과 알림 받기</div><div class="kk-d">추가 질문도 톡으로 편하게</div></div><i data-lucide="chevron-right" style="color:#3C1E1E"></i></div>
 </div></div>
 <div class="cta-bar"><button class="btn ${hasTransfer?'btn-secondary':'btn-primary'} btn-xl btnf" onclick="nav('orderview')">주문 현황 보기</button><button class="btn btn-tertiary btn-lg btnf mt8" onclick="goHome()">홈으로</button></div>`;
 },
@@ -1120,7 +1275,8 @@ ${appbar('주문 확인')}
     <div class="divline" style="margin:14px 0"></div>
     <div class="note info"><i data-lucide="info"></i><div>사진 호환제품 문의 접수예요. 매니저가 사진을 확인해 호환 제품과 견적을 안내드려요.</div></div>`}
   </div>
-  ${remote?.transferUrl?`<button class="btn btn-primary btn-lg btnf mt12" onclick="openTransferM()"><i data-lucide="wallet"></i> 계좌이체 안내</button>`:(hasProducts?`<button class="btn btn-secondary btn-lg btnf mt12" onclick="openFinalEstimateM()"><i data-lucide="file-text"></i> 최종 견적서 보기</button>`:'')}
+  ${hasProducts?`<button class="btn btn-secondary btn-lg btnf mt12" onclick="openFinalEstimateM()"><i data-lucide="file-text"></i> 최종 견적서 보기</button>`:''}
+  <button class="btn btn-secondary btn-lg btnf mt8" onclick="openTransferM()"><i data-lucide="wallet"></i> 계좌이체 안내</button>
   <div class="row gap8 mt8"><button class="btn btn-secondary btn-lg grow" onclick="openKakao('rebook')"><i data-lucide="calendar"></i> 예약 변경</button><button class="btn btn-secondary btn-lg grow" onclick="nav('as')"><i data-lucide="headphones"></i> A/S 접수</button></div>
 </div></div>`;
 },
