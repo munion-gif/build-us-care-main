@@ -108,7 +108,8 @@ function buildOrdersQuery(params: Record<string, string | undefined>, options: {
 }
 
 function applyClientOrderFilters(orders: any[], params: Record<string, string | undefined>) {
-  if (params.flow === "photo") return orders.filter((order) => photoCount(order) > 0);
+  if (params.flow === "photo") return orders.filter((order) => isPhotoCheckOrder(order) && photoCount(order) > 0);
+  if (params.flow === "intake") return orders.filter((order) => !isPhotoCheckOrder(order));
   return orders;
 }
 
@@ -169,6 +170,14 @@ async function getActiveTechnicians() {
 function firstServiceCode(order: any) {
   const sku = Array.isArray(order?.skus) ? order.skus[0] : null;
   return sku?.service_type_code ?? sku?.sku ?? order?.service_type_code;
+}
+
+function isPhotoCheckOrder(order: any) {
+  const skus = Array.isArray(order?.skus) ? order.skus : [];
+  return skus.some((sku: any) => {
+    const metadata = sku?.metadata ?? {};
+    return metadata.inquiry_only === true || metadata.request_type === "photo_check";
+  });
 }
 
 function uniqueStrings(values: string[]) {
@@ -375,7 +384,7 @@ function addressPreview(order: any) {
 
 function nextActionLabel(order: any) {
   const status = String(order.status ?? "");
-  if ((status === "inquiry" || status === "submitted") && photoCount(order) > 0) return "사진 확인";
+  if ((status === "inquiry" || status === "submitted") && isPhotoCheckOrder(order) && photoCount(order) > 0) return "사진 확인";
   if (status === "paid" || status === "product_paid") return assignedTechnician(order) === "미배정" ? "기사 배정" : "방문 전 확인";
   if (status === "payment_pending" || status === "pending_product_payment") return "입금 확인";
   if (status === "quoted") return "견적 확인";
@@ -396,7 +405,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
   ]);
   const totalPages = Math.max(Math.ceil(count / limit), 1);
   const visibleSummary = {
-    needsPhoto: orders.filter((order: any) => photoCount(order) > 0 && ["inquiry", "submitted"].includes(String(order.status))).length,
+    needsPhoto: orders.filter((order: any) => isPhotoCheckOrder(order) && photoCount(order) > 0 && ["inquiry", "submitted"].includes(String(order.status))).length,
     needsPayment: orders.filter((order: any) => paymentState(order).needsConfirmation).length,
     needsAssign: orders.filter((order: any) => ["paid", "product_paid"].includes(String(order.status)) && assignedTechnician(order) === "미배정").length,
     visits: orders.filter((order: any) => ["scheduled", "in_progress"].includes(String(order.status))).length,

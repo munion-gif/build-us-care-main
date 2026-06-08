@@ -22,6 +22,7 @@ export const dynamic = "force-dynamic";
 const CREATE_LIMIT = 5;
 const CREATE_WINDOW_MS = 15 * 60 * 1000;
 const SERVICE_BY_ITEM: Record<string, string> = {
+  "사진 확인": "photo_inquiry",
   "양변기 교체": "toilet_replace",
   "세면대 교체": "basin_replace",
   "수전 교체": "faucet_replace",
@@ -32,6 +33,8 @@ const SERVICE_BY_ITEM: Record<string, string> = {
   "실리콘 재시공": "silicone_repair",
   "욕실 악세서리": "bath_accessory"
 };
+
+type SubmissionType = "product_order" | "photo_check";
 
 type BuildusPayload = {
   deviceType?: "desktop" | "mobile";
@@ -119,7 +122,7 @@ function displayProductName(product: ReplacementProduct) {
   return [product.brand, product.model].filter(Boolean).join(" ") || product.categoryName || product.sku;
 }
 
-function buildOrderItems(entries: Array<{ product: ReplacementProduct; qty: number }>, fallbackItem: string) {
+function buildOrderItems(entries: Array<{ product: ReplacementProduct; qty: number }>, fallbackItem: string, submissionType: SubmissionType) {
   if (entries.length === 0) {
     const serviceCode = SERVICE_BY_ITEM[fallbackItem] ?? "photo_inquiry";
     return [{
@@ -131,6 +134,7 @@ function buildOrderItems(entries: Array<{ product: ReplacementProduct; qty: numb
       metadata: {
         service_type_code: serviceCode,
         builduscare_static: true,
+        request_type: "photo_check",
         inquiry_only: true
       }
     }];
@@ -146,6 +150,7 @@ function buildOrderItems(entries: Array<{ product: ReplacementProduct; qty: numb
       service_type_code: product.serviceCode,
       selected_replacement_product_id: product.id,
       selected_replacement_product_snapshot: replacementProductSnapshot(product),
+      request_type: submissionType,
       source: "builduscare_static"
     }
   }));
@@ -282,6 +287,9 @@ export async function POST(request: Request) {
     return fail("supabase_not_configured", "Supabase is required to create builduscare orders.", 500);
   }
 
+  const submissionType: SubmissionType =
+    request.headers.get("x-builduscare-submission-type") === "photo_check" ? "photo_check" : "product_order";
+
   const formData = await request.formData();
   const payload = parsePayload(formData.get("payload"));
   if (!payload) {
@@ -293,13 +301,14 @@ export async function POST(request: Request) {
   const roadAddress = normalizeText(payload.address?.roadAddress);
   const detailAddress = normalizeText(payload.address?.detailAddress);
   const postalCode = normalizeText(payload.address?.postalCode);
-  const item = normalizeText(payload.item) || "사진 확인";
+  const item = submissionType === "photo_check" ? normalizeText(payload.item) || "사진 확인" : normalizeText(payload.item);
 
   if (!name) return fail("BAD_REQUEST", "성함을 입력해주세요.", 400);
   if (phone.length < 8) return fail("BAD_REQUEST", "연락처를 다시 확인해주세요.", 400);
   if (!roadAddress) return fail("BAD_REQUEST", "주소를 입력해주세요.", 400);
+  if (submissionType === "product_order" && !item) return fail("BAD_REQUEST", "품목을 선택해주세요.", 400);
 
-  const rateLimit = checkRateLimit(`builduscare-order:${getClientIp(request.headers)}:${phone}`, {
+  const rateLimit = checkRateLimit(`builduscare-${submissionType}:${getClientIp(request.headers)}:${phone}`, {
     limit: CREATE_LIMIT,
     windowMs: CREATE_WINDOW_MS
   });
@@ -307,9 +316,17 @@ export async function POST(request: Request) {
     return rateLimitResponse(rateLimit.retryAfterSeconds, "접수 요청이 많습니다. 잠시 후 다시 시도해주세요.");
   }
 
-  const entries = selectedProducts(payload);
-  const orderItems = buildOrderItems(entries, item);
+  const entries = submissionType === "photo_check" ? [] : selectedProducts(payload);
+  if (submissionType === "product_order" && entries.length === 0) {
+    return fail("BAD_REQUEST", "제품을 선택해주세요.", 400);
+  }
+  const orderItems = buildOrderItems(entries, item, submissionType);
   const primaryServiceCode = entries[0]?.product.serviceCode ?? SERVICE_BY_ITEM[item] ?? orderItems[0]?.service_type_code;
+  const orderReason = submissionType === "photo_check" ? "photo_check_request" : "product_order_request";
+  const selfDiagnosis =
+    submissionType === "photo_check"
+      ? "builduscare 정적 화면 사진 확인 접수"
+      : "builduscare 정적 화면 제품 주문 접수";
   const orderCreatePayload = {
     customer: {
       name,
@@ -331,9 +348,9 @@ export async function POST(request: Request) {
     },
     order: {
       channel: payload.deviceType === "mobile" ? "mobile_web" : "web",
-      reason: "photo_check_request",
+      reason: orderReason,
       urgency: "scheduled",
-      self_diagnosis: "builduscare 정적 화면 사진 확인 접수",
+      self_diagnosis: selfDiagnosis,
       skus: orderItems.map((orderItem) => ({
         sku: orderItem.service_type_code,
         qty: orderItem.qty,
@@ -344,11 +361,14 @@ export async function POST(request: Request) {
       }))
     },
     channel: payload.deviceType === "mobile" ? "mobile_web" : "web",
-    reason: "photo_check_request",
+    reason: orderReason,
     urgency: "scheduled",
     service_type_code: primaryServiceCode,
     visit_fee: 0,
-    special_requests: `Build us Care 사진 확인 신청${payload.selfDisposal ? " / 폐기물 직접 처리" : ""}`,
+    special_requests:
+      submissionType === "photo_check"
+        ? "Build us Care 사진 확인 신청"
+        : `Build us Care 제품 주문 신청${payload.selfDisposal ? " / 폐기물 직접 처리" : ""}`,
     items: orderItems
   };
 
@@ -488,6 +508,7 @@ export async function POST(request: Request) {
           detailAddress,
           postalCode,
           item,
+          requestType: submissionType,
           selected: entries.map(({ product, qty }) => ({
             id: product.id,
             brand: product.brand,

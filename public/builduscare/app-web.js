@@ -426,6 +426,7 @@ function wSelectItem(name){
     const l=document.getElementById('wpList'); if(l) l.innerHTML = wProductsListBody();
     wPaintEstimate();
     if(window.lucide) lucide.createIcons();
+    wSetBrowserRoute('products');
   } else {
     webnav('products');
   }
@@ -729,7 +730,7 @@ async function wSubmitInquiry(){
     const fd = new FormData();
     fd.append('payload', JSON.stringify(payload));
     wAllPhotoEntries().forEach((entry,idx)=>fd.append('photos', entry.file, entry.name || `photo-${idx+1}.jpg`));
-    const res = await fetch('/api/builduscare/orders', { method:'POST', body:fd });
+    const res = await fetch('/api/builduscare/photo-checks', { method:'POST', body:fd });
     const json = await res.json().catch(()=>null);
     if(!res.ok || !json?.ok) throw new Error(json?.error?.message || json?.message || '접수 저장에 실패했어요.');
     wApplyRemoteOrder(json.data.order);

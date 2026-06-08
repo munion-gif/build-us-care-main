@@ -325,7 +325,7 @@ function selectItem(name, ev){
   const b = document.getElementById('itemsNext');
   if (b){ b.setAttribute('aria-disabled','false'); }
 }
-function pickCat(name){ if(name===S.item) return; S.item = name; S.subFilter=''; S.brandFilter=''; S.colorFilter=''; S.productPage=1; render(); }
+function pickCat(name){ if(name===S.item) return; S.item = name; S.subFilter=''; S.brandFilter=''; S.colorFilter=''; S.productPage=1; render('list'); mSetBrowserRoute('list'); }
 function setSub(label){ S.subFilter = label; S.brandFilter=''; S.colorFilter=''; S.productPage=1; render('list'); }
 function setBrandFilter(value){ S.brandFilter=value; S.productPage=1; render('list'); }
 function setColorFilter(value){ S.colorFilter=value; S.productPage=1; render('list'); }
@@ -928,7 +928,7 @@ async function submitInquiryM(){
     const fd = new FormData();
     fd.append('payload', JSON.stringify(payload));
     allPhotoEntriesM().forEach((entry,idx)=>fd.append('photos', entry.file, entry.name || `photo-${idx+1}.jpg`));
-    const res = await fetch('/api/builduscare/orders', { method:'POST', body:fd });
+    const res = await fetch('/api/builduscare/photo-checks', { method:'POST', body:fd });
     const json = await res.json().catch(()=>null);
     if(!res.ok || !json?.ok) throw new Error(json?.error?.message || json?.message || '접수 저장에 실패했어요.');
     applyRemoteOrderM(json.data.order);
