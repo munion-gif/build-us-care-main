@@ -41,6 +41,101 @@ const S = { cur:'home', hist:[], item:'수전 교체', selected:[], productPage:
   regionOk:false, specCheck:false, privacyOk:false, privacyOkInq:false, orderNo:'',
   lookupNo:'', lookupName:'', lookupErr:false, lookupLoading:false, submitting:false, submitErr:'', remoteOrder:null, sashChoice:{} };
 
+const M_ITEM_SLUGS = {'양변기 교체':'toilet','세면대 교체':'washbasin','수전 교체':'faucet','비데 설치':'bidet','환풍기 교체':'ventilation','샷시손잡이':'window-handle','도어핸들':'door-handle','실리콘 재시공':'silicone','욕실 악세서리':'bath-accessory'};
+const M_SLUG_ITEMS = Object.fromEntries(Object.entries(M_ITEM_SLUGS).map(([name, slug]) => [slug, name]));
+const M_SCREEN_ROUTES = {
+  home:'/',
+  services:'/service',
+  items:'/products',
+  list:'/products',
+  detail:'/products/detail',
+  inquiry:'/photo-check',
+  upload:'/photo-check/photos',
+  info:'/reservation/info',
+  quote:'/quote-preview',
+  booking:'/reservation/schedule',
+  checkout:'/reservation/confirm',
+  done:'/reservation/complete',
+  orders:'/order-lookup',
+  orderview:'/order-status',
+  as:'/as-request'
+};
+const M_ROUTER_ID = `mobile-${Math.random().toString(36).slice(2)}`;
+function mTopWindow(){
+  try {
+    if (window.top && window.top.location.origin === window.location.origin) return window.top;
+  } catch (_) {}
+  return window;
+}
+const M_ROUTER_TARGET = mTopWindow();
+function mRouterPath(){
+  try { return M_ROUTER_TARGET.location.pathname || '/'; } catch (_) { return window.location.pathname || '/'; }
+}
+function mPathForScreen(id){
+  if(id === 'list'){
+    const slug = M_ITEM_SLUGS[S.item];
+    return slug ? `/products/${slug}` : '/products';
+  }
+  if(id === 'detail'){
+    const p = productById(S.detail);
+    const cat = p ? catalogCatOf(p.id) : S.item;
+    const slug = M_ITEM_SLUGS[cat] || M_ITEM_SLUGS[S.item];
+    return slug && S.detail ? `/products/${slug}/${S.detail}` : '/products/detail';
+  }
+  return M_SCREEN_ROUTES[id] || '/';
+}
+function mScreenFromPath(path){
+  const parts = String(path || '/').replace(/\/+$/,'').split('/').filter(Boolean);
+  if(!parts.length) return 'home';
+  if(parts[0] === 'service') return 'services';
+  if(parts[0] === 'products'){
+    if(parts[1] === 'detail') return S.detail ? 'detail' : 'list';
+    if(parts[1] && M_SLUG_ITEMS[parts[1]]) S.item = M_SLUG_ITEMS[parts[1]];
+    if(parts[2]) S.detail = parts[2];
+    S.subFilter = '';
+    S.brandFilter = '';
+    S.colorFilter = '';
+    S.productPage = 1;
+    return parts[2] ? 'detail' : (parts[1] ? 'list' : 'items');
+  }
+  if(parts[0] === 'photo-check') return parts[1] === 'photos' ? 'upload' : 'inquiry';
+  if(parts[0] === 'reservation'){
+    if(parts[1] === 'schedule') return 'booking';
+    if(parts[1] === 'confirm') return 'checkout';
+    if(parts[1] === 'complete') return 'done';
+    return 'info';
+  }
+  if(parts[0] === 'quote-preview') return 'quote';
+  if(parts[0] === 'order-lookup') return 'orders';
+  if(parts[0] === 'order-status') return 'orderview';
+  if(parts[0] === 'as-request') return 'as';
+  return 'home';
+}
+function mSetBrowserRoute(id, mode='push'){
+  const path = mPathForScreen(id);
+  try {
+    if(mRouterPath() === path) return;
+    M_ROUTER_TARGET.history[mode === 'replace' ? 'replaceState' : 'pushState']({ builduscare: true, screen: id }, '', path);
+    M_ROUTER_TARGET.dispatchEvent(new CustomEvent('builduscare-routechange', { detail: { path, source: M_ROUTER_ID } }));
+  } catch (_) {}
+}
+function mApplyBrowserRoute(){
+  const id = mScreenFromPath(mRouterPath());
+  if(SCREENS[id]){
+    if(S.hist.length) S.hist.pop();
+    render(id, 'back');
+  }
+}
+function mWireBrowserRouter(){
+  try {
+    M_ROUTER_TARGET.addEventListener('popstate', mApplyBrowserRoute);
+    M_ROUTER_TARGET.addEventListener('builduscare-routechange', (event) => {
+      if(event?.detail?.source === M_ROUTER_ID) return;
+      mApplyBrowserRoute();
+    });
+  } catch (_) {}
+}
+
 /* warm category icons + cache logo as data URI (for the 견적서·접수증 popups) */
 (function preloadM(){ const warm=()=>Object.values(CAT_ICON).forEach(s=>{const im=new Image();im.decoding='async';im.src=s;}); ('requestIdleCallback' in window)?requestIdleCallback(warm,{timeout:1500}):setTimeout(warm,200); })();
 const _imgUriCacheM = {};
@@ -209,9 +304,18 @@ function render(id, dir){
   if (window.lucide) lucide.createIcons();
   if(same){ const b=document.querySelector('.body.scroll'); if(b) b.scrollTop = prev; }
 }
-function nav(id){ S.hist.push(S.cur); render(id,'enter'); }
-function back(){ const p = S.hist.pop(); render(p || 'home', 'back'); }
-function goHome(){ S.hist = []; render('home','back'); }
+function nav(id, opts={}){ if(opts.history !== false) S.hist.push(S.cur); render(id,'enter'); if(opts.history !== false) mSetBrowserRoute(id, opts.history); }
+function back(){
+  if(S.hist.length){
+    try { M_ROUTER_TARGET.history.back(); return; } catch (_) {}
+    const p = S.hist.pop();
+    render(p || 'home', 'back');
+    mSetBrowserRoute(S.cur, 'replace');
+    return;
+  }
+  goHome();
+}
+function goHome(){ S.hist = []; render('home','back'); mSetBrowserRoute('home'); }
 
 /* ---- interactions ---- */
 function selectItem(name, ev){
@@ -1297,4 +1401,5 @@ ${appbar('A/S 접수')}
 };
 
 /* boot */
-render('home');
+mWireBrowserRouter();
+render(mScreenFromPath(mRouterPath()));

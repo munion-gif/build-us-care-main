@@ -72,6 +72,84 @@ const W_LABOR = 60000, W_DISPOSAL = 10000;
 const WKK = '<svg class="kkic" viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px;flex:none"><path d="M12 3.4C6.7 3.4 2.4 6.85 2.4 11.1c0 2.74 1.82 5.14 4.55 6.52-.2.72-.72 2.62-.83 3.03-.14.5.18.5.39.37.16-.1 2.5-1.7 3.52-2.4.51.07 1.03.11 1.57.11 5.3 0 9.6-3.45 9.6-7.63S17.3 3.4 12 3.4z"/></svg>';
 const W = { cur:'home', item:'수전 교체', selected:[], qty:{}, productPage:1, brandFilter:'', colorFilter:'', photos:0, photoFiles:[], photoSets:[0,0,0], photoSetFiles:[[],[],[]], region:'', regionDetail:'', postalCode:'', name:'', phone:'', date:null, time:null, selfDisposal:false, orderNo:'', specCheck:false, privacyOk:false, privacyOkInq:false, submitting:false, submitErr:'', remoteOrder:null, _lookupNo:'', _lookupName:'', _lookupErr:false, _lookupLoading:false };
 
+const W_ITEM_SLUGS = {'양변기 교체':'toilet','세면대 교체':'washbasin','수전 교체':'faucet','비데 설치':'bidet','환풍기 교체':'ventilation','샷시손잡이':'window-handle','도어핸들':'door-handle','실리콘 재시공':'silicone','욕실 악세서리':'bath-accessory'};
+const W_SLUG_ITEMS = Object.fromEntries(Object.entries(W_ITEM_SLUGS).map(([name, slug]) => [slug, name]));
+const W_SCREEN_ROUTES = {
+  home:'/',
+  services:'/service',
+  items:'/products',
+  products:'/products',
+  upload:'/photo-check',
+  prebook:'/reservation/info',
+  booking:'/reservation/schedule',
+  checkout:'/reservation/confirm',
+  done:'/reservation/complete',
+  orders:'/order-lookup',
+  orderview:'/order-status'
+};
+const W_ROUTER_ID = `web-${Math.random().toString(36).slice(2)}`;
+function wTopWindow(){
+  try {
+    if (window.top && window.top.location.origin === window.location.origin) return window.top;
+  } catch (_) {}
+  return window;
+}
+const W_ROUTER_TARGET = wTopWindow();
+function wRouterPath(){
+  try { return W_ROUTER_TARGET.location.pathname || '/'; } catch (_) { return window.location.pathname || '/'; }
+}
+function wPathForScreen(id){
+  if(id === 'products'){
+    const slug = W_ITEM_SLUGS[W.item];
+    return slug ? `/products/${slug}` : '/products';
+  }
+  return W_SCREEN_ROUTES[id] || '/';
+}
+function wScreenFromPath(path){
+  const parts = String(path || '/').replace(/\/+$/,'').split('/').filter(Boolean);
+  if(!parts.length) return 'home';
+  if(parts[0] === 'service') return 'services';
+  if(parts[0] === 'products'){
+    if(parts[1] && W_SLUG_ITEMS[parts[1]]) W.item = W_SLUG_ITEMS[parts[1]];
+    W.subFilter = '';
+    W.brandFilter = '';
+    W.colorFilter = '';
+    W.productPage = 1;
+    return parts[1] ? 'products' : 'items';
+  }
+  if(parts[0] === 'photo-check') return 'upload';
+  if(parts[0] === 'reservation'){
+    if(parts[1] === 'schedule') return 'booking';
+    if(parts[1] === 'confirm') return 'checkout';
+    if(parts[1] === 'complete') return 'done';
+    return 'prebook';
+  }
+  if(parts[0] === 'order-lookup') return 'orders';
+  if(parts[0] === 'order-status') return 'orderview';
+  return 'home';
+}
+function wSetBrowserRoute(id, mode='push'){
+  const path = wPathForScreen(id);
+  try {
+    if(wRouterPath() === path) return;
+    W_ROUTER_TARGET.history[mode === 'replace' ? 'replaceState' : 'pushState']({ builduscare: true, screen: id }, '', path);
+    W_ROUTER_TARGET.dispatchEvent(new CustomEvent('builduscare-routechange', { detail: { path, source: W_ROUTER_ID } }));
+  } catch (_) {}
+}
+function wApplyBrowserRoute(){
+  const id = wScreenFromPath(wRouterPath());
+  if(WS[id]) webnav(id, { history: false, dir: 'back' });
+}
+function wWireBrowserRouter(){
+  try {
+    W_ROUTER_TARGET.addEventListener('popstate', wApplyBrowserRoute);
+    W_ROUTER_TARGET.addEventListener('builduscare-routechange', (event) => {
+      if(event?.detail?.source === W_ROUTER_ID) return;
+      wApplyBrowserRoute();
+    });
+  } catch (_) {}
+}
+
 const won = n => n.toLocaleString('ko-KR');
 const esc = v => String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const productImg = p => p && p.image ? `<img class="product-img" src="${p.image}" alt="" loading="lazy" decoding="async">` : '<i data-lucide="image"></i>';
@@ -263,7 +341,7 @@ function wEstimateBody(){
 function wPaintEstimate(){ const e=document.getElementById('wEstimate'); if(e){ e.innerHTML=wEstimateBody(); if(window.lucide) lucide.createIcons(); } }
 function wSyncCard(id){ document.querySelectorAll('.pcard[data-pid]').forEach(c=>c.classList.toggle('sel', wProductSelected(c.dataset.pid))); }
 
-function webnav(id){
+function webnav(id, opts={}){
   const same = (W.cur === id);
   const sy = same ? window.scrollY : 0;
   W.cur = id;
@@ -271,6 +349,7 @@ function webnav(id){
   if (window.lucide) lucide.createIcons();
   window.scrollTo(0, same ? sy : 0);
   alignNav();
+  if(opts.history !== false) wSetBrowserRoute(id, opts.history);
 }
 function alignNav(){
   const wrap = document.querySelector('#web .wrap, #web .home-wrap');
@@ -1493,4 +1572,5 @@ orderview: () => {
 
 };
 
-webnav('home');
+wWireBrowserRouter();
+webnav(wScreenFromPath(wRouterPath()), { history: false });
