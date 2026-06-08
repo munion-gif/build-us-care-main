@@ -22,7 +22,7 @@ export const metadata = {
       {
         url: "/og-buildus-care.png",
         width: 1600,
-        height: 900,
+        height: 768,
         alt: "집 전체가 아니라, 바꿀 수 있는 것부터.",
         type: "image/png"
       }
