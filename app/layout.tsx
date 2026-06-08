@@ -20,7 +20,7 @@ export const metadata = {
     type: "website",
     images: [
       {
-        url: "/og-buildus-care.png",
+        url: "/og-buildus-care-v2.png",
         width: 1600,
         height: 768,
         alt: "집 전체가 아니라, 바꿀 수 있는 것부터.",
@@ -32,7 +32,7 @@ export const metadata = {
     card: "summary_large_image",
     title: siteTitle,
     description: siteDescription,
-    images: ["/og-buildus-care.png"]
+    images: ["/og-buildus-care-v2.png"]
   },
   verification: {
     other: {
