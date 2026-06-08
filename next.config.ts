@@ -1,6 +1,22 @@
 import os from "node:os";
 import type { NextConfig } from "next";
 
+const legacyPublicPageRedirects = [
+  "/services/:path*",
+  "/cases/:path*",
+  "/request/photo/:path*",
+  "/orders/lookup/:path*",
+  "/quote/:path*",
+  "/flow/:path*",
+  "/lab/:path*",
+  "/payment/success/:path*",
+  "/payment/fail/:path*"
+].map((source) => ({
+  source,
+  destination: "/",
+  permanent: false
+}));
+
 function localDevOrigins() {
   return Object.values(os.networkInterfaces())
     .flatMap((items) => items ?? [])
@@ -25,7 +41,8 @@ const nextConfig: NextConfig = {
         has: [{ type: "host", value: "www.builduscare.co.kr" }],
         destination: "https://builduscare.co.kr/:path*",
         permanent: true
-      }
+      },
+      ...legacyPublicPageRedirects
     ];
   },
   async headers() {

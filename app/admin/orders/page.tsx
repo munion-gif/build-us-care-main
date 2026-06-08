@@ -360,7 +360,6 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
             </div>
             <div className="adm-ops-actions">
               <Link className="adm-btn adm-btn-secondary adm-btn-sm" href={`/admin/orders?date_from=${todayKST()}&flow=intake`}>오늘 접수</Link>
-              <Link className="adm-btn adm-btn-secondary adm-btn-sm" href="/admin/orders/test-new">테스트 주문 생성</Link>
               <Link className="adm-btn adm-btn-secondary adm-btn-sm" href="/admin/orders?trash=1">휴지통</Link>
             </div>
           </div>

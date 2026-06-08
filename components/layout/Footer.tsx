@@ -1,17 +1,5 @@
 import Link from "next/link";
 
-const links = [
-  ["서비스", "/services"],
-  ["시공 사례", "/cases"],
-  ["사진 판정", "/request/photo"],
-  ["주문 현황 조회", "/orders/lookup"]
-] as const;
-
-const legalLinks = [
-  ["개인정보처리방침", "/privacy"],
-  ["취소·환불 안내", "/refund-policy"]
-] as const;
-
 export function Footer() {
   return (
     <footer className="global-footer">
@@ -44,26 +32,9 @@ export function Footer() {
             </div>
           </dl>
         </section>
-        <nav className="footer-column footer-links" aria-label="바로가기">
-          <p className="footer-heading">바로가기</p>
-          <div className="footer-link-grid">
-            {links.map(([label, href]) => (
-              <Link key={href} href={href}>
-                {label}
-              </Link>
-            ))}
-          </div>
-        </nav>
       </div>
       <div className="footer-bottom">
         <div className="footer-bottom-inner">
-          <nav className="footer-policy-links" aria-label="약관 및 정책">
-            {legalLinks.map(([label, href]) => (
-              <Link key={href} href={href}>
-                {label}
-              </Link>
-            ))}
-          </nav>
           <span>© 2026 Buildus Care. All rights reserved.</span>
         </div>
       </div>
@@ -85,7 +56,7 @@ const footerCss = `
   }
   .footer-inner {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(220px, 0.36fr);
+    grid-template-columns: minmax(0, 1fr);
     align-items: flex-start;
     gap: clamp(2rem, 7vw, 7rem);
     padding-block: 2.5rem 1.75rem;
@@ -152,7 +123,7 @@ const footerCss = `
     min-height: 50px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     gap: var(--space-4);
     font-size: var(--text-caption);
     line-height: var(--leading-caption);

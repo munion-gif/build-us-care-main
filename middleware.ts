@@ -39,9 +39,33 @@ async function verifyAdminSessionToken(token: string | undefined, secret: string
   }
 }
 
+const retiredPublicApiPaths = new Set([
+  "/api/quote",
+  "/api/service-items",
+  "/api/storage/upload-temp",
+  "/api/orders/lookup",
+  "/api/payments/prepare",
+  "/api/payments/confirm",
+  "/api/payments/toss/confirm",
+  "/api/webhooks/toss"
+]);
+
+const retiredPublicApiPrefixes = [
+  "/api/cases",
+  "/api/diagnoses",
+  "/api/faqs",
+  "/api/quotes",
+  "/api/reviews",
+  "/api/reservations"
+];
+
+function isRetiredPublicApi(pathname: string) {
+  return retiredPublicApiPaths.has(pathname) || retiredPublicApiPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
+
 export async function middleware(req: NextRequest) {
-  if (req.nextUrl.pathname.startsWith("/lab") && process.env.NODE_ENV === "production") {
-    return new NextResponse("Not Found", { status: 404 });
+  if (isRetiredPublicApi(req.nextUrl.pathname)) {
+    return NextResponse.json({ ok: false, error: { code: "not_found", message: "Not found." } }, { status: 404 });
   }
 
   if (req.nextUrl.pathname.startsWith("/admin") || req.nextUrl.pathname.startsWith("/api/admin")) {
@@ -88,4 +112,24 @@ export async function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
-export const config = { matcher: ["/admin/:path*", "/api/admin/:path*", "/technician/:path*", "/lab/:path*"] };
+export const config = {
+  matcher: [
+    "/admin/:path*",
+    "/api/admin/:path*",
+    "/technician/:path*",
+    "/api/cases/:path*",
+    "/api/diagnoses/:path*",
+    "/api/faqs/:path*",
+    "/api/quote",
+    "/api/quotes/:path*",
+    "/api/reviews/:path*",
+    "/api/reservations/:path*",
+    "/api/service-items",
+    "/api/storage/upload-temp",
+    "/api/orders/lookup",
+    "/api/payments/prepare",
+    "/api/payments/confirm",
+    "/api/payments/toss/confirm",
+    "/api/webhooks/toss"
+  ]
+};

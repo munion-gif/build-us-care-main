@@ -12,10 +12,9 @@ export default function NotFound() {
           <small>check the link first</small>
         </div>
         <h1>페이지를 찾을 수 없어요</h1>
-        <p>주소가 바뀌었거나 아직 준비 중인 페이지입니다. 사진 판정이나 서비스 목록에서 다시 시작할 수 있습니다.</p>
+        <p>주소가 바뀌었거나 더 이상 사용하지 않는 페이지입니다. 홈 화면에서 다시 시작해 주세요.</p>
         <div className="not-found-actions">
           <Link href="/">홈으로 가기</Link>
-          <Link href="/services">서비스 보기</Link>
         </div>
       </section>
     </main>
@@ -107,10 +106,5 @@ const css = `
     border: 1px solid var(--color-gold);
     background: var(--color-gold);
     color: #211c12;
-  }
-  .not-found-page a:last-child {
-    border: 1px solid var(--color-border);
-    background: #ffffff;
-    color: var(--color-text);
   }
 `;

@@ -11,12 +11,7 @@ type HeaderProps = {
   kakaoUrl: string | null;
 };
 
-const navItems = [
-  ["서비스", "/services"],
-  ["시공 사례", "/cases"],
-  ["사진확인", "/request/photo"],
-  ["주문 조회", "/orders/lookup"]
-] as const;
+const navItems: ReadonlyArray<readonly [string, string]> = [];
 
 function Logo() {
   return (
@@ -32,6 +27,7 @@ export function Header({ kakaoUrl }: HeaderProps) {
   const isApp = useIsApp();
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   const kakaoChatUrl = getKakaoChannelChatUrl(kakaoUrl);
+  const hasMenuItems = navItems.length > 0;
 
   useEffect(() => {
     setOpen(false);
@@ -42,17 +38,18 @@ export function Header({ kakaoUrl }: HeaderProps) {
       <style>{headerCss}</style>
       <div className="header-inner">
         <Logo />
-        <nav className="desktop-nav" aria-label="주요 메뉴">
-          {navItems.map(([label, href]) => (
-            <Link key={href} className={isActive(href) ? "active" : ""} href={href}>
-              {label}
-            </Link>
-          ))}
-        </nav>
+        {hasMenuItems ? (
+          <nav className="desktop-nav" aria-label="주요 메뉴">
+            {navItems.map(([label, href]) => (
+              <Link key={href} className={isActive(href) ? "active" : ""} href={href}>
+                {label}
+              </Link>
+            ))}
+          </nav>
+        ) : (
+          <span aria-hidden="true" />
+        )}
         <div className="desktop-actions">
-          <Link className="outline-cta" href="/request/photo">
-            사진확인
-          </Link>
           {kakaoChatUrl ? (
             <a className="filled-cta" href={kakaoChatUrl} target="_blank" rel="noreferrer">
               <span className="kakao-mark" aria-hidden="true">TALK</span>
@@ -76,11 +73,13 @@ export function Header({ kakaoUrl }: HeaderProps) {
             카톡
           </button>
         )}
-        <button className="mobile-menu-button" type="button" onClick={() => setOpen((current) => !current)} aria-label={open ? "메뉴 닫기" : "메뉴 열기"} aria-expanded={open}>
-          <Menu size={24} />
-        </button>
+        {hasMenuItems && (
+          <button className="mobile-menu-button" type="button" onClick={() => setOpen((current) => !current)} aria-label={open ? "메뉴 닫기" : "메뉴 열기"} aria-expanded={open}>
+            <Menu size={24} />
+          </button>
+        )}
       </div>
-      {open && (
+      {open && hasMenuItems && (
         <div className="mobile-menu-backdrop" onMouseDown={() => setOpen(false)} role="presentation">
           <div className="mobile-menu" onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="모바일 메뉴">
             <nav>

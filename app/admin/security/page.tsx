@@ -444,8 +444,8 @@ export default async function AdminSecurityPage() {
     {
       label: "사진확인 이미지 입력",
       status: "pass",
-      summary: "임시 업로드 경로만 허용",
-      detail: "/api/diagnoses는 외부 이미지 URL을 받지 않고, 업로드 API가 만든 diagnoses/temp 경로만 서명합니다."
+      summary: "정적 접수 업로드로 통합",
+      detail: "공개 사진 판정 API는 제거했고, 현재 사진은 Build us Care 주문 접수 API에서만 처리합니다."
     },
     {
       label: "미취급 견적 URL",

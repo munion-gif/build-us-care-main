@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FeedbackModal } from "@/components/orders/FeedbackModal";
 import { NextActionCard } from "@/components/orders/NextActionCard";
 import { OrderCurrentStatusPanel } from "@/components/orders/OrderCurrentStatusPanel";
@@ -9,7 +9,7 @@ import { ReservationCard } from "@/components/orders/ReservationCard";
 import { StatusTimeline } from "@/components/orders/StatusTimeline";
 import { customerErrorMessage } from "@/lib/error-messages";
 import { EVENT_TYPES } from "@/lib/event-types";
-import { SERVICE_NAME_BY_CODE, formatKRDate, formatKRDateTime, formatKRW, formatServiceName } from "@/lib/format";
+import { formatKRDate, formatKRDateTime, formatKRW, formatServiceName } from "@/lib/format";
 import { getKakaoChannelChatUrl } from "@/lib/kakao-channel";
 import { getOrderStatusUx } from "@/lib/order-status-ux";
 import { buildQuoteDocumentInputFromOrderStatus, downloadQuoteDocument } from "@/lib/quote-document";
@@ -259,7 +259,6 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
   const [feedbackMessage, setFeedbackMessage] = useState("");
   const [quoteDownloadLoading, setQuoteDownloadLoading] = useState(false);
   const [quoteDownloadMessage, setQuoteDownloadMessage] = useState("");
-  const [showRecommendations, setShowRecommendations] = useState(false);
   const [warrantyOpen, setWarrantyOpen] = useState(false);
   const [warrantyType, setWarrantyType] = useState<"leak" | "falling" | "noise" | "other">("leak");
   const [warrantyDescription, setWarrantyDescription] = useState("");
@@ -279,9 +278,7 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [rescheduleMessage, setRescheduleMessage] = useState("");
   const [rescheduleNotice, setRescheduleNotice] = useState("");
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [shareMessage, setShareMessage] = useState("");
-  const tossConfirmStarted = useRef(false);
   const { track } = useTracking();
   const kakaoChatUrl = getKakaoChannelChatUrl(kakaoUrl);
 
@@ -313,54 +310,7 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
   }
 
   useEffect(() => {
-    async function boot() {
-      if (typeof window === "undefined") {
-        await loadOrder();
-        return;
-      }
-
-      const url = new URL(window.location.href);
-      const isTossSuccess = url.searchParams.get("toss") === "success";
-      const paymentKey = url.searchParams.get("paymentKey");
-      const amount = url.searchParams.get("amount");
-
-      if (!isTossSuccess || !paymentKey || !amount || tossConfirmStarted.current) {
-        await loadOrder();
-        return;
-      }
-
-      tossConfirmStarted.current = true;
-      setPaymentSuccess(true);
-      url.searchParams.delete("toss");
-      url.searchParams.delete("paymentKey");
-      url.searchParams.delete("amount");
-      url.searchParams.delete("orderId");
-      url.searchParams.delete("serviceCode");
-      window.history.replaceState({}, "", url.toString());
-
-      setState((current) => ({ ...current, loading: true, message: "결제 승인을 확인하고 있어요." }));
-
-      try {
-        const response = await fetch("/api/payments/toss/confirm", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ paymentKey, orderId, accessToken, amount: Number(amount) })
-        });
-        const json = await response.json();
-        if (!response.ok) {
-          throw new Error(customerErrorMessage(json?.error, "결제 승인 확인에 실패했어요."));
-        }
-        await loadOrder();
-      } catch (error) {
-        setState({
-          loading: false,
-          status: 0,
-          message: error instanceof Error ? error.message : "결제 승인 확인에 실패했어요. 잠시 후 다시 확인해주세요."
-        });
-      }
-    }
-
-    void boot();
+    void loadOrder();
   }, [accessToken, orderId]);
 
   const order = state.order;
@@ -408,16 +358,6 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
   const selectedSlotInfo = selectedDay?.slots?.[rescheduleSlot];
   const sameAsCurrent = Boolean(currentReservedDate && rescheduleDate === currentReservedDate && rescheduleSlot === currentReservedSlot);
   const selectedSlotAvailable = Boolean(sameAsCurrent || selectedSlotInfo?.available);
-  const completionVisitLabel = job?.scheduled_at
-    ? dateLabel(job.scheduled_at)
-    : reservation?.reserved_date
-      ? `${dateLabel(reservation.reserved_date)} ${reservation.time_slot === "morning" ? "오전" : "오후"}`
-      : "배정 중";
-  const completionAmountLabel = payment?.amount
-    ? formatKRW(Number(payment.amount))
-    : quote?.total_final
-      ? formatKRW(Number(quote.total_final))
-      : "확인 중";
 
   useEffect(() => {
     if (!rescheduleOpen) return;
@@ -520,7 +460,6 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
         throw new Error(customerErrorMessage(json?.error, "후기 제출을 다시 확인해주세요."));
       }
       setFeedbackOpen(false);
-      setShowRecommendations(true);
       void track(EVENT_TYPES.FEEDBACK_SUBMITTED, { rating: payload.rating, nps: payload.nps }, { orderId });
       await loadOrder();
     } catch (error) {
@@ -651,48 +590,6 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
         <span>접수일: {dateLabel(order.created_at)}</span>
       </section>
 
-      {paymentSuccess && (
-        <section className="payment-success-card">
-          <div className="payment-success-main">
-            <span>주문 완료</span>
-            <h2>주문이 완료됐습니다</h2>
-            <p>기사 배정과 방문 안내를 이 페이지에서 확인할 수 있어요.</p>
-            <dl>
-              <div><dt>주문번호</dt><dd>{order.order_number}</dd></div>
-              <div><dt>서비스</dt><dd>{serviceName(order)}</dd></div>
-              <div><dt>예약일</dt><dd>{completionVisitLabel}</dd></div>
-              <div><dt>결제금액</dt><dd>{completionAmountLabel}</dd></div>
-            </dl>
-            <ul className="status-guidance-list">
-              <li>이 링크를 보관하면 주문 현황과 예약 변경을 다시 확인할 수 있습니다.</li>
-              <li>기사 배정이 완료되면 등록하신 연락처로 안내드립니다.</li>
-            </ul>
-            <div className="payment-success-actions">
-              <a href="#order-current-status">주문 현황 확인하기</a>
-              <button type="button" onClick={shareStatusLink}>주문 링크 공유하기</button>
-            </div>
-            {shareMessage && <small>{shareMessage}</small>}
-          </div>
-          <aside className="order-success-contact" aria-label="카카오 상담 안내">
-            <div className="order-success-contact-copy">
-              <strong>궁금한 점이 있나요?</strong>
-              <p>예약 변경이나 현장 요청은 카톡 상담으로 빠르게 남길 수 있어요.</p>
-            </div>
-            {kakaoUrl ? (
-              <>
-                <div className="order-success-qr" aria-label="카카오 상담 QR 코드">
-                  <img src="/kakao-channel-qr.png" alt="카카오 상담 채널 QR 코드" />
-                  <span>PC에서는 QR로 상담 열기</span>
-                </div>
-                <a className="order-success-kakao-mobile-link" href={kakaoChatUrl ?? kakaoUrl} target="_blank" rel="noreferrer">카톡 상담하기</a>
-              </>
-            ) : (
-              <button className="order-success-kakao-mobile-link" type="button" disabled>카톡 상담 준비 중</button>
-            )}
-          </aside>
-        </section>
-      )}
-
       <section className="order-trust-strip" aria-label="주문 확인 안내">
         <div>
           <strong>안전한 주문 링크</strong>
@@ -805,8 +702,6 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
           </button>
         </section>
       )}
-
-      {(showRecommendations || (feedbackExists && orderStatus === "done")) && <RelatedServices serviceCode={serviceCode(order)} />}
 
       <FeedbackModal open={feedbackOpen} loading={feedbackLoading} message={feedbackMessage} onClose={() => setFeedbackOpen(false)} onSubmit={submitFeedback} />
       {rescheduleOpen && (
@@ -1016,43 +911,6 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
         </div>
       )}
     </main>
-  );
-}
-
-const RELATED_SERVICES: Record<string, string[]> = {
-  toilet_replace: ["faucet_replace", "bidet_install"],
-  basin_replace: ["faucet_replace", "toilet_replace"],
-  faucet_replace: ["toilet_replace", "drain_clog"],
-  kitchen_faucet: ["drain_clog", "toilet_replace"],
-  light_replace: ["outlet_replace", "ventilator_replace"],
-  outlet_replace: ["light_replace", "door_handle"],
-  door_handle: ["toilet_replace", "light_replace"],
-  bidet_install: ["toilet_replace", "faucet_replace"],
-  ventilator_replace: ["light_replace", "toilet_replace"],
-  drain_clog: ["faucet_replace", "partial_wallpaper"],
-  partial_wallpaper: ["door_handle", "light_replace"]
-};
-
-function serviceCode(order: any) {
-  return order?.service_type_code ?? order?.skus?.[0]?.sku ?? order?.skus?.[0]?.service_type_code ?? "toilet_replace";
-}
-
-function RelatedServices({ serviceCode }: { serviceCode: string }) {
-  const services = RELATED_SERVICES[serviceCode] ?? ["toilet_replace", "faucet_replace"];
-  return (
-    <section className="order-card related-services">
-      <h2>후기 감사합니다!</h2>
-      <p>다음에 함께 많이 찾는 시공도 바로 견적을 확인하실 수 있어요.</p>
-      <div className="related-service-grid">
-        {services.map((code) => (
-          <a key={code} href={`/quote/${code}`}>
-            <strong>{SERVICE_NAME_BY_CODE[code] ?? code}</strong>
-            <small>{code === "partial_wallpaper" ? "상담 후 안내" : "30분-1시간"}</small>
-            <span>견적 받기</span>
-          </a>
-        ))}
-      </div>
-    </section>
   );
 }
 

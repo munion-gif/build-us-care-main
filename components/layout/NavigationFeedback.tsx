@@ -4,12 +4,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const ROUTE_LABELS: Array<[RegExp, string]> = [
-  [/^\/services/, "서비스 목록을 불러오고 있어요."],
-  [/^\/cases/, "시공 사례를 불러오고 있어요."],
-  [/^\/request\/photo/, "사진확인 화면을 준비하고 있어요."],
-  [/^\/orders\/lookup/, "주문조회 화면을 준비하고 있어요."],
   [/^\/orders\//, "주문 상태를 불러오고 있어요."],
-  [/^\/quote\//, "견적 화면을 준비하고 있어요."],
+  [/^\/payment\/transfer/, "계좌이체 안내를 불러오고 있어요."],
   [/^\/$/, "홈으로 이동하고 있어요."]
 ];
 
