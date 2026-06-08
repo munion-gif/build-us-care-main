@@ -6,7 +6,7 @@ const ITEM_EN = {'양변기 교체':'Toilet','세면대 교체':'Washbasin','수
 const ITEM_IMG = {'수전 교체':'assets/prod-faucet-1.png','양변기 교체':'assets/prod-toilet-1.png','세면대 교체':'assets/prod-washbasin-1.png','비데 설치':'assets/prod-bidet-1.png','환풍기 교체':'assets/prod-vent-1.png','샷시손잡이':'assets/prod-windowhandle-1.png','도어핸들':'assets/prod-doorhandle-1.png','실리콘 재시공':'assets/prod-silicone-1.png','욕실 악세서리':'assets/prod-accessory-1.png'};
 const CAT_ICON = {'수전 교체':'assets/prodicon-faucet.webp','양변기 교체':'assets/prodicon-toilet.webp','세면대 교체':'assets/prodicon-washbasin.webp','비데 설치':'assets/prodicon-bidet.webp','환풍기 교체':'assets/prodicon-vent.webp','샷시손잡이':'assets/prodicon-windowhandle.webp','도어핸들':'assets/prodicon-doorhandle.webp','실리콘 재시공':'assets/prodicon-silicone.webp','욕실 악세서리':'assets/prodicon-accessory.webp'};
 const LINEUP_IMG = {'수전 교체':'assets/lineup-faucet.png','양변기 교체':'assets/lineup-toilet.png','세면대 교체':'assets/lineup-washbasin.png','비데 설치':'assets/lineup-bidet.png','환풍기 교체':'assets/lineup-vent.png','샷시손잡이':'assets/lineup-windowhandle.png','도어핸들':'assets/lineup-doorhandle.png','실리콘 재시공':'assets/lineup-silicone.png','욕실 악세서리':'assets/lineup-accessory.png'};
-const W_KAKAO_CHANNEL_URL = 'https://pf.kakao.com/_PxkzsX/chat';
+const W_KAKAO_CHANNEL_URL = 'https://pf.kakao.com/_PxkzsX';
 
 /* Warm the product-category icons up front so the 제품 선택 strip paints
    instantly instead of streaming in one PNG at a time on navigation. */
