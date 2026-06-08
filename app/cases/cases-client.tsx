@@ -19,7 +19,8 @@ const TABS = [
   { key: "ventilator_replace", label: "환풍기" },
   { key: "sash_handle", label: "샷시손잡이" },
   { key: "door_handle", label: "도어핸들" },
-  { key: "silicone_repair", label: "실리콘" }
+  { key: "silicone_repair", label: "실리콘" },
+  { key: "bath_accessory", label: "욕실 악세서리" }
 ] as const;
 
 const TAB_LABEL_BY_SERVICE: Record<string, string> = {
@@ -32,7 +33,8 @@ const TAB_LABEL_BY_SERVICE: Record<string, string> = {
   bath_fan: "환풍기",
   sash_handle: "샷시손잡이",
   door_handle: "도어핸들",
-  silicone_repair: "실리콘"
+  silicone_repair: "실리콘",
+  bath_accessory: "욕실 악세서리"
 };
 
 const BUILDING_LABELS: Record<string, string> = {

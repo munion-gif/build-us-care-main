@@ -6,7 +6,8 @@ export const CANONICAL_SERVICE_OPTIONS = [
   { code: "bidet_install", label: "비데", displayName: "비데 설치" },
   { code: "ventilator_replace", label: "환풍기", displayName: "환풍기 교체" },
   { code: "sash_handle", label: "샷시손잡이", displayName: "샷시손잡이 교체" },
-  { code: "silicone_repair", label: "실리콘", displayName: "실리콘 재시공" }
+  { code: "silicone_repair", label: "실리콘", displayName: "실리콘 재시공" },
+  { code: "bath_accessory", label: "욕실 악세서리", displayName: "욕실 악세서리 설치" }
 ] as const;
 
 export const CANONICAL_SERVICE_CODES = CANONICAL_SERVICE_OPTIONS.map((item) => item.code);
@@ -29,6 +30,7 @@ export const SERVICE_NAME_BY_CODE: Record<string, string> = {
   bath_fan: "환풍기 교체",
   sash_handle: "샷시손잡이 교체",
   silicone_repair: "실리콘 재시공",
+  bath_accessory: "욕실 악세서리 설치",
   drain_clog: "하수구 막힘",
   partial_wallpaper: "부분 도배"
 };

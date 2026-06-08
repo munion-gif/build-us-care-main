@@ -7,6 +7,7 @@ export const PUBLIC_SERVICE_CODES = [
   "sash_handle",
   "door_handle",
   "silicone_repair",
+  "bath_accessory",
 ] as const;
 
 export const PUBLIC_SERVICE_CODE_SET = new Set<string>(PUBLIC_SERVICE_CODES);

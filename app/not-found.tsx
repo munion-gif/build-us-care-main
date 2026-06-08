@@ -29,8 +29,8 @@ const css = `
     place-items: center;
     padding: var(--space-6) var(--space-4);
     background:
-      linear-gradient(90deg, rgba(34, 33, 29, 0.035) 1px, transparent 1px),
-      linear-gradient(180deg, rgba(34, 33, 29, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(16, 24, 40, 0.035) 1px, transparent 1px),
+      linear-gradient(180deg, rgba(16, 24, 40, 0.035) 1px, transparent 1px),
       var(--color-bg);
     background-size: 34px 34px;
   }
@@ -41,8 +41,8 @@ const css = `
     border: 1px solid var(--color-border);
     border-radius: 8px;
     padding: clamp(22px, 4vw, 34px);
-    background: linear-gradient(135deg, rgba(255, 250, 241, 0.96), rgba(244, 234, 212, 0.78));
-    box-shadow: 0 14px 34px rgba(34, 33, 29, 0.055);
+    background: #ffffff;
+    box-shadow: 0 14px 34px rgba(16, 24, 40, 0.055);
   }
   .not-found-page .brand-kicker {
     color: var(--color-text);
@@ -58,7 +58,7 @@ const css = `
     border: 1px solid var(--color-border);
     border-radius: 8px;
     padding: 18px;
-    background: rgba(255, 250, 241, 0.76);
+    background: #ffffff;
   }
   .not-found-label span,
   .not-found-label small {
@@ -79,7 +79,7 @@ const css = `
     font-size: var(--text-h2);
     line-height: var(--leading-h2);
     font-weight: 700;
-    letter-spacing: -0.018em;
+    letter-spacing: 0;
   }
   .not-found-page p {
     max-width: 34rem;
@@ -110,7 +110,7 @@ const css = `
   }
   .not-found-page a:last-child {
     border: 1px solid var(--color-border);
-    background: rgba(255, 250, 241, 0.72);
+    background: #ffffff;
     color: var(--color-text);
   }
 `;

@@ -19,14 +19,15 @@ export function PublicShell({ children, kakaoUrl, maintenanceMode = false }: Pub
   const { track } = useTracking();
   const isAdmin = pathname.startsWith("/admin");
   const isTechnician = pathname.startsWith("/technician");
+  const isDxfWorkbench = pathname.startsWith("/lab/dxf-asset-workbench") || pathname.startsWith("/dxf-asset-workbench");
 
   useEffect(() => {
-    if (!isAdmin && !isTechnician) {
+    if (!isAdmin && !isTechnician && !isDxfWorkbench) {
       void track(EVENT_TYPES.PAGE_VIEW, { page_path: pathname });
     }
-  }, [isAdmin, isTechnician, pathname, track]);
+  }, [isAdmin, isDxfWorkbench, isTechnician, pathname, track]);
 
-  if (isAdmin || isTechnician) return <>{children}</>;
+  if (isAdmin || isTechnician || isDxfWorkbench) return <>{children}</>;
 
   return (
     <>

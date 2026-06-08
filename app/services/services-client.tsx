@@ -9,6 +9,7 @@ import {
   Fan,
   Paintbrush,
   PanelsTopLeft,
+  Shapes,
   ShowerHead,
   SoapDispenserDroplet,
   Toilet,
@@ -33,7 +34,8 @@ const categoriesByCode: Record<string, ServiceCategory[]> = {
   ventilator_replace: ["욕실"],
   sash_handle: ["도어·손잡이"],
   door_handle: ["도어·손잡이"],
-  silicone_repair: ["욕실"]
+  silicone_repair: ["욕실"],
+  bath_accessory: ["욕실"]
 };
 
 const icons: Record<string, LucideIcon> = {
@@ -44,7 +46,8 @@ const icons: Record<string, LucideIcon> = {
   ventilator_replace: Fan,
   sash_handle: PanelsTopLeft,
   door_handle: DoorOpen,
-  silicone_repair: Paintbrush
+  silicone_repair: Paintbrush,
+  bath_accessory: Shapes
 };
 
 const flowSteps = [
@@ -155,8 +158,7 @@ const servicesCss = `
     border: 1px solid var(--color-border);
     border-radius: 8px;
     padding: clamp(22px, 3vw, 30px);
-    background:
-      linear-gradient(135deg, rgba(255, 250, 241, 0.98) 0%, rgba(247, 241, 230, 0.96) 52%, rgba(228, 232, 223, 0.82) 100%);
+    background: #ffffff;
     box-shadow: var(--shadow-sm);
   }
   .services-hero > * {
@@ -186,7 +188,7 @@ const servicesCss = `
     font-size: var(--text-xl);
     line-height: var(--leading-xl);
     font-weight: 700;
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
     word-break: keep-all;
     overflow-wrap: break-word;
   }
@@ -208,14 +210,14 @@ const servicesCss = `
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border-radius: 8px;
+    border-radius: 999px;
     padding: 0 var(--space-5, 1.25rem);
     background: var(--color-primary);
-    color: var(--color-cream);
+    color: #ffffff;
     font-size: var(--text-button);
     line-height: var(--leading-button);
     font-weight: 700;
-    letter-spacing: -0.005em;
+    letter-spacing: 0;
     text-decoration: none;
   }
   .services-flow {
@@ -229,9 +231,9 @@ const servicesCss = `
     padding: 0;
     border: 1px solid var(--color-border);
     border-radius: 8px;
-    background: rgba(255, 250, 241, 0.72);
+    background: #ffffff;
     list-style: none;
-    box-shadow: 0 4px 14px rgba(34, 33, 29, 0.025);
+    box-shadow: 0 4px 14px rgba(16, 24, 40, 0.035);
   }
   .services-flow-step {
     position: relative;
@@ -239,7 +241,7 @@ const servicesCss = `
     padding: 16px 20px;
   }
   .services-flow-step + .services-flow-step {
-    border-left: 1px solid rgba(217, 210, 196, 0.8);
+    border-left: 1px solid var(--color-border);
   }
   .services-flow-copy {
     display: grid;
@@ -255,10 +257,10 @@ const servicesCss = `
     height: 22px;
     display: grid;
     place-items: center;
-    border: 1px solid rgba(217, 210, 196, 0.9);
+    border: 1px solid var(--color-border);
     border-radius: 999px;
     background: var(--color-bg);
-    color: rgba(34, 33, 29, 0.6);
+    color: var(--color-text-muted);
     font-size: 15px;
     line-height: 1;
     font-weight: 700;
@@ -288,15 +290,15 @@ const servicesCss = `
     gap: 14px;
     border: 1px solid var(--color-border);
     border-radius: 8px;
-    background: rgba(255, 250, 241, 0.9);
+    background: #ffffff;
     padding: 18px;
     color: var(--color-text);
     text-decoration: none;
-    box-shadow: 0 4px 14px rgba(34, 33, 29, 0.025);
+    box-shadow: 0 4px 14px rgba(16, 24, 40, 0.035);
     transition: box-shadow var(--transition), transform var(--transition), border-color var(--transition);
   }
   .service-list-card:hover {
-    border-color: rgba(168, 176, 162, 0.72);
+    border-color: #b2ddff;
     box-shadow: var(--shadow-sm);
     transform: translateY(-2px);
   }
@@ -322,15 +324,15 @@ const servicesCss = `
     background: var(--color-sage-soft);
   }
   .service-list-card:nth-child(3n) .service-icon {
-    background: var(--color-charcoal-panel);
-    color: var(--color-cream);
+    background: var(--color-primary);
+    color: #ffffff;
   }
   .service-card-top h2 {
     margin: 0 0 var(--space-2);
     font-size: var(--text-card-title);
     line-height: var(--leading-card-title);
     font-weight: 700;
-    letter-spacing: -0.005em;
+    letter-spacing: 0;
   }
   .service-card-top span {
     border-radius: var(--radius-full);
@@ -381,18 +383,18 @@ const servicesCss = `
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: 1.5px solid rgba(34, 33, 29, 0.92);
-    border-radius: 8px;
-    background: rgba(34, 33, 29, 0.92);
-    color: var(--color-cream);
+    border: 1.5px solid var(--color-primary);
+    border-radius: 999px;
+    background: var(--color-primary);
+    color: #ffffff;
     font-size: var(--text-button);
     line-height: var(--leading-button);
     font-weight: 700;
   }
   .service-list-card:hover .quote-link {
     border-color: var(--color-primary);
-    background: rgba(34, 33, 29, 0.86);
-    color: var(--color-cream);
+    background: var(--color-primary-hover);
+    color: #ffffff;
   }
   @media (max-width: 640px) {
     .services-page {
@@ -422,7 +424,7 @@ const servicesCss = `
     }
     .services-flow-step + .services-flow-step {
       border-left: 0;
-      border-top: 1px solid rgba(217, 210, 196, 0.8);
+      border-top: 1px solid var(--color-border);
     }
     .services-flow-arrow {
       top: auto;

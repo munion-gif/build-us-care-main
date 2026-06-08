@@ -3,12 +3,31 @@ import type { ServiceItem } from "@/lib/types";
 export const DEFAULT_VISIT_FEE = 15000;
 export const TOILET_REPLACE_LABOR_PRICE = 100000;
 export const FAUCET_REPLACE_LABOR_PRICE = 40000;
+export const SHOWER_BATH_FAUCET_LABOR_PRICE = 60000;
+export const RAIN_SHOWER_FAUCET_LABOR_PRICE = 100000;
 export const VENTILATOR_REPLACE_LABOR_PRICE = 60000;
+export const VENTILATOR_COMPLEX_REPLACE_LABOR_PRICE = 80000;
 export const BASIN_REPLACE_LABOR_PRICE = 80000;
 export const BIDET_INSTALL_LABOR_PRICE = 60000;
 export const SASH_HANDLE_REPLACE_LABOR_PRICE = 45000;
 export const DOOR_HANDLE_REPLACE_LABOR_PRICE = 30000;
 export const SILICONE_REPAIR_LABOR_PRICE = 6000;
+export const BATH_ACCESSORY_SET_LABOR_PRICE = 50000;
+export const BATH_ACCESSORY_ITEM_LABOR_PRICE = 25000;
+
+export const SERVICE_BASE_LABOR_PRICES: Record<string, number> = {
+  toilet_replace: TOILET_REPLACE_LABOR_PRICE,
+  basin_replace: BASIN_REPLACE_LABOR_PRICE,
+  faucet_replace: FAUCET_REPLACE_LABOR_PRICE,
+  kitchen_faucet: FAUCET_REPLACE_LABOR_PRICE,
+  bidet_install: BIDET_INSTALL_LABOR_PRICE,
+  ventilator_replace: VENTILATOR_REPLACE_LABOR_PRICE,
+  bath_fan: VENTILATOR_REPLACE_LABOR_PRICE,
+  sash_handle: SASH_HANDLE_REPLACE_LABOR_PRICE,
+  door_handle: DOOR_HANDLE_REPLACE_LABOR_PRICE,
+  silicone_repair: SILICONE_REPAIR_LABOR_PRICE,
+  bath_accessory: BATH_ACCESSORY_ITEM_LABOR_PRICE
+};
 
 export const FALLBACK_SERVICE_ITEMS: ServiceItem[] = [
   {
@@ -44,6 +63,13 @@ export const FALLBACK_SERVICE_ITEMS: ServiceItem[] = [
     display_name: "실리콘 재시공",
     base_price: 6000,
     estimated_minutes: 90,
+    metadata: { category: "bathroom" }
+  },
+  {
+    service_type_code: "bath_accessory",
+    display_name: "욕실 악세서리 설치",
+    base_price: 25000,
+    estimated_minutes: 45,
     metadata: { category: "bathroom" }
   },
   {

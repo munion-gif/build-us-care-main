@@ -19,7 +19,7 @@ export function Footer() {
       <div className="footer-inner">
         <section className="footer-column footer-brand" aria-label="회사 정보">
           <Link href="/" className="footer-logo">
-            <img className="footer-logo-image" src="/builduscare-footer-logo.png" alt="Build us Care" />
+            <img className="footer-logo-image" src="/assets/bc-logo.png" alt="Build us Care" />
           </Link>
           <dl className="footer-meta">
             <div>
@@ -73,8 +73,9 @@ export function Footer() {
 
 const footerCss = `
   .global-footer {
-    background: var(--color-text);
-    color: rgba(247, 241, 230, 0.72);
+    border-top: 1px solid var(--color-border);
+    background: #f5f5f7;
+    color: var(--color-text-muted);
   }
   .footer-inner,
   .footer-bottom-inner {
@@ -87,14 +88,14 @@ const footerCss = `
     grid-template-columns: minmax(0, 1fr) minmax(220px, 0.36fr);
     align-items: flex-start;
     gap: clamp(2rem, 7vw, 7rem);
-    padding-block: 2rem 1.75rem;
+    padding-block: 2.5rem 1.75rem;
   }
   .footer-column {
     min-width: 0;
   }
   .footer-heading {
     margin: 0 0 0.75rem;
-    color: var(--color-cream);
+    color: var(--color-text);
     font-size: var(--text-label);
     line-height: var(--leading-label);
     font-weight: 700;
@@ -106,7 +107,7 @@ const footerCss = `
   }
   .footer-logo-image {
     display: block;
-    width: min(220px, 64vw);
+    width: min(168px, 58vw);
     height: auto;
   }
   .footer-meta {
@@ -121,7 +122,7 @@ const footerCss = `
     display: contents;
   }
   .footer-meta dt {
-    color: rgba(247, 241, 230, 0.56);
+    color: var(--color-text-faint);
     font-weight: 600;
   }
   .footer-meta dd {
@@ -134,7 +135,7 @@ const footerCss = `
   }
   .footer-links a,
   .footer-policy-links a {
-    color: rgba(255, 255, 255, 0.72);
+    color: var(--color-text-muted);
     text-decoration: none;
     font-size: var(--text-label);
     line-height: var(--leading-label);
@@ -142,10 +143,10 @@ const footerCss = `
   }
   .footer-links a:hover,
   .footer-policy-links a:hover {
-    color: var(--color-cream);
+    color: var(--color-text);
   }
   .footer-bottom {
-    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    border-top: 1px solid var(--color-border);
   }
   .footer-bottom-inner {
     min-height: 50px;

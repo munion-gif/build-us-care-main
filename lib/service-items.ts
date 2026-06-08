@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
-import { DOOR_HANDLE_REPLACE_LABOR_PRICE, FALLBACK_SERVICE_ITEMS } from "@/lib/constants";
+import { FALLBACK_SERVICE_ITEMS, SERVICE_BASE_LABOR_PRICES } from "@/lib/constants";
 import { CANONICAL_SERVICE_CODES, SUPPORTED_SERVICE_CODES } from "@/lib/service-catalog";
 
 export type QuoteServiceItem = {
@@ -41,7 +41,8 @@ const FALLBACK_GUIDES: Record<string, string> = {
   ventilator_replace: "환풍기 전체 / 천장 타공부 / 전원 스위치 사진",
   bath_fan: "환풍기 전체 / 천장 타공부 / 전원 스위치 사진",
   sash_handle: "창 전체 / 손잡이 앞뒤 / 잠금장치·레일이 보이는 사진",
-  silicone_repair: "시공 부위 전체 / 들뜸·곰팡이 부위 / 주변 마감 사진"
+  silicone_repair: "시공 부위 전체 / 들뜸·곰팡이 부위 / 주변 마감 사진",
+  bath_accessory: "설치할 위치 전체 / 기존 악세서리 상태 / 벽면 타공·마감 사진"
 };
 
 function asStringArray(value: unknown, fallback: string[] = []) {
@@ -54,7 +55,7 @@ function normalizeServiceItem(row: any): QuoteServiceItem {
   return {
     service_type_code: serviceTypeCode,
     display_name: row.display_name,
-    base_price: serviceTypeCode === "door_handle" ? DOOR_HANDLE_REPLACE_LABOR_PRICE : Number(row.base_price ?? 0),
+    base_price: SERVICE_BASE_LABOR_PRICES[serviceTypeCode] ?? Number(row.base_price ?? 0),
     estimated_minutes: row.estimated_minutes ?? null,
     category: row.category ?? (metadata.category as string | undefined) ?? "service",
     standardizable: row.standardizable ?? STANDARDIZABLE_CODES.has(row.service_type_code),
@@ -134,7 +135,7 @@ const HOME_FALLBACK_ITEMS: QuoteServiceItem[] = [
   {
     service_type_code: "toilet_replace",
     display_name: "변기 교체",
-    base_price: 80000,
+    base_price: SERVICE_BASE_LABOR_PRICES.toilet_replace,
     estimated_minutes: 120,
     category: "bathroom",
     standardizable: true,
@@ -149,7 +150,7 @@ const HOME_FALLBACK_ITEMS: QuoteServiceItem[] = [
   {
     service_type_code: "basin_replace",
     display_name: "세면대 교체",
-    base_price: 100000,
+    base_price: SERVICE_BASE_LABOR_PRICES.basin_replace,
     estimated_minutes: 120,
     category: "bathroom",
     standardizable: true,
@@ -164,7 +165,7 @@ const HOME_FALLBACK_ITEMS: QuoteServiceItem[] = [
   {
     service_type_code: "faucet_replace",
     display_name: "수전 교체",
-    base_price: 59000,
+    base_price: SERVICE_BASE_LABOR_PRICES.faucet_replace,
     estimated_minutes: 60,
     category: "kitchen",
     standardizable: true,
@@ -179,7 +180,7 @@ const HOME_FALLBACK_ITEMS: QuoteServiceItem[] = [
   {
     service_type_code: "door_handle",
     display_name: "도어핸들 교체",
-    base_price: 30000,
+    base_price: SERVICE_BASE_LABOR_PRICES.door_handle,
     estimated_minutes: 30,
     category: "door",
     standardizable: true,
@@ -194,7 +195,7 @@ const HOME_FALLBACK_ITEMS: QuoteServiceItem[] = [
   {
     service_type_code: "bidet_install",
     display_name: "비데 설치",
-    base_price: 60000,
+    base_price: SERVICE_BASE_LABOR_PRICES.bidet_install,
     estimated_minutes: 45,
     category: "bathroom",
     standardizable: true,
@@ -209,7 +210,7 @@ const HOME_FALLBACK_ITEMS: QuoteServiceItem[] = [
   {
     service_type_code: "ventilator_replace",
     display_name: "환풍기 교체",
-    base_price: 70000,
+    base_price: SERVICE_BASE_LABOR_PRICES.ventilator_replace,
     estimated_minutes: 80,
     category: "bathroom",
     standardizable: true,
@@ -224,7 +225,7 @@ const HOME_FALLBACK_ITEMS: QuoteServiceItem[] = [
   {
     service_type_code: "sash_handle",
     display_name: "샷시손잡이 교체",
-    base_price: 45000,
+    base_price: SERVICE_BASE_LABOR_PRICES.sash_handle,
     estimated_minutes: 40,
     category: "door",
     standardizable: true,
@@ -239,7 +240,7 @@ const HOME_FALLBACK_ITEMS: QuoteServiceItem[] = [
   {
     service_type_code: "silicone_repair",
     display_name: "실리콘 재시공",
-    base_price: 70000,
+    base_price: SERVICE_BASE_LABOR_PRICES.silicone_repair,
     estimated_minutes: 90,
     category: "bathroom",
     standardizable: true,
@@ -249,6 +250,21 @@ const HOME_FALLBACK_ITEMS: QuoteServiceItem[] = [
     warranty_policy: "시공 하자 1년 무상 A/S",
     standard_material_sku: "silicone_standard",
     premium_material_sku: "silicone_premium",
+    addon_skus: []
+  },
+  {
+    service_type_code: "bath_accessory",
+    display_name: "욕실 악세서리 설치",
+    base_price: SERVICE_BASE_LABOR_PRICES.bath_accessory,
+    estimated_minutes: 45,
+    category: "bathroom",
+    standardizable: true,
+    photo_guide: FALLBACK_GUIDES.bath_accessory,
+    included_items: ["설치 위치 확인", "욕실 악세서리 설치", "고정 상태 확인", "1년 A/S"],
+    excluded_items: [],
+    warranty_policy: "시공 하자 1년 무상 A/S",
+    standard_material_sku: null,
+    premium_material_sku: null,
     addon_skus: []
   }
 ];

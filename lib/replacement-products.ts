@@ -1,11 +1,16 @@
 import {
+  BATH_ACCESSORY_ITEM_LABOR_PRICE,
+  BATH_ACCESSORY_SET_LABOR_PRICE,
   BIDET_INSTALL_LABOR_PRICE,
   BASIN_REPLACE_LABOR_PRICE,
   DOOR_HANDLE_REPLACE_LABOR_PRICE,
   FAUCET_REPLACE_LABOR_PRICE,
+  RAIN_SHOWER_FAUCET_LABOR_PRICE,
   SASH_HANDLE_REPLACE_LABOR_PRICE,
+  SHOWER_BATH_FAUCET_LABOR_PRICE,
   SILICONE_REPAIR_LABOR_PRICE,
   TOILET_REPLACE_LABOR_PRICE,
+  VENTILATOR_COMPLEX_REPLACE_LABOR_PRICE,
   VENTILATOR_REPLACE_LABOR_PRICE
 } from "@/lib/constants";
 import rawReplacementProducts from "./replacement-products.generated.json";
@@ -19,7 +24,8 @@ export type ReplacementProductServiceCode =
   | "ventilator_replace"
   | "sash_handle"
   | "door_handle"
-  | "silicone_repair";
+  | "silicone_repair"
+  | "bath_accessory";
 
 export type ReplacementProduct = {
   id: string;
@@ -75,7 +81,8 @@ const SERVICE_ALIASES: Record<string, ReplacementProductServiceCode> = {
   bath_fan: "ventilator_replace",
   sash_handle: "sash_handle",
   door_handle: "door_handle",
-  silicone_repair: "silicone_repair"
+  silicone_repair: "silicone_repair",
+  bath_accessory: "bath_accessory"
 };
 
 const SERVICE_LABELS: Record<ReplacementProductServiceCode, { title: string; customConsultLabel: string; sourceNote: string }> = {
@@ -118,6 +125,11 @@ const SERVICE_LABELS: Record<ReplacementProductServiceCode, { title: string; cus
     title: "실리콘 색상과 제품가",
     customConsultLabel: "실리콘",
     sourceNote: "엑셀 제품 리스트 기준 제품가입니다. 실제 주문 금액은 시공 길이, 기존 실리콘 제거 범위, 현장 마감 조건, 재고에 따라 확정됩니다."
+  },
+  bath_accessory: {
+    title: "욕실 악세서리 종류와 제품가",
+    customConsultLabel: "욕실 악세서리",
+    sourceNote: "제품가 기준 예시입니다. 실제 주문 금액은 시공비, 설치 위치, 벽면 타공 조건, 재고에 따라 확정됩니다."
   }
 };
 
@@ -143,6 +155,62 @@ const TOILET_AS_REPLACEMENT_PRODUCTS: ReplacementProduct[] = TOILET_PRODUCTS.map
 }));
 
 const GENERATED_PRODUCTS = rawReplacementProducts as ReplacementProduct[];
+
+const BATH_ACCESSORY_PRODUCTS: ReplacementProduct[] = GENERATED_PRODUCTS.some((product) => product.serviceCode === "bath_accessory")
+  ? []
+  : [
+  {
+    id: "bath_accessory:towel-bar:01:stainless",
+    serviceCode: "bath_accessory",
+    categoryId: "shelf-towel",
+    categoryName: "선반 및 수건걸이",
+    categorySummary: "수건걸이, 선반, 휴지걸이처럼 단품으로 고정하는 욕실 악세서리입니다.",
+    decisionHint: "설치 위치와 기존 타공 위치가 맞으면 단품 교체로 진행합니다.",
+    brand: "Build us Care",
+    model: "수건걸이 스테인리스",
+    sku: "BATH-ACC-TOWEL-ST",
+    price: 29000,
+    note: "선반 및 수건걸이 단품",
+    popular: true,
+    image: null,
+    sourceSheet: "prototype",
+    sourceRow: 1
+  },
+  {
+    id: "bath_accessory:shelf:01:corner",
+    serviceCode: "bath_accessory",
+    categoryId: "shelf-towel",
+    categoryName: "선반 및 수건걸이",
+    categorySummary: "수건걸이, 선반, 휴지걸이처럼 단품으로 고정하는 욕실 악세서리입니다.",
+    decisionHint: "설치 위치와 기존 타공 위치가 맞으면 단품 교체로 진행합니다.",
+    brand: "Build us Care",
+    model: "코너 선반",
+    sku: "BATH-ACC-SHELF-CR",
+    price: 39000,
+    note: "선반 및 수건걸이 단품",
+    popular: true,
+    image: null,
+    sourceSheet: "prototype",
+    sourceRow: 2
+  },
+  {
+    id: "bath_accessory:set:01:basic",
+    serviceCode: "bath_accessory",
+    categoryId: "bath-accessory-set",
+    categoryName: "욕실 악세서리 세트",
+    categorySummary: "수건걸이, 휴지걸이, 선반 등 여러 악세서리를 한 번에 설치하는 세트입니다.",
+    decisionHint: "여러 부위를 한 번에 교체할 때 세트 시공비로 계산합니다.",
+    brand: "Build us Care",
+    model: "욕실 악세서리 풀세트",
+    sku: "BATH-ACC-SET-BASIC",
+    price: 89000,
+    note: "욕실 악세서리 세트",
+    popular: true,
+    image: null,
+    sourceSheet: "prototype",
+    sourceRow: 3
+  }
+    ];
 
 function lowestPricedProduct(products: ReplacementProduct[]) {
   return products
@@ -227,7 +295,7 @@ function withRecommendationMetadata(products: ReplacementProduct[]) {
   });
 }
 
-export const REPLACEMENT_PRODUCTS: ReplacementProduct[] = withRecommendationMetadata([...TOILET_AS_REPLACEMENT_PRODUCTS, ...GENERATED_PRODUCTS]);
+export const REPLACEMENT_PRODUCTS: ReplacementProduct[] = withRecommendationMetadata([...TOILET_AS_REPLACEMENT_PRODUCTS, ...GENERATED_PRODUCTS, ...BATH_ACCESSORY_PRODUCTS]);
 
 function buildGroups(products: ReplacementProduct[]) {
   const byCategory = new Map<string, ReplacementProduct[]>();
@@ -270,8 +338,8 @@ export function getProductLaborPrice(serviceCode: string, product?: Pick<Replace
   if (canonical === "toilet_replace") return TOILET_REPLACE_LABOR_PRICE;
   if (canonical === "faucet_replace") {
     const text = replacementProductSearchText(product);
-    if (text.includes("레인샤워")) return 100000;
-    if (text.includes("샤워욕조") || text.includes("샤워수전") || text.includes("샤워 수전")) return 60000;
+    if (text.includes("레인샤워")) return RAIN_SHOWER_FAUCET_LABOR_PRICE;
+    if (text.includes("샤워욕조") || text.includes("샤워수전") || text.includes("샤워 수전")) return SHOWER_BATH_FAUCET_LABOR_PRICE;
     if (text.includes("세면") || text.includes("주방")) return 40000;
     return FAUCET_REPLACE_LABOR_PRICE;
   }
@@ -279,7 +347,7 @@ export function getProductLaborPrice(serviceCode: string, product?: Pick<Replace
   if (canonical === "ventilator_replace") {
     const text = replacementProductSearchText(product);
     if (text.includes("복합") || text.includes("휴젠뜨") || text.includes("온풍") || text.includes("제습") || text.includes("헤어") || text.includes("바디") || text.includes("히터")) {
-      return 80000;
+      return VENTILATOR_COMPLEX_REPLACE_LABOR_PRICE;
     }
     return VENTILATOR_REPLACE_LABOR_PRICE;
   }
@@ -287,6 +355,11 @@ export function getProductLaborPrice(serviceCode: string, product?: Pick<Replace
   if (canonical === "sash_handle") return SASH_HANDLE_REPLACE_LABOR_PRICE;
   if (canonical === "door_handle") return DOOR_HANDLE_REPLACE_LABOR_PRICE;
   if (canonical === "silicone_repair") return SILICONE_REPAIR_LABOR_PRICE;
+  if (canonical === "bath_accessory") {
+    const text = replacementProductSearchText(product);
+    if (text.includes("세트") || text.includes("풀세트")) return BATH_ACCESSORY_SET_LABOR_PRICE;
+    return BATH_ACCESSORY_ITEM_LABOR_PRICE;
+  }
   return 0;
 }
 

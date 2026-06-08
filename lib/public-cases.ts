@@ -62,7 +62,8 @@ const CASE_CATEGORY_BY_SERVICE: Record<string, string> = {
   partial_wallpaper: "wallpaper",
   door_handle: "other",
   sash_handle: "other",
-  silicone_repair: "plumbing"
+  silicone_repair: "plumbing",
+  bath_accessory: "plumbing"
 };
 
 const SUPPORTED_CASE_SERVICE_CODES = new Set([
@@ -75,7 +76,8 @@ const SUPPORTED_CASE_SERVICE_CODES = new Set([
   "ventilator_replace",
   "bath_fan",
   "sash_handle",
-  "silicone_repair"
+  "silicone_repair",
+  "bath_accessory"
 ]);
 
 const CASE_SERVICE_ALIASES: Record<string, string[]> = {
