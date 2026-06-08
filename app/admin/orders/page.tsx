@@ -61,6 +61,7 @@ function buildOrdersQuery(params: Record<string, string | undefined>, options: {
   const limit = 20;
   const from = (page - 1) * limit;
   const lifecycleSelect = options.includeLifecycle ? `, ${lifecycleColumns}` : "";
+  const photoFlow = params.flow === "photo";
   let query = (getSupabaseAdmin() as any)
     .from("orders")
     .select(
@@ -71,8 +72,9 @@ function buildOrdersQuery(params: Record<string, string | undefined>, options: {
     `,
       { count: "exact" }
     )
-    .order(trashMode && options.includeLifecycle ? "deleted_at" : "created_at", { ascending: false })
-    .range(from, from + limit - 1);
+    .order(trashMode && options.includeLifecycle ? "deleted_at" : "created_at", { ascending: false });
+
+  query = photoFlow ? query.limit(500) : query.range(from, from + limit - 1);
 
   if (options.includeLifecycle) {
     if (trashMode) {
@@ -110,6 +112,11 @@ function applyClientOrderFilters(orders: any[], params: Record<string, string | 
   return orders;
 }
 
+function clientPaginatedOrders(orders: any[], params: Record<string, string | undefined>, from: number, limit: number) {
+  if (params.flow !== "photo") return orders;
+  return orders.slice(from, from + limit);
+}
+
 async function getOrders(params: Record<string, string | undefined>) {
   const trashMode = params.trash === "1" || params.flow === "trash";
   const testMode = !trashMode && (params.test === "1" || params.flow === "test");
@@ -119,8 +126,9 @@ async function getOrders(params: Record<string, string | undefined>) {
   const primary = buildOrdersQuery(params, { includeLifecycle: true });
   const primaryResult = await primary.query;
   if (!primaryResult.error) {
-    const orders = applyClientOrderFilters(primaryResult.data ?? [], params);
-    return { orders, count: params.flow === "photo" ? orders.length : primaryResult.count ?? 0, error: null, page: primary.page, limit: primary.limit, schemaWarning: null, trashMode, testMode };
+    const filteredOrders = applyClientOrderFilters(primaryResult.data ?? [], params);
+    const orders = clientPaginatedOrders(filteredOrders, params, primary.from, primary.limit);
+    return { orders, count: params.flow === "photo" ? filteredOrders.length : primaryResult.count ?? 0, error: null, page: primary.page, limit: primary.limit, schemaWarning: null, trashMode, testMode };
   }
 
   if (!isLifecycleSchemaError(primaryResult.error)) {
@@ -134,10 +142,11 @@ async function getOrders(params: Record<string, string | undefined>) {
 
   const fallback = buildOrdersQuery(params, { includeLifecycle: false });
   const fallbackResult = await fallback.query;
-  const orders = applyClientOrderFilters(fallbackResult.data ?? [], params);
+  const filteredOrders = applyClientOrderFilters(fallbackResult.data ?? [], params);
+  const orders = clientPaginatedOrders(filteredOrders, params, fallback.from, fallback.limit);
   return {
     orders,
-    count: params.flow === "photo" ? orders.length : fallbackResult.count ?? 0,
+    count: params.flow === "photo" ? filteredOrders.length : fallbackResult.count ?? 0,
     error: fallbackResult.error?.message ?? null,
     page: fallback.page,
     limit: fallback.limit,
