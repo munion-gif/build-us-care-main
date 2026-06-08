@@ -335,8 +335,9 @@ p,.p-md,.p-sm,.web-lede,.lc-desc{ word-break: keep-all; }
 .lcard-ic{ width:96px; height:96px; border-radius:26px; background:var(--brand-50); color:var(--brand-600);
   display:grid; place-items:center; }
 .lcard-ic svg{ width:44px; height:44px; }
-.lcard-img{ width:100%; height:240px; object-fit:contain; border-radius:16px; display:block; padding:6px; }
-.lcard-img[src*="accessory"]{ padding:14px; }
+.lcard-img{ width:auto; height:auto; max-width:82%; max-height:214px; object-fit:contain; border-radius:16px; display:block; padding:0; }
+.lcard-img[src*="faucet"], .lcard-img[src*="silicone"]{ max-width:72%; max-height:198px; }
+.lcard-img[src*="accessory"]{ max-width:76%; max-height:198px; }
 .qest-empty{ text-align:center; padding:26px 10px 22px; }
 .qest-empty i[data-lucide]{ width:30px; height:30px; color:var(--gray-300); }
 .qest-empty-t{ margin-top:10px; font-size:15px; font-weight:600; color:var(--gray-700); }
@@ -556,10 +557,11 @@ body{ background:#FFFFFF !important; }
 /* product cards (추천·전체 리스트) — gentle hover like home/items cards */
 .pcard{ transition: transform .45s cubic-bezier(.22,.61,.36,1), box-shadow .45s ease; transform-origin:center; }
 .pcard:hover{ transform:scale(1.025); box-shadow:0 12px 30px -12px rgba(16,24,40,.16); cursor:pointer; }
-.imgph.has-img{ background:#fff; }
-.product-img{ width:100%; height:100%; object-fit:contain; display:block; padding:14px; }
-.pm-hero .product-img{ padding:22px; }
-.detail-hero .product-img{ padding:18px; }
+.imgph.has-img{ background:#fff; display:grid; place-items:center; }
+.product-img{ width:auto; height:auto; max-width:82%; max-height:82%; object-fit:contain; display:block; padding:0; margin:auto; }
+.product-img[src*="faucet"], .product-img[src*="silicone"]{ max-width:72%; max-height:72%; }
+.pm-hero .product-img{ max-width:78%; max-height:78%; }
+.detail-hero .product-img{ max-width:78%; max-height:78%; }
 .pcard .pbrand{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .pcard .pname{ min-height:2.68em; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .product-pager{ display:flex; align-items:center; justify-content:center; gap:12px; margin-top:18px; }
@@ -654,7 +656,8 @@ body{ background:#FFFFFF !important; }
 
 /* 무엇을 바꿀까요? cards — product photo instead of icon */
 .catcard .cat-pimg{ order:-1; width:100%; height:100px; margin:10px auto; display:grid; place-items:center; }
-.catcard .cat-pimg img{ max-width:90%; max-height:100px; object-fit:contain; display:block; }
+.catcard .cat-pimg img{ max-width:82%; max-height:92px; object-fit:contain; display:block; }
+.catcard .cat-pimg img[src*="faucet"], .catcard .cat-pimg img[src*="silicone"]{ max-width:72%; max-height:84px; }
 .catcard .cc-btn{ align-self:flex-start; background:var(--brand-600); color:#fff; border:none; white-space:nowrap;
   border-radius:999px; padding:7px 16px; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; letter-spacing:-.01em; }
 .catcard .cc-btn:active{ background:var(--brand-700); }

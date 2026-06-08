@@ -174,9 +174,16 @@ function firstServiceCode(order: any) {
 
 function isPhotoCheckOrder(order: any) {
   const skus = Array.isArray(order?.skus) ? order.skus : [];
+  if (order?.service_type_code === "photo_inquiry" || firstServiceCode(order) === "photo_inquiry") return true;
   return skus.some((sku: any) => {
     const metadata = sku?.metadata ?? {};
-    return metadata.inquiry_only === true || metadata.request_type === "photo_check";
+    const serviceCode = sku?.service_type_code ?? sku?.sku ?? metadata.service_type_code;
+    return (
+      serviceCode === "photo_inquiry" ||
+      metadata.inquiry_only === true ||
+      metadata.request_type === "photo_check" ||
+      String(sku?.item_name ?? "").includes("사진 확인")
+    );
   });
 }
 

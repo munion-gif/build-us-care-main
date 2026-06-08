@@ -473,6 +473,44 @@ function allPhotoEntriesM(){
   ensurePhotoState();
   return [...S.photoFiles, ...S.photoSetFiles.flat()].filter(entry=>entry&&entry.file);
 }
+const M_PHOTO_MAX_DIM = 1600;
+const M_PHOTO_QUALITY = 0.78;
+const M_PHOTO_SKIP_BYTES = 900 * 1024;
+async function optimizePhotoFileM(file){
+  if(!(file instanceof File) || !/^image\/(jpeg|jpg|png|webp)$/i.test(file.type) || file.size <= M_PHOTO_SKIP_BYTES) return file;
+  const url = URL.createObjectURL(file);
+  try{
+    const img = await new Promise((resolve,reject)=>{
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = url;
+    });
+    const maxSide = Math.max(img.naturalWidth || img.width, img.naturalHeight || img.height);
+    const scale = Math.min(1, M_PHOTO_MAX_DIM / Math.max(1, maxSide));
+    const width = Math.max(1, Math.round((img.naturalWidth || img.width) * scale));
+    const height = Math.max(1, Math.round((img.naturalHeight || img.height) * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext('2d', { alpha:false });
+    if(!ctx) return file;
+    ctx.drawImage(img, 0, 0, width, height);
+    const blob = await new Promise(resolve=>canvas.toBlob(resolve, 'image/jpeg', M_PHOTO_QUALITY));
+    if(!blob || blob.size >= file.size) return file;
+    const base = (file.name || 'photo').replace(/\.[^.]+$/, '');
+    return new File([blob], `${base}.jpg`, { type:'image/jpeg', lastModified:file.lastModified || Date.now() });
+  }catch(_){
+    return file;
+  }finally{
+    URL.revokeObjectURL(url);
+  }
+}
+async function appendOptimizedPhotosM(fd, entries){
+  for(const [idx, entry] of entries.entries()){
+    const file = await optimizePhotoFileM(entry.file);
+    fd.append('photos', file, file.name || entry.name || `photo-${idx+1}.jpg`);
+  }
+}
 function selectedOrderPayloadM(){
   return S.selected.map(id=>({ id, qty:1 }));
 }
@@ -661,7 +699,7 @@ async function submitIntake(){
   try{
     const fd = new FormData();
     fd.append('payload', JSON.stringify(buildOrderPayloadM()));
-    allPhotoEntriesM().forEach((entry,idx)=>fd.append('photos', entry.file, entry.name || `photo-${idx+1}.jpg`));
+    await appendOptimizedPhotosM(fd, allPhotoEntriesM());
     const res = await fetch('/api/builduscare/orders', { method:'POST', body:fd });
     const json = await res.json().catch(()=>null);
     if(!res.ok || !json?.ok) throw new Error(json?.error?.message || json?.message || '접수 저장에 실패했어요.');
@@ -927,7 +965,7 @@ async function submitInquiryM(){
     };
     const fd = new FormData();
     fd.append('payload', JSON.stringify(payload));
-    allPhotoEntriesM().forEach((entry,idx)=>fd.append('photos', entry.file, entry.name || `photo-${idx+1}.jpg`));
+    await appendOptimizedPhotosM(fd, allPhotoEntriesM());
     const res = await fetch('/api/builduscare/photo-checks', { method:'POST', body:fd });
     const json = await res.json().catch(()=>null);
     if(!res.ok || !json?.ok) throw new Error(json?.error?.message || json?.message || '접수 저장에 실패했어요.');
