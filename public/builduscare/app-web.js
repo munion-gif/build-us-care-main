@@ -635,6 +635,7 @@ function wApplyRemoteOrder(order){
   if(!order) return;
   W.remoteOrder = order;
   W.orderNo = order.orderNumber || W.orderNo;
+  W.item = order.item || W.item;
   W.name = order.customerName || W.name;
   W.phone = order.phone || W.phone;
   W.region = order.roadAddress || W.region;
@@ -713,6 +714,33 @@ async function wLookupOrder(){
 }
 async function wSubmitInquiry(){
   if(!wInquiryOk()) return;
+  if(W.submitting) return;
+  W.submitting = true;
+  W.submitErr = '';
+  webnav('upload');
+  try{
+    const payload = {
+      ...wBuildOrderPayload(),
+      item:'사진 확인',
+      reservation:{ date:null, time:null },
+      selected:[],
+      totals:{ productAmount:0, laborAmount:0, disposalAmount:0, totalAmount:0 }
+    };
+    const fd = new FormData();
+    fd.append('payload', JSON.stringify(payload));
+    wAllPhotoEntries().forEach((entry,idx)=>fd.append('photos', entry.file, entry.name || `photo-${idx+1}.jpg`));
+    const res = await fetch('/api/builduscare/orders', { method:'POST', body:fd });
+    const json = await res.json().catch(()=>null);
+    if(!res.ok || !json?.ok) throw new Error(json?.error?.message || json?.message || '접수 저장에 실패했어요.');
+    wApplyRemoteOrder(json.data.order);
+    W.submitting = false;
+    webnav('done');
+  }catch(err){
+    W.submitting = false;
+    W.submitErr = err instanceof Error ? err.message : '접수 저장에 실패했어요.';
+    webnav('upload');
+  }
+  return;
   const ono = wOrderNo();
   const now = new Date();
   const recv = `${now.getFullYear()}. ${now.getMonth()+1}. ${now.getDate()}. ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
@@ -1343,7 +1371,8 @@ upload: () => {
     <label class="disp-opt region-check"><input type="checkbox" ${W.regionOk?'checked':''} onchange="wRegionToggle(this.checked)"><span class="disp-box"></span><span class="disp-txt">우리 집이 예약 가능 지역이 맞나요? <span class="disp-sub">위 지역에 해당해야 예약을 진행할 수 있어요. 맞으면 체크해 주세요.</span></span></label>
     <label class="disp-opt region-check" style="margin-top:12px"><input type="checkbox" ${W.privacyOkInq?'checked':''} onchange="wPrivacyInqToggle(this.checked)"><span class="disp-box"></span><span class="disp-txt">개인정보 수집·이용에 동의합니다 <a onclick="event.stopPropagation();event.preventDefault();legalModal('privacy')" style="color:#245FFF;font-weight:600;cursor:pointer">(보기)</a> <span class="disp-sub">사진 확인·연락 목적으로 이름·연락처·주소·사진을 수집하며, 목적 달성 후 파기합니다. (필수)</span></span></label>
   </div>
-  <button id="upNext" class="web-btn pri lg block" style="margin-top:20px" aria-disabled="${ok?'false':'true'}" onclick="wSubmitInquiry()">사진으로 호환제품 문의접수 하기</button>
+  ${W.submitErr?`<div class="note" style="margin-top:14px;background:#FDECEC;color:#B42318;display:flex;gap:9px;padding:13px 15px;border-radius:14px;font-size:13px"><i data-lucide="alert-circle" style="width:18px;height:18px;flex:none"></i><div>${esc(W.submitErr)}</div></div>`:''}
+  <button id="upNext" class="web-btn pri lg block" style="margin-top:20px" aria-disabled="${W.submitting?'true':ok?'false':'true'}" onclick="wSubmitInquiry()">${W.submitting?'접수 저장 중...':'사진으로 호환제품 문의접수 하기'}</button>
 </div>`;
 },
 
@@ -1460,6 +1489,7 @@ done: () => {
   const payAmount = wPaymentAmount();
   const statusLabel = wPaymentStatusLabel();
   const hasTransfer = Boolean(W.remoteOrder?.transferUrl && payAmount > 0);
+  const hasProducts = Array.isArray(W.remoteOrder?.selected) ? W.remoteOrder.selected.length > 0 : W.selected.length > 0;
   const bank = { bankName:'농협', bankAccount:'355-0094-9209-33', accountHolder:'주식회사 무니온' };
   const orderNo = wOrderNo();
   const payerName = `${W.remoteOrder?.customerName || W.name || '예약자'} ${String(orderNo).split('-').pop() || orderNo}`.trim();
@@ -1485,7 +1515,7 @@ done: () => {
     <div class="note info" style="margin-top:14px"><i data-lucide="info"></i><div>입금 확인은 영업시간 기준으로 순차 반영됩니다. 시공비와 최종 금액은 사진 확인 후 확정돼요.</div></div>`:''}
   </div>
   <div style="display:grid;gap:10px;max-width:360px;margin:16px auto 0">
-    <button class="web-btn sec lg block" onclick="openFinalEstimate()"><i data-lucide="file-text" style="width:18px;height:18px"></i> 최종 견적서 보기</button>
+    ${hasProducts?`<button class="web-btn sec lg block" onclick="openFinalEstimate()"><i data-lucide="file-text" style="width:18px;height:18px"></i> 최종 견적서 보기</button>`:''}
     <button class="web-btn kkbtn lg block" onclick="webKakao('guide')">${WKK} 카카오톡으로 결과 알림 받기</button>
   </div>
   <div class="row gap10" style="justify-content:center;margin-top:14px"><button class="web-btn ${hasTransfer?'sec':'pri'}" onclick="webnav('orderview')">주문 현황 보기</button><button class="web-btn sec" onclick="webnav('home')">홈으로</button></div>

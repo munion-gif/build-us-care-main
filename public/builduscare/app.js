@@ -492,6 +492,7 @@ function applyRemoteOrderM(order){
   if(!order) return;
   S.remoteOrder = order;
   S.orderNo = order.orderNumber || S.orderNo;
+  S.item = order.item || S.item;
   S.info.name = order.customerName || S.info.name;
   S.info.phone = order.phone || S.info.phone;
   S.info.region = order.roadAddress || S.info.region;
@@ -912,6 +913,34 @@ async function openFinalEstimateM(){
 /* ---- 사진 호환제품 문의 접수증 (24시간 내 안내) ---- */
 async function submitInquiryM(){
   if(!inquiryOkM()) return;
+  if(S.submitting) return;
+  S.submitting = true;
+  S.submitErr = '';
+  render('inquiry');
+  try{
+    const payload = {
+      ...buildOrderPayloadM(),
+      item:'사진 확인',
+      reservation:{ date:null, time:null },
+      selected:[],
+      totals:{ productAmount:0, laborAmount:0, disposalAmount:0, totalAmount:0 }
+    };
+    const fd = new FormData();
+    fd.append('payload', JSON.stringify(payload));
+    allPhotoEntriesM().forEach((entry,idx)=>fd.append('photos', entry.file, entry.name || `photo-${idx+1}.jpg`));
+    const res = await fetch('/api/builduscare/orders', { method:'POST', body:fd });
+    const json = await res.json().catch(()=>null);
+    if(!res.ok || !json?.ok) throw new Error(json?.error?.message || json?.message || '접수 저장에 실패했어요.');
+    applyRemoteOrderM(json.data.order);
+    S.submitting = false;
+    S.applied = true;
+    nav('done');
+  }catch(err){
+    S.submitting = false;
+    S.submitErr = err instanceof Error ? err.message : '접수 저장에 실패했어요.';
+    render('inquiry');
+  }
+  return;
   const ono=mOrderNo(); const now=new Date();
   const recv=`${now.getFullYear()}. ${now.getMonth()+1}. ${now.getDate()}. ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
   const addr=(S.info.region||'')+(S.info.regionDetail?' '+S.info.regionDetail:'');
@@ -1170,9 +1199,10 @@ ${appbar('사진으로 호환제품 문의')}
     <div class="note info mt12"><i data-lucide="map-pin"></i><div><b>예약 가능 지역</b> · 수원 · 성남(분당구) · 용인 · 의왕 · 군포 · 화성(동탄)</div></div>
     <label class="disp-opt mt12"><input type="checkbox" ${S.regionOk?'checked':''} onchange="setRegionOk(this.checked)"><span class="disp-box"></span><span class="disp-txt">우리 집이 예약 가능 지역이 맞나요? <span class="disp-sub">위 지역에 해당해야 진행할 수 있어요. 맞으면 체크해 주세요.</span></span></label>
     <label class="disp-opt mt12"><input type="checkbox" ${S.privacyOkInq?'checked':''} onchange="setPrivacyInq(this.checked)"><span class="disp-box"></span><span class="disp-txt">개인정보 수집·이용에 동의합니다 <a onclick="event.stopPropagation();event.preventDefault();openLegalM()" style="color:var(--brand-600);font-weight:600">(보기)</a> <span class="disp-sub">사진 확인·연락 목적으로 수집하며, 목적 달성 후 파기합니다. (필수)</span></span></label>
+    ${S.submitErr?`<div class="note mt12" style="background:#FDECEC;color:#B42318;display:flex;gap:9px;padding:12px 14px;border-radius:12px;font-size:12.5px"><i data-lucide="alert-circle" style="width:17px;height:17px;flex:none"></i><div>${esc(S.submitErr)}</div></div>`:''}
   </div>
 </div></div>
-<div class="cta-bar"><button id="mNext" class="btn btn-primary btn-xl btnf" aria-disabled="${ok?'false':'true'}" onclick="submitInquiryM()">사진으로 호환제품 문의접수 하기</button></div>`;
+<div class="cta-bar"><button id="mNext" class="btn btn-primary btn-xl btnf" aria-disabled="${S.submitting?'true':ok?'false':'true'}" onclick="submitInquiryM()">${S.submitting?'접수 저장 중...':'사진으로 호환제품 문의접수 하기'}</button></div>`;
 },
 
 upload: () => {
@@ -1304,6 +1334,7 @@ done: () => {
   const payAmount = paymentAmountM();
   const statusLabel = paymentStatusLabelM();
   const hasTransfer = Boolean(S.remoteOrder?.transferUrl && payAmount > 0);
+  const hasProducts = Array.isArray(S.remoteOrder?.selected) ? S.remoteOrder.selected.length > 0 : S.selected.length > 0;
   const bank = localBankTransferConfigM();
   const transferData = transferGuideDataM();
   return `
@@ -1317,7 +1348,7 @@ done: () => {
     <div class="between mt8"><div class="p-sm strong" style="color:var(--gray-700)">현재 상태</div><span class="badge badge-warning dot">${statusLabel}</span></div>
     ${payAmount>0?`<div class="between mt8"><div class="p-sm strong" style="color:var(--gray-700)">입금 금액</div><div class="p-sm strong" style="color:var(--gray-900)">${won(payAmount)}원</div></div>`:''}
     <div class="divline" style="margin:12px 0"></div>
-    <div class="row gap10"><span class="tile" style="width:38px;height:38px"><i data-lucide="droplet" style="width:20px;height:20px"></i></span><div class="grow" style="text-align:left"><div class="h-sm" style="font-size:14px">${S.item} · ${S.selected.length}개</div><div class="p-sm">${S.info.region} · ${statusLabel}</div></div></div>
+    <div class="row gap10"><span class="tile" style="width:38px;height:38px"><i data-lucide="droplet" style="width:20px;height:20px"></i></span><div class="grow" style="text-align:left"><div class="h-sm" style="font-size:14px">${hasProducts?`${S.item} · ${S.selected.length}개`:`${S.item || '사진 확인'} · 사진 ${S.remoteOrder?.photoCount ?? allPhotoEntriesM().length}장`}</div><div class="p-sm">${S.info.region} · ${statusLabel}</div></div></div>
     ${hasTransfer?`
     <div class="divline" style="margin:14px 0"></div>
     <div class="row gap10"><span class="tile" style="width:38px;height:38px;background:var(--brand-50);color:var(--brand-600)"><i data-lucide="wallet" style="width:20px;height:20px"></i></span><div class="grow" style="text-align:left"><div class="h-sm" style="font-size:14px">계좌이체 안내</div><div class="p-sm">제품 금액 입금 확인 후 주문이 진행돼요.</div></div></div>
@@ -1328,7 +1359,7 @@ done: () => {
     </div>
     <div class="note info mt12"><i data-lucide="info"></i><div>입금 확인은 영업시간 기준으로 순차 반영됩니다. 시공비와 최종 금액은 사진 확인 후 확정돼요.</div></div>`:''}
   </div>
-  <button class="btn btn-secondary btn-lg btnf mt16" onclick="openFinalEstimateM()"><i data-lucide="file-text"></i> 최종 견적서 보기</button>
+  ${hasProducts?`<button class="btn btn-secondary btn-lg btnf mt16" onclick="openFinalEstimateM()"><i data-lucide="file-text"></i> 최종 견적서 보기</button>`:''}
   <div class="kakao mt12" style="text-align:left;cursor:pointer" onclick="openKakao('guide')" role="button" tabindex="0"><span class="kk-ic"><i data-lucide="message-circle" style="width:20px;height:20px"></i></span><div class="grow"><div class="kk-t">카카오톡으로 결과 알림 받기</div><div class="kk-d">추가 질문도 톡으로 편하게</div></div><i data-lucide="chevron-right" style="color:#3C1E1E"></i></div>
 </div></div>
 <div class="cta-bar"><button class="btn ${hasTransfer?'btn-secondary':'btn-primary'} btn-xl btnf" onclick="nav('orderview')">주문 현황 보기</button><button class="btn btn-tertiary btn-lg btnf mt8" onclick="goHome()">홈으로</button></div>`;
