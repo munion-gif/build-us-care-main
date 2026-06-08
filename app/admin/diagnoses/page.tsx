@@ -162,7 +162,7 @@ async function getDiagnoses(result = "all", page = 1, orderSearch = "", testMode
 
   let query = supabase
     .from("diagnoses")
-    .select("id,order_id,service_type_code,service_code,image_urls,photos,result,confidence,reason,details,recommendation,raw_response,created_at,is_test,test_marked_at,test_note,orders(order_number)", { count: "exact" })
+    .select("id,order_id,service_type_code,service_code,image_urls,photos,result,confidence,reason,details,recommendation,raw_response,customer_name,customer_phone,created_at,is_test,test_marked_at,test_note,orders(order_number)", { count: "exact" })
     .eq("is_test", testMode)
     .order("created_at", { ascending: false })
     .range(from, from + limit - 1);

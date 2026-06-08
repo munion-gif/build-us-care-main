@@ -22,7 +22,6 @@ const channels = ["", "kakao", "web", "phone", "store", "instagram"];
 const workflowFilters = [
   { key: "all", label: "전체", href: "/admin/orders" },
   { key: "intake", label: "신규", href: "/admin/orders?flow=intake" },
-  { key: "photo", label: "사진 확인", href: "/admin/orders?flow=photo" },
   { key: "quote", label: "견적", href: "/admin/orders?flow=quote" },
   { key: "payment", label: "입금 확인", href: "/admin/orders?flow=payment" },
   { key: "paid", label: "결제완료", href: "/admin/orders?flow=paid" },
@@ -61,7 +60,6 @@ function buildOrdersQuery(params: Record<string, string | undefined>, options: {
   const limit = 20;
   const from = (page - 1) * limit;
   const lifecycleSelect = options.includeLifecycle ? `, ${lifecycleColumns}` : "";
-  const photoFlow = params.flow === "photo";
   let query = (getSupabaseAdmin() as any)
     .from("orders")
     .select(
@@ -74,7 +72,11 @@ function buildOrdersQuery(params: Record<string, string | undefined>, options: {
     )
     .order(trashMode && options.includeLifecycle ? "deleted_at" : "created_at", { ascending: false });
 
-  query = photoFlow ? query.limit(500) : query.range(from, from + limit - 1);
+  query = query.range(from, from + limit - 1);
+
+  if (!params.search) {
+    query = query.or("service_type_code.is.null,service_type_code.neq.photo_inquiry");
+  }
 
   if (options.includeLifecycle) {
     if (trashMode) {
@@ -86,7 +88,6 @@ function buildOrdersQuery(params: Record<string, string | undefined>, options: {
 
   if (params.flow && !params.status && !trashMode && !testMode) {
     if (params.flow === "intake") query = query.in("status", ["inquiry", "submitted"]);
-    if (params.flow === "photo") query = query.in("status", ["inquiry", "submitted", "payment_pending", "pending_product_payment"]);
     if (params.flow === "quote") query = query.eq("status", "quoted");
     if (params.flow === "payment") query = query.in("status", ["payment_pending", "pending_product_payment"]);
     if (params.flow === "paid") query = query.in("status", ["paid", "product_paid"]);
@@ -108,14 +109,9 @@ function buildOrdersQuery(params: Record<string, string | undefined>, options: {
 }
 
 function applyClientOrderFilters(orders: any[], params: Record<string, string | undefined>) {
-  if (params.flow === "photo") return orders.filter((order) => isPhotoCheckOrder(order) && photoCount(order) > 0);
-  if (params.flow === "intake") return orders.filter((order) => !isPhotoCheckOrder(order));
-  return orders;
-}
-
-function clientPaginatedOrders(orders: any[], params: Record<string, string | undefined>, from: number, limit: number) {
-  if (params.flow !== "photo") return orders;
-  return orders.slice(from, from + limit);
+  const visibleOrders = params.search ? orders : orders.filter((order) => !isPhotoCheckOrder(order));
+  if (params.flow === "intake") return visibleOrders;
+  return visibleOrders;
 }
 
 async function getOrders(params: Record<string, string | undefined>) {
@@ -127,9 +123,8 @@ async function getOrders(params: Record<string, string | undefined>) {
   const primary = buildOrdersQuery(params, { includeLifecycle: true });
   const primaryResult = await primary.query;
   if (!primaryResult.error) {
-    const filteredOrders = applyClientOrderFilters(primaryResult.data ?? [], params);
-    const orders = clientPaginatedOrders(filteredOrders, params, primary.from, primary.limit);
-    return { orders, count: params.flow === "photo" ? filteredOrders.length : primaryResult.count ?? 0, error: null, page: primary.page, limit: primary.limit, schemaWarning: null, trashMode, testMode };
+    const orders = applyClientOrderFilters(primaryResult.data ?? [], params);
+    return { orders, count: primaryResult.count ?? 0, error: null, page: primary.page, limit: primary.limit, schemaWarning: null, trashMode, testMode };
   }
 
   if (!isLifecycleSchemaError(primaryResult.error)) {
@@ -143,11 +138,10 @@ async function getOrders(params: Record<string, string | undefined>) {
 
   const fallback = buildOrdersQuery(params, { includeLifecycle: false });
   const fallbackResult = await fallback.query;
-  const filteredOrders = applyClientOrderFilters(fallbackResult.data ?? [], params);
-  const orders = clientPaginatedOrders(filteredOrders, params, fallback.from, fallback.limit);
+  const orders = applyClientOrderFilters(fallbackResult.data ?? [], params);
   return {
     orders,
-    count: params.flow === "photo" ? filteredOrders.length : fallbackResult.count ?? 0,
+    count: fallbackResult.count ?? 0,
     error: fallbackResult.error?.message ?? null,
     page: fallback.page,
     limit: fallback.limit,
@@ -412,7 +406,6 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
   ]);
   const totalPages = Math.max(Math.ceil(count / limit), 1);
   const visibleSummary = {
-    needsPhoto: orders.filter((order: any) => isPhotoCheckOrder(order) && photoCount(order) > 0 && ["inquiry", "submitted"].includes(String(order.status))).length,
     needsPayment: orders.filter((order: any) => paymentState(order).needsConfirmation).length,
     needsAssign: orders.filter((order: any) => ["paid", "product_paid"].includes(String(order.status)) && assignedTechnician(order) === "미배정").length,
     visits: orders.filter((order: any) => ["scheduled", "in_progress"].includes(String(order.status))).length,
@@ -420,13 +413,6 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
   };
   const activeKey = trashMode ? "trash" : testMode ? "test" : activeWorkflowKey(params.status, params.flow);
   const priorityCards = [
-    {
-      count: trashMode || testMode ? 0 : visibleSummary.needsPhoto,
-      helper: "사진이 들어온 신규 접수를 먼저 확인합니다.",
-      href: "/admin/orders?flow=photo",
-      key: "photo",
-      label: "사진 확인"
-    },
     {
       count: trashMode || testMode ? 0 : visibleSummary.needsPayment,
       helper: "계좌이체 입금 내역을 확인하고 다음 단계로 넘깁니다.",

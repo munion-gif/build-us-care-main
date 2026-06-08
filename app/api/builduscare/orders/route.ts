@@ -282,6 +282,62 @@ async function attachPhotos(orderId: string, files: File[]) {
   return uploaded;
 }
 
+async function createPhotoDiagnosis(params: {
+  orderId: string;
+  orderNumber: string;
+  serviceCode: string;
+  photoPaths: string[];
+  name: string;
+  phone: string;
+  roadAddress: string;
+  detailAddress: string;
+  postalCode: string;
+  item: string;
+}) {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("diagnoses")
+    .insert({
+      order_id: params.orderId,
+      service_type_code: params.serviceCode,
+      service_code: params.serviceCode,
+      image_urls: params.photoPaths,
+      photos: params.photoPaths,
+      result: null,
+      confidence: null,
+      reason: null,
+      details: "Build us Care 사진 확인 접수",
+      recommendation: null,
+      customer_name: params.name,
+      customer_phone: params.phone,
+      raw_response: {
+        source: "builduscare_photo_check",
+        receipt_number: params.orderNumber,
+        order_number: params.orderNumber,
+        order_id: params.orderId,
+        service_code: params.serviceCode,
+        item: params.item,
+        customer: {
+          name: params.name,
+          phone: params.phone
+        },
+        address: {
+          roadAddress: params.roadAddress,
+          detailAddress: params.detailAddress,
+          postalCode: params.postalCode,
+          full: [params.roadAddress, params.detailAddress].filter(Boolean).join(" ")
+        },
+        photo_count: params.photoPaths.length
+      },
+      is_test: false
+    })
+    .select("id")
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 export async function POST(request: Request) {
   if (!hasSupabaseEnv()) {
     return fail("supabase_not_configured", "Supabase is required to create builduscare orders.", 500);
@@ -389,6 +445,21 @@ export async function POST(request: Request) {
     const photoPaths = await attachPhotos(orderResult.order.id, photoFiles);
 
     const supabase = getSupabaseAdmin();
+    const diagnosis =
+      submissionType === "photo_check"
+        ? await createPhotoDiagnosis({
+            orderId: orderResult.order.id,
+            orderNumber: orderResult.order.order_number,
+            serviceCode: primaryServiceCode,
+            photoPaths,
+            name,
+            phone,
+            roadAddress,
+            detailAddress,
+            postalCode,
+            item
+          })
+        : null;
     const reserved = reservedDate(payload.reservation?.date);
     const slot = timeSlot(payload.reservation?.time);
     if (reserved && slot) {
@@ -545,7 +616,8 @@ export async function POST(request: Request) {
                 provider: payment.provider
               }
             : null,
-          quote
+          quote,
+          diagnosisId: diagnosis?.id ?? null
         }
       },
       { status: 201 }

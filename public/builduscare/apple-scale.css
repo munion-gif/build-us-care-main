@@ -562,6 +562,14 @@ body{ background:#FFFFFF !important; }
 .product-img[src*="faucet"], .product-img[src*="silicone"]{ max-width:72%; max-height:72%; }
 .pm-hero .product-img{ max-width:78%; max-height:78%; }
 .detail-hero .product-img{ max-width:78%; max-height:78%; }
+.prodgrid{ align-items:start; grid-auto-rows:auto; }
+.prodgrid .pcard{ min-height:318px; display:flex; flex-direction:column; }
+.prodgrid .pcard .pimg{ height:156px; min-height:156px; max-height:156px; aspect-ratio:auto; display:grid; place-items:center; margin:8px 8px 0; }
+.prodgrid .pcard .pinfo{ flex:1; display:flex; flex-direction:column; justify-content:flex-end; min-height:118px; }
+.prodgrid .pcard .pprice{ margin-top:auto; }
+.prodgrid .product-img{ max-width:70%; max-height:112px; }
+.prodgrid .product-img[src*="faucet"], .prodgrid .product-img[src*="silicone"]{ max-width:60%; max-height:104px; }
+.prodgrid .product-img[src*="accessory"]{ max-width:64%; max-height:108px; }
 .pcard .pbrand{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .pcard .pname{ min-height:2.68em; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .product-pager{ display:flex; align-items:center; justify-content:center; gap:12px; margin-top:18px; }
@@ -648,6 +656,13 @@ body{ background:#FFFFFF !important; }
 .scr .pname{ font-size:13.5px; line-height:1.34; font-weight:600; letter-spacing:0; margin-top:3px; }
 .scr .pprice{ font-size:14px; font-weight:600; letter-spacing:-.01em; margin-top:5px; }
 .scr .pprice small{ font-size:11px; font-weight:500; }
+.shopgrid .pcard{ min-height:246px; display:flex; flex-direction:column; }
+.shopgrid .pcard .pimg{ height:128px; min-height:128px; max-height:128px; aspect-ratio:auto; display:grid; place-items:center; margin:8px 8px 0; }
+.shopgrid .pcard .pinfo{ flex:1; display:flex; flex-direction:column; justify-content:flex-end; min-height:94px; }
+.shopgrid .pcard .pprice{ margin-top:auto; }
+.shopgrid .product-img{ max-width:74%; max-height:96px; }
+.shopgrid .product-img[src*="faucet"], .shopgrid .product-img[src*="silicone"]{ max-width:64%; max-height:88px; }
+.shopgrid .product-img[src*="accessory"]{ max-width:68%; max-height:92px; }
 .scr .psizes{ margin-top:6px; font-size:10.5px; padding:3px 7px; }
 .scr .detail-size-options{ margin-top:8px; }
 .scr .size-choice-btn{ min-width:72px; padding:8px 10px; border-radius:13px; }
