@@ -67,6 +67,48 @@ function firstServiceCode(order: any) {
   return sku?.service_type_code ?? sku?.sku ?? order?.service_type_code;
 }
 
+function photoCount(order: any) {
+  const orderPhotos = Array.isArray(order?.inquiry_photos) ? order.inquiry_photos : [];
+  const mediaPhotos = asArray(order?.media).filter((item: any) => item.type === "inquiry").map((item: any) => item.file_path);
+  return uniqueStrings([...orderPhotos, ...mediaPhotos].filter((item): item is string => typeof item === "string")).length;
+}
+
+function latestQuote(order: any) {
+  return asArray(order.quotes)
+    .sort((a: any, b: any) => String(b.accepted_at ?? b.created_at ?? "").localeCompare(String(a.accepted_at ?? a.created_at ?? "")))[0] ?? null;
+}
+
+function quoteItems(order: any) {
+  const items = latestQuote(order)?.items;
+  return Array.isArray(items) ? items : [];
+}
+
+function productSnapshot(line: any) {
+  const metadata = line?.metadata ?? {};
+  return metadata.selected_replacement_product_snapshot ?? metadata.selected_replacement_product ?? null;
+}
+
+function productLabel(line: any) {
+  const product = productSnapshot(line);
+  const brandModel = [product?.brand, product?.model].filter(Boolean).join(" ");
+  return brandModel || product?.name || product?.categoryName || line?.item_name || formatServiceName(line?.sku);
+}
+
+function productSubLabel(line: any) {
+  const product = productSnapshot(line);
+  return [product?.categoryName, product?.size, product?.sku].filter(Boolean).join(" · ");
+}
+
+function selectedProductSummary(order: any) {
+  const items = quoteItems(order);
+  if (items.length > 0) {
+    const first = items[0];
+    const suffix = items.length > 1 ? ` 외 ${items.length - 1}개` : ` × ${Number(first.qty ?? 1)}개`;
+    return `${productLabel(first)}${suffix}`;
+  }
+  return formatServiceName(firstServiceCode(order));
+}
+
 function paymentStatusLabel(status?: string | null) {
   if (status === "done") return "결제완료";
   if (status === "failed") return "결제실패";
@@ -91,6 +133,14 @@ function slotLabel(slot?: string | null) {
 
 function latestPayment(order: any) {
   return asArray(order.payments).sort((a: any, b: any) => String(b.created_at ?? b.paid_at ?? "").localeCompare(String(a.created_at ?? a.paid_at ?? "")))[0];
+}
+
+function paymentBreakdown(order: any) {
+  const payment = latestPayment(order);
+  const productAmount = Number(payment?.online_payment_amount ?? payment?.product_amount ?? payment?.amount ?? order?.online_payment_amount ?? 0);
+  const onsiteAmount = Number(payment?.onsite_payment_amount ?? payment?.service_fee_amount ?? order?.onsite_payment_amount ?? 0);
+  const total = Number(payment?.total_amount ?? order?.total_amount ?? productAmount + onsiteAmount);
+  return { productAmount, onsiteAmount, total };
 }
 
 function isBankTransfer(payment: any) {
@@ -238,6 +288,8 @@ function currentAction(order: any) {
   const jobs = asArray(order.jobs);
   const quotes = asArray(order.quotes);
   const payments = asArray(order.payments);
+  const money = paymentBreakdown(order);
+  const photos = photoCount(order);
   const hasAssignedJob = jobs.some((job: any) => Boolean(job.technician_id || job.assigned_technician_name));
   const hasAcceptedQuote = quotes.some((quote: any) => Boolean(quote.accepted_at));
   const hasDonePayment = payments.some((payment: any) => payment.status === "done");
@@ -266,15 +318,15 @@ function currentAction(order: any) {
   }
   if (status === "payment_pending" || status === "pending_product_payment") {
     return {
-      title: "입금 확인 필요",
-      summary: "고객에게 계좌이체 안내가 나간 주문입니다. 입금 내역을 확인한 뒤 입금 확인을 누르면 기사 배정 단계로 넘어갑니다.",
+      title: "사진 확인 및 제품값 입금 확인",
+      summary: `접수 사진 ${photos}장과 선택 제품을 확인하고, 제품값 ${formatKRW(money.productAmount)} 입금 내역을 확인한 뒤 기사 배정 단계로 넘깁니다.`,
       badge: "입금"
     };
   }
-  if (status === "paid" || hasDonePayment) {
+  if (status === "paid" || status === "product_paid" || hasDonePayment) {
     return {
       title: hasAssignedJob ? "예약 확정 필요" : "기사 배정 필요",
-      summary: hasAssignedJob ? "기사는 배정되었습니다. 예약 날짜, 시간대, 담당 기사를 최종 확인한 뒤 예약 확정을 눌러 고객에게 방문 확정으로 안내하세요." : "결제 완료 주문입니다. 예약 시간에 맞춰 기사를 배정해야 합니다.",
+      summary: hasAssignedJob ? `기사는 배정되었습니다. 현장 시공비 ${formatKRW(money.onsiteAmount)} 예정 금액과 예약 시간을 확인한 뒤 예약 확정을 눌러주세요.` : `제품값 입금 완료 주문입니다. 현장 시공비 ${formatKRW(money.onsiteAmount)} 예정 금액을 확인하고 기사를 배정해야 합니다.`,
       badge: "배정"
     };
   }
@@ -338,6 +390,9 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
     })
   ].filter((item): item is string => typeof item === "string" && item.length > 0);
   const customerPhotos = (await signPhotoInputs(photoInputs)).filter((photo) => photo.src);
+  const money = paymentBreakdown(order);
+  const selectedItems = quoteItems(order);
+  const acceptedQuote = latestQuote(order);
 
   return (
     <>
@@ -401,13 +456,44 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
           <article className="adm-card adm-brief-card">
             <span>결제</span>
             <strong>{paymentOperationLabel(order, payment)}</strong>
-            <small>{formatKRW(Number(payment?.amount ?? order.online_payment_amount ?? order.total_amount ?? 0))} · {paymentOperationHelp(order, payment)}</small>
+            <small>제품값 {formatKRW(money.productAmount)} · {paymentOperationHelp(order, payment)}</small>
           </article>
           <article className="adm-card adm-brief-card">
             <span>담당</span>
             <strong>{assignedTechnician(order)}</strong>
             <small>{formatOrderStatus(asArray(order.jobs)[0]?.status ?? order.status)}</small>
           </article>
+        </section>
+
+        <section className="adm-card adm-buildus-summary">
+          <div className="adm-section-head">
+            <div>
+              <h2 className="adm-card-title">Build us Care 접수 요약</h2>
+              <p className="adm-section-note adm-muted">사진 확인, 제품값 입금, 현장 시공비를 새 주문 흐름 기준으로 봅니다.</p>
+            </div>
+          </div>
+          <div className="adm-buildus-metrics">
+            <span>
+              <b>선택 제품</b>
+              <strong>{selectedProductSummary(order)}</strong>
+              <small>{selectedItems.length ? `${selectedItems.length}개 품목` : "제품 선택 없음"}</small>
+            </span>
+            <span>
+              <b>접수 사진</b>
+              <strong>{customerPhotos.length}장</strong>
+              <small>{customerPhotos.length > 0 ? "사진 확인 가능" : "등록된 사진 없음"}</small>
+            </span>
+            <span>
+              <b>계좌이체 확인</b>
+              <strong>{formatKRW(money.productAmount)}</strong>
+              <small>{paymentOperationLabel(order, payment)}</small>
+            </span>
+            <span>
+              <b>현장 시공비</b>
+              <strong>{formatKRW(money.onsiteAmount)}</strong>
+              <small>방문 시 현장 결제 예정</small>
+            </span>
+          </div>
         </section>
 
         {!isDeleted && (
@@ -468,31 +554,47 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
         </section>
 
         <details className="adm-card adm-details-card" open>
-          <summary>서비스/옵션</summary>
-          {skus.length ? skus.map((item: any, index: number) => (
-              <p key={`${item.sku ?? item.service_type ?? index}`}>{formatServiceName(item.service_type_code ?? item.sku ?? item.service_type ?? order.service_type_code)} × {item.qty ?? 1}</p>
+          <summary>선택 제품/시공비</summary>
+          {selectedItems.length ? (
+            <div className="adm-product-lines">
+              {selectedItems.map((item: any, index: number) => (
+                <article className="adm-product-line" key={`${item.sku ?? item.item_name ?? index}`}>
+                  <strong>{productLabel(item)}</strong>
+                  <small>{productSubLabel(item) || formatServiceName(item.sku ?? firstServiceCode(order))}</small>
+                  <em>{Number(item.qty ?? 1)}개 · 제품값 {formatKRW(Number(item.line_material ?? 0))} · 시공비 {formatKRW(Number(item.line_labor ?? 0) + Number(item.option_total ?? 0))}</em>
+                </article>
+              ))}
+            </div>
+          ) : skus.length ? skus.map((item: any, index: number) => (
+            <p key={`${item.sku ?? item.service_type ?? index}`}>{formatServiceName(item.service_type_code ?? item.sku ?? item.service_type ?? order.service_type_code)} × {item.qty ?? 1}</p>
           )) : <p>{formatServiceName(firstServiceCode(order))} × 1</p>}
-          <p className="adm-muted">{materialSummary(skus)}</p>
+          <div className="adm-money-split">
+            <span>제품값 계좌이체 <strong>{formatKRW(money.productAmount)}</strong></span>
+            <span>현장 시공비 <strong>{formatKRW(money.onsiteAmount)}</strong></span>
+            <span>총 예상 금액 <strong>{formatKRW(money.total)}</strong></span>
+          </div>
           <p>요청사항: {order.special_requests ?? "-"}</p>
         </details>
 
         <details className="adm-card adm-details-card">
-          <summary>견적</summary>
+          <summary>제품/시공비 합계</summary>
           {quotes.length ? quotes.map((q: any) => (
             <div key={q.id} className="adm-section">
-              <strong>{q.version ? `${q.version}차 견적` : "견적"}</strong> · 총액 {formatKRW(Number(q.total_final ?? 0))} · {q.accepted_at ? "수락됨" : "미수락"}
+              <strong>{q.version ? `${q.version}차 견적` : "견적"}</strong> · 제품값 {formatKRW(Number(q.total_material ?? 0))} · 시공비 {formatKRW(Number(q.total_labor ?? 0))} · 총액 {formatKRW(Number(q.total_final ?? 0))} · {q.accepted_at ? "접수 기준 확정" : "미확정"}
             </div>
           )) : <div className="adm-empty"><div className="adm-empty-title">아직 견적이 없습니다.</div></div>}
+          {acceptedQuote ? <p className="adm-muted">현재 적용 견적: {acceptedQuote.version ? `${acceptedQuote.version}차` : "최신"} · {acceptedQuote.accepted_at ? formatKRDateTime(acceptedQuote.accepted_at) : "확정 전"}</p> : null}
         </details>
 
         <details className="adm-card adm-details-card">
-          <summary>결제 정보</summary>
+          <summary>입금/현장결제</summary>
           {asArray(order.payments).length ? asArray(order.payments).map((payment: any) => (
             <div key={payment.id} className="adm-section">
               <p>상태: <span className="adm-badge adm-badge-blue">{paymentOperationLabel(order, payment)}</span></p>
               <p>수단: {isBankTransfer(payment) ? "계좌이체" : payment.provider ?? payment.method ?? "-"}</p>
-              <p>금액: {formatKRW(Number(payment.amount ?? 0))}</p>
+              <p>제품값 입금 확인 금액: {formatKRW(Number(payment.online_payment_amount ?? payment.product_amount ?? payment.amount ?? 0))}</p>
               <p>현장결제 예정: {formatKRW(Number(payment.onsite_payment_amount ?? order.onsite_payment_amount ?? 0))}</p>
+              <p>총 예상 금액: {formatKRW(Number(payment.total_amount ?? order.total_amount ?? 0))}</p>
               <p>결제일: {formatKRDateTime(payment.paid_at ?? payment.approved_at)}</p>
               <p>처리 상태: {payment.provider_status ?? "-"}</p>
             </div>
@@ -534,7 +636,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
         </details>
 
         <details className="adm-card adm-details-card">
-          <summary>고객 사진</summary>
+          <summary>사진 확인</summary>
           <div className="adm-photo-grid">
             {customerPhotos.length ? customerPhotos.map((photo) => (
               <a className="adm-photo-item" href={photo.src ?? "#"} target="_blank" rel="noreferrer" key={photo.label}>

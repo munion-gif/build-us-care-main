@@ -78,6 +78,14 @@ function asOne(value: any) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function photoCount(order: any) {
+  const orderPhotos = Array.isArray(order?.inquiry_photos) ? order.inquiry_photos : [];
+  const mediaPhotos = Array.isArray(order?.media)
+    ? order.media.filter((item: any) => item.type === "inquiry").map((item: any) => item.file_path)
+    : [];
+  return [...new Set([...orderPhotos, ...mediaPhotos].filter((item): item is string => typeof item === "string" && item.length > 0))].length;
+}
+
 function hasActiveAssignedJob(jobs: any) {
   return asArray(jobs).some((job) => {
     if (!ACTIVE_JOB_STATUSES.includes(String(job.status))) return false;
@@ -128,6 +136,11 @@ function addressSummary(order: any) {
 
 function customerName(order: any) {
   return maskName(order?.customers?.name);
+}
+
+function firstServiceCode(order: any) {
+  const sku = Array.isArray(order?.skus) ? order.skus[0] : null;
+  return sku?.service_type_code ?? sku?.sku ?? order?.service_type_code;
 }
 
 function resultLabel(result?: string | null) {
@@ -209,6 +222,45 @@ async function getUnassignedPaidOrders(supabase: SupabaseAdmin) {
     .limit(80);
 
   return (data ?? []).filter((order: any) => !hasActiveAssignedJob(order.jobs)).slice(0, 10);
+}
+
+async function getPaymentNeededOrders(supabase: SupabaseAdmin) {
+  const { data } = await supabase
+    .from("orders")
+    .select(
+      `
+      id, order_number, status, created_at, service_type_code, skus, total_amount, online_payment_amount, onsite_payment_amount,
+      customers(name,phone),
+      payments(id,status,amount,provider,method,online_payment_amount,onsite_payment_amount,requested_at,created_at)
+    `
+    )
+    .eq("is_test", false)
+    .is("deleted_at", null)
+    .in("status", ["payment_pending", "pending_product_payment"])
+    .order("created_at", { ascending: true })
+    .limit(10);
+
+  return data ?? [];
+}
+
+async function getPhotoReviewOrders(supabase: SupabaseAdmin) {
+  const { data } = await supabase
+    .from("orders")
+    .select(
+      `
+      id, order_number, status, created_at, service_type_code, skus, inquiry_photos,
+      customers(name,phone),
+      homes(address_full),
+      media(id,type,file_path,created_at)
+    `
+    )
+    .eq("is_test", false)
+    .is("deleted_at", null)
+    .in("status", ["inquiry", "submitted", "payment_pending", "pending_product_payment"])
+    .order("created_at", { ascending: true })
+    .limit(80);
+
+  return (data ?? []).filter((order: any) => photoCount(order) > 0).slice(0, 10);
 }
 
 async function getTomorrowUnassignedReservations(supabase: SupabaseAdmin, tomorrowDate: string) {
@@ -335,6 +387,8 @@ async function getDashboardData() {
       issueOrders: 0,
       weekCompletedJobs: 0
     } satisfies TodaySummary,
+    paymentNeededOrders: [],
+    photoReviewOrders: [],
     unassignedPaidOrders: [],
     tomorrowUnassignedReservations: [],
     jobs: { today: [], tomorrow: [] },
@@ -347,8 +401,10 @@ async function getDashboardData() {
 
   const supabase = getSupabaseAdmin();
   const ranges = dashboardRanges();
-  const [summary, unassignedPaidOrders, tomorrowUnassignedReservations, jobs, warrantyCases, diagnoses, reschedules] = await Promise.all([
+  const [summary, paymentNeededOrders, photoReviewOrders, unassignedPaidOrders, tomorrowUnassignedReservations, jobs, warrantyCases, diagnoses, reschedules] = await Promise.all([
     getTodaySummary(supabase, ranges),
+    getPaymentNeededOrders(supabase),
+    getPhotoReviewOrders(supabase),
     getUnassignedPaidOrders(supabase),
     getTomorrowUnassignedReservations(supabase, ranges.tomorrowDate),
     getTodayTomorrowJobs(supabase, ranges),
@@ -357,7 +413,7 @@ async function getDashboardData() {
     getTodayRescheduleEvents(supabase, ranges)
   ]);
 
-  return { ranges, summary, unassignedPaidOrders, tomorrowUnassignedReservations, jobs, warrantyCases, diagnoses, reschedules };
+  return { ranges, summary, paymentNeededOrders, photoReviewOrders, unassignedPaidOrders, tomorrowUnassignedReservations, jobs, warrantyCases, diagnoses, reschedules };
 }
 
 function EmptyRow({ children }: { children: React.ReactNode }) {
@@ -410,27 +466,34 @@ export default async function AdminDashboardPage() {
     },
     {
       step: "2",
-      label: "결제 미배정",
-      value: data.unassignedPaidOrders.length,
-      sub: "결제 완료, 기사 미배정",
-      href: "/admin/orders?flow=paid"
+      label: "사진 확인",
+      value: data.photoReviewOrders.length,
+      sub: "사진 접수 확인",
+      href: "/admin/orders?flow=photo"
     },
     {
       step: "3",
+      label: "입금 확인",
+      value: data.paymentNeededOrders.length,
+      sub: "제품값 계좌이체",
+      href: "/admin/orders?flow=payment"
+    },
+    {
+      step: "4",
+      label: "기사 배정",
+      value: data.unassignedPaidOrders.length,
+      sub: "입금 완료, 기사 미배정",
+      href: "/admin/orders?flow=paid"
+    },
+    {
+      step: "5",
       label: "방문",
       value: data.summary.todayVisits,
       sub: "오늘 방문 예정",
       href: "/admin/jobs"
     },
     {
-      step: "4",
-      label: "사진 확인",
-      value: data.summary.pendingDiagnoses,
-      sub: "사진접수 상담 필요",
-      href: "/admin/diagnoses?result=all"
-    },
-    {
-      step: "5",
+      step: "6",
       label: "취소/A/S",
       value: data.summary.todayWarranty + data.summary.issueOrders,
       sub: "예외 처리",
@@ -469,7 +532,32 @@ export default async function AdminDashboardPage() {
           <div className="adm-stack">
             <article className="adm-card">
               <div className="adm-section-head">
-                <h2 className="adm-card-title">미배정 paid 주문</h2>
+                <h2 className="adm-card-title">입금 확인 필요</h2>
+                <Link className="adm-link" href="/admin/orders?flow=payment">입금 확인</Link>
+              </div>
+              {data.paymentNeededOrders.length === 0 ? (
+                <EmptyRow>입금 확인이 필요한 주문이 없습니다.</EmptyRow>
+              ) : (
+                <div className="adm-action-list">
+                  {data.paymentNeededOrders.map((order: any) => (
+                    <Link className="adm-action-row" href={`/admin/orders/${order.id}`} key={order.id}>
+                      <span>
+                        <strong>{order.order_number}</strong>
+                        <small>{customerName(order)} · {formatServiceName(firstServiceCode(order))}</small>
+                      </span>
+                      <span>
+                        <small>{formatKRDateTime(order.created_at)}</small>
+                        <b className={`adm-badge ${badgeClass(order.status)}`}>{formatOrderStatus(order.status)}</b>
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </article>
+
+            <article className="adm-card">
+              <div className="adm-section-head">
+                <h2 className="adm-card-title">입금 완료 후 미배정</h2>
                 <Link className="adm-link" href="/admin/orders?status=paid">주문 관리</Link>
               </div>
               {data.unassignedPaidOrders.length === 0 ? (
@@ -568,20 +656,25 @@ export default async function AdminDashboardPage() {
 
           <article className="adm-card">
             <div className="adm-section-head">
-              <h2 className="adm-card-title">최근 24시간 사진 판정</h2>
-              <Link className="adm-link" href="/admin/diagnoses">사진 판정</Link>
+              <h2 className="adm-card-title">사진 확인 접수</h2>
+              <Link className="adm-link" href="/admin/orders?flow=photo">사진 확인</Link>
             </div>
-            <div className="adm-big-number">{data.diagnoses.total}<span>건</span></div>
-            <div className="adm-mini-metrics">
-              {data.diagnoses.byResult.length === 0 ? (
-                <EmptyRow>최근 사진 판정이 없습니다.</EmptyRow>
-              ) : (
-                data.diagnoses.byResult.map(([label, value]) => <span key={label}>{label} {value}</span>)
-              )}
-            </div>
-            {data.diagnoses.topServices.length > 0 && (
-              <div className="adm-mini-metrics adm-mini-metrics-muted">
-                {data.diagnoses.topServices.map(([label, value]) => <span key={label}>{label} {value}</span>)}
+            <div className="adm-big-number">{data.photoReviewOrders.length}<span>건</span></div>
+            {data.photoReviewOrders.length === 0 ? (
+              <EmptyRow>확인할 접수 사진이 없습니다.</EmptyRow>
+            ) : (
+              <div className="adm-action-list">
+                {data.photoReviewOrders.slice(0, 5).map((order: any) => (
+                  <Link className="adm-action-row" href={`/admin/orders/${order.id}`} key={order.id}>
+                    <span>
+                      <strong>{order.order_number} · 사진 {photoCount(order)}장</strong>
+                      <small>{customerName(order)} · {formatServiceName(firstServiceCode(order))}</small>
+                    </span>
+                    <span>
+                      <b className={`adm-badge ${badgeClass(order.status)}`}>{formatOrderStatus(order.status)}</b>
+                    </span>
+                  </Link>
+                ))}
               </div>
             )}
           </article>

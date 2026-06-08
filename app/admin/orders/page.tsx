@@ -22,6 +22,7 @@ const channels = ["", "kakao", "web", "phone", "store", "instagram"];
 const workflowFilters = [
   { key: "all", label: "전체", href: "/admin/orders" },
   { key: "intake", label: "신규", href: "/admin/orders?flow=intake" },
+  { key: "photo", label: "사진 확인", href: "/admin/orders?flow=photo" },
   { key: "quote", label: "견적", href: "/admin/orders?flow=quote" },
   { key: "payment", label: "입금 확인", href: "/admin/orders?flow=payment" },
   { key: "paid", label: "결제완료", href: "/admin/orders?flow=paid" },
@@ -38,6 +39,8 @@ const orderListRelations = `
       homes(address_full),
       reservations(id,reserved_date,time_slot,status,created_at),
       payments(id,status,amount,paid_at,approved_at,requested_at,method,provider,provider_status,online_payment_amount,onsite_payment_amount,onsite_payment_status),
+      quotes(id,version,items,total_material,total_labor,total_final,accepted_at,created_at),
+      media(id,type,file_path,created_at),
       jobs(id,technician_id,assigned_technician_name,scheduled_at,status,technicians(id,name)),
       cancellations(id,status,refund_amount,refund_rate,reason,requested_at)
     `;
@@ -58,11 +61,12 @@ function buildOrdersQuery(params: Record<string, string | undefined>, options: {
   const limit = 20;
   const from = (page - 1) * limit;
   const lifecycleSelect = options.includeLifecycle ? `, ${lifecycleColumns}` : "";
-  let query = getSupabaseAdmin()
+  let query = (getSupabaseAdmin() as any)
     .from("orders")
     .select(
       `
       id, order_number, status, total_amount, created_at, channel, service_type_code, skus${lifecycleSelect},
+      subtotal_amount, online_payment_amount, onsite_payment_amount, onsite_payment_status, inquiry_photos,
       ${orderListRelations}
     `,
       { count: "exact" }
@@ -80,6 +84,7 @@ function buildOrdersQuery(params: Record<string, string | undefined>, options: {
 
   if (params.flow && !params.status && !trashMode && !testMode) {
     if (params.flow === "intake") query = query.in("status", ["inquiry", "submitted"]);
+    if (params.flow === "photo") query = query.in("status", ["inquiry", "submitted", "payment_pending", "pending_product_payment"]);
     if (params.flow === "quote") query = query.eq("status", "quoted");
     if (params.flow === "payment") query = query.in("status", ["payment_pending", "pending_product_payment"]);
     if (params.flow === "paid") query = query.in("status", ["paid", "product_paid"]);
@@ -100,6 +105,11 @@ function buildOrdersQuery(params: Record<string, string | undefined>, options: {
   return { from, limit, page, query, testMode, trashMode };
 }
 
+function applyClientOrderFilters(orders: any[], params: Record<string, string | undefined>) {
+  if (params.flow === "photo") return orders.filter((order) => photoCount(order) > 0);
+  return orders;
+}
+
 async function getOrders(params: Record<string, string | undefined>) {
   const trashMode = params.trash === "1" || params.flow === "trash";
   const testMode = !trashMode && (params.test === "1" || params.flow === "test");
@@ -109,7 +119,8 @@ async function getOrders(params: Record<string, string | undefined>) {
   const primary = buildOrdersQuery(params, { includeLifecycle: true });
   const primaryResult = await primary.query;
   if (!primaryResult.error) {
-    return { orders: primaryResult.data ?? [], count: primaryResult.count ?? 0, error: null, page: primary.page, limit: primary.limit, schemaWarning: null, trashMode, testMode };
+    const orders = applyClientOrderFilters(primaryResult.data ?? [], params);
+    return { orders, count: params.flow === "photo" ? orders.length : primaryResult.count ?? 0, error: null, page: primary.page, limit: primary.limit, schemaWarning: null, trashMode, testMode };
   }
 
   if (!isLifecycleSchemaError(primaryResult.error)) {
@@ -123,9 +134,10 @@ async function getOrders(params: Record<string, string | undefined>) {
 
   const fallback = buildOrdersQuery(params, { includeLifecycle: false });
   const fallbackResult = await fallback.query;
+  const orders = applyClientOrderFilters(fallbackResult.data ?? [], params);
   return {
-    orders: fallbackResult.data ?? [],
-    count: fallbackResult.count ?? 0,
+    orders,
+    count: params.flow === "photo" ? orders.length : fallbackResult.count ?? 0,
     error: fallbackResult.error?.message ?? null,
     page: fallback.page,
     limit: fallback.limit,
@@ -148,6 +160,78 @@ async function getActiveTechnicians() {
 function firstServiceCode(order: any) {
   const sku = Array.isArray(order?.skus) ? order.skus[0] : null;
   return sku?.service_type_code ?? sku?.sku ?? order?.service_type_code;
+}
+
+function uniqueStrings(values: string[]) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function photoCount(order: any) {
+  const orderPhotos = Array.isArray(order?.inquiry_photos) ? order.inquiry_photos : [];
+  const mediaPhotos = Array.isArray(order?.media)
+    ? order.media.filter((item: any) => item.type === "inquiry").map((item: any) => item.file_path)
+    : [];
+  return uniqueStrings([...orderPhotos, ...mediaPhotos].filter((item): item is string => typeof item === "string")).length;
+}
+
+function latestQuote(order: any) {
+  const quotes = Array.isArray(order?.quotes) ? order.quotes : [];
+  return [...quotes].sort((a: any, b: any) => {
+    const left = String(b.accepted_at ?? b.created_at ?? "");
+    const right = String(a.accepted_at ?? a.created_at ?? "");
+    return left.localeCompare(right);
+  })[0] ?? null;
+}
+
+function quoteItems(order: any) {
+  const items = latestQuote(order)?.items;
+  return Array.isArray(items) ? items : [];
+}
+
+function productSnapshot(line: any) {
+  const metadata = line?.metadata ?? {};
+  return metadata.selected_replacement_product_snapshot ?? metadata.selected_replacement_product ?? null;
+}
+
+function productLabel(line: any) {
+  const product = productSnapshot(line);
+  const brandModel = [product?.brand, product?.model].filter(Boolean).join(" ");
+  return brandModel || product?.name || product?.categoryName || line?.item_name || formatServiceName(line?.sku);
+}
+
+function productSubLabel(line: any) {
+  const product = productSnapshot(line);
+  return [product?.categoryName, product?.size, product?.sku].filter(Boolean).join(" · ");
+}
+
+function selectedProductSummary(order: any) {
+  const items = quoteItems(order);
+  if (items.length > 0) {
+    const first = items[0];
+    const suffix = items.length > 1 ? ` 외 ${items.length - 1}개` : ` × ${Number(first.qty ?? 1)}개`;
+    return `${productLabel(first)}${suffix}`;
+  }
+  return formatServiceName(firstServiceCode(order));
+}
+
+function selectedProductDetail(order: any) {
+  const items = quoteItems(order);
+  if (items.length === 0) return "선택 제품 없음";
+  return items
+    .slice(0, 2)
+    .map((line: any) => {
+      const sub = productSubLabel(line);
+      return sub ? `${sub} · ${Number(line.qty ?? 1)}개` : `${Number(line.qty ?? 1)}개`;
+    })
+    .join(" / ");
+}
+
+function paymentBreakdown(order: any) {
+  const payment = latestPayment(order);
+  const productAmount = Number(payment?.online_payment_amount ?? payment?.product_amount ?? payment?.amount ?? order?.online_payment_amount ?? 0);
+  const onsiteAmount = Number(payment?.onsite_payment_amount ?? payment?.service_fee_amount ?? order?.onsite_payment_amount ?? 0);
+  const total = Number(payment?.total_amount ?? order?.total_amount ?? productAmount + onsiteAmount);
+  return { productAmount, onsiteAmount, total };
 }
 
 function activeWorkflowKey(status?: string, flow?: string) {
@@ -196,8 +280,9 @@ function paymentState(order: any) {
   const payments = Array.isArray(order.payments) ? order.payments : [];
   const payment = latestPayment(order);
   const donePayment = payments.some((item: any) => item.status === "done");
-  const amount = Number(payment?.amount ?? order.online_payment_amount ?? order.total_amount ?? 0);
-  const onsiteAmount = Number(payment?.onsite_payment_amount ?? order.onsite_payment_amount ?? 0);
+  const breakdown = paymentBreakdown(order);
+  const amount = breakdown.productAmount || Number(payment?.amount ?? order.online_payment_amount ?? order.total_amount ?? 0);
+  const onsiteAmount = breakdown.onsiteAmount;
 
   if (donePayment || order.status === "paid" || order.status === "product_paid") {
     return {
@@ -281,6 +366,7 @@ function addressPreview(order: any) {
 
 function nextActionLabel(order: any) {
   const status = String(order.status ?? "");
+  if ((status === "inquiry" || status === "submitted") && photoCount(order) > 0) return "사진 확인";
   if (status === "paid" || status === "product_paid") return assignedTechnician(order) === "미배정" ? "기사 배정" : "방문 전 확인";
   if (status === "payment_pending" || status === "pending_product_payment") return "입금 확인";
   if (status === "quoted") return "견적 확인";
@@ -301,6 +387,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
   ]);
   const totalPages = Math.max(Math.ceil(count / limit), 1);
   const visibleSummary = {
+    needsPhoto: orders.filter((order: any) => photoCount(order) > 0 && ["inquiry", "submitted"].includes(String(order.status))).length,
     needsPayment: orders.filter((order: any) => paymentState(order).needsConfirmation).length,
     needsAssign: orders.filter((order: any) => ["paid", "product_paid"].includes(String(order.status)) && assignedTechnician(order) === "미배정").length,
     visits: orders.filter((order: any) => ["scheduled", "in_progress"].includes(String(order.status))).length,
@@ -308,6 +395,13 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
   };
   const activeKey = trashMode ? "trash" : testMode ? "test" : activeWorkflowKey(params.status, params.flow);
   const priorityCards = [
+    {
+      count: trashMode || testMode ? 0 : visibleSummary.needsPhoto,
+      helper: "사진이 들어온 신규 접수를 먼저 확인합니다.",
+      href: "/admin/orders?flow=photo",
+      key: "photo",
+      label: "사진 확인"
+    },
     {
       count: trashMode || testMode ? 0 : visibleSummary.needsPayment,
       helper: "계좌이체 입금 내역을 확인하고 다음 단계로 넘깁니다.",
@@ -428,6 +522,8 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
           ) : orders.map((order: any) => {
             const reservation = activeReservation(order);
             const payment = paymentState(order);
+            const photos = photoCount(order);
+            const money = paymentBreakdown(order);
             const pendingCancellation = Array.isArray(order.cancellations) ? order.cancellations.find((item: any) => item.status === "pending") : null;
             return (
               <article className="adm-order-queue-card" key={order.id}>
@@ -437,13 +533,19 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
                     <span className={`adm-badge ${badgeClass(order.status)}`}>{formatOrderStatus(order.status)}</span>
                     {order.is_test ? <span className="adm-badge adm-badge-sky">테스트</span> : null}
                   </div>
-                  <strong>{formatServiceName(firstServiceCode(order))}</strong>
+                  <strong>{selectedProductSummary(order)}</strong>
+                  <p className="adm-order-product-detail">{selectedProductDetail(order)}</p>
+                  <p className="adm-order-money-line">제품값 {formatKRW(money.productAmount)} · 현장 시공비 {formatKRW(money.onsiteAmount)} · 총 {formatKRW(money.total)}</p>
                   <p>{maskName(order.customers?.name)} · {maskPhone(order.customers?.phone)} · {formatChannel(order.channel)} · {formatKRDate(order.created_at)}</p>
-                  <p>{addressPreview(order)}</p>
+                  <p>{addressPreview(order)} · {reservation ? `${reservation.reserved_date} ${slotLabel(reservation.time_slot)}` : "예약 없음"}</p>
                   {trashMode && deletedMeta(order) ? <p className="adm-trash-meta">{deletedMeta(order)}</p> : null}
                 </div>
                 <div className="adm-order-queue-meta">
-                  <span><b>예약</b>{reservation ? `${reservation.reserved_date} ${slotLabel(reservation.time_slot)}` : "예약 없음"}</span>
+                  <span>
+                    <b>사진</b>
+                    <strong>{photos > 0 ? `${photos}장` : "없음"}</strong>
+                    <small>{photos > 0 ? "접수 사진 확인 필요" : "사진 미등록"}</small>
+                  </span>
                   <span className={payment.needsConfirmation ? "adm-payment-needs-confirm" : ""}>
                     <b>결제</b>
                     <em className={`adm-badge ${payment.className}`}>{payment.label}</em>
