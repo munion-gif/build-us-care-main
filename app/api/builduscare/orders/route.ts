@@ -290,7 +290,12 @@ export async function POST(request: Request) {
   const submissionType: SubmissionType =
     request.headers.get("x-builduscare-submission-type") === "photo_check" ? "photo_check" : "product_order";
 
-  const formData = await request.formData();
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch {
+    return fail("BAD_REQUEST", "접수 정보를 다시 확인해주세요.", 400);
+  }
   const payload = parsePayload(formData.get("payload"));
   if (!payload) {
     return fail("BAD_REQUEST", "접수 정보를 다시 확인해주세요.", 400);

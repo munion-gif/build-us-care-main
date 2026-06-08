@@ -14,7 +14,12 @@ function parsePayload(value: FormDataEntryValue | null) {
 }
 
 export async function POST(request: Request) {
-  const sourceForm = await request.formData();
+  let sourceForm: FormData;
+  try {
+    sourceForm = await request.formData();
+  } catch {
+    return fail("BAD_REQUEST", "접수 정보를 다시 확인해주세요.", 400);
+  }
   const payload = parsePayload(sourceForm.get("payload"));
   if (!payload) {
     return fail("BAD_REQUEST", "접수 정보를 다시 확인해주세요.", 400);
