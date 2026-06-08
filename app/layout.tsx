@@ -20,10 +20,10 @@ export const metadata = {
     type: "website",
     images: [
       {
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: siteDescription,
+        url: "/og-buildus-care.png",
+        width: 1600,
+        height: 900,
+        alt: "집 전체가 아니라, 바꿀 수 있는 것부터.",
         type: "image/png"
       }
     ]
@@ -32,7 +32,7 @@ export const metadata = {
     card: "summary_large_image",
     title: siteTitle,
     description: siteDescription,
-    images: ["/og-image.png"]
+    images: ["/og-buildus-care.png"]
   },
   verification: {
     other: {
