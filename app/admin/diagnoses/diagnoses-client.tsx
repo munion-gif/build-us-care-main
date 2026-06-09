@@ -57,6 +57,21 @@ function cashReceiptTextFromOrder(diagnosis: any) {
   return line?.replace(/^.*?현금영수증:\s*/, "").trim() || "신청 안 함";
 }
 
+function humanizeAdminText(value?: string | null) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const labels: Record<string, string> = {
+    hold: "추가 사진 요청",
+    no_replacement_needed: "교체 불필요",
+    not_needed: "교체 불필요",
+    photo_diagnosis: "사진확인 접수",
+    replace_recommended: "교체 추천",
+    replacement_recommended: "교체 추천",
+    site_check_required: "현장 확인 필요"
+  };
+  return labels[raw] ?? raw.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
 export function DiagnosisPanel({ diagnosis }: { diagnosis: any }) {
   const [result, setResult] = useState(normalizeResult(diagnosis.result));
   const [reason, setReason] = useState(diagnosis.reason ?? "");
@@ -140,14 +155,14 @@ export function DiagnosisPanel({ diagnosis }: { diagnosis: any }) {
             <p>{workflowHint(result)}</p>
           </div>
           <div className="adm-photo-grid">
-            {(diagnosis.signedPhotos ?? []).map((photo: string) => (
+            {(diagnosis.signedPhotos ?? []).length ? (diagnosis.signedPhotos ?? []).map((photo: string) => (
               <a className="adm-photo-item" href={photo} target="_blank" rel="noreferrer" key={photo}>
                 <img src={photo} alt="확인 사진" />
               </a>
-            ))}
+            )) : <p className="adm-photo-empty">등록된 고객 사진이 없습니다.</p>}
           </div>
-          {diagnosis.recommendation ? <p className="adm-muted">{diagnosis.recommendation}</p> : null}
-          {diagnosis.details ? <p className="adm-muted">{diagnosis.details}</p> : null}
+          {humanizeAdminText(diagnosis.recommendation) ? <p className="adm-muted adm-inline-copy">{humanizeAdminText(diagnosis.recommendation)}</p> : null}
+          {humanizeAdminText(diagnosis.details) ? <p className="adm-muted adm-inline-copy">{humanizeAdminText(diagnosis.details)}</p> : null}
         </section>
         <section className="adm-diagnosis-form">
           <label>

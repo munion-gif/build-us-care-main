@@ -233,6 +233,7 @@ textarea.adm-input { min-height: 96px; resize: vertical; line-height: 1.5; }
 .adm-photo-item { aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: #f4f3f0; cursor: pointer; color: #7a7974; display: grid; place-items: center; padding: 8px; font-size: 0.75rem; text-align: center; }
 .adm-photo-item img { width: 100%; height: 100%; object-fit: cover; transition: opacity 160ms; }
 .adm-photo-item:hover img { opacity: 0.85; }
+.adm-photo-empty { grid-column: 1 / -1; min-height: 120px; display: grid; place-items: center; margin: 0; padding: 16px; border: 1px dashed #e8e5e0; border-radius: 10px; background: #fbfaf7; color: #7a7974; font-size: 0.875rem; line-height: 1.5; text-align: center; word-break: keep-all; overflow-wrap: anywhere; }
 .adm-empty { text-align: center; padding: 48px 24px; color: #7a7974; }
 .adm-empty-icon { font-size: 2rem; margin-bottom: 12px; }
 .adm-empty-title { font-size: 0.875rem; font-weight: 600; color: #28251d; margin-bottom: 4px; }
@@ -315,6 +316,7 @@ textarea.adm-input { min-height: 96px; resize: vertical; line-height: 1.5; }
 .adm-queue-meta-line span:not(:last-child)::after { content: ""; display: inline-block; width: 3px; height: 3px; margin-left: 10px; border-radius: 50%; background: #c9c4ba; vertical-align: middle; }
 .adm-queue-main small,
 .adm-queue-main p { margin: 0; color: #7a7974; font-size: 0.8125rem; line-height: 1.45; overflow-wrap: anywhere; }
+.adm-queue-note { display: -webkit-box; margin: 0; overflow: hidden; color: #5c5a54; font-size: 0.8125rem; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; word-break: keep-all; overflow-wrap: anywhere; }
 .adm-queue-side { display: grid; justify-items: end; align-content: start; gap: 8px; color: #7a7974; font-size: 0.8125rem; font-weight: 700; }
 .adm-queue-thumbs { display: flex; justify-content: flex-end; gap: 4px; }
 .adm-queue-thumbs img { width: 42px; height: 42px; border-radius: 7px; object-fit: cover; background: #f0ede8; border: 1px solid #e8e5e0; }
@@ -330,6 +332,7 @@ textarea.adm-input { min-height: 96px; resize: vertical; line-height: 1.5; }
 .adm-admin-info-grid b { color: #7a7974; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
 .adm-admin-info-grid strong { color: #1c1b19; font-size: 0.875rem; line-height: 1.45; overflow-wrap: anywhere; }
 .adm-admin-info-grid-compact span:last-child { grid-column: 1 / -1; }
+.adm-inline-copy { margin: 0; line-height: 1.55; word-break: keep-all; overflow-wrap: anywhere; }
 .adm-diagnosis-panel-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 420px); gap: 18px; align-items: start; }
 .adm-diagnosis-info,
 .adm-diagnosis-form { display: grid; gap: 12px; }
@@ -338,6 +341,16 @@ textarea.adm-input { min-height: 96px; resize: vertical; line-height: 1.5; }
 .adm-slot-controls { display: grid; grid-template-columns: minmax(0, 1fr) 180px auto; align-items: end; gap: 16px; }
 .adm-slot-cap { display: grid; gap: 6px; font-size: 0.8125rem; font-weight: 700; color: #28251d; }
 .adm-slot-header { display: grid; grid-template-columns: 110px minmax(0, 1fr) 110px; align-items: center; gap: 12px; margin-bottom: 16px; }
+.adm-brief-card strong,
+.adm-brief-card small,
+.adm-buildus-metrics strong,
+.adm-buildus-metrics small,
+.adm-admin-info-grid strong,
+.adm-queue-main strong,
+.adm-queue-main p,
+.adm-queue-main small,
+.adm-diagnosis-panel-head p,
+.adm-next-action p { word-break: keep-all; overflow-wrap: anywhere; }
 .adm-slot-header strong { text-align: center; font-size: 1.125rem; }
 .adm-slot-message { border-radius: 8px; padding: 10px 12px; background: #fff4ec; color: #c2410c; font-weight: 700; }
 .adm-slot-weekdays, .adm-slot-calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; }

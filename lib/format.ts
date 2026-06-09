@@ -37,6 +37,36 @@ const CHANNEL_LABELS: Record<string, string> = {
   instagram: "인스타그램"
 };
 
+const ACQUISITION_SOURCE_LABELS: Record<string, string> = {
+  builduscare: "Build us Care 웹",
+  builduscare_static: "Build us Care 웹",
+  direct: "직접 유입",
+  instagram: "인스타그램",
+  kakao: "카카오톡",
+  offline: "오프라인",
+  organic: "검색 유입",
+  phone: "전화",
+  photo_diagnosis: "사진확인 접수",
+  store: "오프라인",
+  unknown: "미확인",
+  web: "웹"
+};
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  bank_transfer: "계좌이체",
+  card: "카드결제",
+  cash: "현장결제",
+  cash_on_site: "현장결제",
+  instapay: "간편결제",
+  kakao_pay: "카카오페이",
+  manual: "수동 확인",
+  naver_pay: "네이버페이",
+  onsite: "현장결제",
+  toss_pay: "토스페이",
+  transfer: "계좌이체",
+  virtual_account: "가상계좌"
+};
+
 const HOUSING_TYPE_LABELS: Record<string, string> = {
   owner: "자가",
   self: "자가",
@@ -56,6 +86,13 @@ const BUILDING_TYPE_LABELS: Record<string, string> = {
   unknown: "미확인"
 };
 
+function humanizeToken(value: string): string {
+  return value
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function formatServiceName(code?: string | null): string {
   if (!code) return "시공 서비스";
   return SERVICE_NAME_BY_CODE[code] ?? code;
@@ -69,6 +106,23 @@ export function formatOrderStatus(status?: string | null): string {
 export function formatChannel(channel?: string | null): string {
   if (!channel) return "-";
   return CHANNEL_LABELS[channel] ?? channel;
+}
+
+export function formatAcquisitionSource(source?: string | null): string {
+  if (!source) return "-";
+  const normalized = source.trim();
+  return ACQUISITION_SOURCE_LABELS[normalized] ?? humanizeToken(normalized);
+}
+
+export function formatPaymentMethod(provider?: string | null, method?: string | null): string {
+  const candidates = [provider, method]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value));
+  if (candidates.length === 0) return "-";
+  for (const candidate of candidates) {
+    if (PAYMENT_METHOD_LABELS[candidate]) return PAYMENT_METHOD_LABELS[candidate];
+  }
+  return humanizeToken(candidates[0]);
 }
 
 export function formatHousingType(type?: string | null): string {

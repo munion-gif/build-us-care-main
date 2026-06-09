@@ -100,6 +100,29 @@ function cashReceiptTextFromOrder(diagnosis: any) {
   return line?.replace(/^.*?현금영수증:\s*/, "").trim() || "신청 안 함";
 }
 
+function humanizeAdminText(value?: string | null) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const labels: Record<string, string> = {
+    hold: "추가 사진 요청",
+    no_replacement_needed: "교체 불필요",
+    not_needed: "교체 불필요",
+    photo_diagnosis: "사진확인 접수",
+    replace_recommended: "교체 추천",
+    replacement_recommended: "교체 추천",
+    site_check_required: "현장 확인 필요"
+  };
+  return labels[raw] ?? raw.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function diagnosisNote(diagnosis: any) {
+  for (const value of [diagnosis.reason, diagnosis.recommendation, diagnosis.details]) {
+    const formatted = humanizeAdminText(value);
+    if (formatted) return formatted;
+  }
+  return null;
+}
+
 function photoCount(diagnosis: any) {
   return imageInputs(diagnosis).length;
 }
@@ -310,7 +333,7 @@ export default async function AdminDiagnosesPage({ searchParams }: PageProps) {
                   </div>
                   <p>{addressLine(item)}</p>
                   <p>현금영수증: {cashReceiptTextFromOrder(item)}</p>
-                  {item.reason ? <p>{item.reason}</p> : null}
+                  {diagnosisNote(item) ? <p className="adm-queue-note">{diagnosisNote(item)}</p> : null}
                 </div>
                 <div className="adm-queue-side">
                   <span>{photoCount(item)}장 · 상세 보기</span>

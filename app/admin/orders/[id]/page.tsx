@@ -1,9 +1,11 @@
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import {
+  formatAcquisitionSource,
   formatChannel,
   formatKRDateTime,
   formatKRW,
   formatOrderStatus,
+  formatPaymentMethod,
   formatServiceName
 } from "@/lib/format";
 import { OrderAssignmentButton, OrderScheduleConfirmButton } from "../order-assignment-client";
@@ -248,13 +250,29 @@ function cashReceiptTextFromOrder(order: any) {
   return line?.replace(/^.*?현금영수증:\s*/, "").trim() || "신청 안 함";
 }
 
+function humanizeAdminText(value?: string | null) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const labels: Record<string, string> = {
+    builduscare_static: "Build us Care 웹 접수",
+    hold: "추가 사진 요청",
+    no_replacement_needed: "교체 불필요",
+    not_needed: "교체 불필요",
+    photo_diagnosis: "사진확인 접수",
+    replace_recommended: "교체 추천",
+    replacement_recommended: "교체 추천",
+    site_check_required: "현장 확인 필요"
+  };
+  return labels[raw] ?? raw.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
 function requestText(order: any) {
   const text = String(order?.special_requests ?? "")
     .split(/\r?\n/)
     .filter((entry) => entry.trim() && !entry.includes("현금영수증:"))
     .join(" / ")
     .trim();
-  return text || order?.reason || "요청사항 없음";
+  return text || humanizeAdminText(order?.reason) || "요청사항 없음";
 }
 
 function isBankTransfer(payment: any) {
@@ -561,7 +579,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
           <div className="adm-admin-info-grid">
             <span><b>고객 성함</b><strong>{customer?.name ?? "-"}</strong></span>
             <span><b>연락처</b><strong>{customer?.phone ?? "-"}</strong></span>
-            <span><b>유입 경로</b><strong>{customer?.acquisition_source ?? "-"}</strong></span>
+            <span><b>유입 경로</b><strong>{formatAcquisitionSource(customer?.acquisition_source)}</strong></span>
             <span><b>주소</b><strong>{[home?.address_full ?? customer?.address_full, home?.address_apt ?? customer?.address_apt].filter(Boolean).join(" ") || "-"}</strong></span>
             <span><b>방문 일정</b><strong>{activeJob?.scheduled_at ? `${visitDateLabel(activeJob)} ${visitSlotLabel(activeJob)}` : "미정"}</strong></span>
             <span><b>현금영수증</b><strong>{cashReceiptTextFromOrder(order)}</strong></span>
@@ -591,7 +609,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
           </div>
           <div className="adm-admin-info-grid" style={{ marginTop: 12 }}>
             <span><b>현재 결제 상태</b><strong>{paymentOperationLabel(order, payment)}</strong></span>
-            <span><b>결제 수단</b><strong>{isBankTransfer(payment) ? "계좌이체" : payment?.provider ?? payment?.method ?? "-"}</strong></span>
+            <span><b>결제 수단</b><strong>{isBankTransfer(payment) ? "계좌이체" : formatPaymentMethod(payment?.provider, payment?.method)}</strong></span>
             <span><b>결제 확인 시각</b><strong>{formatKRDateTime(payment?.paid_at ?? payment?.approved_at)}</strong></span>
             <span><b>적용 견적</b><strong>{acceptedQuote ? `${acceptedQuote.version ? `${acceptedQuote.version}차` : "최신"} · ${acceptedQuote.accepted_at ? formatKRDateTime(acceptedQuote.accepted_at) : "확정 전"}` : "견적 없음"}</strong></span>
           </div>
@@ -604,7 +622,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
               <a className="adm-photo-item" href={photo.src ?? "#"} target="_blank" rel="noreferrer" key={photo.label}>
                 {photo.src ? <img src={photo.src} alt="고객 접수 사진" /> : photo.label}
               </a>
-            )) : <p className="adm-muted">등록된 고객 사진이 없습니다.</p>}
+            )) : <p className="adm-photo-empty">등록된 고객 사진이 없습니다.</p>}
           </div>
         </details>
 
