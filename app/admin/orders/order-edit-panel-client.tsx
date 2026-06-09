@@ -18,12 +18,6 @@ function asArray(value: any) {
   return Array.isArray(value) ? value : [value];
 }
 
-function firstActiveReservation(order: any) {
-  return asArray(order.reservations)
-    .filter((item) => item.status !== "cancelled")
-    .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))[0] ?? null;
-}
-
 function firstActiveJob(order: any) {
   return asArray(order.jobs)
     .filter((item) => item.status !== "cancelled")
@@ -40,9 +34,10 @@ function dateFromScheduledAt(value?: string | null) {
   }).format(new Date(value));
 }
 
-function timeFromSlot(slot?: string | null) {
-  if (slot === "afternoon") return "13:00";
-  return "09:00";
+function slotFromScheduledAt(value?: string | null) {
+  if (!value) return "morning";
+  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", hour: "2-digit", hour12: false }).format(new Date(value)));
+  return hour < 13 ? "morning" : "afternoon";
 }
 
 function scheduledAt(date: string, slot: string) {
@@ -50,7 +45,6 @@ function scheduledAt(date: string, slot: string) {
 }
 
 export function OrderEditPanel({ order, technicians }: Props) {
-  const activeReservation = useMemo(() => firstActiveReservation(order), [order]);
   const activeJob = useMemo(() => firstActiveJob(order), [order]);
   const warrantyCases = asArray(order.warranty_cases);
   const firstWarranty = warrantyCases[0] ?? null;
@@ -61,8 +55,8 @@ export function OrderEditPanel({ order, technicians }: Props) {
   const [addressDong, setAddressDong] = useState(order.homes?.address_dong ?? order.customers?.address_dong ?? "");
   const [addressApt, setAddressApt] = useState(order.homes?.address_apt ?? order.customers?.address_apt ?? "");
   const [specialRequests, setSpecialRequests] = useState(order.special_requests ?? "");
-  const [reservedDate, setReservedDate] = useState(activeReservation?.reserved_date ?? dateFromScheduledAt(activeJob?.scheduled_at));
-  const [timeSlot, setTimeSlot] = useState(activeReservation?.time_slot ?? "morning");
+  const [reservedDate, setReservedDate] = useState(dateFromScheduledAt(activeJob?.scheduled_at));
+  const [timeSlot, setTimeSlot] = useState(slotFromScheduledAt(activeJob?.scheduled_at));
   const [technicianId, setTechnicianId] = useState(activeJob?.technician_id ?? technicians[0]?.id ?? "");
   const [warrantyStatus, setWarrantyStatus] = useState(firstWarranty?.status ?? "open");
   const [warrantyResponsibility, setWarrantyResponsibility] = useState(firstWarranty?.responsibility ?? "");
@@ -95,37 +89,12 @@ export function OrderEditPanel({ order, technicians }: Props) {
     }
   }
 
-  async function saveReservation() {
-    if (!reservedDate) {
-      setMessage("예약 날짜를 선택해주세요.");
-      return;
-    }
-    if (!window.confirm("예약 날짜와 시간대를 수정할까요?")) return;
-    setSaving("reservation");
-    setMessage("");
-    try {
-      const response = await fetch(`/api/admin/orders/${order.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reservation: { reserved_date: reservedDate, time_slot: timeSlot } })
-      });
-      const json = await response.json();
-      if (!response.ok) throw new Error(json?.error?.message ?? "예약 수정에 실패했습니다.");
-      setMessage("예약 정보를 저장했습니다.");
-      window.setTimeout(() => window.location.reload(), 500);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "예약 수정에 실패했습니다.");
-    } finally {
-      setSaving(null);
-    }
-  }
-
   async function saveTechnician() {
     if (!technicianId || !reservedDate) {
       setMessage("기사와 방문 날짜를 선택해주세요.");
       return;
     }
-    if (!window.confirm("담당 기사와 방문 예정 시각을 저장할까요? 예약 확정은 별도 버튼으로 처리됩니다.")) return;
+    if (!window.confirm("담당 기사와 방문 예정 시각을 저장할까요? 방문 확정은 별도 버튼으로 처리됩니다.")) return;
     setSaving("technician");
     setMessage("");
     try {
@@ -140,7 +109,7 @@ export function OrderEditPanel({ order, technicians }: Props) {
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json?.error?.message ?? "기사 배정에 실패했습니다.");
-      setMessage("기사 배정을 저장했습니다. 고객에게 방문 확정으로 안내하려면 예약 확정을 눌러주세요.");
+      setMessage("기사 배정을 저장했습니다. 고객에게 방문 확정으로 안내하려면 방문 확정을 눌러주세요.");
       window.setTimeout(() => window.location.reload(), 500);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "기사 배정에 실패했습니다.");
@@ -180,7 +149,7 @@ export function OrderEditPanel({ order, technicians }: Props) {
 
   return (
     <section className="adm-card">
-      <h2 className="adm-card-title">운영 수정 1차</h2>
+      <h2 className="adm-card-title">정보 수정</h2>
       <div className="adm-stack">
         <div className="adm-form-row adm-form-row-3">
           <label><span className="adm-label">고객명</span><input className="adm-input" value={customerName} onChange={(event) => setCustomerName(event.target.value)} /></label>
@@ -199,7 +168,7 @@ export function OrderEditPanel({ order, technicians }: Props) {
         <hr className="adm-divider" />
 
         <div className="adm-form-row adm-form-row-3">
-          <label><span className="adm-label">예약 날짜</span><input className="adm-input" type="date" value={reservedDate} onChange={(event) => setReservedDate(event.target.value)} /></label>
+          <label><span className="adm-label">방문 날짜</span><input className="adm-input" type="date" value={reservedDate} onChange={(event) => setReservedDate(event.target.value)} /></label>
           <label>
             <span className="adm-label">시간대</span>
             <select className="adm-input" value={timeSlot} onChange={(event) => setTimeSlot(event.target.value)}>
@@ -216,9 +185,6 @@ export function OrderEditPanel({ order, technicians }: Props) {
           </label>
         </div>
         <div className="adm-inline-actions">
-          <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" disabled={saving === "reservation"} onClick={saveReservation}>
-            {saving === "reservation" ? "저장 중..." : "예약 저장"}
-          </button>
           <button className="adm-btn adm-btn-primary adm-btn-sm" type="button" disabled={saving === "technician"} onClick={saveTechnician}>
             {saving === "technician" ? "저장 중..." : "기사 배정 저장"}
           </button>

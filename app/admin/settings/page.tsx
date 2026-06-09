@@ -33,7 +33,7 @@ export default async function AdminSettingsPage() {
     <>
       <header className="adm-page-header">
         <h1 className="adm-page-title">운영 설정</h1>
-        <p className="adm-page-sub">카카오 상담 링크, 대표 전화번호, 예약 슬롯 수, 점검 안내를 관리합니다.</p>
+        <p className="adm-page-sub">카카오 상담 링크, 대표 전화번호, 방문 슬롯 수, 점검 안내를 관리합니다.</p>
       </header>
       <div className="adm-content adm-stack">
         <section className="adm-card adm-section">

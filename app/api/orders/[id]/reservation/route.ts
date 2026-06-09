@@ -2,22 +2,13 @@ import { fail, ok } from "@/lib/api-response";
 import { hasAdminAccess } from "@/lib/admin-auth";
 import { readJson, validationError } from "@/lib/errors";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
-import { fallbackMaxSlotsPerPeriod, periodCapFromConfig, resolveDefaultSlotCap, type SlotPeriod } from "@/lib/slot-capacity";
+import { periodCapFromConfig, resolveDefaultSlotCap, type SlotPeriod } from "@/lib/slot-capacity";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { reservationSchema, uuidSchema } from "@/lib/validation";
 
 type Context = {
   params: Promise<{ id: string }>;
 };
-
-function reservationError(error: { message?: string } | null) {
-  const message = error?.message ?? "";
-  if (message.includes("ORDER_NOT_FOUND")) return fail("not_found", "Order not found.", 404);
-  if (message.includes("SLOT_RESERVED_DATE")) return fail("SLOT_RESERVED_DATE", "선택한 날짜/시간대는 이미 예약되었습니다. 다른 시간대를 선택해주세요.", 409);
-  if (message.includes("SLOT_CLOSED")) return fail("SLOT_CLOSED", "선택한 날짜는 예약이 마감되었습니다.", 409);
-  if (message.includes("SLOT_FULL")) return fail("SLOT_FULL", "선택한 시간대는 마감되었습니다. 다른 시간대를 선택해주세요.", 409);
-  return fail("conflict", message || "Reservation could not be created.", 409);
-}
 
 async function resolveRequestedSlotCap(params: {
   supabase: ReturnType<typeof getSupabaseAdmin>;
@@ -64,9 +55,72 @@ function minReservationDateText() {
   return kstDateOnly(minDate);
 }
 
+function scheduledAtForSlot(dateText: string, slot: SlotPeriod) {
+  return `${dateText}T${slot === "afternoon" ? "13:00:00" : "09:00:00"}+09:00`;
+}
+
+function slotFromScheduledAt(value?: string | null): SlotPeriod | null {
+  if (!value) return null;
+  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", hour: "2-digit", hour12: false }).format(new Date(value)));
+  return hour < 13 ? "morning" : "afternoon";
+}
+
+function kstDayUtcRange(dateText: string) {
+  const start = new Date(`${dateText}T00:00:00+09:00`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+function asArray(value: any) {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function activeVisitJob(jobs: any[]) {
+  return jobs
+    .filter((job) => job.status !== "cancelled")
+    .sort((a, b) => String(b.scheduled_at ?? b.created_at ?? "").localeCompare(String(a.scheduled_at ?? a.created_at ?? "")))[0] ?? null;
+}
+
+function jobReservationPayload(job: any, reservedDate: string, timeSlot: SlotPeriod) {
+  return {
+    id: job.id,
+    reserved_date: reservedDate,
+    time_slot: timeSlot,
+    status: job.status ?? "scheduled",
+    source: "jobs"
+  };
+}
+
+async function assertSlotAvailable(params: {
+  supabase: ReturnType<typeof getSupabaseAdmin>;
+  orderId: string;
+  reservedDate: string;
+  timeSlot: SlotPeriod;
+  cap: number;
+}) {
+  const { supabase, orderId, reservedDate, timeSlot, cap } = params;
+  const range = kstDayUtcRange(reservedDate);
+  const { data, error } = await supabase
+    .from("jobs")
+    .select("id,order_id,scheduled_at,status")
+    .not("scheduled_at", "is", null)
+    .neq("status", "cancelled")
+    .gte("scheduled_at", range.start)
+    .lt("scheduled_at", range.end);
+
+  if (error) return fail("internal_error", error.message, 500);
+  const usedCount = (data ?? []).filter((job) => job.order_id !== orderId && slotFromScheduledAt(job.scheduled_at) === timeSlot).length;
+  if (usedCount >= cap) {
+    return fail("SLOT_FULL", "선택한 시간대는 마감되었습니다. 다른 시간대를 선택해주세요.", 409);
+  }
+  return null;
+}
+
 export async function POST(request: Request, context: Context) {
   if (!hasSupabaseEnv()) {
-    return fail("supabase_not_configured", "Supabase is required to create reservations.", 500);
+    return fail("supabase_not_configured", "Supabase is required to create visit schedules.", 500);
   }
 
   const { id } = await context.params;
@@ -81,7 +135,7 @@ export async function POST(request: Request, context: Context) {
     windowMs: 10 * 60_000
   });
   if (!rateLimit.allowed) {
-    return rateLimitResponse(rateLimit.retryAfterSeconds, "예약 요청이 많습니다. 잠시 후 다시 시도해주세요.");
+    return rateLimitResponse(rateLimit.retryAfterSeconds, "방문 일정 요청이 많습니다. 잠시 후 다시 시도해주세요.");
   }
 
   const body = await readJson(request);
@@ -100,17 +154,17 @@ export async function POST(request: Request, context: Context) {
   }
 
   if (parsed.data.reserved_date < minReservationDateText()) {
-    return fail("INVALID_DATE", "제품과 일정 준비 기간 때문에 예약은 오늘 기준 3일 이후 날짜부터 가능합니다.", 400);
+    return fail("INVALID_DATE", "제품과 일정 준비 기간 때문에 방문 일정은 오늘 기준 3일 이후 날짜부터 가능합니다.", 400);
   }
 
   if (parsed.data.time_slot !== "morning" && parsed.data.time_slot !== "afternoon") {
-    return fail("INVALID_TIME_SLOT", "현재 예약은 오전 또는 오후 시간대만 선택할 수 있습니다.", 400);
+    return fail("INVALID_TIME_SLOT", "현재 방문 일정은 오전 또는 오후 시간대만 선택할 수 있습니다.", 400);
   }
 
   const supabase = getSupabaseAdmin();
   const { data: order, error: orderError } = await supabase
     .from("orders")
-    .select("id,status,is_test,access_token")
+    .select("id,status,is_test,access_token,jobs(*)")
     .eq("id", orderId.data)
     .single();
 
@@ -123,21 +177,11 @@ export async function POST(request: Request, context: Context) {
     return fail("forbidden", "A valid accessToken is required.", 403);
   }
 
-  const { data: existingReservation, error: existingReservationError } = await supabase
-    .from("reservations")
-    .select("*")
-    .eq("order_id", orderId.data)
-    .in("status", ["pending", "confirmed"])
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (existingReservationError) {
-    return fail("internal_error", existingReservationError.message, 500);
-  }
-
-  if (existingReservation) {
-    return ok({ reservation: existingReservation, order_status: order.status, idempotent: true });
+  const existingJob = activeVisitJob(asArray(order.jobs));
+  const existingDate = existingJob?.scheduled_at ? kstDateOnly(existingJob.scheduled_at) : null;
+  const existingSlot = existingJob?.scheduled_at ? slotFromScheduledAt(existingJob.scheduled_at) : null;
+  if (existingJob && existingDate === parsed.data.reserved_date && existingSlot === parsed.data.time_slot) {
+    return ok({ reservation: jobReservationPayload(existingJob, parsed.data.reserved_date, parsed.data.time_slot), order_status: order.status, idempotent: true });
   }
 
   const protectedStatuses = ["paid", "product_paid", "scheduled", "in_progress", "completed", "done", "canceled", "issue", "warranty"];
@@ -146,33 +190,6 @@ export async function POST(request: Request, context: Context) {
     : parsed.data.status === "confirmed"
       ? "scheduled"
       : order.status;
-
-  if (order.is_test === true) {
-    const { data: reservation, error: reservationInsertError } = await supabase
-      .from("reservations")
-      .insert({
-        order_id: orderId.data,
-        reserved_date: parsed.data.reserved_date,
-        time_slot: parsed.data.time_slot,
-        status: parsed.data.status,
-        notes: parsed.data.notes ?? null
-      })
-      .select("*")
-      .single();
-
-    if (reservationInsertError) {
-      return fail("internal_error", reservationInsertError.message, 500);
-    }
-
-    if (nextOrderStatus !== order.status) {
-      const { error: orderUpdateError } = await supabase.from("orders").update({ status: nextOrderStatus }).eq("id", orderId.data);
-      if (orderUpdateError) {
-        return fail("internal_error", orderUpdateError.message, 500);
-      }
-    }
-
-    return ok({ reservation, order_status: nextOrderStatus }, { status: 201 });
-  }
 
   try {
     const slotCap = await resolveRequestedSlotCap({
@@ -195,24 +212,54 @@ export async function POST(request: Request, context: Context) {
         { activeTechnicianCount: slotCap.activeTechnicianCount }
       );
     }
+    if (order.is_test !== true) {
+      const slotError = await assertSlotAvailable({
+        supabase,
+        orderId: orderId.data,
+        reservedDate: parsed.data.reserved_date,
+        timeSlot: parsed.data.time_slot,
+        cap: slotCap.cap
+      });
+      if (slotError) return slotError;
+    }
   } catch (error) {
     return fail("internal_error", error instanceof Error ? error.message : "Failed to resolve slot capacity.", 500);
   }
 
-  const { data: reservation, error } = await supabase
-    .rpc("reserve_order_slot", {
-      p_order_id: orderId.data,
-      p_reserved_date: parsed.data.reserved_date,
-      p_time_slot: parsed.data.time_slot,
-      p_status: parsed.data.status,
-      p_notes: parsed.data.notes ?? null,
-      p_default_cap: fallbackMaxSlotsPerPeriod()
-    })
-    .single();
+  const scheduledAt = scheduledAtForSlot(parsed.data.reserved_date, parsed.data.time_slot);
+  const nextJobStatus = parsed.data.status === "confirmed" ? "scheduled" : "assigned";
+  const jobMutation = existingJob
+    ? supabase
+        .from("jobs")
+        .update({
+          scheduled_at: scheduledAt,
+          scheduled_date: parsed.data.reserved_date,
+          status: nextJobStatus
+        })
+        .eq("id", existingJob.id)
+        .select("*")
+        .single()
+    : supabase
+        .from("jobs")
+        .insert({
+          order_id: orderId.data,
+          scheduled_at: scheduledAt,
+          scheduled_date: parsed.data.reserved_date,
+          status: nextJobStatus
+        })
+        .select("*")
+        .single();
+
+  const { data: job, error } = await jobMutation;
 
   if (error) {
-    return reservationError(error);
+    return fail("internal_error", error.message, 500);
   }
 
-  return ok({ reservation, order_status: nextOrderStatus }, { status: 201 });
+  if (nextOrderStatus !== order.status) {
+    const { error: orderUpdateError } = await supabase.from("orders").update({ status: nextOrderStatus }).eq("id", orderId.data);
+    if (orderUpdateError) return fail("internal_error", orderUpdateError.message, 500);
+  }
+
+  return ok({ reservation: jobReservationPayload(job, parsed.data.reserved_date, parsed.data.time_slot), order_status: nextOrderStatus }, { status: 201 });
 }

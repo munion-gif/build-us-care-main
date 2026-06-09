@@ -218,7 +218,6 @@ async function getUnassignedPaidOrders(supabase: SupabaseAdmin) {
       `
       id, order_number, status, created_at, service_type_code, skus,
       customers(name,phone),
-      reservations(id,reserved_date,time_slot,status,created_at),
       jobs(id,technician_id,assigned_technician_name,status,scheduled_at,created_at)
     `
     )
@@ -268,28 +267,29 @@ async function getPhotoReviewOrders(supabase: SupabaseAdmin) {
   return data ?? [];
 }
 
-async function getTomorrowUnassignedReservations(supabase: SupabaseAdmin, tomorrowDate: string) {
+async function getTomorrowUnassignedVisits(supabase: SupabaseAdmin, ranges: DashboardRanges) {
   const { data } = await supabase
-    .from("reservations")
+    .from("jobs")
     .select(
       `
-      id, order_id, reserved_date, time_slot, status, created_at,
+      id, order_id, technician_id, assigned_technician_name, scheduled_at, status, created_at,
       orders(
         id, order_number, status, created_at, service_type_code, skus, is_test,
-        customers(name,phone),
-        jobs(id,technician_id,assigned_technician_name,status,scheduled_at,created_at)
+        customers(name,phone)
       )
     `
     )
-    .eq("reserved_date", tomorrowDate)
-    .in("status", ["pending", "confirmed"])
-    .order("created_at", { ascending: true })
+    .in("status", ACTIVE_JOB_STATUSES)
+    .not("scheduled_at", "is", null)
+    .gte("scheduled_at", ranges.tomorrow.start)
+    .lt("scheduled_at", ranges.tomorrow.end)
+    .order("scheduled_at", { ascending: true })
     .limit(80);
 
   return (data ?? [])
-    .filter((reservation: any) => {
-      const order = asOne(reservation.orders);
-      return order?.is_test !== true && ["paid", "product_paid", "scheduled"].includes(String(order?.status)) && !hasActiveAssignedJob(order?.jobs);
+    .filter((job: any) => {
+      const order = asOne(job.orders);
+      return order?.is_test !== true && ["paid", "product_paid", "scheduled"].includes(String(order?.status)) && !job.technician_id && !job.assigned_technician_name;
     })
     .slice(0, 10);
 }
@@ -395,7 +395,7 @@ async function getDashboardData() {
     paymentNeededOrders: [],
     photoReviewOrders: [],
     unassignedPaidOrders: [],
-    tomorrowUnassignedReservations: [],
+    tomorrowUnassignedVisits: [],
     jobs: { today: [], tomorrow: [] },
     warrantyCases: [],
     diagnoses: { total: 0, byResult: [], topServices: [] },
@@ -406,34 +406,31 @@ async function getDashboardData() {
 
   const supabase = getSupabaseAdmin();
   const ranges = dashboardRanges();
-  const [summary, paymentNeededOrders, photoReviewOrders, unassignedPaidOrders, tomorrowUnassignedReservations, jobs, warrantyCases, diagnoses, reschedules] = await Promise.all([
+  const [summary, paymentNeededOrders, photoReviewOrders, unassignedPaidOrders, tomorrowUnassignedVisits, jobs, warrantyCases, diagnoses, reschedules] = await Promise.all([
     getTodaySummary(supabase, ranges),
     getPaymentNeededOrders(supabase),
     getPhotoReviewOrders(supabase),
     getUnassignedPaidOrders(supabase),
-    getTomorrowUnassignedReservations(supabase, ranges.tomorrowDate),
+    getTomorrowUnassignedVisits(supabase, ranges),
     getTodayTomorrowJobs(supabase, ranges),
     getTodayWarrantyCases(supabase, ranges),
     getRecentDiagnoses(supabase, ranges),
     getTodayRescheduleEvents(supabase, ranges)
   ]);
 
-  return { ranges, summary, paymentNeededOrders, photoReviewOrders, unassignedPaidOrders, tomorrowUnassignedReservations, jobs, warrantyCases, diagnoses, reschedules };
+  return { ranges, summary, paymentNeededOrders, photoReviewOrders, unassignedPaidOrders, tomorrowUnassignedVisits, jobs, warrantyCases, diagnoses, reschedules };
 }
 
 function EmptyRow({ children }: { children: React.ReactNode }) {
   return <p className="adm-muted adm-empty-line">{children}</p>;
 }
 
-function OrderReservationMeta({ order, reservation }: { order: any; reservation?: any }) {
-  const reservations = asArray(order?.reservations).filter((item) => item.status !== "cancelled");
-  const activeReservation = reservation ?? reservations.sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))[0];
-  if (!activeReservation) return <span>예약 없음</span>;
-  return (
-    <span>
-      {activeReservation.reserved_date} {slotLabel(activeReservation.time_slot)}
-    </span>
-  );
+function OrderVisitMeta({ order }: { order: any }) {
+  const activeJob = asArray(order?.jobs)
+    .filter((job) => job.status !== "cancelled")
+    .sort((a, b) => String(b.scheduled_at ?? b.created_at ?? "").localeCompare(String(a.scheduled_at ?? a.created_at ?? "")))[0];
+  if (!activeJob?.scheduled_at) return <span>방문 일정 없음</span>;
+  return <span>{kstDateOnly(activeJob.scheduled_at)} {slotFromScheduledAt(activeJob.scheduled_at)}</span>;
 }
 
 function JobList({ jobs }: { jobs: any[] }) {
@@ -573,7 +570,7 @@ export default async function AdminDashboardPage() {
                     <Link className="adm-action-row" href={`/admin/orders/${order.id}`} key={order.id}>
                       <span>
                         <strong>{order.order_number}</strong>
-                        <small>{customerName(order)} · <OrderReservationMeta order={order} /></small>
+                        <small>{customerName(order)} · <OrderVisitMeta order={order} /></small>
                       </span>
                       <span>
                         <small>{formatKRDateTime(order.created_at)}</small>
@@ -590,17 +587,17 @@ export default async function AdminDashboardPage() {
                 <h2 className="adm-card-title">내일 방문 예정 · 기사 미배정</h2>
                 <span className="adm-muted">{data.ranges.tomorrowDate}</span>
               </div>
-              {data.tomorrowUnassignedReservations.length === 0 ? (
-                <EmptyRow>내일 예약 중 기사 미배정 건이 없습니다.</EmptyRow>
+              {data.tomorrowUnassignedVisits.length === 0 ? (
+                <EmptyRow>내일 방문 예정 중 기사 미배정 건이 없습니다.</EmptyRow>
               ) : (
                 <div className="adm-action-list">
-                  {data.tomorrowUnassignedReservations.map((reservation: any) => {
-                    const order = asOne(reservation.orders);
+                  {data.tomorrowUnassignedVisits.map((job: any) => {
+                    const order = asOne(job.orders);
                     return (
-                      <Link className="adm-action-row" href={order?.id ? `/admin/orders/${order.id}` : "/admin/orders"} key={reservation.id}>
+                      <Link className="adm-action-row" href={order?.id ? `/admin/orders/${order.id}` : "/admin/orders"} key={job.id}>
                         <span>
                           <strong>{order?.order_number ?? "-"}</strong>
-                          <small>{customerName(order)} · {reservation.reserved_date} {slotLabel(reservation.time_slot)}</small>
+                          <small>{customerName(order)} · {kstTimeLabel(job.scheduled_at)} · {slotFromScheduledAt(job.scheduled_at)}</small>
                         </span>
                         <span>
                           <b className={`adm-badge ${badgeClass(order?.status)}`}>{formatOrderStatus(order?.status)}</b>
@@ -686,11 +683,11 @@ export default async function AdminDashboardPage() {
 
           <article className="adm-card">
             <div className="adm-section-head">
-              <h2 className="adm-card-title">오늘 예약 변경 수</h2>
+              <h2 className="adm-card-title">오늘 일정 변경 수</h2>
               <span className="adm-muted">{data.reschedules.count}건</span>
             </div>
             {data.reschedules.events.length === 0 ? (
-              <EmptyRow>오늘 예약 변경이 없습니다.</EmptyRow>
+              <EmptyRow>오늘 일정 변경이 없습니다.</EmptyRow>
             ) : (
               <div className="adm-action-list">
                 {data.reschedules.events.map((event: any) => {

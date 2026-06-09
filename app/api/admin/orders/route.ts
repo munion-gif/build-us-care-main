@@ -43,7 +43,6 @@ export async function GET(request: Request) {
       customers(id,name,phone,acquisition_source),
       homes(id,address_full,building_type,size_pyung,year_built),
       quotes(id,version,total_final,accepted_at,created_at),
-      reservations(id,reserved_date,time_slot,status,created_at),
       payments(id,status,amount,paid_at,approved_at,method,provider_status),
       jobs(id,status,technician_id,scheduled_at,technicians(id,name)),
       cancellations(id,status,refund_amount,refund_rate,requested_at)

@@ -278,50 +278,55 @@ export async function POST(request: Request) {
     return fail("internal_error", orderError.message, 500);
   }
 
+  const sideEffects: Array<PromiseLike<any>> = [];
+
   if (!isAdminTest) {
-    await supabase.from("events").insert({
-      event_type: EVENT_TYPES.QUOTE_SUBMITTED,
-      session_id: parsed.data.session_id ?? null,
-      order_id: order.id,
-      customer_id: customer.id,
-      source,
-      campaign,
-      landing_path: parsed.data.landing_path ?? null,
-      device_type: deviceType,
-      service_code: order.service_type_code,
-      region_code: parsed.data.region_code ?? parsed.data.home?.address_dong ?? null,
-      properties: {
-        order_number: order.order_number,
-        total_amount: order.total_amount
-      }
-    });
+    sideEffects.push(
+      supabase.from("events").insert({
+        event_type: EVENT_TYPES.QUOTE_SUBMITTED,
+        session_id: parsed.data.session_id ?? null,
+        order_id: order.id,
+        customer_id: customer.id,
+        source,
+        campaign,
+        landing_path: parsed.data.landing_path ?? null,
+        device_type: deviceType,
+        service_code: order.service_type_code,
+        region_code: parsed.data.region_code ?? parsed.data.home?.address_dong ?? null,
+        properties: {
+          order_number: order.order_number,
+          total_amount: order.total_amount
+        }
+      })
+    );
   }
 
   if (!isAdminTest && parsed.data.session_id) {
-    const sessionRow = {
-      session_id: parsed.data.session_id,
-      first_event_time: new Date().toISOString(),
-      source,
-      campaign,
-      landing_path: parsed.data.landing_path ?? null,
-      device_type: deviceType,
-      region_hint: parsed.data.region_code ?? parsed.data.home?.address_dong ?? null,
-      order_id: order.id,
-      updated_at: new Date().toISOString()
-    };
-    const { data: existingSession } = await supabase.from("sessions").select("session_id").eq("session_id", parsed.data.session_id).maybeSingle();
-    if (existingSession) {
-      const { first_event_time: _firstEventTime, session_id: _sessionId, ...sessionPatch } = sessionRow;
-      await supabase
-        .from("sessions")
-        .update(sessionPatch)
-        .eq("session_id", parsed.data.session_id);
-    } else {
-      await supabase.from("sessions").insert(sessionRow);
-    }
+    sideEffects.push((async () => {
+      const sessionRow = {
+        session_id: parsed.data.session_id,
+        first_event_time: new Date().toISOString(),
+        source,
+        campaign,
+        landing_path: parsed.data.landing_path ?? null,
+        device_type: deviceType,
+        region_hint: parsed.data.region_code ?? parsed.data.home?.address_dong ?? null,
+        order_id: order.id,
+        updated_at: new Date().toISOString()
+      };
+      const { data: existingSession } = await supabase.from("sessions").select("session_id").eq("session_id", parsed.data.session_id).maybeSingle();
+      if (existingSession) {
+        const { first_event_time: _firstEventTime, session_id: _sessionId, ...sessionPatch } = sessionRow;
+        return supabase
+          .from("sessions")
+          .update(sessionPatch)
+          .eq("session_id", parsed.data.session_id);
+      }
+      return supabase.from("sessions").insert(sessionRow);
+    })());
   }
 
-  const { data: job, error: jobError } = await supabase
+  const jobPromise = supabase
     .from("jobs")
     .insert({
       order_id: order.id,
@@ -331,26 +336,33 @@ export async function POST(request: Request) {
     .select("*")
     .single();
 
+  const [jobResult] = await Promise.all([jobPromise, ...sideEffects]);
+  const { data: job, error: jobError } = jobResult;
+
   if (jobError) {
     return fail("internal_error", jobError.message, 500);
   }
 
-  await supabase.from("job_status_logs").insert({
-    job_id: job.id,
-    from_status: null,
-    to_status: "received",
-    memo: "주문 생성과 함께 작업 접수"
-  });
+  const postJobSideEffects: Array<PromiseLike<any>> = [
+    supabase.from("job_status_logs").insert({
+      job_id: job.id,
+      from_status: null,
+      to_status: "received",
+      memo: "주문 생성과 함께 작업 접수"
+    })
+  ];
 
   if (!isAdminTest) {
-    await supabase.from("notifications").insert({
-      order_id: order.id,
-      channel: "mock",
-      template_code: "order_submitted",
-      recipient: parsed.data.customer.phone,
-      send_status: "queued",
-      payload: { order_number: order.order_number }
-    });
+    postJobSideEffects.push(
+      supabase.from("notifications").insert({
+        order_id: order.id,
+        channel: "mock",
+        template_code: "order_submitted",
+        recipient: parsed.data.customer.phone,
+        send_status: "queued",
+        payload: { order_number: order.order_number }
+      })
+    );
 
     void notifyNewOrder({
       orderId: order.id,
@@ -360,6 +372,8 @@ export async function POST(request: Request) {
       addressFull
     });
   }
+
+  await Promise.all(postJobSideEffects);
 
   return ok(
     {

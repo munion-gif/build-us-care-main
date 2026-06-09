@@ -186,12 +186,11 @@ export async function GET(request: Request) {
   const supabase = getSupabaseAdmin();
 
   let jobsResult: any;
-  let reservationsResult: any;
   let configsResult: any;
   let capResult: Awaited<ReturnType<typeof resolveDefaultSlotCap>>;
 
   try {
-    [jobsResult, reservationsResult, configsResult, capResult] = await Promise.all([
+    [jobsResult, configsResult, capResult] = await Promise.all([
       supabase
         .from("jobs")
         .select("id,order_id,scheduled_at,status")
@@ -199,12 +198,6 @@ export async function GET(request: Request) {
         .neq("status", "cancelled")
         .gte("scheduled_at", range.queryStart)
         .lt("scheduled_at", range.queryEnd),
-      supabase
-        .from("reservations")
-        .select("id,order_id,reserved_date,time_slot,status")
-        .gte("reserved_date", range.startDate)
-        .lte("reserved_date", range.endDate)
-        .neq("status", "cancelled"),
       supabase
         .from("slot_configs")
         .select("date,morning_cap,afternoon_cap,blocked,type,cap_value,reason")
@@ -217,17 +210,13 @@ export async function GET(request: Request) {
     return fail("internal_error", error instanceof Error ? error.message : "Failed to resolve slot capacity.", 500);
   }
 
-  const firstError = jobsResult.error ?? reservationsResult.error ?? configsResult.error;
+  const firstError = jobsResult.error ?? configsResult.error;
   if (firstError) return fail("internal_error", firstError.message, 500);
 
   let testOrderIds = new Set<string>();
   try {
     const jobRows = (jobsResult.data ?? []) as Array<{ order_id?: string | null }>;
-    const reservationRows = (reservationsResult.data ?? []) as Array<{ order_id?: string | null }>;
-    testOrderIds = await fetchTestOrderIds(supabase, [
-      ...jobRows.map((job) => job.order_id),
-      ...reservationRows.map((reservation) => reservation.order_id)
-    ]);
+    testOrderIds = await fetchTestOrderIds(supabase, jobRows.map((job) => job.order_id));
   } catch (error: any) {
     return fail("internal_error", error?.message ?? "Failed to load order test flags.", 500);
   }
@@ -241,11 +230,6 @@ export async function GET(request: Request) {
   };
 
   const jobRows = (jobsResult.data ?? []) as Array<{ order_id?: string | null; scheduled_at: string | null }>;
-  const reservationRows = (reservationsResult.data ?? []) as Array<{
-    order_id?: string | null;
-    reserved_date: string;
-    time_slot: string | null;
-  }>;
 
   for (const job of jobRows) {
     if (job.order_id && testOrderIds.has(job.order_id)) continue;
@@ -254,13 +238,6 @@ export async function GET(request: Request) {
     if (!period) continue;
     const day = kstDateOnly(job.scheduled_at);
     if (day >= range.startDate && day <= range.endDate) addCount(day, period);
-  }
-
-  for (const reservation of reservationRows) {
-    if (reservation.order_id && testOrderIds.has(reservation.order_id)) continue;
-    if (reservation.time_slot === "morning" || reservation.time_slot === "afternoon") {
-      addCount(reservation.reserved_date, reservation.time_slot);
-    }
   }
 
   const configs = new Map<string, { date: string; morning_cap?: unknown; afternoon_cap?: unknown; blocked?: boolean | null }>(

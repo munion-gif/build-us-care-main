@@ -15,12 +15,6 @@ function asArray(value: any) {
   return Array.isArray(value) ? value : [value];
 }
 
-function activeReservation(reservations: any[]) {
-  return reservations
-    .filter((reservation) => reservation.status !== "cancelled")
-    .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))[0] ?? null;
-}
-
 function activeAssignedJob(jobs: any[]) {
   return jobs
     .filter((job) => job.status !== "cancelled" && (job.technician_id || job.assigned_technician_name))
@@ -40,11 +34,6 @@ function kstDateText(value: string) {
 function slotFromScheduledAt(value: string) {
   const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", hour: "2-digit", hour12: false }).format(new Date(value)));
   return hour < 13 ? "morning" : "afternoon";
-}
-
-function scheduledAtForSlot(dateText: string, slot: string) {
-  const time = slot === "afternoon" ? "13:00:00" : "09:00:00";
-  return `${dateText}T${time}+09:00`;
 }
 
 function siteUrl() {
@@ -77,29 +66,28 @@ export async function POST(request: Request, context: Context) {
   const supabase = getSupabaseAdmin();
   const { data: order, error: readError } = await supabase
     .from("orders")
-    .select("id,status,order_number,access_token,customers(name,phone),reservations(*),jobs(*)")
+    .select("id,status,order_number,access_token,customers(name,phone),jobs(*)")
     .eq("id", orderId.data)
     .maybeSingle();
 
   if (readError) return fail("internal_error", readError.message, 500);
   if (!order) return fail("not_found", "주문을 찾을 수 없습니다.", 404);
   if (!["paid", "product_paid", "scheduled"].includes(String(order.status))) {
-    return fail("ORDER_NOT_CONFIRMABLE", "결제 완료 이후 주문만 예약 확정할 수 있습니다.", 409);
+    return fail("ORDER_NOT_CONFIRMABLE", "결제 완료 이후 주문만 방문 확정할 수 있습니다.", 409);
   }
 
   const job = activeAssignedJob(asArray(order.jobs));
   if (!job) {
-    return fail("JOB_REQUIRED", "예약 확정 전 담당 기사를 먼저 배정해주세요.", 409);
+    return fail("JOB_REQUIRED", "방문 확정 전 담당 기사를 먼저 배정해주세요.", 409);
   }
 
-  const reservation = activeReservation(asArray(order.reservations));
-  const reservedDate = reservation?.reserved_date ?? (job.scheduled_at ? kstDateText(job.scheduled_at) : null);
-  const timeSlot = reservation?.time_slot ?? (job.scheduled_at ? slotFromScheduledAt(job.scheduled_at) : null);
+  const reservedDate = job.scheduled_at ? kstDateText(job.scheduled_at) : null;
+  const timeSlot = job.scheduled_at ? slotFromScheduledAt(job.scheduled_at) : null;
   if (!reservedDate || !timeSlot) {
-    return fail("RESERVATION_REQUIRED", "예약 날짜와 시간대를 먼저 입력해주세요.", 409);
+    return fail("SCHEDULE_REQUIRED", "방문 날짜와 시간대를 먼저 입력해주세요.", 409);
   }
 
-  const scheduledAt = job.scheduled_at ?? scheduledAtForSlot(reservedDate, timeSlot);
+  const scheduledAt = job.scheduled_at;
   const updates: Array<PromiseLike<any>> = [
     supabase
       .from("jobs")
@@ -109,33 +97,9 @@ export async function POST(request: Request, context: Context) {
         scheduled_date: reservedDate
       })
       .eq("id", job.id),
-    insertJobStatusLog(supabase, job.id, job.status ?? null, "scheduled", "관리자 예약 확정"),
+    insertJobStatusLog(supabase, job.id, job.status ?? null, "scheduled", "관리자 방문 확정"),
     supabase.from("orders").update({ status: "scheduled" }).eq("id", orderId.data)
   ];
-
-  if (reservation) {
-    updates.push(
-      supabase
-        .from("reservations")
-        .update({
-          reserved_date: reservedDate,
-          time_slot: timeSlot,
-          status: "confirmed",
-          notes: "관리자 예약 확정"
-        })
-        .eq("id", reservation.id)
-    );
-  } else {
-    updates.push(
-      supabase.from("reservations").insert({
-        order_id: orderId.data,
-        reserved_date: reservedDate,
-        time_slot: timeSlot,
-        status: "confirmed",
-        notes: "관리자 예약 확정"
-      })
-    );
-  }
 
   const results = await Promise.all(updates);
   const firstError = results.find((result: any) => result?.error)?.error;
@@ -161,7 +125,7 @@ export async function POST(request: Request, context: Context) {
       scheduled_at: scheduledAt,
       technician_name: technicianName,
       status_url: statusUrl,
-      message: `[빌드어스] 방문 예약이 확정되었습니다.\n주문번호: ${order.order_number}\n방문일정: ${reservedDate} ${slotLabel(timeSlot)}\n담당기사: ${technicianName}\n주문현황: ${statusUrl}`,
+      message: `[빌드어스] 방문 일정이 확정되었습니다.\n주문번호: ${order.order_number}\n방문일정: ${reservedDate} ${slotLabel(timeSlot)}\n담당기사: ${technicianName}\n주문현황: ${statusUrl}`,
       dispatch_ready: false,
       dispatch_note: "Kakao/SMS provider is not connected yet. Keep as prepared until external dispatch is enabled."
     }

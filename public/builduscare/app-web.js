@@ -1415,19 +1415,43 @@ async function openFinalEstimate(){
   const addr = (W.region||'') + (W.regionDetail ? ' ' + W.regionDetail : '');
   const dateTxt = W.date ? `${bookingDateLabel(W.date, true)}${W.time?' · '+W.time:''}` : '사진 확인 후 협의';
   const cashReceiptText = wCashReceiptText();
+  const remoteRows = Array.isArray(W.remoteOrder?.selected) ? W.remoteOrder.selected : [];
+  const normalizedRows = remoteRows.length ? remoteRows.map(p => {
+    const categoryName = p.categoryName || p.serviceCode || '';
+    return {
+      name: p.name || p.model || '-',
+      categoryName,
+      qty: Number(p.qty || 1),
+      price: Number(p.price || 0),
+      image: p.image || ITEM_IMG[categoryName] || ITEM_IMG[`${categoryName} 교체`] || ''
+    };
+  }) : W.selected.map(id => {
+    const p = wp(id);
+    const q = wq(id);
+    const cat = catOf(id);
+    return {
+      name: `${p.brand} ${productDisplayName(p)}`,
+      categoryName: cat.replace(/\s*교체$/,''),
+      qty: q,
+      price: Number(p.price || 0),
+      image: ITEM_IMG[cat] || ''
+    };
+  });
+  const selectedKinds = normalizedRows.length;
+  const selectedUnits = normalizedRows.reduce((sum, row) => sum + Number(row.qty || 1), 0);
+  const estimateTotal = remoteRows.length ? Number(W.remoteOrder?.totals?.totalAmount || 0) : wtot();
+  const vatIncludedTotal = Math.round(estimateTotal * 1.1);
   // Inline logo + each selected product's image as data URIs (popup can't load relative paths)
   const logo = BC_LOGO_URI || await imgToDataUri('assets/bc-logo.png');
   const uris = {};
-  await Promise.all([...new Set(W.selected.map(id=>catOf(id)))].map(async cat=>{ uris[cat] = ITEM_IMG[cat] ? await imgToDataUri(ITEM_IMG[cat]) : ''; }));
-  const rows = W.selected.map(id=>{ const p=wp(id); const q=wq(id); const cat=catOf(id); const im=uris[cat];
+  await Promise.all([...new Set(normalizedRows.map(row => row.image).filter(Boolean))].map(async src=>{ uris[src] = await imgToDataUri(src); }));
+  const rows = normalizedRows.map(row=>{ const im=uris[row.image] || '';
     return `<tr>
       <td class="it">
         <span class="thumb">${im?`<img src="${im}" alt="">`:''}</span>
-        <span class="it-tx"><b>${p.brand} ${productDisplayName(p)}</b><small>${cat.replace(/\s*교체$/,'')}</small></span>
+        <span class="it-tx"><b>${row.name}</b><small>${row.categoryName}</small></span>
       </td>
-      <td class="c">${q}</td><td class="r">${won(p.price*q)}</td></tr>`; }).join('');
-  const estimateTotal = wtot();
-  const vatIncludedTotal = wvatTotal();
+      <td class="c">${row.qty}</td><td class="r">${won(row.price*row.qty)}</td></tr>`; }).join('');
   const html = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>최종 견적서 · Build us Care</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css">
   <style>
@@ -1478,7 +1502,7 @@ async function openFinalEstimate(){
       <div class="meta">발행일 ${today}<br>접수번호 <b>${ono}</b><br>유효기간 발행일로부터 14일</div>
     </div>
     <h1>최종 견적서</h1>
-    <div class="sub">${selectedCats().join(' · ')||W.item.replace(/\s*교체$/,'')} · 선택 제품 ${W.selected.length}종 · 총 ${wunits()}개</div>
+    <div class="sub">${normalizedRows.map(row => row.categoryName).filter(Boolean).filter((value, index, array) => array.indexOf(value) === index).join(' · ')||W.item.replace(/\s*교체$/,'')} · 선택 제품 ${selectedKinds}종 · 총 ${selectedUnits}개</div>
     <div class="info">
       <div class="cell"><div class="k">예약자</div><div class="v">${W.name||'-'}</div></div>
       <div class="cell"><div class="k">연락처</div><div class="v">${W.phone||'-'}</div></div>
@@ -1490,8 +1514,8 @@ async function openFinalEstimate(){
       <thead><tr><th>제품</th><th class="c">수량</th><th class="r">금액 (원)</th></tr></thead>
       <tbody>
         ${rows}
-        <tr class="grp"><td>시공비</td><td class="c">×${wunits()}</td><td class="r">${won(wlabor())}</td></tr>
-        <tr class="grp"><td>폐기물 처리비${W.selfDisposal?' <span style="color:#86868b">(직접 처리)</span>':''}</td><td class="c">×${wunits()}</td><td class="r">${won(wdisp())}</td></tr>
+        <tr class="grp"><td>시공비</td><td class="c">×${selectedUnits}</td><td class="r">${won(remoteRows.length ? Number(W.remoteOrder?.totals?.onsitePaymentAmount || W.remoteOrder?.totals?.laborAmount || 0) : wlabor())}</td></tr>
+        <tr class="grp"><td>폐기물 처리비${W.selfDisposal?' <span style="color:#86868b">(직접 처리)</span>':''}</td><td class="c">×${selectedUnits}</td><td class="r">${won(remoteRows.length ? 0 : wdisp())}</td></tr>
         <tr class="sum"><td>합계</td><td class="c"></td><td class="r">${won(estimateTotal)}</td></tr>
       </tbody>
     </table>
@@ -1903,7 +1927,7 @@ done: () => {
 <div class="wrap narrow" style="text-align:center">
   <div class="featured-icon circle" style="width:76px;height:76px;background:var(--success-50);color:var(--success-600);margin:24px auto 0"><i data-lucide="check" style="width:38px;height:38px"></i></div>
   <h1 class="web-h2" style="margin-top:18px">신청이 접수됐어요</h1>
-  <p class="web-lede" style="font-size:16px;margin-top:8px">${hasTransfer?'사진 확인 후 최종 견적을 안내드려요. 선택 제품 예약을 위해 제품 금액 입금 안내를 확인해주세요.':'영업시간 기준 2시간 내 견적을 안내드려요. 카카오톡 알림도 가능해요.'}</p>
+  <p class="web-lede" style="font-size:16px;margin-top:8px">${hasTransfer?'사진 확인 후 최종 견적을 안내드려요. 선택 제품 예약을 위해 제품 금액 입금 안내를 확인해주세요.':'영업시간 기준 2시간 내 견적을 카카오톡으로 안내해 드릴게요.'}</p>
   <div class="bcard pad" style="padding:22px;text-align:left;max-width:440px;margin:22px auto 0">
     <div class="between"><div class="p-sm strong" style="color:var(--gray-700)">접수번호</div><div class="p-sm strong">${wOrderNo()}</div></div>
     <div class="between" style="margin-top:8px"><div class="p-sm strong" style="color:var(--gray-700)">현재 상태</div><span class="badge badge-warning dot">${statusLabel}</span></div>
@@ -1957,14 +1981,17 @@ orderview: () => {
   const serviceAmount = remote?.totals ? Number(remote.totals.onsitePaymentAmount||remote.totals.laborAmount||0) : wlabor();
   const disposalAmount = remote?.totals ? 0 : wdisp();
   const totalAmount = remote?.totals ? Number(remote.totals.totalAmount||productAmount+serviceAmount) : wtot();
+  const selectedKinds = remoteRows.length || W.selected.length;
+  const selectedUnits = remoteRows.length ? remoteRows.reduce((sum, row) => sum + Number(row.qty || 1), 0) : wunits();
   const rows=remoteRows.length ? remoteRows.map(p=>{
-    return `<div style="display:flex;align-items:center;gap:14px">
-      <span style="width:52px;height:52px;border-radius:12px;background:var(--gray-100);overflow:hidden;flex:none;display:grid;place-items:center"><i data-lucide="package" style="width:22px;height:22px;color:var(--gray-400)"></i></span>
+    const im = p.image || ITEM_IMG[p.categoryName] || ITEM_IMG[`${p.categoryName||''} 교체`] || '';
+    return `<div style="display:flex;align-items:center;gap:14px;padding:12px;border:1px solid var(--gray-100);border-radius:16px;background:#fff">
+      <span style="width:52px;height:52px;border-radius:12px;background:var(--gray-100);overflow:hidden;flex:none;display:grid;place-items:center">${im?`<img src="${im}" alt="" style="width:100%;height:100%;object-fit:cover">`:`<i data-lucide="package" style="width:22px;height:22px;color:var(--gray-400)"></i>`}</span>
       <div style="flex:1;min-width:0"><div class="strong" style="font-size:14px">${p.name||p.model||'-'}</div><div class="p-sm" style="color:var(--gray-500);margin-top:1px">${p.categoryName||p.serviceCode||''} · ${p.qty||1}개</div></div>
       <div class="strong" style="white-space:nowrap">${won((p.price||0)*(p.qty||1))}<small style="color:var(--gray-400);font-weight:600"> 원</small></div>
     </div>`;
   }).join('') : W.selected.map(id=>{const p=wp(id);const q=wq(id);const cat=catOf(id);const im=ITEM_IMG[cat];
-    return `<div style="display:flex;align-items:center;gap:14px">
+    return `<div style="display:flex;align-items:center;gap:14px;padding:12px;border:1px solid var(--gray-100);border-radius:16px;background:#fff">
       <span style="width:52px;height:52px;border-radius:12px;background:var(--gray-100);overflow:hidden;flex:none;display:grid;place-items:center">${im?`<img src="${im}" alt="" style="width:100%;height:100%;object-fit:cover">`:''}</span>
       <div style="flex:1;min-width:0"><div class="strong" style="font-size:14px">${p.brand} ${productDisplayName(p)}</div><div class="p-sm" style="color:var(--gray-500);margin-top:1px">${cat.replace(/\s*교체$/,'')} · ${q}개</div></div>
       <div class="strong" style="white-space:nowrap">${won(p.price*q)}<small style="color:var(--gray-400);font-weight:600"> 원</small></div>
@@ -1975,11 +2002,19 @@ orderview: () => {
   <div class="bcard pad" style="padding:24px;margin-top:18px">
     <div class="between"><span class="badge badge-warning dot">${statusLabel}</span><span class="p-sm strong" style="color:var(--gray-600)">${remote?.orderNumber || W.orderNo}</span></div>
     <div class="atl" style="margin-top:18px">
-      <div class="atl-row done"><span class="atl-node"><i data-lucide="check"></i></span><div><div class="tlt">사진 확인 신청</div><div class="tld">방금 · 접수 완료</div></div></div>
-      ${remote?.payment?.status==='pending'?`<div class="atl-row now"><span class="atl-node"></span><div><div class="tlt">제품 입금 대기</div><div class="tld">${won(wPaymentAmount())}원 · 계좌이체 대기</div></div></div>`:`<div class="atl-row now"><span class="atl-node"></span><div><div class="tlt">매니저 확인 중</div><div class="tld">가능 여부·정찰가 확인</div></div></div>`}
+      ${hasProducts
+        ? `<div class="atl-row done"><span class="atl-node"><i data-lucide="check"></i></span><div><div class="tlt">제품 주문 접수</div><div class="tld">방금 · 접수 완료</div></div></div>
+      ${remote?.payment?.status==='pending'
+        ? `<div class="atl-row now"><span class="atl-node"></span><div><div class="tlt">제품 금액 입금 대기</div><div class="tld">${won(wPaymentAmount())}원 · 계좌이체 안내 확인</div></div></div>`
+        : `<div class="atl-row now"><span class="atl-node"></span><div><div class="tlt">사진 확인 · 최종 견적</div><div class="tld">시공 가능 여부·시공비 확인</div></div></div>`}
+      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">방문 일정 확정</div><div class="tld">희망 일정 기준으로 조율</div></div></div>
+      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">방문 교체</div><div class="tld">현장 시공 진행</div></div></div>
+      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">완료 · 보증 시작</div><div class="tld">완료 리포트 · A/S</div></div></div>`
+        : `<div class="atl-row done"><span class="atl-node"><i data-lucide="check"></i></span><div><div class="tlt">사진 확인 접수</div><div class="tld">방금 · 접수 완료</div></div></div>
+      <div class="atl-row now"><span class="atl-node"></span><div><div class="tlt">매니저 확인 중</div><div class="tld">가능 여부·정찰가 확인</div></div></div>
       <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">견적·예약 확정</div><div class="tld">동의 후 진행</div></div></div>
       <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">방문 교체</div><div class="tld">희망 일정 기준</div></div></div>
-      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">완료 · 보증 시작</div><div class="tld">완료 리포트 · A/S</div></div></div>
+      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">완료 · 보증 시작</div><div class="tld">완료 리포트 · A/S</div></div></div>`}
     </div>
   </div>
   <div class="bcard pad" style="padding:24px;margin-top:14px">
@@ -1992,7 +2027,7 @@ orderview: () => {
     </div>
     ${hasProducts?`
     <div class="divline" style="margin:16px 0"></div>
-    <div class="p-sm strong" style="color:var(--gray-900)">선택 제품 <span class="p-sm" style="color:var(--gray-400);font-weight:500">${W.selected.length}종 · 총 ${wunits()}개</span></div>
+    <div class="p-sm strong" style="color:var(--gray-900)">선택 제품 <span class="p-sm" style="color:var(--gray-400);font-weight:500">${selectedKinds}종 · 총 ${selectedUnits}개</span></div>
     <div class="col gap12" style="margin-top:14px">${rows}</div>
     <div class="divline" style="margin:16px 0"></div>
     <div class="col gap10">

@@ -27,6 +27,22 @@ function latest(rows: unknown, dateKeys: string[]) {
   })[0] ?? null;
 }
 
+function kstDateOnly(value?: string | null) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date(value));
+}
+
+function slotFromScheduledAt(value?: string | null) {
+  if (!value) return null;
+  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", hour: "2-digit", hour12: false }).format(new Date(value)));
+  return hour < 13 ? "morning" : "afternoon";
+}
+
 function selectedProductsFromQuote(order: Record<string, any>) {
   const quote = latest(order.quotes, ["accepted_at", "created_at"]);
   const items = asArray(quote?.items);
@@ -40,9 +56,11 @@ function selectedProductsFromQuote(order: Record<string, any>) {
       brand: selected?.brand ?? "",
       name: [selected?.brand, selected?.model].filter(Boolean).join(" ") || item?.item_name || item?.sku,
       model: selected?.model ?? "",
+      image: selected?.image ?? "",
       sku: selected?.sku ?? item?.sku,
+      color: selected?.color ?? "",
       serviceCode: selected?.serviceCode ?? item?.sku ?? item?.metadata?.service_type_code,
-      categoryName: selected?.category ?? item?.item_name ?? "",
+      categoryName: selected?.categoryName ?? selected?.category ?? formatServiceName(item?.metadata?.service_type_code ?? item?.sku),
       qty: Number(item?.qty ?? 1),
       price: Number(item?.unit_material ?? selected?.price ?? 0)
     };
@@ -97,7 +115,6 @@ export async function POST(request: Request) {
       customers(id,name,phone,address_full,address_apt),
       homes(id,address_full,address_apt,postal_code),
       payments(id,status,provider,amount,product_amount,service_fee_amount,total_amount,online_payment_amount,onsite_payment_amount,paid_at,approved_at,created_at),
-      reservations(id,reserved_date,time_slot,status,created_at),
       jobs(id,status,scheduled_at,created_at),
       quotes(id,items,total_material,total_labor,total_final,accepted_at,created_at)
     `
@@ -113,7 +130,6 @@ export async function POST(request: Request) {
 
   const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers;
   const payment = latest(order.payments, ["paid_at", "approved_at", "created_at"]);
-  const reservation = latest(order.reservations, ["created_at"]);
   const job = latest(order.jobs, ["scheduled_at", "created_at"]);
   const address = compactAddress(order);
   const selected = selectedProductsFromQuote(order);
@@ -148,10 +164,10 @@ export async function POST(request: Request) {
       detailAddress: address.detailAddress,
       selected,
       photoCount: Array.isArray(order.inquiry_photos) ? order.inquiry_photos.length : 0,
-      reservation: reservation ? {
-        date: reservation.reserved_date,
-        time: reservation.time_slot,
-        status: reservation.status
+      reservation: job?.scheduled_at ? {
+        date: kstDateOnly(job.scheduled_at),
+        time: slotFromScheduledAt(job.scheduled_at),
+        status: job.status
       } : null,
       jobStatus: job?.status ?? null,
       totals: {
@@ -171,4 +187,3 @@ export async function POST(request: Request) {
     message: "주문을 찾았어요."
   });
 }
-

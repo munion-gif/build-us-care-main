@@ -1208,12 +1208,35 @@ async function openFinalEstimateM(){
   const addr=(S.info.region||'')+(S.info.regionDetail?' '+S.info.regionDetail:'');
   const dateTxt=S.date?`${dateLabel(true)}${S.time?' · '+S.time:''}`:'사진 확인 후 협의';
   const cashReceiptText=cashReceiptTextM();
+  const remoteRows = Array.isArray(S.remoteOrder?.selected) ? S.remoteOrder.selected : [];
+  const normalizedRows = remoteRows.length ? remoteRows.map(p => {
+    const categoryName = p.categoryName || p.serviceCode || '';
+    return {
+      name: p.name || p.model || '-',
+      categoryName,
+      qty: Number(p.qty || 1),
+      price: Number(p.price || 0),
+      image: p.image || ITEM_IMG[categoryName] || ITEM_IMG[`${categoryName} 교체`] || ''
+    };
+  }) : S.selected.map(id => {
+    const p = productById(id);
+    const cat = catalogCatOf(id);
+    return {
+      name: `${p.brand} ${productDisplayName(p)}`,
+      categoryName: cat.replace(/\s*교체$/,''),
+      qty: 1,
+      price: Number(p.price || 0),
+      image: ITEM_IMG[cat] || ''
+    };
+  });
+  const selectedKinds = normalizedRows.length;
+  const selectedUnits = normalizedRows.reduce((sum, row) => sum + Number(row.qty || 1), 0);
+  const estimateTotal = remoteRows.length ? Number(S.remoteOrder?.totals?.totalAmount || 0) : total();
+  const vatIncludedTotal = Math.round(estimateTotal * 1.1);
   const logo=BC_LOGO_URI_M||await imgToDataUriM('assets/bc-logo.png');
-  const uris={}; await Promise.all([...new Set(S.selected.map(id=>catalogCatOf(id)))].map(async cat=>{ uris[cat]=ITEM_IMG[cat]?await imgToDataUriM(ITEM_IMG[cat]):''; }));
-  const rows=S.selected.map(id=>{const p=productById(id);const cat=catalogCatOf(id);const im=uris[cat];
-    return `<tr><td class="it"><span class="thumb">${im?`<img src="${im}" alt="">`:''}</span><span class="it-tx"><b>${p.brand} ${productDisplayName(p)}</b><small>${cat.replace(/\s*교체$/,'')}</small></span></td><td class="c">1</td><td class="r">${won(p.price)}</td></tr>`;}).join('');
-  const estimateTotal=total();
-  const vatIncludedTotal=vatTotal();
+  const uris={}; await Promise.all([...new Set(normalizedRows.map(row=>row.image).filter(Boolean))].map(async src=>{ uris[src]=await imgToDataUriM(src); }));
+  const rows=normalizedRows.map(row=>{const im=uris[row.image]||'';
+    return `<tr><td class="it"><span class="thumb">${im?`<img src="${im}" alt="">`:''}</span><span class="it-tx"><b>${row.name}</b><small>${row.categoryName}</small></span></td><td class="c">${row.qty}</td><td class="r">${won(row.price*row.qty)}</td></tr>`;}).join('');
   const html=`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>최종 견적서 · Build us Care</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css">
   <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Pretendard',-apple-system,sans-serif;color:#1d1d1f;background:#f5f5f7;padding:40px 20px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -1227,11 +1250,11 @@ async function openFinalEstimateM(){
   .actions{max-width:700px;margin:20px auto 0;display:flex;gap:10px;justify-content:center}.btn{border:none;cursor:pointer;font-family:inherit;font-size:15px;font-weight:600;padding:12px 24px;border-radius:980px}.btn.p{background:#245FFF;color:#fff}.btn.s{background:#fff;color:#1d1d1f;border:1px solid #d2d2d7}
   @media (max-width:520px){body{padding:14px 10px}.sheet{padding:22px 16px;border-radius:16px}.top{flex-direction:column;align-items:flex-start;gap:12px}.meta{text-align:left}.q-logo{height:26px}h1{font-size:22px;margin:18px 0 4px}.info{grid-template-columns:1fr}.info .v{word-break:break-all}.tot .v{font-size:24px}table{font-size:14px}td.it{gap:10px}.thumb{width:44px;height:44px}.it-tx b{word-break:keep-all}.actions{flex-direction:column;margin-top:16px}.btn{width:100%}}@media print{body{background:#fff;padding:0}.sheet{box-shadow:none;border-radius:0}.actions{display:none}}</style></head><body>
   <div class="sheet"><div class="top"><img class="q-logo" src="${logo}" alt="build us care"><div class="meta">발행일 ${today}<br>접수번호 <b>${ono}</b><br>유효기간 발행일로부터 14일</div></div>
-  <h1>최종 견적서</h1><div class="sub">선택 제품 ${S.selected.length}종 · 총 ${S.selected.length}개</div>
+  <h1>최종 견적서</h1><div class="sub">선택 제품 ${selectedKinds}종 · 총 ${selectedUnits}개</div>
   <div class="info"><div class="cell"><div class="k">예약자</div><div class="v">${S.info.name||'-'}</div></div><div class="cell"><div class="k">연락처</div><div class="v">${S.info.phone||'-'}</div></div><div class="cell full"><div class="k">시공 주소</div><div class="v">${addr||'-'}</div></div><div class="cell full"><div class="k">예약 일시</div><div class="v">${dateTxt}</div></div><div class="cell full"><div class="k">현금영수증</div><div class="v">${cashReceiptText}</div></div></div>
   <table><thead><tr><th>제품</th><th class="c">수량</th><th class="r">금액 (원)</th></tr></thead><tbody>${rows}
-  <tr class="grp"><td>시공비</td><td class="c">×${S.selected.length}</td><td class="r">${won(laborTotal())}</td></tr>
-  <tr class="grp"><td>폐기물 처리비${S.selfDisposal?' <span style="color:#86868b">(직접 처리)</span>':''}</td><td class="c">×1</td><td class="r">${won(disposalFee())}</td></tr>
+  <tr class="grp"><td>시공비</td><td class="c">×${selectedUnits}</td><td class="r">${won(remoteRows.length ? Number(S.remoteOrder?.totals?.onsitePaymentAmount || S.remoteOrder?.totals?.laborAmount || 0) : laborTotal())}</td></tr>
+  <tr class="grp"><td>폐기물 처리비${S.selfDisposal?' <span style="color:#86868b">(직접 처리)</span>':''}</td><td class="c">×${selectedUnits}</td><td class="r">${won(remoteRows.length ? 0 : disposalFee())}</td></tr>
   <tr class="sum"><td>합계</td><td class="c"></td><td class="r">${won(estimateTotal)}</td></tr></tbody></table>
   <div class="tot"><span class="k">최종 합계<small>부가세 10% 포함</small></span><span class="v">${won(vatIncludedTotal)}<small> 원</small></span></div>
   <div class="foot">주식회사 무니온 · 대표 김영태 · 경기도 용인시 포은대로59번길 37, 시그니처광교<br>사업자등록번호 601-81-39840 · 통신판매업신고 2025-용인수지-3087 · munion@mymunion.com</div></div>
@@ -1676,7 +1699,7 @@ done: () => {
 <div class="body scroll"><div class="pad" style="text-align:center;padding-top:24px">
   <div class="featured-icon circle" style="width:72px;height:72px;background:var(--success-50);color:var(--success-600);margin:0 auto"><i data-lucide="check" style="width:36px;height:36px"></i></div>
   <h2 class="h-lg mt16">신청이 접수됐어요</h2>
-  <p class="p-md mt4">영업시간 기준 2시간 내 견적을 안내드려요. 카카오톡 알림도 가능해요.</p>
+  <p class="p-md mt4">영업시간 기준 2시간 내 견적을 카카오톡으로 안내해 드릴게요.</p>
   <div class="bcard pad mt20" style="text-align:left">
     <div class="between"><div class="p-sm strong" style="color:var(--gray-700)">접수번호</div><div class="p-sm strong" style="color:var(--gray-900)">${mOrderNo()}</div></div>
     <div class="between mt8"><div class="p-sm strong" style="color:var(--gray-700)">현재 상태</div><span class="badge badge-warning dot">${statusLabel}</span></div>
@@ -1724,20 +1747,29 @@ orderview: () => {
   const serviceAmount = remote?.totals ? Number(remote.totals.onsitePaymentAmount||remote.totals.laborAmount||0) : laborTotal();
   const disposalAmount = remote?.totals ? 0 : disposalFee();
   const totalAmount = remote?.totals ? Number(remote.totals.totalAmount||productAmount+serviceAmount) : total();
+  const selectedKinds = remoteRows.length || S.selected.length;
+  const selectedUnits = remoteRows.length ? remoteRows.reduce((sum, row) => sum + Number(row.qty || 1), 0) : S.selected.length;
   const rows=remoteRows.length ? remoteRows.map(p=>{
-    return `<div style="display:flex;align-items:center;gap:12px"><span style="width:46px;height:46px;border-radius:11px;background:var(--gray-100);overflow:hidden;flex:none;display:grid;place-items:center"><i data-lucide="package" style="width:21px;height:21px;color:var(--gray-400)"></i></span><div style="flex:1;min-width:0"><div class="strong" style="font-size:13.5px">${p.name||p.model||'-'}</div><div class="p-sm" style="color:var(--gray-500);margin-top:1px">${p.categoryName||p.serviceCode||''} · ${p.qty||1}개</div></div><div class="strong" style="white-space:nowrap">${won((p.price||0)*(p.qty||1))}<small style="color:var(--gray-400);font-weight:600"> 원</small></div></div>`;
+    const im = p.image || ITEM_IMG[p.categoryName] || ITEM_IMG[`${p.categoryName||''} 교체`] || '';
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--gray-100);border-radius:14px;background:#fff"><span style="width:46px;height:46px;border-radius:11px;background:var(--gray-100);overflow:hidden;flex:none;display:grid;place-items:center">${im?`<img src="${im}" alt="" style="width:100%;height:100%;object-fit:cover">`:`<i data-lucide="package" style="width:21px;height:21px;color:var(--gray-400)"></i>`}</span><div style="flex:1;min-width:0"><div class="strong" style="font-size:13.5px">${p.name||p.model||'-'}</div><div class="p-sm" style="color:var(--gray-500);margin-top:1px">${p.categoryName||p.serviceCode||''} · ${p.qty||1}개</div></div><div class="strong" style="white-space:nowrap">${won((p.price||0)*(p.qty||1))}<small style="color:var(--gray-400);font-weight:600"> 원</small></div></div>`;
   }).join('') : S.selected.map(id=>{const p=productById(id);const cat=catalogCatOf(id);const im=ITEM_IMG[cat];
-    return `<div style="display:flex;align-items:center;gap:12px"><span style="width:46px;height:46px;border-radius:11px;background:var(--gray-100);overflow:hidden;flex:none;display:grid;place-items:center">${im?`<img src="${im}" alt="" style="width:100%;height:100%;object-fit:cover">`:''}</span><div style="flex:1;min-width:0"><div class="strong" style="font-size:13.5px">${p.brand} ${productDisplayName(p)}</div><div class="p-sm" style="color:var(--gray-500);margin-top:1px">${cat.replace(/\s*교체$/,'')} · 1개</div></div><div class="strong" style="white-space:nowrap">${won(p.price)}<small style="color:var(--gray-400);font-weight:600"> 원</small></div></div>`;}).join('');
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--gray-100);border-radius:14px;background:#fff"><span style="width:46px;height:46px;border-radius:11px;background:var(--gray-100);overflow:hidden;flex:none;display:grid;place-items:center">${im?`<img src="${im}" alt="" style="width:100%;height:100%;object-fit:cover">`:''}</span><div style="flex:1;min-width:0"><div class="strong" style="font-size:13.5px">${p.brand} ${productDisplayName(p)}</div><div class="p-sm" style="color:var(--gray-500);margin-top:1px">${cat.replace(/\s*교체$/,'')} · 1개</div></div><div class="strong" style="white-space:nowrap">${won(p.price)}<small style="color:var(--gray-400);font-weight:600"> 원</small></div></div>`;}).join('');
   return `
 <div class="appbar bordered">${back_btn}<span class="title" style="font-size:13px;font-weight:700">주문 확인</span><span class="spacer"></span>${menu_btn}</div>
 <div class="body scroll"><div class="pad">
   <div class="bcard pad"><div class="between"><span class="badge badge-warning dot">${statusLabel}</span><span class="p-sm strong" style="color:var(--gray-600)">${remote?.orderNumber || S.orderNo}</span></div>
     <div class="atl mt16">
-      <div class="atl-row done"><span class="atl-node"><i data-lucide="check"></i></span><div><div class="tlt">사진 확인 신청</div><div class="tld">방금 · 접수 완료</div></div></div>
-      ${remote?.payment?.status==='pending'?`<div class="atl-row now"><span class="atl-node"></span><div><div class="tlt">제품 입금 대기</div><div class="tld">${won(paymentAmountM())}원 · 계좌이체 대기</div></div></div>`:`<div class="atl-row now"><span class="atl-node"></span><div><div class="tlt">매니저 확인 중</div><div class="tld">가능 여부·정찰가 확인</div></div></div>`}
+      ${hasProducts
+        ? `<div class="atl-row done"><span class="atl-node"><i data-lucide="check"></i></span><div><div class="tlt">제품 주문 접수</div><div class="tld">방금 · 접수 완료</div></div></div>
+      ${remote?.payment?.status==='pending'?`<div class="atl-row now"><span class="atl-node"></span><div><div class="tlt">제품 금액 입금 대기</div><div class="tld">${won(paymentAmountM())}원 · 계좌이체 안내 확인</div></div></div>`:`<div class="atl-row now"><span class="atl-node"></span><div><div class="tlt">사진 확인 · 최종 견적</div><div class="tld">시공 가능 여부·시공비 확인</div></div></div>`}
+      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">방문 일정 확정</div><div class="tld">희망 일정 기준으로 조율</div></div></div>
+      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">방문 교체</div><div class="tld">현장 시공 진행</div></div></div>
+      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">완료 · 보증 시작</div><div class="tld">완료 리포트 · A/S</div></div></div>`
+        : `<div class="atl-row done"><span class="atl-node"><i data-lucide="check"></i></span><div><div class="tlt">사진 확인 접수</div><div class="tld">방금 · 접수 완료</div></div></div>
+      <div class="atl-row now"><span class="atl-node"></span><div><div class="tlt">매니저 확인 중</div><div class="tld">가능 여부·정찰가 확인</div></div></div>
       <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">견적·예약 확정</div><div class="tld">동의 후 진행</div></div></div>
       <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">방문 교체</div><div class="tld">희망 일정 기준</div></div></div>
-      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">완료 · 보증 시작</div><div class="tld">완료 리포트 · A/S</div></div></div>
+      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">완료 · 보증 시작</div><div class="tld">완료 리포트 · A/S</div></div></div>`}
     </div>
   </div>
   <div class="bcard pad mt12">
@@ -1750,7 +1782,7 @@ orderview: () => {
     </div>
     ${hasProducts?`
     <div class="divline" style="margin:14px 0"></div>
-    <div class="p-sm strong" style="color:var(--gray-900)">선택 제품 <span class="p-sm" style="color:var(--gray-400);font-weight:500">${S.selected.length}개</span></div>
+    <div class="p-sm strong" style="color:var(--gray-900)">선택 제품 <span class="p-sm" style="color:var(--gray-400);font-weight:500">${selectedKinds}종 · 총 ${selectedUnits}개</span></div>
     <div class="col gap12 mt12">${rows}</div>
     <div class="divline" style="margin:14px 0"></div>
     <div class="prow" style="padding:6px 0"><span class="pk"><i data-lucide="package" style="width:15px;height:15px"></i> 제품비</span><span class="pv">${won(productAmount)}</span></div>

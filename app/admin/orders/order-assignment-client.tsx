@@ -9,25 +9,19 @@ type Technician = {
   is_active?: boolean | null;
 };
 
-type Reservation = {
-  reserved_date?: string | null;
-  reservation_date?: string | null;
-  time_slot?: string | null;
-  status?: string | null;
-};
-
 type Job = {
   id: string;
   technician_id?: string | null;
+  assigned_technician_name?: string | null;
   scheduled_at?: string | null;
   status?: string | null;
+  created_at?: string | null;
 };
 
 type Props = {
   orderId: string;
   orderNumber: string;
   orderStatus: string;
-  reservations?: Reservation[];
   jobs?: Job[];
   technicians: Technician[];
   compact?: boolean;
@@ -44,6 +38,26 @@ function timeFromSlot(slot?: string | null) {
   return "09:00";
 }
 
+function dateFromScheduledAt(value?: string | null) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date(value));
+}
+
+function timeFromScheduledAt(value?: string | null) {
+  if (!value) return "09:00";
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Seoul",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(new Date(value));
+}
+
 function slotFromTime(time: string) {
   return Number(time.slice(0, 2)) < 13 ? "morning" : "afternoon";
 }
@@ -54,7 +68,7 @@ function jobSlot(job: Job) {
   return hour < 13 ? "morning" : "afternoon";
 }
 
-function reservationLabel(date: string, time: string) {
+function visitLabel(date: string, time: string) {
   return `${date} ${slotFromTime(time) === "morning" ? "오전" : "오후"}`;
 }
 
@@ -75,17 +89,17 @@ export function OrderScheduleConfirmButton({
       setMessage(reason);
       return;
     }
-    if (!window.confirm("담당 기사와 예약 시간을 확정하고 고객에게 방문 확정 상태로 보여줄까요?")) return;
+    if (!window.confirm("담당 기사와 방문 시간을 확정하고 고객에게 방문 확정 상태로 보여줄까요?")) return;
     setSaving(true);
     setMessage("");
     try {
       const response = await fetch(`/api/admin/orders/${orderId}/confirm-reservation`, { method: "POST" });
       const json = await response.json();
-      if (!response.ok) throw new Error(json?.error?.message ?? "예약 확정에 실패했습니다.");
-      setMessage("예약을 확정했습니다.");
+      if (!response.ok) throw new Error(json?.error?.message ?? "방문 확정에 실패했습니다.");
+      setMessage("방문 일정을 확정했습니다.");
       window.setTimeout(() => window.location.reload(), 500);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "예약 확정에 실패했습니다.");
+      setMessage(error instanceof Error ? error.message : "방문 확정에 실패했습니다.");
     } finally {
       setSaving(false);
     }
@@ -94,18 +108,20 @@ export function OrderScheduleConfirmButton({
   return (
     <div className="adm-inline-actions">
       <button className="adm-btn adm-btn-primary adm-btn-sm" type="button" disabled={saving} onClick={confirmSchedule}>
-        {saving ? "확정 중..." : "예약 확정"}
+        {saving ? "확정 중..." : "방문 확정"}
       </button>
       {message && <span className="adm-help" style={{ marginTop: 0 }}>{message}</span>}
     </div>
   );
 }
 
-export function OrderAssignmentButton({ orderId, orderNumber, orderStatus, reservations = [], jobs = [], technicians, compact }: Props) {
-  const firstReservation = reservations.find((reservation) => reservation.status !== "cancelled") ?? reservations[0];
+export function OrderAssignmentButton({ orderId, orderNumber, orderStatus, jobs = [], technicians, compact }: Props) {
+  const firstScheduledJob = jobs
+    .filter((job) => job.status !== "cancelled")
+    .sort((a, b) => String(b.scheduled_at ?? b.created_at ?? "").localeCompare(String(a.scheduled_at ?? a.created_at ?? "")))[0];
   const [open, setOpen] = useState(false);
-  const [date, setDate] = useState(firstReservation?.reserved_date ?? firstReservation?.reservation_date ?? tomorrowDate());
-  const [time, setTime] = useState(timeFromSlot(firstReservation?.time_slot));
+  const [date, setDate] = useState(dateFromScheduledAt(firstScheduledJob?.scheduled_at) || tomorrowDate());
+  const [time, setTime] = useState(timeFromScheduledAt(firstScheduledJob?.scheduled_at));
   const [technicianId, setTechnicianId] = useState(technicians[0]?.id ?? "");
   const [dayJobs, setDayJobs] = useState<Job[]>([]);
   const [loadingCounts, setLoadingCounts] = useState(false);
@@ -160,7 +176,7 @@ export function OrderAssignmentButton({ orderId, orderNumber, orderStatus, reser
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json?.error?.message ?? "기사 배정에 실패했습니다.");
-      setMessage(orderStatus === "scheduled" ? "기사 배정을 완료했습니다." : "기사 배정을 저장했습니다. 예약 확정 버튼으로 고객 안내를 확정해주세요.");
+      setMessage(orderStatus === "scheduled" ? "기사 배정을 완료했습니다." : "기사 배정을 저장했습니다. 방문 확정 버튼으로 고객 안내를 확정해주세요.");
       window.setTimeout(() => window.location.reload(), 500);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "기사 배정을 다시 시도해주세요.");
@@ -203,11 +219,11 @@ export function OrderAssignmentButton({ orderId, orderNumber, orderStatus, reser
               <h2 className="adm-modal-title">기사 배정</h2>
             </div>
             <div className="adm-modal-body adm-stack">
-              <p className="adm-muted">주문: {orderNumber} ({reservationLabel(date, time)})</p>
+              <p className="adm-muted">주문: {orderNumber} ({visitLabel(date, time)})</p>
               {orderStatus !== "scheduled" && (
                 <div className="adm-next-action">
                   <strong>운영 흐름</strong>
-                  <p>이 단계는 기사만 배정합니다. 고객에게 방문 확정으로 보이게 하려면 주문 상세에서 예약 확정을 눌러주세요.</p>
+                  <p>이 단계는 기사만 배정합니다. 고객에게 방문 확정으로 보이게 하려면 주문 상세에서 방문 확정을 눌러주세요.</p>
                 </div>
               )}
               <div className="adm-form-row adm-form-row-2">

@@ -1,8 +1,6 @@
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import {
-  formatBuildingType,
   formatChannel,
-  formatHousingType,
   formatKRDateTime,
   formatKRW,
   formatOrderStatus,
@@ -26,7 +24,88 @@ async function getOrder(id: string) {
   if (!hasSupabaseEnv()) return null;
   const { data } = await getSupabaseAdmin()
     .from("orders")
-    .select("*, customers(*), homes(*), quotes(*), jobs(*, technicians(*)), media(*), payments(*), feedbacks(*), warranty_cases(*), notifications(*)")
+    .select(`
+      id,
+      order_number,
+      status,
+      channel,
+      source,
+      reason,
+      service_type_code,
+      skus,
+      inquiry_photos,
+      special_requests,
+      total_amount,
+      online_payment_amount,
+      onsite_payment_amount,
+      created_at,
+      is_test,
+      test_note,
+      deleted_at,
+      deleted_reason,
+      customer_id,
+      home_id,
+      customers(
+        id,
+        name,
+        phone,
+        acquisition_source,
+        address_full,
+        address_dong,
+        address_apt
+      ),
+      homes(
+        id,
+        address_full,
+        address_dong,
+        address_apt
+      ),
+      quotes(
+        id,
+        version,
+        items,
+        total_material,
+        total_labor,
+        total_final,
+        accepted_at,
+        created_at
+      ),
+      jobs(
+        id,
+        technician_id,
+        assigned_technician_name,
+        scheduled_at,
+        status,
+        created_at,
+        technicians(id, name)
+      ),
+      media(
+        id,
+        type,
+        file_path
+      ),
+      payments(
+        id,
+        status,
+        provider,
+        method,
+        amount,
+        product_amount,
+        online_payment_amount,
+        onsite_payment_amount,
+        total_amount,
+        paid_at,
+        approved_at,
+        created_at,
+        provider_status
+      ),
+      warranty_cases(
+        id,
+        status,
+        responsibility,
+        resolved_at
+      )
+    `)
     .eq("id", id)
     .maybeSingle();
   return data;
@@ -52,14 +131,17 @@ async function getActiveTechnicians() {
   return data ?? [];
 }
 
-function scoreDots(value?: number) {
-  const score = Number(value ?? 0);
-  return "●".repeat(Math.max(0, score)) + "○".repeat(Math.max(0, 5 - score));
-}
-
 function asArray(value: any) {
   if (!value) return [];
   return Array.isArray(value) ? value : [value];
+}
+
+function customerRecord(order: any) {
+  return asArray(order?.customers)[0] ?? null;
+}
+
+function homeRecord(order: any) {
+  return asArray(order?.homes)[0] ?? null;
 }
 
 function firstServiceCode(order: any) {
@@ -166,6 +248,15 @@ function cashReceiptTextFromOrder(order: any) {
   return line?.replace(/^.*?현금영수증:\s*/, "").trim() || "신청 안 함";
 }
 
+function requestText(order: any) {
+  const text = String(order?.special_requests ?? "")
+    .split(/\r?\n/)
+    .filter((entry) => entry.trim() && !entry.includes("현금영수증:"))
+    .join(" / ")
+    .trim();
+  return text || order?.reason || "요청사항 없음";
+}
+
 function isBankTransfer(payment: any) {
   return payment?.provider === "bank_transfer" || payment?.method === "transfer";
 }
@@ -202,69 +293,6 @@ function canConfirmBankTransfer(order: any, payment: any) {
   );
 }
 
-function notificationRawError(notification: any) {
-  return notification?.last_error ?? notification?.payload?.dispatch?.error ?? "";
-}
-
-function isNotificationSetupPending(notification: any) {
-  const error = String(notificationRawError(notification));
-  return (
-    notification?.send_status === "prepared" ||
-    notification?.channel === "mock" ||
-    notification?.channel === "admin" ||
-    /not configured|No dispatch channel|provider is not configured|credentials|sender phone/i.test(error)
-  );
-}
-
-function notificationStatusLabel(notification: any) {
-  const status = notification?.send_status;
-  if (isNotificationSetupPending(notification)) return "발송준비";
-  if (status === "prepared") return "발송준비";
-  if (status === "sent") return "발송완료";
-  if (status === "failed") return "실패";
-  if (status === "queued" || status === "pending") return "대기";
-  return status ?? "-";
-}
-
-function notificationBadgeClass(notification: any) {
-  const status = notification?.send_status;
-  if (isNotificationSetupPending(notification)) return "adm-badge-sky";
-  if (status === "sent") return "adm-badge-green";
-  if (status === "failed") return "adm-badge-red";
-  if (status === "prepared") return "adm-badge-sky";
-  return "adm-badge-orange";
-}
-
-function notificationChannelLabel(channel?: string | null) {
-  if (channel === "mock") return "발송 준비";
-  if (channel === "admin") return "관리자 알림";
-  if (channel === "kakao") return "카카오";
-  if (channel === "sms") return "문자";
-  if (channel === "email") return "이메일";
-  return channel ?? "-";
-}
-
-function notificationHelp(notification: any) {
-  if (notification?.template_code === "reservation_confirmed" && notification?.send_status === "prepared") {
-    return "방문 확정 안내 내용이 준비되었습니다. 카카오/SMS 연동 후 자동 발송 대상으로 전환할 수 있습니다.";
-  }
-  if (isNotificationSetupPending(notification)) {
-    return "외부 발송 채널이 아직 연결되지 않아 실제 발송은 보류된 기록입니다.";
-  }
-  return notificationRawError(notification);
-}
-
-function notificationTitle(notification: any) {
-  return `${notification.template_code ?? "알림"} · ${notificationChannelLabel(notification.channel)}`;
-}
-
-function notificationMetaSentence(notification: any) {
-  const recipient = notification?.recipient ? `수신 ${notification.recipient}` : "수신 대상 미확인";
-  const attempts = Number(notification?.attempts ?? 0);
-  const sentAt = notification?.sent_at ? `${formatKRDateTime(notification.sent_at)}에 발송되었습니다` : "아직 실제 발송 전입니다";
-  return `${recipient} 대상으로 ${attempts}회 처리됐고, ${sentAt}.`;
-}
-
 function assignedTechnician(order: any) {
   const job = asArray(order.jobs).find((item: any) => item.technicians?.name || item.assigned_technician_name || item.technician_id);
   return job?.technicians?.name ?? job?.assigned_technician_name ?? "미배정";
@@ -298,13 +326,6 @@ async function signPhotoInputs(inputs: string[]) {
       return { src: data?.signedUrl ?? null, label: input };
     })
   );
-}
-
-function materialSummary(skus: any[]) {
-  const first = skus[0] ?? {};
-  const grade = first.product_grade === "premium" ? "고급 자재" : first.product_grade === "standard" ? "일반 자재" : "자재 미확인";
-  const addons = Array.isArray(first.options) ? first.options.length : 0;
-  return `${grade}${addons ? ` · 추가옵션 ${addons}개` : ""}`;
 }
 
 function currentAction(order: any) {
@@ -392,13 +413,14 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
   const { id } = await params;
   const [order, technicians, diagnoses] = await Promise.all([getOrder(id), getActiveTechnicians(), getOrderDiagnoses(id)]);
   if (!order) return <div className="adm-empty"><div className="adm-empty-title">주문을 찾을 수 없어요.</div></div>;
-  const quotes = asArray(order.quotes).sort((a: any, b: any) => Number(b.version ?? 0) - Number(a.version ?? 0));
   const media = asArray(order.media);
-  const feedback = asArray(order.feedbacks)[0];
   const skus = Array.isArray(order.skus) ? order.skus : [];
   const action = currentAction(order);
   const isDeleted = Boolean(order.deleted_at);
   const isTest = Boolean(order.is_test);
+  const customer = customerRecord(order);
+  const home = homeRecord(order);
+  const orderForEdit = { ...order, customers: customer, homes: home };
   const activeJob = activeAssignedJob(order);
   const payment = latestPayment(order);
   const showBankTransferConfirm = canConfirmBankTransfer(order, payment);
@@ -436,39 +458,11 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
           </div>
         </section>
 
-        {!isDeleted ? (
-          <section className={isTest ? "adm-card adm-test-panel is-test" : "adm-card adm-test-panel"}>
-            <div>
-              <h2 className="adm-card-title">{isTest ? "테스트 주문입니다" : "테스트 데이터 관리"}</h2>
-              <p className="adm-muted">
-                {isTest
-                  ? "이 주문은 관리자 테스트 데이터로 분리되어 고객 조회, 운영 통계, 기본 주문 목록에서 제외됩니다."
-                  : "운영 데이터와 섞이면 안 되는 확인용 주문은 테스트 주문으로 표시해 따로 관리합니다."}
-              </p>
-              {order.test_note ? <p className="adm-trash-meta">테스트 메모: {order.test_note}</p> : null}
-            </div>
-            <OrderTestActions isTest={isTest} orderId={order.id} orderNumber={order.order_number} />
-          </section>
-        ) : null}
-
-        <section className={isDeleted ? "adm-card adm-trash-panel is-deleted" : "adm-card adm-trash-panel"}>
-          <div>
-            <h2 className="adm-card-title">{isDeleted ? "휴지통에 있는 주문입니다" : "주문 삭제 관리"}</h2>
-            <p className="adm-muted">
-              {isDeleted
-                ? `이 주문은 ${formatKRDateTime(order.deleted_at)}에 휴지통으로 이동했습니다. 복구하거나 완전 삭제할 수 있습니다.`
-                : "잘못 접수된 테스트/중복 주문은 먼저 휴지통으로 이동한 뒤, 휴지통에서 확인 후 완전 삭제합니다."}
-            </p>
-            {order.deleted_reason ? <p className="adm-trash-meta">삭제 메모: {order.deleted_reason}</p> : null}
-          </div>
-          <OrderTrashActions mode={isDeleted ? "trash" : "active"} orderId={order.id} orderNumber={order.order_number} />
-        </section>
-
         <section className="adm-order-brief-grid">
           <article className="adm-card adm-brief-card">
             <span>고객</span>
-            <strong>{order.customers?.name ?? "-"}</strong>
-            <small>{order.customers?.phone ?? "-"}</small>
+            <strong>{customer?.name ?? "-"}</strong>
+            <small>{customer?.phone ?? "-"}</small>
           </article>
           <article className="adm-card adm-brief-card">
             <span>방문 일정</span>
@@ -492,7 +486,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
           <div className="adm-section-head">
             <div>
               <h2 className="adm-card-title">Build us Care 접수 요약</h2>
-              <p className="adm-section-note adm-muted">사진 확인, 제품값 입금, 현장 시공비를 새 주문 흐름 기준으로 봅니다.</p>
+              <p className="adm-section-note adm-muted">운영자가 바로 판단해야 하는 고객, 결제, 사진, 방문 정보만 묶었습니다.</p>
             </div>
           </div>
           <div className="adm-buildus-metrics">
@@ -558,31 +552,25 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
                 </div>
               </article>
             </div>
-            <OrderEditPanel order={order} technicians={technicians} />
+            <OrderEditPanel order={orderForEdit} technicians={technicians} />
           </section>
         )}
 
-        <section className="adm-detail-accordion">
-          <details className="adm-card adm-details-card" open>
-            <summary>고객/방문 정보</summary>
-            <p>이름: {order.customers?.name ?? "-"}</p>
-            <p>전화: {order.customers?.phone ?? "-"}</p>
-            <p>유입: <span className="adm-badge adm-badge-blue">{order.customers?.acquisition_source ?? "-"}</span></p>
-            <p>주소: {order.homes?.address_full ?? "-"}</p>
-            <p>방문 일정: {activeJob?.scheduled_at ? `${visitDateLabel(activeJob)} ${visitSlotLabel(activeJob)}` : "-"}</p>
-            <p>현금영수증: {cashReceiptTextFromOrder(order)}</p>
-          </details>
-          <details className="adm-card adm-details-card">
-            <summary>집 정보</summary>
-            <p>주거: <span className="adm-badge adm-badge-gray">{formatHousingType(order.customers?.housing_type ?? order.homes?.housing_type)}</span></p>
-            <p>건물: {formatBuildingType(order.homes?.building_type)} / {order.homes?.year_built ? `${order.homes.year_built}년 준공` : "-"}</p>
-            <p>면적: {order.homes?.size_pyung ? `${order.homes.size_pyung}평` : "-"}</p>
-            <p>층수: {order.homes?.floor ?? "-"}</p>
-          </details>
-        </section>
+        <details className="adm-card adm-details-card" open>
+          <summary>고객/주문 정보</summary>
+          <div className="adm-admin-info-grid">
+            <span><b>고객 성함</b><strong>{customer?.name ?? "-"}</strong></span>
+            <span><b>연락처</b><strong>{customer?.phone ?? "-"}</strong></span>
+            <span><b>유입 경로</b><strong>{customer?.acquisition_source ?? "-"}</strong></span>
+            <span><b>주소</b><strong>{[home?.address_full ?? customer?.address_full, home?.address_apt ?? customer?.address_apt].filter(Boolean).join(" ") || "-"}</strong></span>
+            <span><b>방문 일정</b><strong>{activeJob?.scheduled_at ? `${visitDateLabel(activeJob)} ${visitSlotLabel(activeJob)}` : "미정"}</strong></span>
+            <span><b>현금영수증</b><strong>{cashReceiptTextFromOrder(order)}</strong></span>
+            <span><b>요청 내용</b><strong>{requestText(order)}</strong></span>
+          </div>
+        </details>
 
         <details className="adm-card adm-details-card" open>
-          <summary>선택 제품/시공비</summary>
+          <summary>선택 제품/결제</summary>
           {selectedItems.length ? (
             <div className="adm-product-lines">
               {selectedItems.map((item: any, index: number) => (
@@ -601,66 +589,12 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
             <span>현장 시공비 <strong>{formatKRW(money.onsiteAmount)}</strong></span>
             <span>총 예상 금액 <strong>{formatKRW(money.total)}</strong></span>
           </div>
-          <p>요청사항: {order.special_requests ?? "-"}</p>
-        </details>
-
-        <details className="adm-card adm-details-card">
-          <summary>제품/시공비 합계</summary>
-          {quotes.length ? quotes.map((q: any) => (
-            <div key={q.id} className="adm-section">
-              <strong>{q.version ? `${q.version}차 견적` : "견적"}</strong> · 제품값 {formatKRW(Number(q.total_material ?? 0))} · 시공비 {formatKRW(Number(q.total_labor ?? 0))} · 총액 {formatKRW(Number(q.total_final ?? 0))} · {q.accepted_at ? "접수 기준 확정" : "미확정"}
-            </div>
-          )) : <div className="adm-empty"><div className="adm-empty-title">아직 견적이 없습니다.</div></div>}
-          {acceptedQuote ? <p className="adm-muted">현재 적용 견적: {acceptedQuote.version ? `${acceptedQuote.version}차` : "최신"} · {acceptedQuote.accepted_at ? formatKRDateTime(acceptedQuote.accepted_at) : "확정 전"}</p> : null}
-        </details>
-
-        <details className="adm-card adm-details-card">
-          <summary>입금/현장결제</summary>
-          {asArray(order.payments).length ? asArray(order.payments).map((payment: any) => (
-            <div key={payment.id} className="adm-section">
-              <p>상태: <span className="adm-badge adm-badge-blue">{paymentOperationLabel(order, payment)}</span></p>
-              <p>수단: {isBankTransfer(payment) ? "계좌이체" : payment.provider ?? payment.method ?? "-"}</p>
-              <p>제품값 입금 확인 금액: {formatKRW(Number(payment.online_payment_amount ?? payment.product_amount ?? payment.amount ?? 0))}</p>
-              <p>현장결제 예정: {formatKRW(Number(payment.onsite_payment_amount ?? order.onsite_payment_amount ?? 0))}</p>
-              <p>총 예상 금액: {formatKRW(Number(payment.total_amount ?? order.total_amount ?? 0))}</p>
-              <p>결제일: {formatKRDateTime(payment.paid_at ?? payment.approved_at)}</p>
-              <p>처리 상태: {payment.provider_status ?? "-"}</p>
-            </div>
-          )) : <div className="adm-empty"><div className="adm-empty-title">아직 결제 정보가 없습니다.</div></div>}
-        </details>
-
-        <details className="adm-card adm-details-card" open>
-          <summary>알림 발송</summary>
-          {asArray(order.notifications).length ? (
-            <div className="adm-notification-list">
-              {asArray(order.notifications)
-                .sort((a: any, b: any) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))
-                .slice(0, 8)
-                .map((notification: any) => (
-                  <article key={notification.id} className="adm-notification-card">
-                    <div className="adm-notification-head">
-                      <span className={`adm-badge ${notificationBadgeClass(notification)}`}>
-                        {notificationStatusLabel(notification)}
-                      </span>
-                      <strong>{notificationTitle(notification)}</strong>
-                    </div>
-                    <p className="adm-notification-meta">{notificationMetaSentence(notification)}</p>
-                    {notificationHelp(notification) && (
-                      <p className={`adm-notification-note ${isNotificationSetupPending(notification) ? "" : "is-error"}`}>
-                        {notificationHelp(notification)}
-                      </p>
-                    )}
-                  </article>
-                ))}
-            </div>
-          ) : <div className="adm-empty"><div className="adm-empty-title">아직 알림 이력이 없습니다.</div></div>}
-        </details>
-
-        <details className="adm-card adm-details-card">
-          <summary>작업 기록</summary>
-          {asArray(order.jobs).length ? asArray(order.jobs).map((job: any) => (
-            <p key={job.id}>{job.technicians?.name ?? job.assigned_technician_name ?? "미배정"} · {formatOrderStatus(job.status)} · 예상 {job.expected_minutes ?? 0}분</p>
-          )) : <p className="adm-muted">미배정</p>}
+          <div className="adm-admin-info-grid" style={{ marginTop: 12 }}>
+            <span><b>현재 결제 상태</b><strong>{paymentOperationLabel(order, payment)}</strong></span>
+            <span><b>결제 수단</b><strong>{isBankTransfer(payment) ? "계좌이체" : payment?.provider ?? payment?.method ?? "-"}</strong></span>
+            <span><b>결제 확인 시각</b><strong>{formatKRDateTime(payment?.paid_at ?? payment?.approved_at)}</strong></span>
+            <span><b>적용 견적</b><strong>{acceptedQuote ? `${acceptedQuote.version ? `${acceptedQuote.version}차` : "최신"} · ${acceptedQuote.accepted_at ? formatKRDateTime(acceptedQuote.accepted_at) : "확정 전"}` : "견적 없음"}</strong></span>
+          </div>
         </details>
 
         <details className="adm-card adm-details-card">
@@ -675,22 +609,31 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
         </details>
 
         <details className="adm-card adm-details-card">
-          <summary>고객 후기</summary>
-          {feedback ? (
-            <div className="adm-stack">
-              <p>NPS: {feedback.nps ?? "-"}/10 · ★ {feedback.rating ?? "-"}/5</p>
-              <p>시간: {scoreDots(feedback.categories?.speed)} 품질: {scoreDots(feedback.categories?.quality)} 응대: {scoreDots(feedback.categories?.kindness)} 청결: {scoreDots(feedback.categories?.cleanliness)} 가격: {scoreDots(feedback.categories?.price)}</p>
-              <p>{feedback.comment ?? "-"}</p>
-            </div>
-          ) : (
-            <div className="adm-empty"><div className="adm-empty-title">아직 고객 후기가 없습니다.</div><div className="adm-empty-sub">시공 완료 후 고객 상태 페이지에서 수집됩니다.</div></div>
-          )}
-        </details>
-
-        <details className="adm-card adm-details-card">
-          <summary>주문 상태 이력</summary>
-          <p>현재 상태: {formatOrderStatus(order.status)}</p>
-          <p>접수: {formatKRDateTime(order.created_at)}</p>
+          <summary>운영 도구</summary>
+          <div className="adm-stack">
+            {isTest ? (
+              <section className="adm-card adm-test-panel is-test">
+                <div>
+                  <h2 className="adm-card-title">테스트 주문</h2>
+                  <p className="adm-muted">운영 통계에서 제외되는 테스트 데이터입니다.</p>
+                  {order.test_note ? <p className="adm-trash-meta">테스트 메모: {order.test_note}</p> : null}
+                </div>
+                <OrderTestActions isTest={isTest} orderId={order.id} orderNumber={order.order_number} />
+              </section>
+            ) : null}
+            <section className={isDeleted ? "adm-card adm-trash-panel is-deleted" : "adm-card adm-trash-panel"}>
+              <div>
+                <h2 className="adm-card-title">{isDeleted ? "휴지통 주문" : "주문 삭제 관리"}</h2>
+                <p className="adm-muted">
+                  {isDeleted
+                    ? `이 주문은 ${formatKRDateTime(order.deleted_at)}에 휴지통으로 이동했습니다.`
+                    : "중복 또는 잘못 접수된 주문일 때만 휴지통으로 이동하세요."}
+                </p>
+                {order.deleted_reason ? <p className="adm-trash-meta">삭제 메모: {order.deleted_reason}</p> : null}
+              </div>
+              <OrderTrashActions mode={isDeleted ? "trash" : "active"} orderId={order.id} orderNumber={order.order_number} />
+            </section>
+          </div>
         </details>
       </div>
     </>

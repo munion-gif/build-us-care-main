@@ -27,11 +27,11 @@ function kstDateText(offsetDays = 0) {
   return `${year}-${month}-${day}`;
 }
 
-function slotLabel(slot?: string | null) {
-  if (slot === "morning") return "오전";
-  if (slot === "afternoon") return "오후";
-  if (slot === "all_day") return "종일";
-  return "시간 미정";
+function kstDayUtcRange(dateText: string) {
+  const start = new Date(`${dateText}T00:00:00+09:00`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { start: start.toISOString(), end: end.toISOString() };
 }
 
 function firstServiceCode(order: any) {
@@ -39,10 +39,27 @@ function firstServiceCode(order: any) {
   return sku?.service_type_code ?? sku?.sku ?? order?.service_type_code;
 }
 
-function activeReservation(order: any) {
-  return asArray(order?.reservations)
-    .filter((reservation) => reservation.status !== "cancelled")
-    .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))[0];
+function kstDateOnly(value?: string | null) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(new Date(value));
+}
+
+function slotFromScheduledAt(value?: string | null) {
+  if (!value) return "시간 미정";
+  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", hour: "2-digit", hour12: false }).format(new Date(value)));
+  return hour < 13 ? "오전" : "오후";
+}
+
+function visitText(order: any) {
+  const job = asArray(order?.jobs)
+    .filter((item) => item.status !== "cancelled")
+    .sort((a, b) => String(b.scheduled_at ?? b.created_at ?? "").localeCompare(String(a.scheduled_at ?? a.created_at ?? "")))[0];
+  return job?.scheduled_at ? `${kstDateOnly(job.scheduled_at)} ${slotFromScheduledAt(job.scheduled_at)}` : "방문 일정 미확정";
 }
 
 function hasActiveAssignedJob(order: any) {
@@ -91,23 +108,19 @@ function addressLine(order: any) {
   return address ? maskAddress(address, 3) : "주소 미확인";
 }
 
-function reservationText(order: any) {
-  const reservation = activeReservation(order);
-  return reservation ? `${reservation.reserved_date} ${slotLabel(reservation.time_slot)}` : "예약 미확정";
-}
-
 async function getConsultationData() {
   const today = kstDateText(0);
   const tomorrow = kstDateText(1);
+  const todayRange = kstDayUtcRange(today);
   const fallback = {
     today,
     tomorrow,
     paidNeedsReview: [],
-    upcomingReservations: [],
+    upcomingVisits: [],
     pendingDiagnoses: [],
     counts: {
       paidNeedsReview: 0,
-      upcomingReservations: 0,
+      upcomingVisits: 0,
       pendingDiagnoses: 0,
       unassignedPaid: 0
     }
@@ -117,7 +130,7 @@ async function getConsultationData() {
 
   const supabase: SupabaseAdmin = getSupabaseAdmin();
 
-  const [paidOrders, reservations, diagnoses] = await Promise.all([
+  const [paidOrders, visits, diagnoses] = await Promise.all([
     supabase
       .from("orders")
       .select(
@@ -125,7 +138,6 @@ async function getConsultationData() {
         id, order_number, status, total_amount, channel, service_type_code, skus, created_at,
         customers(name,phone),
         homes(address_full),
-        reservations(id,reserved_date,time_slot,status,created_at),
         jobs(id,status,technician_id,assigned_technician_name,scheduled_at,created_at),
         payments(id,status,amount,paid_at,approved_at)
       `
@@ -136,10 +148,10 @@ async function getConsultationData() {
       .order("created_at", { ascending: false })
       .limit(30),
     supabase
-      .from("reservations")
+      .from("jobs")
       .select(
         `
-        id, reserved_date, time_slot, status, created_at,
+        id, scheduled_at, status, created_at,
         orders(
           id, order_number, status, total_amount, channel, service_type_code, skus, created_at, is_test,
           customers(name,phone),
@@ -148,10 +160,10 @@ async function getConsultationData() {
         )
       `
       )
-      .gte("reserved_date", today)
-      .in("status", ["pending", "confirmed"])
-      .order("reserved_date", { ascending: true })
-      .order("time_slot", { ascending: true })
+      .not("scheduled_at", "is", null)
+      .gte("scheduled_at", todayRange.start)
+      .in("status", ["assigned", "scheduled", "checked_in", "in_progress"])
+      .order("scheduled_at", { ascending: true })
       .limit(40),
     supabase
       .from("diagnoses")
@@ -172,18 +184,18 @@ async function getConsultationData() {
   const paidNeedsReview = paidRows
     .filter((order: any) => !hasActiveAssignedJob(order))
     .slice(0, 12);
-  const upcomingReservations = (reservations.data ?? []).filter((reservation: any) => asOne(reservation.orders)?.is_test !== true).slice(0, 16);
+  const upcomingVisits = (visits.data ?? []).filter((job: any) => asOne(job.orders)?.is_test !== true).slice(0, 16);
   const pendingDiagnoses = diagnoses.data ?? [];
 
   return {
     today,
     tomorrow,
     paidNeedsReview,
-    upcomingReservations,
+    upcomingVisits,
     pendingDiagnoses: pendingDiagnoses.slice(0, 12),
     counts: {
       paidNeedsReview: paidRows.length,
-      upcomingReservations: reservations.data?.length ?? 0,
+      upcomingVisits: visits.data?.length ?? 0,
       pendingDiagnoses: pendingDiagnoses.length,
       unassignedPaid: paidNeedsReview.length
     }
@@ -217,8 +229,8 @@ export default async function AdminConsultationsPage() {
   return (
     <>
       <header className="adm-page-header">
-        <h1 className="adm-page-title">상담/예약 관리</h1>
-        <p className="adm-page-sub">카톡 상담 전에 확인해야 할 사진접수, 결제완료 주문, 오늘·내일 예약을 한 화면에서 봅니다.</p>
+        <h1 className="adm-page-title">상담/방문 관리</h1>
+        <p className="adm-page-sub">카톡 상담 전에 확인해야 할 사진접수, 결제완료 주문, 예정 방문을 한 화면에서 봅니다.</p>
       </header>
       <div className="adm-content">
         <section className="adm-queue-summary adm-section">
@@ -231,8 +243,8 @@ export default async function AdminConsultationsPage() {
             <span>결제완료 확인 필요</span>
           </article>
           <article>
-            <strong>{data.counts.upcomingReservations}</strong>
-            <span>예정 예약</span>
+            <strong>{data.counts.upcomingVisits}</strong>
+            <span>예정 방문</span>
           </article>
           <article>
             <strong>{data.today}</strong>
@@ -280,7 +292,7 @@ export default async function AdminConsultationsPage() {
             <article className="adm-card">
               <div className="adm-section-head">
                 <div>
-                  <h2 className="adm-card-title">제품값 결제 완료 · 예약/배정 확인</h2>
+                  <h2 className="adm-card-title">제품값 결제 완료 · 방문/배정 확인</h2>
                   <p className="adm-muted adm-section-note">고객에게 카톡 안내를 보내고 기사 배정 또는 일정 확인이 필요한 주문입니다.</p>
                 </div>
                 <Link className="adm-link" href="/admin/orders?flow=paid">결제완료 전체</Link>
@@ -293,8 +305,8 @@ export default async function AdminConsultationsPage() {
                     <OrderActionRow
                       key={order.id}
                       order={order}
-                      action={hasActiveAssignedJob(order) ? "방문 준비" : "예약/기사 확인"}
-                      meta={<small>{reservationText(order)}</small>}
+                      action={hasActiveAssignedJob(order) ? "방문 준비" : "방문/기사 확인"}
+                      meta={<small>{visitText(order)}</small>}
                     />
                   ))}
                 </div>
@@ -305,34 +317,34 @@ export default async function AdminConsultationsPage() {
           <article className="adm-card">
             <div className="adm-section-head">
               <div>
-                <h2 className="adm-card-title">예약 확인</h2>
-                <p className="adm-muted adm-section-note">오늘 이후 예약입니다. 시간대와 상태를 확인하고 상세에서 일정 수정/확정합니다.</p>
+                <h2 className="adm-card-title">방문 일정 확인</h2>
+                <p className="adm-muted adm-section-note">오늘 이후 방문 일정입니다. 시간대와 상태를 확인하고 상세에서 일정 수정/확정합니다.</p>
               </div>
               <Link className="adm-link" href="/admin/slots">슬롯 관리</Link>
             </div>
-            {data.upcomingReservations.length === 0 ? (
-              <EmptyRow>예정된 예약이 없습니다.</EmptyRow>
+            {data.upcomingVisits.length === 0 ? (
+              <EmptyRow>예정된 방문 일정이 없습니다.</EmptyRow>
             ) : (
               <div className="adm-action-list">
-                {data.upcomingReservations.map((reservation: any) => {
-                  const order = asOne(reservation.orders);
+                {data.upcomingVisits.map((job: any) => {
+                  const order = asOne(job.orders);
                   if (!order?.id) {
                     return (
-                      <div className="adm-action-row" key={reservation.id}>
+                      <div className="adm-action-row" key={job.id}>
                         <span>
-                          <strong>{reservation.reserved_date} {slotLabel(reservation.time_slot)}</strong>
+                          <strong>{kstDateOnly(job.scheduled_at)} {slotFromScheduledAt(job.scheduled_at)}</strong>
                           <small>연결된 주문을 찾지 못했습니다.</small>
                         </span>
-                        <span><b className={`adm-badge ${badgeClass(reservation.status)}`}>{reservation.status}</b></span>
+                        <span><b className={`adm-badge ${badgeClass(job.status)}`}>{job.status}</b></span>
                       </div>
                     );
                   }
                   return (
                     <OrderActionRow
-                      key={reservation.id}
+                      key={job.id}
                       order={order}
                       action={hasActiveAssignedJob(order) ? "상세 확인" : "기사 배정 필요"}
-                      meta={<small>{reservation.reserved_date} {slotLabel(reservation.time_slot)}</small>}
+                      meta={<small>{kstDateOnly(job.scheduled_at)} {slotFromScheduledAt(job.scheduled_at)}</small>}
                     />
                   );
                 })}
@@ -359,13 +371,13 @@ export default async function AdminConsultationsPage() {
               <span className="adm-workflow-step">2</span>
               <strong>결제완료 주문</strong>
               <b>{data.counts.unassignedPaid}</b>
-              <small>고객 안내, 예약·기사 확인</small>
+              <small>고객 안내, 방문·기사 확인</small>
             </Link>
             <Link className="adm-workflow-card" href="/admin/slots">
               <span className="adm-workflow-step">3</span>
-              <strong>예약 슬롯</strong>
-              <b>{data.counts.upcomingReservations}</b>
-              <small>예약 가능일과 중복 여부 확인</small>
+              <strong>방문 슬롯</strong>
+              <b>{data.counts.upcomingVisits}</b>
+              <small>방문 가능일과 중복 여부 확인</small>
             </Link>
             <Link className="adm-workflow-card" href="/admin/orders?flow=issue">
               <span className="adm-workflow-step">4</span>

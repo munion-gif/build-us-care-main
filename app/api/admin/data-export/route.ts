@@ -153,7 +153,6 @@ const specs: QuerySpec[] = [
       created_at: row.created_at
     })
   },
-  { table: "reservations", sheet: "reservations", orderBy: "created_at" },
   { table: "jobs", sheet: "jobs", orderBy: "created_at" },
   { table: "media", sheet: "media", orderBy: "created_at" },
   { table: "inspections", sheet: "inspections", orderBy: "created_at" },

@@ -13,7 +13,6 @@ type Context = {
 type SlotPeriod = "morning" | "afternoon";
 type JobAction = "kept" | "updated" | "released";
 
-const ACTIVE_RESERVATION_STATUSES = ["pending", "confirmed"];
 const FINAL_JOB_STATUSES = ["in_progress", "done", "inspected"];
 const RESCHEDULABLE_ORDER_STATUSES = ["paid", "product_paid", "scheduled"];
 
@@ -79,12 +78,6 @@ function sortLatest(rows: any[]) {
   return [...rows].sort((a, b) => String(b.scheduled_at ?? b.created_at ?? "").localeCompare(String(a.scheduled_at ?? a.created_at ?? "")));
 }
 
-function primaryActiveReservation(reservations: any[]) {
-  return [...reservations]
-    .filter((reservation) => ACTIVE_RESERVATION_STATUSES.includes(String(reservation.status)))
-    .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))[0] ?? null;
-}
-
 function primaryActiveJob(jobs: any[]) {
   return sortLatest(jobs.filter((job) => String(job.status) !== "cancelled"))[0] ?? null;
 }
@@ -127,33 +120,19 @@ async function assertSlotAvailable(params: {
   }
 
   const range = kstDayUtcRange(reservedDate);
-  const [jobsResult, reservationsResult] = await Promise.all([
-    supabase
-      .from("jobs")
-      .select("id,order_id,scheduled_at,status")
-      .not("scheduled_at", "is", null)
-      .neq("status", "cancelled")
-      .gte("scheduled_at", range.start)
-      .lt("scheduled_at", range.end),
-    supabase
-      .from("reservations")
-      .select("id,order_id,reserved_date,time_slot,status")
-      .eq("reserved_date", reservedDate)
-      .neq("status", "cancelled")
-  ]);
+  const { data: jobs, error } = await supabase
+    .from("jobs")
+    .select("id,order_id,scheduled_at,status")
+    .not("scheduled_at", "is", null)
+    .neq("status", "cancelled")
+    .gte("scheduled_at", range.start)
+    .lt("scheduled_at", range.end);
 
-  const firstError = jobsResult.error ?? reservationsResult.error;
-  if (firstError) return fail("INTERNAL_ERROR", firstError.message, 500);
+  if (error) return fail("INTERNAL_ERROR", error.message, 500);
 
-  const sameSlotJobCount = (jobsResult.data ?? []).filter((job) => job.order_id !== orderId && slotFromScheduledAt(job.scheduled_at) === timeSlot).length;
-  const sameSlotReservationCount = (reservationsResult.data ?? []).filter(
-    (reservation) =>
-      reservation.order_id !== orderId &&
-      reservation.time_slot === timeSlot &&
-      ACTIVE_RESERVATION_STATUSES.includes(String(reservation.status))
-  ).length;
+  const sameSlotJobCount = (jobs ?? []).filter((job) => job.order_id !== orderId && slotFromScheduledAt(job.scheduled_at) === timeSlot).length;
 
-  if (sameSlotJobCount + sameSlotReservationCount >= cap) {
+  if (sameSlotJobCount >= cap) {
     return fail("SLOT_FULL", "선택한 시간대는 마감되었습니다. 다른 시간대를 선택해주세요.", 409);
   }
 
@@ -214,7 +193,7 @@ export async function PATCH(request: Request, context: Context) {
   const supabase = getSupabaseAdmin();
   const { data: order, error: orderError } = await supabase
     .from("orders")
-    .select("id,status,access_token,customer_id,reservations(*),jobs(*)")
+    .select("id,status,access_token,customer_id,jobs(*)")
     .eq("id", orderId.data)
     .maybeSingle();
 
@@ -225,20 +204,20 @@ export async function PATCH(request: Request, context: Context) {
     return fail("ORDER_NOT_RESCHEDULABLE", "현재 상태에서는 예약을 변경할 수 없습니다.", 409);
   }
 
-  const reservations = Array.isArray(order.reservations) ? order.reservations : order.reservations ? [order.reservations] : [];
   const jobs = Array.isArray(order.jobs) ? order.jobs : order.jobs ? [order.jobs] : [];
-  const activeReservation = primaryActiveReservation(reservations);
   const activeJob = primaryActiveJob(jobs);
 
   if (activeJob && FINAL_JOB_STATUSES.includes(String(activeJob.status))) {
     return fail("JOB_ALREADY_STARTED", "시공이 시작된 주문은 예약 변경이 어렵습니다.", 409);
   }
 
-  if (activeReservation?.reserved_date === reservedDate && activeReservation?.time_slot === timeSlot) {
+  const activeJobDate = activeJob?.scheduled_at ? kstDateOnly(activeJob.scheduled_at) : null;
+  const activeJobSlot = slotFromScheduledAt(activeJob?.scheduled_at ?? null);
+  if (activeJobDate === reservedDate && activeJobSlot === timeSlot) {
     return ok({
       orderId: order.id,
       orderStatus: order.status,
-      reservation: { reservedDate, timeSlot },
+      reservation: { id: activeJob?.id, reservedDate, timeSlot, source: "jobs" },
       jobAction: "kept" satisfies JobAction,
       idempotent: true
     });
@@ -252,32 +231,11 @@ export async function PATCH(request: Request, context: Context) {
   });
   if (slotError) return slotError;
 
-  if (activeReservation) {
-    const { error: cancelReservationError } = await supabase
-      .from("reservations")
-      .update({ status: "cancelled" })
-      .eq("id", activeReservation.id);
-    if (cancelReservationError) return fail("INTERNAL_ERROR", cancelReservationError.message, 500);
-  }
-
-  const { data: reservation, error: reservationError } = await supabase
-    .from("reservations")
-    .insert({
-      order_id: order.id,
-      reserved_date: reservedDate,
-      time_slot: timeSlot,
-      status: "confirmed",
-      notes: "고객 예약 변경"
-    })
-    .select("*")
-    .single();
-
-  if (reservationError) return fail("INTERNAL_ERROR", reservationError.message, 500);
-
-  const fromDate = activeReservation?.reserved_date ?? (activeJob?.scheduled_at ? kstDateOnly(activeJob.scheduled_at) : null);
-  const fromSlot = activeReservation?.time_slot ?? slotFromScheduledAt(activeJob?.scheduled_at ?? null);
+  const fromDate = activeJob?.scheduled_at ? kstDateOnly(activeJob.scheduled_at) : null;
+  const fromSlot = slotFromScheduledAt(activeJob?.scheduled_at ?? null);
   let jobAction: JobAction = "kept";
   let orderStatus = String(order.status);
+  let visitJobId: string | null = activeJob?.id ?? null;
 
   if (activeJob) {
     const canKeepTechnician = await sameTechnicianAvailable({
@@ -306,15 +264,43 @@ export async function PATCH(request: Request, context: Context) {
       const { error: releaseJobError } = await supabase.from("jobs").update({ status: "cancelled" }).eq("id", activeJob.id);
       if (releaseJobError) return fail("INTERNAL_ERROR", releaseJobError.message, 500);
       await insertJobStatusLog(supabase, activeJob.id, activeJob.status ?? null, "cancelled", "고객 예약 변경으로 기사 재배정 필요");
+      const { data: nextJob, error: createJobError } = await supabase
+        .from("jobs")
+        .insert({
+          order_id: order.id,
+          scheduled_at: scheduledAtForSlot(reservedDate, timeSlot),
+          scheduled_date: reservedDate,
+          status: "assigned"
+        })
+        .select("id,status")
+        .single();
+      if (createJobError) return fail("INTERNAL_ERROR", createJobError.message, 500);
+      visitJobId = nextJob.id;
+      await insertJobStatusLog(supabase, nextJob.id, null, "assigned", "고객 예약 변경으로 방문 일정 보관");
       const { error: orderUpdateError } = await supabase.from("orders").update({ status: "paid" }).eq("id", order.id);
       if (orderUpdateError) return fail("INTERNAL_ERROR", orderUpdateError.message, 500);
       jobAction = "released";
       orderStatus = "paid";
     }
-  } else if (order.status === "scheduled") {
-    const { error: orderUpdateError } = await supabase.from("orders").update({ status: "paid" }).eq("id", order.id);
-    if (orderUpdateError) return fail("INTERNAL_ERROR", orderUpdateError.message, 500);
-    orderStatus = "paid";
+  } else {
+    const { data: nextJob, error: createJobError } = await supabase
+      .from("jobs")
+      .insert({
+        order_id: order.id,
+        scheduled_at: scheduledAtForSlot(reservedDate, timeSlot),
+        scheduled_date: reservedDate,
+        status: "assigned"
+      })
+      .select("id,status")
+      .single();
+    if (createJobError) return fail("INTERNAL_ERROR", createJobError.message, 500);
+    visitJobId = nextJob.id;
+    await insertJobStatusLog(supabase, nextJob.id, null, "assigned", "고객 예약 변경으로 방문 일정 보관");
+    if (order.status === "scheduled") {
+      const { error: orderUpdateError } = await supabase.from("orders").update({ status: "paid" }).eq("id", order.id);
+      if (orderUpdateError) return fail("INTERNAL_ERROR", orderUpdateError.message, 500);
+      orderStatus = "paid";
+    }
   }
 
   await supabase.from("events").insert({
@@ -334,9 +320,10 @@ export async function PATCH(request: Request, context: Context) {
     orderId: order.id,
     orderStatus,
     reservation: {
-      id: reservation.id,
+      id: visitJobId,
       reservedDate,
-      timeSlot
+      timeSlot,
+      source: "jobs"
     },
     jobAction
   });

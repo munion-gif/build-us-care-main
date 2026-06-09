@@ -26,11 +26,6 @@ function latestBy<T extends Record<string, any>>(rows: T[], key: string) {
 function scheduledAtFrom(order: any) {
   const job = latestBy(asArray(order.jobs).filter((row: any) => row.scheduled_at && row.status !== "cancelled"), "scheduled_at");
   if (job?.scheduled_at) return new Date(job.scheduled_at);
-  const reservation = latestBy(asArray(order.reservations).filter((row: any) => row.status !== "cancelled"), "created_at");
-  if (reservation?.reserved_date) {
-    const hour = reservation.time_slot === "afternoon" ? "13:00:00" : "09:00:00";
-    return new Date(`${reservation.reserved_date}T${hour}+09:00`);
-  }
   return null;
 }
 
@@ -56,7 +51,7 @@ export async function POST(request: Request, context: Context) {
   const supabase = getSupabaseAdmin();
   const { data: order, error: orderError } = await supabase
     .from("orders")
-    .select("*, payments(*), jobs(*), reservations(*), cancellations(*), customers(phone)")
+    .select("*, payments(*), jobs(*), cancellations(*), customers(phone)")
     .eq("id", orderId.data)
     .eq("access_token", parsed.data.accessToken ?? "")
     .maybeSingle();

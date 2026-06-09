@@ -76,9 +76,9 @@ export function SettingsForm({ initialSettings }: { initialSettings: Settings })
           <input className="adm-input" name="service_phone" defaultValue={initialSettings.service_phone ?? ""} placeholder="010-0000-0000" />
         </label>
         <label>
-          <span className="adm-label">슬롯 최대 예약 수</span>
+          <span className="adm-label">슬롯 최대 방문 수</span>
           <input className="adm-input" name="slot_cap" type="number" min={0} max={20} defaultValue={initialSettings.slot_cap ?? ""} placeholder="자동" />
-          <span className="adm-help">오전/오후 각 최대 예약 건수. 비워두면 활성 기사 수 기준으로 자동 설정됩니다.</span>
+          <span className="adm-help">오전/오후 각 최대 방문 건수. 비워두면 활성 기사 수 기준으로 자동 설정됩니다.</span>
         </label>
       </div>
       <label className="adm-inline-check">

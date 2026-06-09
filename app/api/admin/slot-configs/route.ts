@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     }
     const { data, error } = await supabase
       .from("app_configs")
-      .upsert({ key: "slot_cap", value: String(cap), description: "오전/오후 각 최대 예약 건수. 비워두면 활성 기사 수 기준 자동 설정", updated_at: new Date().toISOString() }, { onConflict: "key" })
+      .upsert({ key: "slot_cap", value: String(cap), description: "오전/오후 각 최대 방문 건수. 비워두면 활성 기사 수 기준 자동 설정", updated_at: new Date().toISOString() }, { onConflict: "key" })
       .select("*")
       .single();
     if (error) return fail("internal_error", error.message, 500);

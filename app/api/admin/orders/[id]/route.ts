@@ -50,12 +50,6 @@ function asArray(value: any) {
   return Array.isArray(value) ? value : [value];
 }
 
-function primaryActiveReservation(reservations: any[]) {
-  return reservations
-    .filter((reservation) => reservation.status !== "cancelled")
-    .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))[0] ?? null;
-}
-
 function primaryActiveJob(jobs: any[]) {
   return jobs
     .filter((job) => job.status !== "cancelled")
@@ -77,7 +71,7 @@ export async function PATCH(request: Request, context: Context) {
   const supabase = getSupabaseAdmin();
   const { data: current, error: readError } = await supabase
     .from("orders")
-    .select("id,status,customer_id,home_id,customers(id),homes(id),reservations(*),jobs(*)")
+    .select("id,status,customer_id,home_id,customers(id),homes(id),jobs(*)")
     .eq("id", orderId.data)
     .maybeSingle();
 
@@ -123,40 +117,26 @@ export async function PATCH(request: Request, context: Context) {
   if (parsed.data.reservation) {
     const jobs = asArray(current.jobs);
     const activeJob = primaryActiveJob(jobs);
+    if (!activeJob) {
+      return fail("JOB_REQUIRED", "방문 일정을 수정하려면 담당 기사를 먼저 배정해주세요.", 409);
+    }
     if (["in_progress", "done", "inspected"].includes(String(activeJob?.status))) {
-      return fail("JOB_ALREADY_STARTED", "시공이 시작된 주문은 예약을 관리자 화면에서 변경할 수 없습니다.", 409);
+      return fail("JOB_ALREADY_STARTED", "시공이 시작된 주문은 방문 일정을 관리자 화면에서 변경할 수 없습니다.", 409);
     }
 
-    const reservations = asArray(current.reservations);
-    const activeReservation = primaryActiveReservation(reservations);
-    const reservationPatch = {
-      reserved_date: parsed.data.reservation.reserved_date,
-      time_slot: parsed.data.reservation.time_slot,
-      status: "confirmed",
-      notes: "관리자 예약 수정"
-    };
-
-    if (activeReservation) {
-      updates.push(supabase.from("reservations").update(reservationPatch).eq("id", activeReservation.id));
-    } else {
-      updates.push(supabase.from("reservations").insert({ order_id: orderId.data, ...reservationPatch }));
-    }
-
-    if (activeJob) {
-      const nextScheduledAt = scheduledAtForSlot(parsed.data.reservation.reserved_date, parsed.data.reservation.time_slot);
-      const nextJobStatus = String(current.status) === "scheduled" || String(activeJob.status) === "scheduled" ? "scheduled" : activeJob.status ?? "assigned";
-      updates.push(
-        supabase
-          .from("jobs")
-          .update({
-            scheduled_at: nextScheduledAt,
-            scheduled_date: parsed.data.reservation.reserved_date,
-            status: nextJobStatus
-          })
-          .eq("id", activeJob.id)
-      );
-      updates.push(insertJobStatusLog(supabase, activeJob.id, activeJob.status ?? null, nextJobStatus, "관리자 예약 수정"));
-    }
+    const nextScheduledAt = scheduledAtForSlot(parsed.data.reservation.reserved_date, parsed.data.reservation.time_slot);
+    const nextJobStatus = String(current.status) === "scheduled" || String(activeJob.status) === "scheduled" ? "scheduled" : activeJob.status ?? "assigned";
+    updates.push(
+      supabase
+        .from("jobs")
+        .update({
+          scheduled_at: nextScheduledAt,
+          scheduled_date: parsed.data.reservation.reserved_date,
+          status: nextJobStatus
+        })
+        .eq("id", activeJob.id)
+    );
+    updates.push(insertJobStatusLog(supabase, activeJob.id, activeJob.status ?? null, nextJobStatus, "관리자 방문 일정 수정"));
 
     if (!orderPatch.status && ["paid", "product_paid", "scheduled"].includes(String(current.status))) {
       updates.push(supabase.from("orders").update({ status: current.status }).eq("id", orderId.data));
@@ -190,12 +170,5 @@ export async function PATCH(request: Request, context: Context) {
     }
   });
 
-  const { data, error } = await supabase
-    .from("orders")
-    .select("*, customers(*), homes(*), jobs(*, technicians(*)), reservations(*), warranty_cases(*)")
-    .eq("id", orderId.data)
-    .single();
-
-  if (error) return fail("internal_error", error.message, 500);
-  return ok({ order: data });
+  return ok({ orderId: orderId.data, updated: true });
 }

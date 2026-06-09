@@ -73,7 +73,7 @@ export async function POST(request: Request) {
     parsed.data.slot_cap !== undefined && parsed.data.slot_cap > 0 && {
       key: "slot_cap",
       value: String(parsed.data.slot_cap),
-      description: "오전/오후 각 최대 예약 건수. 비워두면 활성 기사 수 기준 자동 설정",
+      description: "오전/오후 각 최대 방문 건수. 비워두면 활성 기사 수 기준 자동 설정",
       updated_at: new Date().toISOString()
     },
     parsed.data.maintenance_mode !== undefined && {

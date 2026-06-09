@@ -39,7 +39,6 @@ const ORDER_STATUS_SELECT = `
       customers (*),
       homes (*),
       quotes (*),
-      reservations (*),
       jobs (*, technicians (id, name, phone, experience_years, specialties, bio, profile_image_url)),
       payments (*),
       media (*),

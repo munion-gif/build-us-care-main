@@ -25,6 +25,13 @@ function Normalize-Text([string]$value) {
   return ($lines -join " ").Trim()
 }
 
+function Normalize-MultilineText([string]$value) {
+  if ([string]::IsNullOrWhiteSpace($value)) { return "" }
+  $text = $value -replace "`r`n?", "`n"
+  $lines = $text -split "`n" | ForEach-Object { ($_ -replace "[\t ]+", " ").Trim() } | Where-Object { $_ }
+  return ($lines -join "`n").Trim()
+}
+
 function Normalize-Brand([string]$value) {
   $brand = Normalize-Text $value
   if ($brand -replace "\s+", "" -eq "아메리칸스탠다드") { return "아메리칸스탠다드" }
@@ -399,16 +406,19 @@ function Get-ServiceAssetDir([string]$serviceCode) {
   return "misc"
 }
 
-function Build-Note([string]$size, [string]$color, [string]$feature, [string]$doorThickness = "") {
+function Build-Note([string]$size, [string]$color, [string]$feature, [string]$doorThickness = "", [bool]$PreserveFeatureLines = $false) {
   $parts = New-Object System.Collections.Generic.List[string]
   $cleanColor = Normalize-Text $color
   $cleanSize = Normalize-Text $size
-  $cleanFeature = Normalize-Text $feature
+  $cleanFeature = if ($PreserveFeatureLines) { Normalize-MultilineText $feature } else { Normalize-Text $feature }
   $cleanDoorThickness = Normalize-Text $doorThickness
   if ($cleanColor -and $cleanColor -ne "-") { $parts.Add("색상 $cleanColor") }
   if ($cleanDoorThickness -and $cleanDoorThickness -ne "-") { $parts.Add("문두께 $cleanDoorThickness") }
   if ($cleanSize -and $cleanSize -ne "-") { $parts.Add("사이즈 $cleanSize") }
   if ($cleanFeature -and $cleanFeature -ne "-") { $parts.Add($cleanFeature) }
+  if ($PreserveFeatureLines -and $cleanFeature) {
+    return ($parts.ToArray() -join "`n")
+  }
   return ($parts.ToArray() -join ", ")
 }
 
@@ -560,6 +570,8 @@ foreach ($workbookFile in $workbooks) {
           Sku = $sku
         })
       }
+      $cleanColor = Normalize-Text $color
+      $cleanSize = Normalize-Text $size
       $product = [ordered]@{
         id = $productId
         serviceCode = $serviceCode
@@ -568,10 +580,13 @@ foreach ($workbookFile in $workbooks) {
         categorySummary = [string]$category.Summary
         decisionHint = [string]$category.Hint
         brand = $brand
+        name = $model
         model = $model
         sku = $sku
+        color = $cleanColor
+        size = $cleanSize
         price = $price
-        note = Build-Note $size $color $feature $doorThickness
+        note = Build-Note $size $color $feature $doorThickness ($serviceCode -eq "ventilator_replace")
         popular = $false
         image = $imagePath
         sourceWorkbook = $workbookFile.Name
@@ -588,8 +603,11 @@ foreach ($workbookFile in $workbooks) {
           categorySummary = $product.categorySummary
           decisionHint = $product.decisionHint
           brand = $product.brand
+          name = $product.name
           model = $product.model
           sku = $product.sku
+          color = $product.color
+          size = $product.size
           price = $product.price
           note = $product.note
           popular = $product.popular

@@ -125,6 +125,14 @@ async function signImages(diagnosis: any) {
   };
 }
 
+function withLinkedCustomer(diagnosis: any) {
+  return {
+    ...diagnosis,
+    customer_name: customerName(diagnosis),
+    customer_phone: customerPhone(diagnosis)
+  };
+}
+
 async function findDiagnosisIdsByOrderNumber(search: string) {
   const supabase = getSupabaseAdmin();
   const [receiptMatches, rawMatches, linkedOrders, recentDiagnoses] = await Promise.all([
@@ -193,7 +201,7 @@ async function getDiagnoses(result = "all", page = 1, orderSearch = "", testMode
   if (matchedIds) query = query.in("id", matchedIds);
 
   const { data, count } = await measure("admin.diagnoses.fetchRows", () => query);
-  const list = await measure("admin.diagnoses.signImages", () => Promise.all((data ?? []).map(signImages)));
+  const list = (data ?? []).map(withLinkedCustomer);
   return { list, count: count ?? 0, page: Math.max(page, 1), limit };
 }
 
@@ -205,7 +213,8 @@ export default async function AdminDiagnosesPage({ searchParams }: PageProps) {
   const page = Math.max(Number(params.offset ? Math.floor(Number(params.offset) / 20) + 1 : params.page ?? 1), 1);
   const { list, count, limit } = await measure("admin.diagnoses.getDiagnoses", () => getDiagnoses(result, page, orderSearch, testMode));
   const totalPages = Math.max(Math.ceil(count / limit), 1);
-  const selected = params.id ? list.find((item: any) => item.id === params.id) : null;
+  const selectedRaw = params.id ? list.find((item: any) => item.id === params.id) : null;
+  const selected = selectedRaw ? await measure("admin.diagnoses.signSelected", () => signImages(selectedRaw)) : null;
   const filters = ["all", "교체추천", "교체불필요", "보류", "현장확인필요"];
   const summary = {
     waiting: list.filter((item: any) => !item.result).length,
@@ -305,11 +314,6 @@ export default async function AdminDiagnosesPage({ searchParams }: PageProps) {
                 </div>
                 <div className="adm-queue-side">
                   <span>{photoCount(item)}장 · 상세 보기</span>
-                  <div className="adm-queue-thumbs">
-                    {(item.signedPhotos ?? []).slice(0, 3).map((photo: string) => (
-                      <img src={photo} alt="확인 사진" key={photo} />
-                    ))}
-                  </div>
                 </div>
               </a>
             ))}

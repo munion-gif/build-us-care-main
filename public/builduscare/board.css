@@ -389,13 +389,14 @@ html, body, *{ scrollbar-width: thin; scrollbar-color: rgba(120,120,128,.42) tra
 /* ==============================================  SHOP / CATALOG  ======= */
 .filterbar{ display:flex; gap:8px; overflow-x:auto; padding:2px 0; }
 .fbtn{ display:inline-flex; align-items:center; gap:5px; white-space:nowrap; font-size:13px; font-weight:600;
-  padding:7px 13px; border-radius:999px; background:#fff; box-shadow:var(--bc-soft); color:var(--gray-700); }
+  padding:7px 13px; border-radius:999px; background:#fff; box-shadow:var(--bc-soft); color:var(--gray-700); cursor:pointer; user-select:none; }
 .fbtn.on{ background:var(--gray-900); color:#fff; }
 .fbtn svg{ width:14px; height:14px; }
 .shopgrid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-.pcard{ background:#fff; border-radius:16px; box-shadow:var(--bc-soft); overflow:hidden; position:relative; }
+.pcard{ background:#fff; border-radius:16px; box-shadow:var(--bc-soft); overflow:hidden; position:relative; cursor:pointer; }
 .pcard .pimg{ aspect-ratio:1; }
 .pcard .pinfo{ padding:9px 12px 13px; }
+.pcard .pimg, .pcard .pinfo, .pcard .psel, .pcard .pbrand, .pcard .pname, .pcard .pprice{ cursor:pointer; }
 .pbrand{ font-size:11px; color:var(--gray-400); font-weight:700; letter-spacing:.02em; }
 .pname{ font-size:13px; font-weight:600; color:var(--gray-900); margin-top:2px; line-height:18px; }
 .pprice{ font-size:14px; font-weight:700; color:var(--gray-900); margin-top:6px; }

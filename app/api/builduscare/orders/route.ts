@@ -634,6 +634,7 @@ export async function POST(request: Request) {
             brand: product.brand,
             name: displayProductName(product),
             model: replacementProductDisplayModel(product),
+            image: product.image ?? "",
             sku: product.sku,
             color: product.color ?? "",
             serviceCode: product.serviceCode,
