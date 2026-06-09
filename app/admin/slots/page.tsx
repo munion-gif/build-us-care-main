@@ -6,8 +6,8 @@ export default function AdminSlotsPage() {
   return (
     <>
       <header className="adm-page-header">
-        <h1 className="adm-page-title">슬롯 관리</h1>
-        <p className="adm-page-sub">예약 가능 수량과 차단 날짜를 운영자가 직접 관리합니다.</p>
+        <h1 className="adm-page-title">일정관리</h1>
+        <p className="adm-page-sub">날짜별 오전/오후 예약과 현장 방문 정보를 확인합니다.</p>
       </header>
       <AdminSlotsClient />
     </>

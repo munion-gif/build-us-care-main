@@ -15,7 +15,17 @@ type AdminJob = {
   status?: string | null;
   scheduled_at?: string | null;
   technicians?: { name?: string | null } | null;
-  orders?: { id?: string | null; order_number?: string | null; homes?: { address_full?: string | null } | null } | null;
+  orders?: {
+    id?: string | null;
+    order_number?: string | null;
+    status?: string | null;
+    total_amount?: number | null;
+    service_type_code?: string | null;
+    skus?: any[] | null;
+    customers?: { name?: string | null; phone?: string | null } | null;
+    homes?: { address_full?: string | null; address_apt?: string | null } | null;
+    quotes?: any[] | null;
+  } | null;
 };
 
 function monthLabel(date: Date) {
@@ -55,6 +65,52 @@ function kstSlot(value?: string | null): SlotPeriod | null {
 function kstTime(value?: string | null) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(value));
+}
+
+function slotLabel(period: SlotPeriod) {
+  return period === "morning" ? "오전" : "오후";
+}
+
+function formatKRW(amount?: number | null) {
+  return `${Number(amount ?? 0).toLocaleString("ko-KR")}원`;
+}
+
+function asArray(value: any) {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function latestQuote(order: AdminJob["orders"]) {
+  return asArray(order?.quotes).sort((a: any, b: any) => String(b.accepted_at ?? b.created_at ?? "").localeCompare(String(a.accepted_at ?? a.created_at ?? "")))[0] ?? null;
+}
+
+function productSnapshot(line: any) {
+  const metadata = line?.metadata ?? {};
+  return metadata.selected_replacement_product_snapshot ?? metadata.selected_replacement_product ?? null;
+}
+
+function productLabel(line: any) {
+  const product = productSnapshot(line);
+  return [product?.brand, product?.model ?? product?.name].filter(Boolean).join(" ") || line?.item_name || line?.sku || "제품 확인";
+}
+
+function jobProductLabel(job: AdminJob) {
+  const order = job.orders;
+  const items = latestQuote(order)?.items;
+  if (Array.isArray(items) && items.length > 0) {
+    const first = items[0];
+    return `${productLabel(first)}${items.length > 1 ? ` 외 ${items.length - 1}개` : ""}`;
+  }
+  const sku = Array.isArray(order?.skus) ? order?.skus?.[0] : null;
+  return sku?.item_name ?? sku?.sku ?? order?.service_type_code ?? "제품 확인";
+}
+
+function jobAddress(job: AdminJob) {
+  return [job.orders?.homes?.address_full, job.orders?.homes?.address_apt].filter(Boolean).join(" ") || "주소 미입력";
+}
+
+function jobCustomer(job: AdminJob) {
+  return [job.orders?.customers?.name || "성함 없음", job.orders?.customers?.phone || "연락처 없음"].join(" · ");
 }
 
 export function AdminSlotsClient() {
@@ -168,7 +224,7 @@ export function AdminSlotsClient() {
     <div className="adm-content">
       <section className="adm-card adm-section adm-slot-controls">
         <div>
-          <h2 className="adm-section-title">전체 예약 cap</h2>
+          <h2 className="adm-section-title">전체 방문 cap</h2>
           <p className="adm-muted">날짜별 설정이 없으면 오전/오후 각각 이 값을 사용합니다. 현재 {cap}건입니다. ({capSource === "manual" ? "수동 설정" : capSource === "active_technicians" ? "활성 기사 수 자동 연동" : "활성 기사 없음"})</p>
         </div>
         <label className="adm-slot-cap">
@@ -252,7 +308,18 @@ export function AdminSlotsClient() {
               <div className="adm-slot-panel-section" key={period}>
                 <h3>{period === "morning" ? "오전" : "오후"}</h3>
                 {periodJobs.map((job) => (
-                  <p key={job.id}>✅ {job.orders?.order_number ?? "주문"} | {job.technicians?.name ?? "미배정"} | {kstTime(job.scheduled_at)}</p>
+                  <article className="adm-slot-job-card" key={job.id}>
+                    <div>
+                      <strong>
+                        <a href={job.orders?.id ? `/admin/orders/${job.orders.id}` : "#"}>{job.orders?.order_number ?? "주문번호 없음"}</a>
+                        {" · "}
+                        {jobProductLabel(job)}
+                      </strong>
+                      <p>{jobAddress(job)}</p>
+                      <p>{jobCustomer(job)} · 예약시간대 {slotLabel(period)} {kstTime(job.scheduled_at)} · 담당 {job.technicians?.name ?? "미배정"}</p>
+                    </div>
+                    <span>{formatKRW(job.orders?.total_amount)}</span>
+                  </article>
                 ))}
                 {Array.from({ length: remaining }, (_, index) => (
                   <p key={`${period}-empty-${index}`}>○ 미배정 슬롯 {index + 1}개 남음</p>

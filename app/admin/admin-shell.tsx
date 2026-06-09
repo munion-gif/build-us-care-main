@@ -4,29 +4,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  BarChart3,
   CalendarDays,
   Camera,
   ClipboardList,
-  Gauge,
-  MessageCircle,
-  ShieldCheck,
-  Settings,
-  UserRoundCog,
-  Wrench
 } from "lucide-react";
 
 const menus = [
-  [Gauge, "운영 대시보드", "/admin/dashboard"],
-  [MessageCircle, "상담/예약", "/admin/consultations"],
-  [ClipboardList, "주문 관리", "/admin/orders"],
-  [Wrench, "현장 관리", "/admin/jobs"],
-  [Camera, "사진확인", "/admin/diagnoses"],
-  [UserRoundCog, "기사 관리", "/admin/technicians"],
-  [CalendarDays, "슬롯 관리", "/admin/slots"],
-  [BarChart3, "운영 분석", "/admin/analytics"],
-  [ShieldCheck, "보안 점검", "/admin/security"],
-  [Settings, "설정", "/admin/settings"]
+  [Camera, "사진확인 접수", "/admin/diagnoses"],
+  [ClipboardList, "제품 주문", "/admin/orders"],
+  [CalendarDays, "일정관리", "/admin/slots"]
 ] as const;
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
@@ -77,7 +63,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="adm-shell">
       <aside className="adm-sidebar">
-        <Link className="adm-sidebar-logo" href="/admin/dashboard">
+        <Link className="adm-sidebar-logo" href="/admin/diagnoses">
           buildus care
         </Link>
         <nav className="adm-sidebar-nav">

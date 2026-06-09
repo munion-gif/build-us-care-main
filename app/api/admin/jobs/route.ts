@@ -180,6 +180,8 @@ export async function GET(request: Request) {
         order_number,
         status,
         total_amount,
+        service_type_code,
+        skus,
         customers (*),
         homes (*),
         quotes (*)

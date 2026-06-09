@@ -54,6 +54,10 @@ function orderNumber(diagnosis: any) {
   return order?.order_number ?? diagnosis.raw_response?.receipt_number ?? diagnosis.raw_response?.order_number ?? null;
 }
 
+function relatedOrder(diagnosis: any) {
+  return Array.isArray(diagnosis.orders) ? diagnosis.orders[0] : diagnosis.orders;
+}
+
 function diagnosesHref(params: { result: string; id?: string; page?: number; orderSearch?: string; testMode?: boolean }) {
   const query = new URLSearchParams();
   query.set("result", params.result);
@@ -71,11 +75,29 @@ function imageInputs(diagnosis: any): string[] {
 }
 
 function customerName(diagnosis: any) {
-  return diagnosis.customer_name ?? diagnosis.raw_response?.customer?.name ?? null;
+  return diagnosis.customer_name ?? diagnosis.raw_response?.customer?.name ?? relatedOrder(diagnosis)?.customers?.name ?? null;
 }
 
 function customerPhone(diagnosis: any) {
-  return diagnosis.customer_phone ?? diagnosis.raw_response?.customer?.phone ?? null;
+  return diagnosis.customer_phone ?? diagnosis.raw_response?.customer?.phone ?? relatedOrder(diagnosis)?.customers?.phone ?? null;
+}
+
+function addressLine(diagnosis: any) {
+  const order = relatedOrder(diagnosis);
+  const rawAddress = diagnosis.raw_response?.address;
+  const full = rawAddress?.full || [rawAddress?.roadAddress, rawAddress?.detailAddress].filter(Boolean).join(" ");
+  return full || [order?.homes?.address_full ?? order?.customers?.address_full, order?.homes?.address_apt ?? order?.customers?.address_apt].filter(Boolean).join(" ") || "주소 미입력";
+}
+
+function requestItemLabel(diagnosis: any) {
+  const order = relatedOrder(diagnosis);
+  return diagnosis.raw_response?.item ?? formatServiceName(diagnosis.service_type_code ?? diagnosis.service_code ?? order?.service_type_code);
+}
+
+function cashReceiptTextFromOrder(diagnosis: any) {
+  const text = String(relatedOrder(diagnosis)?.special_requests ?? "");
+  const line = text.split(/\r?\n/).find((entry) => entry.includes("현금영수증:"));
+  return line?.replace(/^.*?현금영수증:\s*/, "").trim() || "신청 안 함";
 }
 
 function photoCount(diagnosis: any) {
@@ -162,7 +184,7 @@ async function getDiagnoses(result = "all", page = 1, orderSearch = "", testMode
 
   let query = supabase
     .from("diagnoses")
-    .select("id,order_id,service_type_code,service_code,image_urls,photos,result,confidence,reason,details,recommendation,raw_response,customer_name,customer_phone,created_at,is_test,test_marked_at,test_note,orders(order_number)", { count: "exact" })
+    .select("id,order_id,service_type_code,service_code,image_urls,photos,result,confidence,reason,details,recommendation,raw_response,customer_name,customer_phone,created_at,is_test,test_marked_at,test_note,orders(order_number,service_type_code,skus,special_requests,inquiry_photos,customers(name,phone,address_full,address_apt),homes(address_full,address_apt,postal_code))", { count: "exact" })
     .eq("is_test", testMode)
     .order("created_at", { ascending: false })
     .range(from, from + limit - 1);
@@ -194,9 +216,9 @@ export default async function AdminDiagnosesPage({ searchParams }: PageProps) {
   return (
     <>
       <header className="adm-page-header">
-        <h1 className="adm-page-title">사진확인</h1>
+        <h1 className="adm-page-title">사진확인 접수</h1>
         <p className="adm-page-sub">
-          {testMode ? "관리자 테스트 사진확인 접수만 따로 확인합니다. 운영 큐와 통계에는 포함하지 않습니다." : "홈 사진확인에서 접수된 요청을 접수번호로 찾고, 상담원이 사진과 연락처를 확인합니다."}
+          {testMode ? "관리자 테스트 사진확인 접수만 따로 확인합니다. 운영 큐와 통계에는 포함하지 않습니다." : "사진확인으로 접수된 고객 요청, 사진, 주소, 연락처를 확인하고 상담 결과를 처리합니다."}
         </p>
       </header>
       <div className="adm-content">
@@ -244,7 +266,7 @@ export default async function AdminDiagnosesPage({ searchParams }: PageProps) {
             <div className="adm-section-head">
               <div>
                 <h2 className="adm-card-title">선택한 접수 상세</h2>
-                <p className="adm-muted adm-section-note">{orderNumber(selected) ?? "접수번호 미연결"} · {formatServiceName(selected.service_type_code ?? selected.service_code)}</p>
+                <p className="adm-muted adm-section-note">{orderNumber(selected) ?? "접수번호 미연결"} · {requestItemLabel(selected)} · {addressLine(selected)}</p>
               </div>
               <div className="adm-action-row-buttons">
                 <DiagnosisTestActions diagnosisId={selected.id} isTest={Boolean(selected.is_test)} receiptNumber={orderNumber(selected)} />
@@ -272,11 +294,13 @@ export default async function AdminDiagnosesPage({ searchParams }: PageProps) {
                   </div>
                   <strong>{orderNumber(item) ?? "접수번호 미연결"}</strong>
                   <div className="adm-queue-meta-line">
-                    <span>{formatServiceName(item.service_type_code ?? item.service_code)}</span>
+                    <span>{requestItemLabel(item)}</span>
                     <span>{item.customer_name ?? "이름 미입력"}</span>
                     <span>{item.customer_phone ?? "연락처 없음"}</span>
                     <span>{formatKRDateTime(item.created_at)}</span>
                   </div>
+                  <p>{addressLine(item)}</p>
+                  <p>현금영수증: {cashReceiptTextFromOrder(item)}</p>
                   {item.reason ? <p>{item.reason}</p> : null}
                 </div>
                 <div className="adm-queue-side">

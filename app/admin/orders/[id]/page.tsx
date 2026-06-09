@@ -26,7 +26,7 @@ async function getOrder(id: string) {
   if (!hasSupabaseEnv()) return null;
   const { data } = await getSupabaseAdmin()
     .from("orders")
-    .select("*, customers(*), homes(*), quotes(*), jobs(*, technicians(*)), reservations(*), media(*), payments(*), feedbacks(*), warranty_cases(*), notifications(*)")
+    .select("*, customers(*), homes(*), quotes(*), jobs(*, technicians(*)), media(*), payments(*), feedbacks(*), warranty_cases(*), notifications(*)")
     .eq("id", id)
     .maybeSingle();
   return data;
@@ -96,7 +96,7 @@ function productLabel(line: any) {
 
 function productSubLabel(line: any) {
   const product = productSnapshot(line);
-  return [product?.categoryName, product?.size, product?.sku].filter(Boolean).join(" · ");
+  return [product?.categoryName ?? product?.category, product?.color, product?.size, product?.sku].filter(Boolean).join(" · ");
 }
 
 function selectedProductSummary(order: any) {
@@ -117,18 +117,35 @@ function paymentStatusLabel(status?: string | null) {
   return status ?? "-";
 }
 
-function activeReservation(order: any) {
-  const reservations = asArray(order.reservations);
-  return reservations
-    .filter((item: any) => item.status !== "cancelled")
-    .sort((a: any, b: any) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))[0];
-}
-
 function slotLabel(slot?: string | null) {
   if (slot === "morning") return "오전";
   if (slot === "afternoon") return "오후";
   if (slot === "all_day") return "종일";
   return "시간 미정";
+}
+
+function slotFromScheduledAt(value?: string | null) {
+  if (!value) return null;
+  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", hour: "2-digit", hour12: false }).format(new Date(value)));
+  return hour < 13 ? "morning" : "afternoon";
+}
+
+function kstDateOnly(value?: string | null) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Asia/Seoul",
+    year: "numeric"
+  }).format(new Date(value));
+}
+
+function visitDateLabel(job: any) {
+  return job?.scheduled_at ? kstDateOnly(job.scheduled_at) : "방문 일정 없음";
+}
+
+function visitSlotLabel(job: any) {
+  return job?.scheduled_at ? slotLabel(slotFromScheduledAt(job.scheduled_at)) : "일정 확인 필요";
 }
 
 function latestPayment(order: any) {
@@ -141,6 +158,12 @@ function paymentBreakdown(order: any) {
   const onsiteAmount = Number(payment?.onsite_payment_amount ?? payment?.service_fee_amount ?? order?.onsite_payment_amount ?? 0);
   const total = Number(payment?.total_amount ?? order?.total_amount ?? productAmount + onsiteAmount);
   return { productAmount, onsiteAmount, total };
+}
+
+function cashReceiptTextFromOrder(order: any) {
+  const text = String(order?.special_requests ?? "");
+  const line = text.split(/\r?\n/).find((entry) => entry.includes("현금영수증:"));
+  return line?.replace(/^.*?현금영수증:\s*/, "").trim() || "신청 안 함";
 }
 
 function isBankTransfer(payment: any) {
@@ -162,7 +185,7 @@ function paymentOperationLabel(order: any, payment: any) {
 function paymentOperationHelp(order: any, payment: any) {
   const onsiteAmount = Number(payment?.onsite_payment_amount ?? order?.onsite_payment_amount ?? 0);
   if (payment?.status === "done" || order?.status === "paid" || order?.status === "product_paid") {
-    return onsiteAmount > 0 ? `현장결제 ${formatKRW(onsiteAmount)} 예정` : "기사 배정 또는 예약 확정으로 진행합니다.";
+    return onsiteAmount > 0 ? `현장결제 ${formatKRW(onsiteAmount)} 예정` : "기사 배정 또는 방문 확정으로 진행합니다.";
   }
   if (isBankTransfer(payment) && ["pending", "ready"].includes(String(payment?.status ?? ""))) {
     return "입금 내역 확인 후 입금 확인을 누르면 다음 단계로 이동합니다.";
@@ -223,7 +246,7 @@ function notificationChannelLabel(channel?: string | null) {
 
 function notificationHelp(notification: any) {
   if (notification?.template_code === "reservation_confirmed" && notification?.send_status === "prepared") {
-    return "예약 확정 안내 내용이 준비되었습니다. 카카오/SMS 연동 후 자동 발송 대상으로 전환할 수 있습니다.";
+    return "방문 확정 안내 내용이 준비되었습니다. 카카오/SMS 연동 후 자동 발송 대상으로 전환할 수 있습니다.";
   }
   if (isNotificationSetupPending(notification)) {
     return "외부 발송 채널이 아직 연결되지 않아 실제 발송은 보류된 기록입니다.";
@@ -325,8 +348,8 @@ function currentAction(order: any) {
   }
   if (status === "paid" || status === "product_paid" || hasDonePayment) {
     return {
-      title: hasAssignedJob ? "예약 확정 필요" : "기사 배정 필요",
-      summary: hasAssignedJob ? `기사는 배정되었습니다. 현장 시공비 ${formatKRW(money.onsiteAmount)} 예정 금액과 예약 시간을 확인한 뒤 예약 확정을 눌러주세요.` : `제품값 입금 완료 주문입니다. 현장 시공비 ${formatKRW(money.onsiteAmount)} 예정 금액을 확인하고 기사를 배정해야 합니다.`,
+      title: hasAssignedJob ? "방문 확정 필요" : "기사 배정 필요",
+      summary: hasAssignedJob ? `기사는 배정되었습니다. 현장 시공비 ${formatKRW(money.onsiteAmount)} 예정 금액과 방문 시간을 확인한 뒤 방문 확정을 눌러주세요.` : `제품값 입금 완료 주문입니다. 현장 시공비 ${formatKRW(money.onsiteAmount)} 예정 금액을 확인하고 기사를 배정해야 합니다.`,
       badge: "배정"
     };
   }
@@ -376,7 +399,6 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
   const action = currentAction(order);
   const isDeleted = Boolean(order.deleted_at);
   const isTest = Boolean(order.is_test);
-  const reservation = activeReservation(order);
   const activeJob = activeAssignedJob(order);
   const payment = latestPayment(order);
   const showBankTransferConfirm = canConfirmBankTransfer(order, payment);
@@ -449,14 +471,15 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
             <small>{order.customers?.phone ?? "-"}</small>
           </article>
           <article className="adm-card adm-brief-card">
-            <span>예약</span>
-            <strong>{reservation ? reservation.reserved_date : "예약 없음"}</strong>
-            <small>{reservation ? slotLabel(reservation.time_slot) : "일정 확인 필요"}</small>
+            <span>방문 일정</span>
+            <strong>{visitDateLabel(activeJob)}</strong>
+            <small>{visitSlotLabel(activeJob)}</small>
           </article>
           <article className="adm-card adm-brief-card">
             <span>결제</span>
             <strong>{paymentOperationLabel(order, payment)}</strong>
             <small>제품값 {formatKRW(money.productAmount)} · {paymentOperationHelp(order, payment)}</small>
+            <small>현금영수증 {cashReceiptTextFromOrder(order)}</small>
           </article>
           <article className="adm-card adm-brief-card">
             <span>담당</span>
@@ -493,6 +516,11 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
               <strong>{formatKRW(money.onsiteAmount)}</strong>
               <small>방문 시 현장 결제 예정</small>
             </span>
+            <span>
+              <b>현금영수증</b>
+              <strong>{cashReceiptTextFromOrder(order)}</strong>
+              <small>고객 주문 전 입력 정보</small>
+            </span>
           </div>
         </section>
 
@@ -503,7 +531,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
               <article className="adm-card adm-quick-panel">
                 <div>
                   <h2 className="adm-card-title">빠른 처리</h2>
-                  <p className="adm-muted">입금 확인, 기사 배정, 예약 확정처럼 운영자가 바로 처리할 항목만 모았습니다.</p>
+                  <p className="adm-muted">입금 확인, 기사 배정, 방문 확정처럼 운영자가 바로 처리할 항목만 모았습니다.</p>
                 </div>
                 <div className="adm-quick-actions">
                   {showBankTransferConfirm ? (
@@ -517,15 +545,14 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
                     orderId={order.id}
                     orderNumber={order.order_number}
                     orderStatus={order.status}
-                    reservations={asArray(order.reservations)}
                     jobs={asArray(order.jobs)}
                     technicians={technicians}
                   />
                   {String(order.status) !== "scheduled" && (
                     <OrderScheduleConfirmButton
                       orderId={order.id}
-                      disabled={!activeJob || (!reservation && !activeJob?.scheduled_at)}
-                      reason={!activeJob ? "예약 확정 전 담당 기사를 먼저 배정해주세요." : "예약 확정 전 예약 날짜와 시간대를 먼저 저장해주세요."}
+                      disabled={!activeJob || !activeJob?.scheduled_at}
+                      reason={!activeJob ? "방문 확정 전 담당 기사를 먼저 배정해주세요." : "방문 확정 전 방문 날짜와 시간대를 먼저 저장해주세요."}
                     />
                   )}
                 </div>
@@ -542,7 +569,8 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
             <p>전화: {order.customers?.phone ?? "-"}</p>
             <p>유입: <span className="adm-badge adm-badge-blue">{order.customers?.acquisition_source ?? "-"}</span></p>
             <p>주소: {order.homes?.address_full ?? "-"}</p>
-            <p>예약: {reservation ? `${reservation.reserved_date} ${slotLabel(reservation.time_slot)}` : "-"}</p>
+            <p>방문 일정: {activeJob?.scheduled_at ? `${visitDateLabel(activeJob)} ${visitSlotLabel(activeJob)}` : "-"}</p>
+            <p>현금영수증: {cashReceiptTextFromOrder(order)}</p>
           </details>
           <details className="adm-card adm-details-card">
             <summary>집 정보</summary>

@@ -28,12 +28,33 @@ function orderNumber(diagnosis: any) {
   return order?.order_number ?? diagnosis.raw_response?.receipt_number ?? diagnosis.raw_response?.order_number ?? null;
 }
 
+function relatedOrder(diagnosis: any) {
+  return Array.isArray(diagnosis.orders) ? diagnosis.orders[0] : diagnosis.orders;
+}
+
 function customerName(diagnosis: any) {
-  return diagnosis.customer_name ?? diagnosis.raw_response?.customer?.name ?? "이름 미입력";
+  return diagnosis.customer_name ?? diagnosis.raw_response?.customer?.name ?? relatedOrder(diagnosis)?.customers?.name ?? "이름 미입력";
 }
 
 function customerPhone(diagnosis: any) {
-  return diagnosis.customer_phone ?? diagnosis.raw_response?.customer?.phone ?? "연락처 없음";
+  return diagnosis.customer_phone ?? diagnosis.raw_response?.customer?.phone ?? relatedOrder(diagnosis)?.customers?.phone ?? "연락처 없음";
+}
+
+function addressLine(diagnosis: any) {
+  const order = relatedOrder(diagnosis);
+  const rawAddress = diagnosis.raw_response?.address;
+  const full = rawAddress?.full || [rawAddress?.roadAddress, rawAddress?.detailAddress].filter(Boolean).join(" ");
+  return full || [order?.homes?.address_full ?? order?.customers?.address_full, order?.homes?.address_apt ?? order?.customers?.address_apt].filter(Boolean).join(" ") || "주소 미입력";
+}
+
+function requestItemLabel(diagnosis: any) {
+  return diagnosis.raw_response?.item ?? CANONICAL_SERVICE_OPTIONS.find((option) => option.code === canonicalServiceCode(diagnosis.service_type_code ?? diagnosis.service_code))?.displayName ?? diagnosis.service_type_code ?? diagnosis.service_code ?? "사진 확인";
+}
+
+function cashReceiptTextFromOrder(diagnosis: any) {
+  const text = String(relatedOrder(diagnosis)?.special_requests ?? "");
+  const line = text.split(/\r?\n/).find((entry) => entry.includes("현금영수증:"));
+  return line?.replace(/^.*?현금영수증:\s*/, "").trim() || "신청 안 함";
 }
 
 export function DiagnosisPanel({ diagnosis }: { diagnosis: any }) {
@@ -104,6 +125,13 @@ export function DiagnosisPanel({ diagnosis }: { diagnosis: any }) {
         <span className="adm-badge adm-badge-gray">
           사진 {(diagnosis.signedPhotos ?? diagnosis.image_urls ?? diagnosis.photos ?? []).length}장
         </span>
+      </div>
+      <div className="adm-admin-info-grid adm-admin-info-grid-compact">
+        <span><b>요청 품목</b><strong>{requestItemLabel(diagnosis)}</strong></span>
+        <span><b>고객 성함</b><strong>{customerName(diagnosis)}</strong></span>
+        <span><b>연락처</b><strong>{customerPhone(diagnosis)}</strong></span>
+        <span><b>주소</b><strong>{addressLine(diagnosis)}</strong></span>
+        <span><b>현금영수증</b><strong>{cashReceiptTextFromOrder(diagnosis)}</strong></span>
       </div>
       <div className="adm-diagnosis-panel-grid">
         <section className="adm-diagnosis-info">

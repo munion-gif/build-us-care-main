@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { formatChannel, formatKRDate, formatKRW, formatOrderStatus, formatServiceName } from "@/lib/format";
 import { measure } from "@/lib/perf";
-import { maskAddress, maskName, maskPhone } from "@/lib/pii";
 import { getServiceFilterCodes } from "@/lib/service-catalog";
 import { getAllServiceItems } from "@/lib/service-items";
 import { isLifecycleSchemaError } from "@/lib/schema-compat";
@@ -34,9 +33,8 @@ const workflowFilters = [
 
 const lifecycleColumns = "deleted_at, deleted_by, deleted_reason, is_test, test_marked_at, test_note";
 const orderListRelations = `
-      customers(name,phone,acquisition_source),
-      homes(address_full),
-      reservations(id,reserved_date,time_slot,status,created_at),
+      customers(name,phone,address_full,address_apt,acquisition_source),
+      homes(address_full,address_apt,postal_code),
       payments(id,status,amount,paid_at,approved_at,requested_at,method,provider,provider_status,online_payment_amount,onsite_payment_amount,onsite_payment_status),
       quotes(id,version,items,total_material,total_labor,total_final,accepted_at,created_at),
       media(id,type,file_path,created_at),
@@ -64,7 +62,7 @@ function buildOrdersQuery(params: Record<string, string | undefined>, options: {
     .from("orders")
     .select(
       `
-      id, order_number, status, total_amount, created_at, channel, service_type_code, skus${lifecycleSelect},
+      id, order_number, status, total_amount, created_at, channel, service_type_code, skus, special_requests, reason${lifecycleSelect},
       subtotal_amount, online_payment_amount, onsite_payment_amount, onsite_payment_status, inquiry_photos,
       ${orderListRelations}
     `,
@@ -220,7 +218,7 @@ function productLabel(line: any) {
 
 function productSubLabel(line: any) {
   const product = productSnapshot(line);
-  return [product?.categoryName, product?.size, product?.sku].filter(Boolean).join(" · ");
+  return [product?.categoryName ?? product?.category, product?.color, product?.size, product?.sku].filter(Boolean).join(" · ");
 }
 
 function selectedProductSummary(order: any) {
@@ -243,6 +241,24 @@ function selectedProductDetail(order: any) {
       return sub ? `${sub} · ${Number(line.qty ?? 1)}개` : `${Number(line.qty ?? 1)}개`;
     })
     .join(" / ");
+}
+
+function customerLine(order: any) {
+  return [order?.customers?.name || "성함 없음", order?.customers?.phone || "연락처 없음"].join(" · ");
+}
+
+function cashReceiptTextFromOrder(order: any) {
+  const text = String(order?.special_requests ?? "");
+  const line = text.split(/\r?\n/).find((entry) => entry.includes("현금영수증:"));
+  return line?.replace(/^.*?현금영수증:\s*/, "").trim() || "신청 안 함";
+}
+
+function requestText(order: any) {
+  const special = String(order?.special_requests ?? "")
+    .split(/\r?\n/)
+    .map((entry) => entry.trim())
+    .filter((entry) => entry && !entry.includes("현금영수증:"));
+  return order?.reason || special[0] || "추가 요청 없음";
 }
 
 function paymentBreakdown(order: any) {
@@ -281,11 +297,11 @@ function deletedMeta(order: any) {
   return `휴지통 이동: ${formatKRDate(order.deleted_at)}${reason}`;
 }
 
-function activeReservation(order: any) {
-  const reservations = Array.isArray(order.reservations) ? order.reservations : [];
-  return reservations
+function activeVisitJob(order: any) {
+  const jobs = Array.isArray(order.jobs) ? order.jobs : [];
+  return jobs
     .filter((item: any) => item.status !== "cancelled")
-    .sort((a: any, b: any) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))[0];
+    .sort((a: any, b: any) => String(b.scheduled_at ?? b.created_at ?? "").localeCompare(String(a.scheduled_at ?? a.created_at ?? "")))[0];
 }
 
 function slotLabel(slot?: string | null) {
@@ -293,6 +309,28 @@ function slotLabel(slot?: string | null) {
   if (slot === "afternoon") return "오후";
   if (slot === "all_day") return "종일";
   return "시간 미정";
+}
+
+function slotFromScheduledAt(value?: string | null) {
+  if (!value) return null;
+  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", hour: "2-digit", hour12: false }).format(new Date(value)));
+  return hour < 13 ? "morning" : "afternoon";
+}
+
+function kstDateOnly(value?: string | null) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Asia/Seoul",
+    year: "numeric"
+  }).format(new Date(value));
+}
+
+function visitScheduleLabel(order: any) {
+  const job = activeVisitJob(order);
+  if (!job?.scheduled_at) return "방문 일정 없음";
+  return `${kstDateOnly(job.scheduled_at)} ${slotLabel(slotFromScheduledAt(job.scheduled_at))}`;
 }
 
 function paymentState(order: any) {
@@ -378,9 +416,9 @@ function assignedTechnician(order: any) {
 }
 
 function addressPreview(order: any) {
-  const address = order.homes?.address_full;
-  if (!address) return "주소 상세에서 확인";
-  return maskAddress(address, 3);
+  const road = order.homes?.address_full ?? order.customers?.address_full;
+  const detail = order.homes?.address_apt ?? order.customers?.address_apt;
+  return [road, detail].filter(Boolean).join(" ") || "주소 미입력";
 }
 
 function nextActionLabel(order: any) {
@@ -429,7 +467,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
     },
     {
       count: trashMode || testMode ? 0 : visibleSummary.visits,
-      helper: "예약 방문 준비와 진행 상태를 확인합니다.",
+      helper: "방문 준비와 진행 상태를 확인합니다.",
       href: "/admin/orders?flow=visit",
       key: "visit",
       label: "방문/진행"
@@ -446,13 +484,13 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
   return (
     <>
       <header className="adm-page-header">
-        <h1 className="adm-page-title">주문 관리</h1>
+        <h1 className="adm-page-title">제품 주문</h1>
         <p className="adm-page-sub">
           {trashMode
             ? "휴지통으로 이동한 주문을 복구하거나 완전 삭제합니다."
             : testMode
               ? "관리자 테스트 주문만 따로 확인합니다. 운영 주문, 통계, 고객 조회에는 노출하지 않습니다."
-              : "접수, 결제, 배정, 방문 순서로 처리합니다. 주소와 집 정보는 상세에서 확인합니다."}
+              : "고객이 선택한 제품, 사진, 현금영수증, 입금 상태, 예약 정보를 한 화면에서 확인합니다."}
         </p>
       </header>
       <div className="adm-content">
@@ -524,14 +562,13 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
         <section className="adm-order-queue-list" aria-label="주문 처리 큐">
           {error ? (
             <div className="adm-card adm-admin-error" role="alert">
-              <strong>주문 데이터를 불러오지 못했습니다.</strong>
+              <strong>제품 주문 데이터를 불러오지 못했습니다.</strong>
               <p>DB 스키마나 Supabase REST 캐시가 현재 코드와 맞지 않을 수 있습니다. 마이그레이션과 환경변수를 확인해 주세요.</p>
               <small>{error}</small>
             </div>
           ) : orders.length === 0 ? (
             <div className="adm-card adm-empty-line">조건에 맞는 주문이 없습니다.</div>
           ) : orders.map((order: any) => {
-            const reservation = activeReservation(order);
             const payment = paymentState(order);
             const photos = photoCount(order);
             const money = paymentBreakdown(order);
@@ -547,8 +584,10 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
                   <strong>{selectedProductSummary(order)}</strong>
                   <p className="adm-order-product-detail">{selectedProductDetail(order)}</p>
                   <p className="adm-order-money-line">제품값 {formatKRW(money.productAmount)} · 현장 시공비 {formatKRW(money.onsiteAmount)} · 총 {formatKRW(money.total)}</p>
-                  <p>{maskName(order.customers?.name)} · {maskPhone(order.customers?.phone)} · {formatChannel(order.channel)} · {formatKRDate(order.created_at)}</p>
-                  <p>{addressPreview(order)} · {reservation ? `${reservation.reserved_date} ${slotLabel(reservation.time_slot)}` : "예약 없음"}</p>
+                  <p>{customerLine(order)} · {formatChannel(order.channel)} · {formatKRDate(order.created_at)}</p>
+                  <p>{addressPreview(order)} · {visitScheduleLabel(order)}</p>
+                  <p>요청 내용: {requestText(order)}</p>
+                  <p>현금영수증: {cashReceiptTextFromOrder(order)}</p>
                   {trashMode && deletedMeta(order) ? <p className="adm-trash-meta">{deletedMeta(order)}</p> : null}
                 </div>
                 <div className="adm-order-queue-meta">
@@ -556,6 +595,11 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
                     <b>사진</b>
                     <strong>{photos > 0 ? `${photos}장` : "없음"}</strong>
                     <small>{photos > 0 ? "접수 사진 확인 필요" : "사진 미등록"}</small>
+                  </span>
+                  <span>
+                    <b>현금영수증</b>
+                    <strong>{cashReceiptTextFromOrder(order)}</strong>
+                    <small>주문 전 입력 정보</small>
                   </span>
                   <span className={payment.needsConfirmation ? "adm-payment-needs-confirm" : ""}>
                     <b>결제</b>
@@ -586,7 +630,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
                         ) : null}
                         <Link className="adm-btn adm-btn-primary adm-btn-sm" href={`/admin/orders/${order.id}`}>{nextActionLabel(order)}</Link>
                         {["paid", "product_paid"].includes(String(order.status)) && (
-                          <OrderAssignmentButton compact orderId={order.id} orderNumber={order.order_number} orderStatus={order.status} reservations={Array.isArray(order.reservations) ? order.reservations : []} jobs={Array.isArray(order.jobs) ? order.jobs : []} technicians={technicians} />
+                          <OrderAssignmentButton compact orderId={order.id} orderNumber={order.order_number} orderStatus={order.status} jobs={Array.isArray(order.jobs) ? order.jobs : []} technicians={technicians} />
                         )}
                         <OrderTestActions compact isTest={Boolean(order.is_test)} orderId={order.id} orderNumber={order.order_number} />
                         <OrderTrashActions compact orderId={order.id} orderNumber={order.order_number} />
