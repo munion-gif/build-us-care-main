@@ -823,11 +823,94 @@ function paymentAmountM(){
   const order = S.remoteOrder || {};
   return Number(order?.totals?.onlinePaymentAmount || order?.payment?.amount || 0);
 }
+function normalizedOrderStatusM(){
+  const raw = String(S.remoteOrder?.status || '').trim();
+  if(raw === 'cancelled') return 'canceled';
+  if(raw === 'submitted' || raw === 'draft') return 'inquiry';
+  if(raw === 'reservation_pending') return 'payment_pending';
+  if(raw === 'reservation_confirmed' || raw === 'preparing') return 'scheduled';
+  if(raw === 'installation_completed') return 'completed';
+  if(raw === 'in_service') return 'in_progress';
+  return raw;
+}
 function paymentStatusLabelM(){
-  const status = S.remoteOrder?.payment?.status || '';
-  if(status==='done') return '입금 완료';
-  if(status==='pending') return '입금 대기';
+  const status = normalizedOrderStatusM();
+  if(status === 'pending_product_payment' || status === 'payment_pending' || S.remoteOrder?.payment?.status === 'pending') return '입금 대기';
+  if(status === 'product_paid' || status === 'paid') return '결제 완료';
+  if(status === 'scheduled') return '방문 확정';
+  if(status === 'in_progress') return '시공 중';
+  if(status === 'completed') return '최종 확인 중';
+  if(status === 'done') return '완료';
+  if(status === 'issue') return '문제 확인 중';
+  if(status === 'warranty') return 'A/S 접수';
+  if(status === 'cancel_requested') return '취소 요청';
+  if(status === 'canceled' || status === 'refunded') return '취소됨';
+  if(status === 'quoted') return '견적 안내';
   return '확인 중';
+}
+function productOrderStageM(){
+  const status = normalizedOrderStatusM();
+  if(status === 'pending_product_payment' || status === 'payment_pending' || S.remoteOrder?.payment?.status === 'pending') return 'payment';
+  if(status === 'product_paid' || status === 'paid') return 'assign';
+  if(status === 'scheduled') return 'scheduled';
+  if(status === 'in_progress') return 'visit';
+  if(['completed','done','issue','warranty'].includes(status)) return 'finish';
+  return 'payment';
+}
+function canWarrantyM(){
+  return ['done','warranty','issue'].includes(normalizedOrderStatusM());
+}
+function supportActionTextM(){
+  return canWarrantyM() ? 'A/S 접수' : '카카오톡 상담';
+}
+function supportActionIconM(){
+  return canWarrantyM() ? 'headphones' : 'message-circle';
+}
+function productTimelineHtmlM(){
+  const stage = productOrderStageM();
+  const amountText = `${won(paymentAmountM())}원 · 계좌이체 안내 확인`;
+  if(stage === 'payment'){
+    return `<div class="atl-row done"><span class="atl-node"><i data-lucide="check"></i></span><div><div class="tlt">제품 주문 접수</div><div class="tld">접수 완료</div></div></div>
+      <div class="atl-row now"><span class="atl-node"></span><div><div class="tlt">제품 금액 입금 대기</div><div class="tld">${amountText}</div></div></div>
+      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">기사 배정 · 방문 일정 조율</div><div class="tld">입금 확인 후 순차 안내</div></div></div>
+      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">방문 교체</div><div class="tld">현장 시공 진행</div></div></div>
+      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">완료 · 보증 시작</div><div class="tld">완료 리포트 · A/S</div></div></div>`;
+  }
+  if(stage === 'assign'){
+    return `<div class="atl-row done"><span class="atl-node"><i data-lucide="check"></i></span><div><div class="tlt">제품 주문 접수</div><div class="tld">접수 완료</div></div></div>
+      <div class="atl-row done"><span class="atl-node"><i data-lucide="check"></i></span><div><div class="tlt">제품 금액 입금 확인</div><div class="tld">입금 확인 완료</div></div></div>
+      <div class="atl-row now"><span class="atl-node"></span><div><div class="tlt">기사 배정 · 방문 일정 조율</div><div class="tld">방문 날짜와 시간 안내 예정</div></div></div>
+      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">방문 교체</div><div class="tld">현장 시공 진행</div></div></div>
+      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">완료 · 보증 시작</div><div class="tld">완료 리포트 · A/S</div></div></div>`;
+  }
+  if(stage === 'scheduled'){
+    return `<div class="atl-row done"><span class="atl-node"><i data-lucide="check"></i></span><div><div class="tlt">제품 주문 접수</div><div class="tld">접수 완료</div></div></div>
+      <div class="atl-row done"><span class="atl-node"><i data-lucide="check"></i></span><div><div class="tlt">제품 금액 입금 확인</div><div class="tld">입금 확인 완료</div></div></div>
+      <div class="atl-row now"><span class="atl-node"></span><div><div class="tlt">방문 일정 확정</div><div class="tld">${S.remoteOrder?.reservation?.date ? `${bookingDateLabel(S.remoteOrder.reservation.date)}${S.remoteOrder?.reservation?.time ? ` · ${S.remoteOrder.reservation.time}` : ''}` : '예약 일정 확정'}</div></div></div>
+      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">방문 교체</div><div class="tld">예약한 일정에 맞춰 방문</div></div></div>
+      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">완료 · 보증 시작</div><div class="tld">완료 리포트 · A/S</div></div></div>`;
+  }
+  if(stage === 'visit'){
+    return `<div class="atl-row done"><span class="atl-node"><i data-lucide="check"></i></span><div><div class="tlt">제품 주문 접수</div><div class="tld">접수 완료</div></div></div>
+      <div class="atl-row done"><span class="atl-node"><i data-lucide="check"></i></span><div><div class="tlt">제품 금액 입금 확인</div><div class="tld">입금 확인 완료</div></div></div>
+      <div class="atl-row done"><span class="atl-node"><i data-lucide="check"></i></span><div><div class="tlt">방문 일정 확정</div><div class="tld">기사 배정 완료</div></div></div>
+      <div class="atl-row now"><span class="atl-node"></span><div><div class="tlt">방문 교체</div><div class="tld">현장 시공 진행 중</div></div></div>
+      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">완료 · 보증 시작</div><div class="tld">완료 리포트 · A/S</div></div></div>`;
+  }
+  const finishLabel = normalizedOrderStatusM() === 'warranty' ? 'A/S 접수 진행' : normalizedOrderStatusM() === 'issue' ? '시공 후 확인 필요' : normalizedOrderStatusM() === 'completed' ? '최종 확인 중' : '완료 · 보증 시작';
+  const finishDesc = normalizedOrderStatusM() === 'warranty' ? '담당자가 접수 내용을 확인 중' : normalizedOrderStatusM() === 'issue' ? '담당자가 확인 후 안내 예정' : normalizedOrderStatusM() === 'completed' ? '최종 확인 및 정산 진행' : '완료 리포트 · A/S';
+  return `<div class="atl-row done"><span class="atl-node"><i data-lucide="check"></i></span><div><div class="tlt">제품 주문 접수</div><div class="tld">접수 완료</div></div></div>
+    <div class="atl-row done"><span class="atl-node"><i data-lucide="check"></i></span><div><div class="tlt">제품 금액 입금 확인</div><div class="tld">입금 확인 완료</div></div></div>
+    <div class="atl-row done"><span class="atl-node"><i data-lucide="check"></i></span><div><div class="tlt">방문 일정 확정</div><div class="tld">기사 배정 완료</div></div></div>
+    <div class="atl-row done"><span class="atl-node"><i data-lucide="check"></i></span><div><div class="tlt">방문 교체</div><div class="tld">현장 시공 완료</div></div></div>
+    <div class="atl-row now"><span class="atl-node"></span><div><div class="tlt">${finishLabel}</div><div class="tld">${finishDesc}</div></div></div>`;
+}
+function photoTimelineHtmlM(){
+  return `<div class="atl-row done"><span class="atl-node"><i data-lucide="check"></i></span><div><div class="tlt">사진 확인 접수</div><div class="tld">접수 완료</div></div></div>
+      <div class="atl-row now"><span class="atl-node"></span><div><div class="tlt">매니저 확인 중</div><div class="tld">가능 여부·정찰가 확인</div></div></div>
+      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">견적·예약 확정</div><div class="tld">동의 후 진행</div></div></div>
+      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">방문 교체</div><div class="tld">희망 일정 기준</div></div></div>
+      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">완료 · 보증 시작</div><div class="tld">완료 리포트 · A/S</div></div></div>`;
 }
 const DEFAULT_BANK_TRANSFER_M = {
   bankName: '농협',
@@ -1699,7 +1782,7 @@ done: () => {
 <div class="body scroll"><div class="pad" style="text-align:center;padding-top:24px">
   <div class="featured-icon circle" style="width:72px;height:72px;background:var(--success-50);color:var(--success-600);margin:0 auto"><i data-lucide="check" style="width:36px;height:36px"></i></div>
   <h2 class="h-lg mt16">신청이 접수됐어요</h2>
-  <p class="p-md mt4">영업시간 기준 2시간 내 견적을 카카오톡으로 안내해 드릴게요.</p>
+  <p class="p-md mt4">${hasProducts ? (hasTransfer ? '제품 금액 입금 확인 후 기사 배정과 방문 일정을 안내해 드릴게요.' : '주문 내용을 확인하고 방문 일정을 순차적으로 안내해 드릴게요.') : '영업시간 기준 2시간 내 견적을 카카오톡으로 안내해 드릴게요.'}</p>
   <div class="bcard pad mt20" style="text-align:left">
     <div class="between"><div class="p-sm strong" style="color:var(--gray-700)">접수번호</div><div class="p-sm strong" style="color:var(--gray-900)">${mOrderNo()}</div></div>
     <div class="between mt8"><div class="p-sm strong" style="color:var(--gray-700)">현재 상태</div><span class="badge badge-warning dot">${statusLabel}</span></div>
@@ -1759,17 +1842,7 @@ orderview: () => {
 <div class="body scroll"><div class="pad">
   <div class="bcard pad"><div class="between"><span class="badge badge-warning dot">${statusLabel}</span><span class="p-sm strong" style="color:var(--gray-600)">${remote?.orderNumber || S.orderNo}</span></div>
     <div class="atl mt16">
-      ${hasProducts
-        ? `<div class="atl-row done"><span class="atl-node"><i data-lucide="check"></i></span><div><div class="tlt">제품 주문 접수</div><div class="tld">방금 · 접수 완료</div></div></div>
-      ${remote?.payment?.status==='pending'?`<div class="atl-row now"><span class="atl-node"></span><div><div class="tlt">제품 금액 입금 대기</div><div class="tld">${won(paymentAmountM())}원 · 계좌이체 안내 확인</div></div></div>`:`<div class="atl-row now"><span class="atl-node"></span><div><div class="tlt">사진 확인 · 최종 견적</div><div class="tld">시공 가능 여부·시공비 확인</div></div></div>`}
-      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">방문 일정 확정</div><div class="tld">희망 일정 기준으로 조율</div></div></div>
-      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">방문 교체</div><div class="tld">현장 시공 진행</div></div></div>
-      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">완료 · 보증 시작</div><div class="tld">완료 리포트 · A/S</div></div></div>`
-        : `<div class="atl-row done"><span class="atl-node"><i data-lucide="check"></i></span><div><div class="tlt">사진 확인 접수</div><div class="tld">방금 · 접수 완료</div></div></div>
-      <div class="atl-row now"><span class="atl-node"></span><div><div class="tlt">매니저 확인 중</div><div class="tld">가능 여부·정찰가 확인</div></div></div>
-      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">견적·예약 확정</div><div class="tld">동의 후 진행</div></div></div>
-      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">방문 교체</div><div class="tld">희망 일정 기준</div></div></div>
-      <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">완료 · 보증 시작</div><div class="tld">완료 리포트 · A/S</div></div></div>`}
+      ${hasProducts ? productTimelineHtmlM() : photoTimelineHtmlM()}
     </div>
   </div>
   <div class="bcard pad mt12">
@@ -1792,9 +1865,10 @@ orderview: () => {
     <div class="divline" style="margin:14px 0"></div>
     <div class="note info"><i data-lucide="info"></i><div>사진 호환제품 문의 접수예요. 매니저가 사진을 확인해 호환 제품과 견적을 안내드려요.</div></div>`}
   </div>
-  ${hasProducts?`<button class="btn btn-secondary btn-lg btnf mt12" onclick="openFinalEstimateM()"><i data-lucide="file-text"></i> 최종 견적서 보기</button>`:''}
-  <button class="btn btn-secondary btn-lg btnf mt8" onclick="openTransferM()"><i data-lucide="wallet"></i> 계좌이체 안내</button>
-  <div class="row gap8 mt8"><button class="btn btn-secondary btn-lg grow" onclick="openKakao('rebook')"><i data-lucide="calendar"></i> 예약 변경</button><button class="btn btn-secondary btn-lg grow" onclick="nav('as')"><i data-lucide="headphones"></i> A/S 접수</button></div>
+  ${S.remoteOrder?.transferUrl
+    ? `<button class="btn btn-secondary btn-lg btnf mt12" onclick="openTransferM()"><i data-lucide="wallet"></i> 계좌이체 안내</button>`
+    : (hasProducts ? `<button class="btn btn-secondary btn-lg btnf mt12" onclick="openFinalEstimateM()"><i data-lucide="file-text"></i> 최종 견적서 보기</button>` : '')}
+  <div class="row gap8 mt8">${hasProducts?`<button class="btn btn-secondary btn-lg grow" onclick="openKakao('rebook')"><i data-lucide="calendar"></i> 예약 변경</button>`:''}<button class="btn btn-secondary btn-lg grow" onclick="${canWarrantyM()?'nav(\'as\')':'openKakao(\'guide\')'}"><i data-lucide="${supportActionIconM()}"></i> ${supportActionTextM()}</button></div>
 </div></div>`;
 },
 
