@@ -165,6 +165,7 @@ export function buildQuoteDocumentInputFromOrderStatus(
 }
 
 export function buildQuoteDocumentHtml(input: QuoteDocumentInput) {
+  const vatIncludedFinalTotal = Math.round(input.finalTotal * 1.1);
   const rowsHtml = input.rows
     .map(
       (row) => `
@@ -201,6 +202,7 @@ export function buildQuoteDocumentHtml(input: QuoteDocumentInput) {
     .meta div { padding: 12px; border-right: 1px solid #d6c8ad; }
     .meta div:last-child { border-right: 0; }
     span { display: block; color: #6f675c; font-size: 12px; font-weight: 700; }
+    span em { display: block; margin-top: 2px; color: #8a8174; font-size: 11px; font-style: normal; font-weight: 700; }
     strong { display: block; color: #22211d; }
     table { width: 100%; margin-top: 22px; border-collapse: collapse; border: 1px solid #d6c8ad; border-radius: 8px; overflow: hidden; }
     th { background: #f0e5ce; color: #6f675c; font-size: 12px; text-align: left; }
@@ -249,7 +251,7 @@ export function buildQuoteDocumentHtml(input: QuoteDocumentInput) {
       <div class="summary">
         <div><span>제품 가격</span><strong>${won(input.productTotal)}</strong></div>
         <div><span>${input.productCatalogMode ? "시공비 현장결제" : "시공비"}</span><strong>${won(input.laborTotal)}</strong></div>
-        <div><span>시공비+제품가</span><strong>${won(input.finalTotal)}</strong></div>
+        <div><span>최종 합계<em>부가세 10% 포함</em></span><strong>${won(vatIncludedFinalTotal)}</strong></div>
         <div class="transfer"><span>계좌이체 금액</span><strong>${won(input.transferAmount)}</strong></div>
       </div>
       <div class="bank">

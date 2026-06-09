@@ -36,10 +36,10 @@ const ITEM_IMG = {'수전 교체':'assets/prod-faucet-1.png','양변기 교체':
 const CAT_ICON = {'수전 교체':'assets/prodicon-faucet.webp','양변기 교체':'assets/prodicon-toilet.webp','세면대 교체':'assets/prodicon-washbasin.webp','비데 설치':'assets/prodicon-bidet.webp','환풍기 교체':'assets/prodicon-vent.webp','샷시손잡이':'assets/prodicon-windowhandle.webp','도어핸들':'assets/prodicon-doorhandle.webp','실리콘 재시공':'assets/prodicon-silicone.webp','욕실 악세서리':'assets/prodicon-accessory.webp'};
 const LINEUP_IMG = {'수전 교체':'assets/lineup-faucet.png','양변기 교체':'assets/lineup-toilet.png','세면대 교체':'assets/lineup-washbasin.png','비데 설치':'assets/lineup-bidet.png','환풍기 교체':'assets/lineup-vent.png','샷시손잡이':'assets/lineup-windowhandle.png','도어핸들':'assets/lineup-doorhandle.png','실리콘 재시공':'assets/lineup-silicone.png','욕실 악세서리':'assets/lineup-accessory.png'};
 
-const S = { cur:'home', hist:[], item:'수전 교체', selected:[], productPage:1, brandFilter:'', colorFilter:'', photos:0, photoFiles:[], photoSets:[0,0,0], photoSetFiles:[[],[],[]],
+const S = { cur:'home', hist:[], item:'수전 교체', selected:[], productPage:1, productSort:'low', brandFilter:'', colorFilter:'', photos:0, photoFiles:[], photoSets:[0,0,0], photoSetFiles:[[],[],[]],
   info:{region:'', regionDetail:'', postalCode:'', name:'', phone:''}, date:null, time:null, applied:false, selfDisposal:false,
   regionOk:false, specCheck:false, privacyOk:false, privacyOkInq:false, orderNo:'',
-  lookupNo:'', lookupName:'', lookupErr:false, lookupLoading:false, submitting:false, submitErr:'', remoteOrder:null, sashChoice:{} };
+  lookupNo:'', lookupName:'', lookupErr:false, lookupLoading:false, submitting:false, submitErr:'', remoteOrder:null, sashChoice:{}, variantChoice:{}, cashReceiptType:'none', cashReceiptIdentity:'' };
 
 const M_ITEM_SLUGS = {'양변기 교체':'toilet','세면대 교체':'washbasin','수전 교체':'faucet','비데 설치':'bidet','환풍기 교체':'ventilation','샷시손잡이':'window-handle','도어핸들':'door-handle','실리콘 재시공':'silicone','욕실 악세서리':'bath-accessory'};
 const M_SLUG_ITEMS = Object.fromEntries(Object.entries(M_ITEM_SLUGS).map(([name, slug]) => [slug, name]));
@@ -61,6 +61,67 @@ const M_SCREEN_ROUTES = {
   as:'/as-request'
 };
 const M_ROUTER_ID = `mobile-${Math.random().toString(36).slice(2)}`;
+const KR_PUBLIC_HOLIDAYS = new Set([
+  '2026-01-01',
+  '2026-02-16','2026-02-17','2026-02-18',
+  '2026-03-01','2026-03-02',
+  '2026-05-05','2026-05-24','2026-05-25',
+  '2026-06-03','2026-06-06',
+  '2026-08-15','2026-08-17',
+  '2026-09-24','2026-09-25','2026-09-26',
+  '2026-10-03','2026-10-05','2026-10-09',
+  '2026-12-25'
+]);
+const BOOKING_LEAD_DAYS = 3;
+const DATE_WEEKDAYS = ['일','월','화','수','목','금','토'];
+function datePad(n){ return String(n).padStart(2,'0'); }
+function localIsoDate(date){ return `${date.getFullYear()}-${datePad(date.getMonth()+1)}-${datePad(date.getDate())}`; }
+function parseIsoDate(value){
+  const text = String(value || '').trim();
+  const m = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(m) return new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
+  const day = Number(text);
+  if(Number.isFinite(day) && day >= 1 && day <= 31) return new Date(2026, 5, day);
+  return null;
+}
+function addLocalDays(date, days){
+  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  next.setDate(next.getDate() + days);
+  return next;
+}
+function bookingToday(){ const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function bookingEarliestDate(){ return addLocalDays(bookingToday(), BOOKING_LEAD_DAYS); }
+function bookingCalendarBase(){
+  const earliest = bookingEarliestDate();
+  return { year: earliest.getFullYear(), month: earliest.getMonth(), earliest };
+}
+function bookingMonthTitle(year, month){ return `${year}년 ${month+1}월`; }
+function bookingDateLabel(value, includeYear=false){
+  const date = parseIsoDate(value);
+  if(!date) return '';
+  return `${includeYear?`${date.getFullYear()}년 `:''}${date.getMonth()+1}월 ${date.getDate()}일 (${DATE_WEEKDAYS[date.getDay()]})`;
+}
+function isHolidayOrRedDay(date){
+  return date.getDay() === 0 || KR_PUBLIC_HOLIDAYS.has(localIsoDate(date));
+}
+function bookingCalendarCells(selectedIso, onclickName){
+  const { year, month, earliest } = bookingCalendarBase();
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  let cells = Array.from({ length: firstDay }, () => '<div></div>').join('');
+  for(let day=1; day<=daysInMonth; day++){
+    const date = new Date(year, month, day);
+    const iso = localIsoDate(date);
+    const dow = date.getDay();
+    const isPrep = date < earliest;
+    const isHoliday = KR_PUBLIC_HOLIDAYS.has(iso);
+    const isClosed = date.getDay() === 0 || isHoliday;
+    const off = isPrep || isClosed;
+    const cls = `cal-d ${dow===0?'sun':(dow===6?'sat':'')}${isHoliday?' holiday':''}${off?' dim':''}${selectedIso===iso?' on':''}`;
+    cells += `<div class="${cls}"${off?'':` onclick="${onclickName}('${iso}')"`}>${day}${isClosed?'<span class="cd-tag">휴무</span>':''}</div>`;
+  }
+  return { cells, title: bookingMonthTitle(year, month) };
+}
 function mTopWindow(){
   try {
     if (window.top && window.top.location.origin === window.location.origin) return window.top;
@@ -153,13 +214,41 @@ const productImg = p => p && p.image ? `<img class="product-img" src="${p.image}
 const productText = p => [p.categoryName, p.model, p.note, p.sourceSheet].filter(Boolean).join(' ');
 const priceValue = p => Number.isFinite(Number(p?.price)) ? Number(p.price) : Number.POSITIVE_INFINITY;
 const lowestFirst = list => [...list].sort((a,b)=> priceValue(a)-priceValue(b) || String(a.name||'').localeCompare(String(b.name||''), 'ko-KR'));
+const PRODUCT_SORTS = [
+  ['rank', '랭킹순'],
+  ['low', '낮은가격순'],
+  ['high', '높은가격순'],
+  ['popular', '인기순']
+];
+const recommendationLabelRank = label => ({'인기':0, '가성비':1, '프리미엄':2}[label] ?? 9);
+const catalogOrderValue = p => Number.isFinite(Number(p?.sourceRow)) ? Number(p.sourceRow) : Number.POSITIVE_INFINITY;
+const productRankScore = p => (p?.rec ? 0 : 1) * 10 + recommendationLabelRank(p?.recommendLabel);
+const productPopularityScore = p => (p?.recommendLabel === '인기' ? 0 : p?.rec ? 1 : 2);
+const productNameCompare = (a,b) => String(a?.name||'').localeCompare(String(b?.name||''), 'ko-KR');
+function sortedProducts(list, sortKey){
+  const sort = sortKey || 'low';
+  return [...list].sort((a,b)=>{
+    if(sort === 'high') return priceValue(b)-priceValue(a) || productNameCompare(a,b);
+    if(sort === 'rank') return productRankScore(a)-productRankScore(b) || catalogOrderValue(a)-catalogOrderValue(b) || priceValue(a)-priceValue(b) || productNameCompare(a,b);
+    if(sort === 'popular') return productPopularityScore(a)-productPopularityScore(b) || recommendationLabelRank(a?.recommendLabel)-recommendationLabelRank(b?.recommendLabel) || catalogOrderValue(a)-catalogOrderValue(b) || priceValue(a)-priceValue(b) || productNameCompare(a,b);
+    return priceValue(a)-priceValue(b) || productNameCompare(a,b);
+  });
+}
 const productBrand = p => p?.brand || '브랜드 미상';
 const productColor = p => p?.color || '기본';
+const usefulColor = color => color && color !== '기본' && color !== '-';
+const visibleColors = colors => colors.filter(color => color !== '-');
 const uniqueSorted = (list, pick) => [...new Set(list.map(pick).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'ko-KR'));
 const filteredProducts = (list, brand, color) => list.filter(p => (!brand || productBrand(p)===brand) && (!color || productColor(p)===color));
 const productById = id => ALL_PRODUCTS.find(p=>p.id===id);
 const subtotal = () => S.selected.reduce((s,id)=> s + productById(id).price, 0);
 const SASH_SIZE_ORDER = ['소','중','대','그립'];
+const COLOR_VARIANT_CATEGORIES = new Set(['환풍기 교체']);
+const COLOR_VARIANT_ORDER = ['화이트','그레이','블루','핑크','엘로우'];
+const colorVariantOrder = color => {
+  const index = COLOR_VARIANT_ORDER.indexOf(color);
+  return index < 0 ? 99 : index;
+};
 function sashSizeOf(p){
   const text = [p?.note, p?.model, p?.name].filter(Boolean).join(' ');
   const m = text.match(/사이즈\s*(소|중|대|그립)\b/) || String(p?.model||'').match(/\s(소|중|대|그립)$/) || String(p?.name||'').match(/\s(소|중|대|그립)$/);
@@ -198,12 +287,16 @@ function productGroupKey(p, cat){
   if(c==='샷시손잡이') return `${c}|${sashBaseOf(p) || p?.id}`;
   return `${c}|${p?.brand || ''}|${p?.model || p?.sku || p?.name || p?.id}`;
 }
+function hasColorVariantGroup(group, cat){
+  return COLOR_VARIANT_CATEGORIES.has(cat) && new Set(group.map(v=>productColor(v)).filter(usefulColor)).size > 1;
+}
 function productGroupVariants(id){
   const p = productById(id), cat = catalogCatOf(id);
   if(!p || !cat) return [];
   const key = productGroupKey(p, cat);
   const variants = (CATALOG[cat] || []).filter(v=>productGroupKey(v, cat)===key);
   if(cat==='샷시손잡이') return variants;
+  if(hasColorVariantGroup(variants, cat)) return variants;
   const prices = new Set(variants.map(v=>priceValue(v)));
   return prices.size>1 ? variants : [p];
 }
@@ -225,7 +318,7 @@ function productCardList(list, source=list){
   list.forEach(p=>{
     const key = productGroupKey(p, S.item);
     const group = groups.get(key) || [p];
-    const shouldGroup = S.item==='샷시손잡이' || new Set(group.map(v=>priceValue(v))).size>1;
+    const shouldGroup = S.item==='샷시손잡이' || hasColorVariantGroup(group, S.item) || new Set(group.map(v=>priceValue(v))).size>1;
     if(!shouldGroup){ out.push(p); return; }
     if(seen.has(key)) return;
     seen.add(key);
@@ -235,17 +328,81 @@ function productCardList(list, source=list){
 }
 function productDisplayName(p){
   if(!p) return '';
-  if(catalogCatOf(p.id)==='샷시손잡이'){
-    const base = (sashBaseOf(p) || p.name || '').replace(/^샷시\s*손잡이\s*/,'').trim();
-    return `샷시 손잡이 ${base}`;
+  if(catalogCatOf(p.id)==='실리콘 재시공' && usefulColor(p.color)){
+    return `실리콘 ${p.color}`;
   }
-  return p.name;
+  const base = catalogCatOf(p.id)==='샷시손잡이' ? sashBaseOf(p) : (p.model || p.name || p.categoryName || '');
+  return cleanProductDisplayName(base, p.categoryName || p.sourceSheet);
+}
+function cleanProductDisplayName(value, category){
+  let text = String(value || '').replace(/\s+/g, ' ').trim();
+  const cat = String(category || '').replace(/\s+/g, ' ').trim();
+  if(cat && text.startsWith(`${cat} `)) text = text.slice(cat.length).trim();
+  text = text.replace(/^샷시\s*손잡이\s*/,'').trim();
+  const tokens = text.split(' ').filter(Boolean);
+  if(tokens.length >= 2){
+    let changed = true;
+    while(changed){
+      changed = false;
+      outer: for(let size=Math.floor(tokens.length/2); size>=1; size--){
+        for(let start=0; start + size * 2 <= tokens.length; start++){
+          let same = true;
+          for(let i=0; i<size; i++){
+            if(tokens[start+i] !== tokens[start+size+i]){ same = false; break; }
+          }
+          if(same){
+            tokens.splice(start + size, size);
+            changed = true;
+            break outer;
+          }
+        }
+      }
+    }
+    text = tokens.join(' ') || text;
+  }
+  const label = productDisplayCategoryLabel(cat);
+  if(label && isCodeLikeProductName(text) && !text.startsWith(`${label} `)) return `${label} ${text}`;
+  return text;
+}
+function isCodeLikeProductName(value){
+  const text = String(value || '').trim();
+  return Boolean(text && /[A-Za-z0-9]/.test(text) && !/[가-힣]/.test(text));
+}
+function productDisplayCategoryLabel(category){
+  let label = String(category || '').replace(/\s+/g, ' ').trim();
+  if(!label) return '';
+  if(/^샷시\s*손잡이$/.test(label)) return '';
+  if(label === '실리콘') return '';
+  label = label.replace(/\s*세면기$/, '').trim();
+  return label;
+}
+function productSubSearchText(p){
+  return [p?.categoryName, p?.sourceSheet, p?.name, p?.model].filter(Boolean).join(' ');
+}
+function productNoteHtml(p){
+  return esc(String(p?.note || '').replace(/\r\n?/g, '\n'));
 }
 function productSelected(id){
   return S.selected.includes(id) || sashGroupSelected(id) || productGroupSelected(id);
 }
 function sashSizeLabel(id){
   return '';
+}
+function colorVariantOptions(id){
+  const p = productById(id), cat = catalogCatOf(id);
+  if(!p || !COLOR_VARIANT_CATEGORIES.has(cat)) return [];
+  const key = productGroupKey(p, cat);
+  const byColor = new Map();
+  (CATALOG[cat] || []).filter(v=>productGroupKey(v, cat)===key).forEach(v=>{
+    const color = productColor(v);
+    if(!usefulColor(color)) return;
+    const prev = byColor.get(color);
+    if(!prev || priceValue(v) < priceValue(prev)) byColor.set(color, v);
+  });
+  if(byColor.size < 2) return [];
+  return [...byColor.entries()]
+    .sort(([a,av],[b,bv])=> colorVariantOrder(a)-colorVariantOrder(b) || priceValue(av)-priceValue(bv) || String(a).localeCompare(String(b),'ko-KR'))
+    .map(([color, product])=>({ color, product }));
 }
 function detailSashChoiceId(id){
   const choices = sashSizeChoices(id);
@@ -260,12 +417,38 @@ function setDetailSashChoice(sourceId, variantId){
   S.sashChoice[sourceId] = variantId;
   render('detail');
 }
+function detailColorChoiceId(id){
+  const choices = colorVariantOptions(id);
+  if(!choices.length) return id;
+  return S.variantChoice?.[id]
+    || choices.find(v=>S.selected.includes(v.product.id))?.product.id
+    || choices.find(v=>v.product.id===id)?.product.id
+    || choices[0].product.id;
+}
+function detailVariantChoiceId(id){
+  const colorId = detailColorChoiceId(id);
+  if(colorId !== id || colorVariantOptions(id).length) return colorId;
+  return detailSashChoiceId(id);
+}
+function setDetailColorChoice(sourceId, variantId){
+  S.variantChoice = S.variantChoice || {};
+  S.variantChoice[sourceId] = variantId;
+  render('detail');
+}
 function detailSashSizeHtml(id, selectedId){
   const choices = sashSizeChoices(id);
   if(catalogCatOf(id)!=='샷시손잡이' || !choices.length) return '';
   return `<span class="flabel mt20">사이즈</span>
     <div class="size-choice-options detail-size-options">
       ${choices.map(v=>`<button class="size-choice-btn${v.product.id===selectedId?' selected':''}" onclick="setDetailSashChoice('${id}','${v.product.id}')"><b>${v.size}</b><span>${won(v.product.price)}원</span></button>`).join('')}
+    </div>`;
+}
+function detailColorChoiceHtml(id, selectedId){
+  const choices = colorVariantOptions(id);
+  if(!choices.length) return '';
+  return `<span class="flabel mt20">색상</span>
+    <div class="size-choice-options detail-size-options">
+      ${choices.map(v=>`<button class="size-choice-btn${v.product.id===selectedId?' selected':''}" onclick="setDetailColorChoice('${id}','${v.product.id}')"><b>${v.color}</b><span>${won(v.product.price)}원</span></button>`).join('')}
     </div>`;
 }
 /* 시공비: 제품 종류별 1개 시공 비용 (선택 제품마다 합산) */
@@ -291,6 +474,7 @@ function laborOf(id){
 const laborTotal = () => S.selected.reduce((s,id)=> s + laborOf(id), 0);
 const disposalFee = () => S.selfDisposal ? 0 : DISPOSAL;
 const total = () => subtotal() + laborTotal() + disposalFee();
+const vatTotal = () => Math.round(total() * 1.1);
 function toggleDisposal(){ S.selfDisposal = !S.selfDisposal; render(); }
 
 const el = () => document.getElementById('app');
@@ -327,6 +511,7 @@ function selectItem(name, ev){
 }
 function pickCat(name){ if(name===S.item) return; S.item = name; S.subFilter=''; S.brandFilter=''; S.colorFilter=''; S.productPage=1; render('list'); mSetBrowserRoute('list'); }
 function setSub(label){ S.subFilter = label; S.brandFilter=''; S.colorFilter=''; S.productPage=1; render('list'); }
+function setProductSort(value){ S.productSort=value; S.productPage=1; render('list'); }
 function setBrandFilter(value){ S.brandFilter=value; S.productPage=1; render('list'); }
 function setColorFilter(value){ S.colorFilter=value; S.productPage=1; render('list'); }
 function clearProductFilters(){ S.subFilter=''; S.brandFilter=''; S.colorFilter=''; S.productPage=1; render('list'); }
@@ -335,11 +520,9 @@ function productPager(total, page){
   const pageSize = 10; // mobile product grid: 2 columns x 5 rows
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   if(totalPages<=1) return '';
-  const from = (page-1)*pageSize + 1;
-  const to = Math.min(total, page*pageSize);
   return `<div class="product-pager">
     <button class="pager-btn" ${page<=1?'aria-disabled="true"':''} onclick="setProductPage(${page-1})"><i data-lucide="chevron-left"></i> 이전</button>
-    <span class="pager-state"><b>${from}-${to} / ${total}</b><small>${page} / ${totalPages} 페이지</small></span>
+    <span class="pager-state"><small>${page} / ${totalPages} 페이지</small></span>
     <button class="pager-btn" ${page>=totalPages?'aria-disabled="true"':''} onclick="setProductPage(${page+1})">다음 <i data-lucide="chevron-right"></i></button>
   </div>`;
 }
@@ -381,6 +564,18 @@ function selectSashVariant(sourceId, variantId, fromDetail){
   closeSheet();
   if(fromDetail) back(); else syncProductListState();
 }
+function selectColorVariant(sourceId, variantId, fromDetail){
+  if(!variantId) return;
+  colorVariantOptions(sourceId).forEach(v=>{
+    if(v.product.id!==variantId){
+      const i = S.selected.indexOf(v.product.id);
+      if(i>=0) S.selected.splice(i,1);
+    }
+  });
+  if(!S.selected.includes(variantId)) S.selected.push(variantId);
+  closeSheet();
+  if(fromDetail) back(); else syncProductListState();
+}
 function openSashSizeSheet(id, fromDetail=false){
   const p = productById(id), choices = sashSizeChoices(id);
   if(!choices.length){
@@ -397,9 +592,25 @@ function openSashSizeSheet(id, fromDetail=false){
     </div>
     <p class="p-sm mt12">선택한 사이즈가 장바구니에 담겨요. 같은 사이즈에 색상별 가격 차이가 있으면 최저가 기준으로 담습니다.</p>`);
 }
+function openColorSheet(id, fromDetail=false){
+  const p = productById(id), choices = colorVariantOptions(id);
+  if(!choices.length){
+    toggleProductId(id);
+    if(fromDetail) back(); else syncProductListState();
+    return;
+  }
+  showSheet(`<div class="sheet-grip"></div><div class="between"><div><div class="h-md">색상 선택</div><p class="p-sm mt4">${productDisplayName(p)}</p></div><button class="iconbtn" onclick="closeSheet()" aria-label="닫기"><i data-lucide="x"></i></button></div>
+    <div class="sash-size-grid">
+      ${choices.map(v=>{
+        const selected = S.selected.includes(v.product.id);
+        return `<button class="sash-size-option${selected?' selected':''}" onclick="selectColorVariant('${id}','${v.product.id}',${fromDetail?'true':'false'})"><b>${v.color}</b><span>${won(v.product.price)}원</span><small>${v.product.sku || v.product.model || ''}</small></button>`;
+      }).join('')}
+    </div>`);
+}
 function toggleProduct(ev, id){
   if(ev?.stopPropagation) ev.stopPropagation();
   if(catalogCatOf(id)==='샷시손잡이'){ openSashSizeSheet(id); return; }
+  if(colorVariantOptions(id).length){ openColorSheet(id); return; }
   toggleProductId(id);
   syncProductListState();
 }
@@ -407,6 +618,10 @@ function openDetail(id){ S.detail = id; nav('detail'); }
 function detailAddContinue(){
   if(catalogCatOf(S.detail)==='샷시손잡이'){
     selectSashVariant(S.detail, detailSashChoiceId(S.detail), true);
+    return;
+  }
+  if(colorVariantOptions(S.detail).length){
+    selectColorVariant(S.detail, detailColorChoiceId(S.detail), true);
     return;
   }
   if (!S.selected.includes(S.detail)) S.selected.push(S.detail);
@@ -466,8 +681,8 @@ function tryQuote(){
   if (S.info.phone.replace(/\D/g,'').length >= 10) nav('quote');
 }
 function tryQuoteM(){ if (prebookOkM()) nav('quote'); }
-function selectDate(d){ S.date = d; render('booking'); }
-function dateLabel(){ if(!S.date) return ''; const W=['일','월','화','수','목','금','토']; return `6월 ${S.date}일 (${W[S.date%7]})`; }
+function selectDate(dateIso){ S.date = dateIso; render('booking'); }
+function dateLabel(includeYear=false){ return S.date ? bookingDateLabel(S.date, includeYear) : ''; }
 function selectTime(t){ S.time = t; render('booking'); }
 function allPhotoEntriesM(){
   ensurePhotoState();
@@ -511,8 +726,67 @@ async function appendOptimizedPhotosM(fd, entries){
     fd.append('photos', file, file.name || entry.name || `photo-${idx+1}.jpg`);
   }
 }
+async function uploadOrderPhotosM(order, entries){
+  if(!order?.id || !order?.accessToken || !entries?.length) return;
+  try{
+    const fd = new FormData();
+    fd.append('accessToken', order.accessToken);
+    await appendOptimizedPhotosM(fd, entries);
+    const res = await fetch(`/api/builduscare/orders/${encodeURIComponent(order.id)}/photos`, { method:'POST', body:fd });
+    const json = await res.json().catch(()=>null);
+    if(!res.ok || !json?.ok) throw new Error(json?.error?.message || json?.message || '사진 업로드에 실패했어요.');
+    if(S.remoteOrder?.id === order.id && json.data?.photoCount != null){
+      S.remoteOrder.photoCount = json.data.photoCount;
+    }
+  }catch(err){
+    console.warn('Build us Care photo upload failed', err);
+  }
+}
 function selectedOrderPayloadM(){
   return S.selected.map(id=>({ id, qty:1 }));
+}
+function mDigits(v){ return String(v||'').replace(/\D/g,''); }
+function cashReceiptIdentityM(){
+  if(S.cashReceiptType === 'personal') return mDigits(S.cashReceiptIdentity) || mDigits(S.info.phone);
+  return mDigits(S.cashReceiptIdentity);
+}
+function cashReceiptPayloadM(){
+  return {
+    type: S.cashReceiptType || 'none',
+    identity: S.cashReceiptType === 'none' ? '' : cashReceiptIdentityM()
+  };
+}
+function cashReceiptOkM(){
+  if(S.cashReceiptType === 'none') return true;
+  return cashReceiptIdentityM().length >= 10;
+}
+function setCashReceiptTypeM(type){
+  S.cashReceiptType = type;
+  if(type === 'none') S.cashReceiptIdentity = '';
+  if(type === 'personal' && !S.cashReceiptIdentity) S.cashReceiptIdentity = mDigits(S.info.phone);
+  render('checkout');
+}
+function setCashReceiptIdentityM(v){
+  S.cashReceiptIdentity = mDigits(v);
+}
+function cashReceiptBoxM(){
+  const type = S.cashReceiptType || 'none';
+  const label = type === 'business' ? '사업자등록번호' : '휴대전화번호';
+  const placeholder = type === 'business' ? '사업자등록번호 10자리' : '01000000000';
+  const desc = type === 'none'
+    ? '현금영수증이 필요하면 용도를 선택해 주세요.'
+    : '입금 확인 후 아래 정보로 현금영수증 발급을 진행합니다.';
+  return `
+  <div class="bcard pad mt12">
+    <div class="h-sm">현금영수증</div>
+    <p class="p-sm mt4" style="color:var(--gray-600)">${desc}</p>
+    <div class="chips mt10">
+      <span class="chip${type==='none'?' on':''}" onclick="setCashReceiptTypeM('none')">발급 안 함</span>
+      <span class="chip${type==='personal'?' on':''}" onclick="setCashReceiptTypeM('personal')">소득공제용</span>
+      <span class="chip${type==='business'?' on':''}" onclick="setCashReceiptTypeM('business')">지출증빙용</span>
+    </div>
+    ${type!=='none'?`<div class="field mt12"><label>${label}</label><input class="input" inputmode="numeric" autocomplete="off" placeholder="${placeholder}" value="${esc(cashReceiptIdentityM())}" oninput="setCashReceiptIdentityM(this.value)"></div>`:''}
+  </div>`;
 }
 function buildOrderPayloadM(){
   return {
@@ -523,6 +797,7 @@ function buildOrderPayloadM(){
     reservation:{ date:S.date, time:S.time },
     selected:selectedOrderPayloadM(),
     selfDisposal:S.selfDisposal,
+    cashReceipt:cashReceiptPayloadM(),
     totals:{ productAmount:subtotal(), laborAmount:laborTotal(), disposalAmount:disposalFee(), totalAmount:total() }
   };
 }
@@ -658,26 +933,26 @@ function renderTransferGuideM(config){
   const bankBlock = hasBankAccount ? `
     <div class="bcard pad mt12" style="text-align:left">
       <div class="p-sm strong" style="color:var(--gray-600)">입금 계좌</div>
-      <div class="h-sm mt8">${esc(cfg.bankName)} ${esc(cfg.bankAccount)}</div>
+      <div class="p-sm strong mt8" style="color:var(--gray-900)">${esc(cfg.bankName)} ${esc(cfg.bankAccount)}</div>
       <div class="p-sm mt4">예금주 ${esc(cfg.accountHolder)}</div>
       <button class="btn btn-secondary btn-md btnf mt12" onclick="copyTransferValueM('account')"><i data-lucide="copy"></i> 계좌번호 복사</button>
     </div>` : `
     <div class="bcard pad mt12" style="text-align:left">
       <div class="p-sm strong" style="color:var(--gray-600)">입금 계좌</div>
-      <div class="h-sm mt8">카톡으로 계좌 안내 예정</div>
+      <div class="p-sm strong mt8" style="color:var(--gray-900)">카톡으로 계좌 안내 예정</div>
       <div class="p-sm mt4">주문 확인 후 담당자가 입금 계좌와 진행 방법을 안내드립니다.</div>
     </div>`;
   showSheet(`<div class="sheet-grip"></div>
     <div class="row gap10">
       <span class="tile" style="width:42px;height:42px;background:var(--brand-50);color:var(--brand-600)"><i data-lucide="wallet"></i></span>
-      <div><div class="h-md">계좌이체 안내</div><div class="p-sm">접수번호 ${esc(data.orderNo)}</div></div>
+      <div><div class="p-sm strong" style="color:var(--gray-900)">계좌이체 안내</div><div class="p-sm">접수번호 ${esc(data.orderNo)}</div></div>
     </div>
     <p class="p-sm mt12">${data.hasConfirmedTransfer?'아래 금액과 입금자명을 확인한 뒤 진행해 주세요. 입금 확인 후 주문 상태가 업데이트됩니다.':'아직 최종 금액 확정 전입니다. 입금은 안내가 활성화된 뒤 진행해 주세요.'}</p>
     ${amountRows}
     ${bankBlock}
     <div class="bcard pad mt12" style="text-align:left">
       <div class="p-sm strong" style="color:var(--gray-600)">입금자명</div>
-      <div class="h-sm mt8">${esc(data.payerName)}</div>
+      <div class="p-sm strong mt8" style="color:var(--gray-900)">${esc(data.payerName)}</div>
       <button class="btn btn-secondary btn-md btnf mt12" onclick="copyTransferValueM('payer')"><i data-lucide="copy"></i> 입금자명 복사</button>
     </div>
     <p id="transferCopyMsg" class="p-sm mt10" style="min-height:18px;color:var(--brand-600)"></p>
@@ -693,20 +968,28 @@ async function openTransferM(){
 }
 async function submitIntake(){
   if(S.submitting) return;
+  if(!cashReceiptOkM()){
+    S.submitErr = '현금영수증 발급 정보를 확인해 주세요.';
+    render('checkout');
+    return;
+  }
   S.submitting = true;
   S.submitErr = '';
   render('checkout');
   try{
+    const photoEntries = allPhotoEntriesM();
     const fd = new FormData();
     fd.append('payload', JSON.stringify(buildOrderPayloadM()));
-    await appendOptimizedPhotosM(fd, allPhotoEntriesM());
     const res = await fetch('/api/builduscare/orders', { method:'POST', body:fd });
     const json = await res.json().catch(()=>null);
     if(!res.ok || !json?.ok) throw new Error(json?.error?.message || json?.message || '접수 저장에 실패했어요.');
-    applyRemoteOrderM(json.data.order);
+    const order = json.data.order;
+    if(order) order.photoCount = Math.max(Number(order.photoCount || 0), photoEntries.length);
+    applyRemoteOrderM(order);
     S.submitting = false;
     S.applied = true;
     nav('done');
+    void uploadOrderPhotosM(order, photoEntries);
   }catch(err){
     S.submitting = false;
     S.submitErr = err instanceof Error ? err.message : '접수 저장에 실패했어요.';
@@ -917,11 +1200,13 @@ function closeDoc(){ const o = document.getElementById('docview'); if(o){ o.clas
 async function openFinalEstimateM(){
   const ono=mOrderNo(); const today=new Date().toLocaleDateString('ko-KR');
   const addr=(S.info.region||'')+(S.info.regionDetail?' '+S.info.regionDetail:'');
-  const dateTxt=S.date?`2026년 ${dateLabel()}${S.time?' · '+S.time:''}`:'사진 확인 후 협의';
+  const dateTxt=S.date?`${dateLabel(true)}${S.time?' · '+S.time:''}`:'사진 확인 후 협의';
   const logo=BC_LOGO_URI_M||await imgToDataUriM('assets/bc-logo.png');
   const uris={}; await Promise.all([...new Set(S.selected.map(id=>catalogCatOf(id)))].map(async cat=>{ uris[cat]=ITEM_IMG[cat]?await imgToDataUriM(ITEM_IMG[cat]):''; }));
   const rows=S.selected.map(id=>{const p=productById(id);const cat=catalogCatOf(id);const im=uris[cat];
-    return `<tr><td class="it"><span class="thumb">${im?`<img src="${im}" alt="">`:''}</span><span class="it-tx"><b>${p.brand} ${p.name}</b><small>${cat.replace(/\s*교체$/,'')}</small></span></td><td class="c">1</td><td class="r">${won(p.price)}</td></tr>`;}).join('');
+    return `<tr><td class="it"><span class="thumb">${im?`<img src="${im}" alt="">`:''}</span><span class="it-tx"><b>${p.brand} ${productDisplayName(p)}</b><small>${cat.replace(/\s*교체$/,'')}</small></span></td><td class="c">1</td><td class="r">${won(p.price)}</td></tr>`;}).join('');
+  const estimateTotal=total();
+  const vatIncludedTotal=vatTotal();
   const html=`<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>최종 견적서 · Build us Care</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css">
   <style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Pretendard',-apple-system,sans-serif;color:#1d1d1f;background:#f5f5f7;padding:40px 20px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -930,7 +1215,7 @@ async function openFinalEstimateM(){
   h1{font-size:26px;font-weight:700;letter-spacing:-.02em;margin:26px 0 4px}.sub{font-size:14px;color:#86868b;margin-bottom:24px}
   .info{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#e5e5ea;border:1px solid #e5e5ea;border-radius:14px;overflow:hidden;margin-bottom:26px}.info .cell{background:#fff;padding:14px 18px}.info .cell.full{grid-column:1/-1}.info .k{font-size:11px;font-weight:700;color:#86868b}.info .v{font-size:15px;font-weight:600;margin-top:3px}
   table{width:100%;border-collapse:collapse;font-size:15px}th{text-align:left;font-size:12px;font-weight:700;color:#86868b;padding:10px 0;border-bottom:1px solid #e5e5ea}th.r,td.r{text-align:right}th.c,td.c{text-align:center;width:54px;color:#6e6e73}td{padding:12px 0;border-bottom:1px solid #f0f0f2;font-weight:500;vertical-align:middle}td.it{display:flex;align-items:center;gap:12px}.thumb{width:50px;height:50px;border-radius:11px;background:#f2f2f4;overflow:hidden;flex:none;display:grid;place-items:center}.thumb img{width:100%;height:100%;object-fit:cover}.it-tx{display:flex;flex-direction:column;gap:2px}.it-tx b{font-weight:600}.it-tx small{font-size:12px;color:#86868b}
-  .grp td{color:#6e6e73;font-weight:400}.tot{display:flex;justify-content:space-between;align-items:baseline;margin-top:22px;padding-top:18px;border-top:2px solid #1d1d1f}.tot .k{font-size:17px;font-weight:700}.tot .v{font-size:28px;font-weight:800;color:#245FFF}.tot .v small{font-size:14px;color:#86868b;font-weight:600}
+  .grp td{color:#6e6e73;font-weight:400}.sum td{padding-top:16px;border-top:2px solid #1d1d1f;border-bottom:none;font-weight:800;color:#1d1d1f}.tot{display:flex;justify-content:space-between;align-items:baseline;margin-top:22px;padding-top:18px;border-top:2px solid #1d1d1f}.tot .k{font-size:17px;font-weight:700}.tot .k small{display:block;margin-top:3px;font-size:12px;color:#86868b;font-weight:600}.tot .v{font-size:28px;font-weight:800;color:#245FFF}.tot .v small{font-size:14px;color:#86868b;font-weight:600}
   .note{margin-top:22px;background:#eef3ff;border-radius:14px;padding:16px 18px;font-size:13px;line-height:1.6;color:#46443d}.foot{margin-top:28px;font-size:11px;color:#a0a0a5;line-height:1.7;border-top:1px solid #e5e5ea;padding-top:18px}
   .actions{max-width:700px;margin:20px auto 0;display:flex;gap:10px;justify-content:center}.btn{border:none;cursor:pointer;font-family:inherit;font-size:15px;font-weight:600;padding:12px 24px;border-radius:980px}.btn.p{background:#245FFF;color:#fff}.btn.s{background:#fff;color:#1d1d1f;border:1px solid #d2d2d7}
   @media (max-width:520px){body{padding:14px 10px}.sheet{padding:22px 16px;border-radius:16px}.top{flex-direction:column;align-items:flex-start;gap:12px}.meta{text-align:left}.q-logo{height:26px}h1{font-size:22px;margin:18px 0 4px}.info{grid-template-columns:1fr}.info .v{word-break:break-all}.tot .v{font-size:24px}table{font-size:14px}td.it{gap:10px}.thumb{width:44px;height:44px}.it-tx b{word-break:keep-all}.actions{flex-direction:column;margin-top:16px}.btn{width:100%}}@media print{body{background:#fff;padding:0}.sheet{box-shadow:none;border-radius:0}.actions{display:none}}</style></head><body>
@@ -939,9 +1224,9 @@ async function openFinalEstimateM(){
   <div class="info"><div class="cell"><div class="k">예약자</div><div class="v">${S.info.name||'-'}</div></div><div class="cell"><div class="k">연락처</div><div class="v">${S.info.phone||'-'}</div></div><div class="cell full"><div class="k">시공 주소</div><div class="v">${addr||'-'}</div></div><div class="cell full"><div class="k">예약 일시</div><div class="v">${dateTxt}</div></div></div>
   <table><thead><tr><th>제품</th><th class="c">수량</th><th class="r">금액 (원)</th></tr></thead><tbody>${rows}
   <tr class="grp"><td>시공비</td><td class="c">×${S.selected.length}</td><td class="r">${won(laborTotal())}</td></tr>
-  <tr class="grp"><td>폐기물 처리비${S.selfDisposal?' <span style="color:#86868b">(직접 처리)</span>':''}</td><td class="c">×1</td><td class="r">${won(disposalFee())}</td></tr></tbody></table>
-  <div class="tot"><span class="k">최종 합계</span><span class="v">${won(total())}<small> 원</small></span></div>
-  <div class="note">설치 가능 여부와 최종 금액은 <b>사진 확인 후 확정</b>됩니다. 추가 비용과 출장비는 없으며, 본 견적서는 참고용 예상 금액입니다.</div>
+  <tr class="grp"><td>폐기물 처리비${S.selfDisposal?' <span style="color:#86868b">(직접 처리)</span>':''}</td><td class="c">×1</td><td class="r">${won(disposalFee())}</td></tr>
+  <tr class="sum"><td>합계</td><td class="c"></td><td class="r">${won(estimateTotal)}</td></tr></tbody></table>
+  <div class="tot"><span class="k">최종 합계<small>부가세 10% 포함</small></span><span class="v">${won(vatIncludedTotal)}<small> 원</small></span></div>
   <div class="foot">주식회사 무니온 · 대표 김영태 · 경기도 용인시 포은대로59번길 37, 시그니처광교<br>사업자등록번호 601-81-39840 · 통신판매업신고 2025-용인수지-3087 · munion@mymunion.com</div></div>
   <div class="actions"><button class="btn s" onclick="window.print()">인쇄 / PDF 저장</button><button class="btn p" onclick="parent.closeDoc()">닫기</button></div>
   </body></html>`;
@@ -956,6 +1241,7 @@ async function submitInquiryM(){
   S.submitErr = '';
   render('inquiry');
   try{
+    const photoEntries = allPhotoEntriesM();
     const payload = {
       ...buildOrderPayloadM(),
       item:'사진 확인',
@@ -965,14 +1251,16 @@ async function submitInquiryM(){
     };
     const fd = new FormData();
     fd.append('payload', JSON.stringify(payload));
-    await appendOptimizedPhotosM(fd, allPhotoEntriesM());
-    const res = await fetch('/api/builduscare/photo-checks', { method:'POST', body:fd });
+    const res = await fetch('/api/builduscare/orders', { method:'POST', headers:{'x-builduscare-submission-type':'photo_check'}, body:fd });
     const json = await res.json().catch(()=>null);
     if(!res.ok || !json?.ok) throw new Error(json?.error?.message || json?.message || '접수 저장에 실패했어요.');
-    applyRemoteOrderM(json.data.order);
+    const order = json.data.order;
+    if(order) order.photoCount = Math.max(Number(order.photoCount || 0), photoEntries.length);
+    applyRemoteOrderM(order);
     S.submitting = false;
     S.applied = true;
     nav('done');
+    void uploadOrderPhotosM(order, photoEntries);
   }catch(err){
     S.submitting = false;
     S.submitErr = err instanceof Error ? err.message : '접수 저장에 실패했어요.';
@@ -1080,7 +1368,7 @@ home: () => `
     <div class="hl-cta">
       <div class="hl-row">
         <button class="hl-btn hl-pri" onclick="nav('inquiry')">사진으로 확인하기</button>
-        <button class="hl-btn hl-out" onclick="nav('items')">제품 둘러보기</button>
+        <button class="hl-btn hl-out" onclick="nav('items')">바꿀 수 있는 제품 보기</button>
       </div>
       <button class="hl-btn hl-kk" onclick="openKakao('guide')">${KK} 카카오로 문의하기</button>
     </div>
@@ -1137,23 +1425,29 @@ list: () => {
   const subs = SUBTYPES[S.item] || null;
   const cur = subs ? (S.subFilter||'') : '';
   const sel = cur && subs.find(x=>x[0]===cur);
-  const baseList = sel ? all.filter(p=>sel[1].test(p.name)) : all;
+  const baseList = sel ? all.filter(p=>sel[1].test(productSubSearchText(p))) : all;
   const brands = uniqueSorted(baseList, productBrand);
   const colors = uniqueSorted(baseList, productColor);
+  const colorOptions = visibleColors(colors);
+  const showColorFilter = colors.filter(usefulColor).length > 1;
   if(S.brandFilter && !brands.includes(S.brandFilter)) S.brandFilter = '';
-  if(S.colorFilter && !colors.includes(S.colorFilter)) S.colorFilter = '';
+  if(!showColorFilter) S.colorFilter = '';
+  else if(S.colorFilter && !colorOptions.includes(S.colorFilter)) S.colorFilter = '';
   const filteredList = filteredProducts(baseList, S.brandFilter, S.colorFilter);
-  const list = lowestFirst(productCardList(filteredList, filteredList));
+  const list = sortedProducts(productCardList(filteredList, filteredList), S.productSort);
   const pageSize = 10;
   const totalPages = Math.max(1, Math.ceil(list.length / pageSize));
   S.productPage = Math.min(Math.max(S.productPage || 1, 1), totalPages);
   const start = (S.productPage - 1) * pageSize;
   const paged = list.slice(start, start + pageSize);
   const subFilter = subs ? [['','전체'],...subs.map(s=>[s[0],s[0]])].map(o=>`<span class="fbtn${cur===o[0]?' on':''}" onclick="setSub('${esc(o[0])}')">${esc(o[1])}</span>`).join('') : '';
+  const sortFilter = PRODUCT_SORTS.map(([key,label])=>`<span class="fbtn sort-chip${(S.productSort||'low')===key?' on':''}" onclick="setProductSort('${key}')">${(S.productSort||'low')===key?'<i data-lucide="check"></i>':''}${label}</span>`).join('');
   const brandSelect = `<label class="filter-select"><span>브랜드</span><select onchange="setBrandFilter(this.value)"><option value="">전체</option>${brands.map(b=>`<option value="${esc(b)}"${S.brandFilter===b?' selected':''}>${esc(b)}</option>`).join('')}</select></label>`;
-  const colorSelect = `<label class="filter-select"><span>색상</span><select onchange="setColorFilter(this.value)"><option value="">전체</option>${colors.map(c=>`<option value="${esc(c)}"${S.colorFilter===c?' selected':''}>${esc(c)}</option>`).join('')}</select></label>`;
+  const colorSelect = showColorFilter ? `<label class="filter-select"><span>색상</span><select onchange="setColorFilter(this.value)"><option value="">전체</option>${colorOptions.map(c=>`<option value="${esc(c)}"${S.colorFilter===c?' selected':''}>${esc(c)}</option>`).join('')}</select></label>` : '';
   const resetFilter = (S.brandFilter || S.colorFilter || cur) ? `<span class="fbtn" onclick="clearProductFilters()">초기화</span>` : '';
-  const filterRow = `<div class="filterbar mt8">${subFilter}<span class="fbtn on sort-chip"><i data-lucide="arrow-down-narrow-wide"></i> 최저가순</span>${brandSelect}${colorSelect}${resetFilter}</div>`;
+  const categoryRow = subFilter ? `<div class="filterbar filter-tabs mt8">${subFilter}</div>` : '';
+  const sortRow = `<div class="filterbar filter-sort mt8">${sortFilter}</div>`;
+  const selectsRow = `<div class="filterbar filter-selects mt8">${brandSelect}${colorSelect}${resetFilter}</div>`;
   return `
 ${appbar(`${S.item.replace(/\s*교체$/,'')} <span class="enlabel">${ITEM_EN[S.item]||''}</span>`, '<button class="iconbtn"><i data-lucide="search"></i></button>')}
 <div class="body scroll"><div class="pad">
@@ -1161,7 +1455,7 @@ ${appbar(`${S.item.replace(/\s*교체$/,'')} <span class="enlabel">${ITEM_EN[S.i
     ${ITEMS.map(it=>`<button class="cat-item${it[0]===S.item?' on':''}" onclick="pickCat('${it[0]}')"><span class="cat-thumb"><img src="${CAT_ICON[it[0]]||ITEM_IMG[it[0]]}" alt="${it[0]}"></span><span class="cat-lbl">${it[0].replace(/\s*교체$/,'')}</span></button>`).join('')}
   </div>
   <div class="between mt16"><div class="h-md">전체 제품 (${list.length})</div></div>
-  ${filterRow}
+  ${categoryRow}${sortRow}${selectsRow}
   <div class="shopgrid mt12">${paged.map(p=>pcard(p,false)).join('')}</div>
   ${productPager(list.length, S.productPage)}
   <button class="btn kkbtn btn-lg btnf mt16" onclick="openKakao('product')">${KK} 원하는 제품이 따로 있어요</button>
@@ -1170,24 +1464,25 @@ ${mobileCartbar()}`;
 },
 
 detail: () => {
-  const p = productById(S.detail), selectedVariantId = detailSashChoiceId(S.detail), display = productById(selectedVariantId) || p;
-  const sel = catalogCatOf(S.detail)==='샷시손잡이' ? S.selected.includes(selectedVariantId) : productSelected(p.id);
+  const p = productById(S.detail), selectedVariantId = detailVariantChoiceId(S.detail), display = productById(selectedVariantId) || p;
+  const hasColorVariants = colorVariantOptions(S.detail).length > 0;
+  const isVariantChoice = catalogCatOf(S.detail)==='샷시손잡이' || hasColorVariants;
+  const sel = isVariantChoice ? S.selected.includes(selectedVariantId) : productSelected(p.id);
   const sku = display.sku || display.model || '제품 정보 확인';
   const source = display.sourceSheet ? `${display.sourceSheet} 카탈로그 기준` : '제품 카탈로그 기준';
   return `
 ${appbar('제품 상세', '<button class="iconbtn"><i data-lucide="heart"></i></button>')}
 <div class="body scroll">
-  <div class="imgph detail-hero${p.image?' has-img':''}" style="height:240px">${productImg(p)}<span class="lbl">제품 대표 이미지</span></div>
+  <div class="imgph detail-hero${display.image?' has-img':''}" style="height:240px">${productImg(display)}<span class="lbl">제품 대표 이미지</span></div>
   <div class="pad">
     <div class="pbrand" style="font-size:12px">${p.brand}</div>
     <div class="h-lg mt2">${productDisplayName(p)}</div>
     <div class="row gap8 mt4" style="align-items:baseline"><div style="font-size:22px;font-weight:700">${won(display.price)}원</div><span class="p-sm">제품가</span></div>
     ${detailSashSizeHtml(S.detail, selectedVariantId)}
-    <span class="flabel mt20">색상</span>
-    <div class="chips"><span class="chip on">${display.color || '기본'}</span></div>
+    ${hasColorVariants ? detailColorChoiceHtml(S.detail, selectedVariantId) : `<span class="flabel mt20">색상</span><div class="chips"><span class="chip on">${display.color || '기본'}</span></div>`}
     <span class="flabel mt20">제품 정보</span>
     <div class="bcard pad"><div class="prow" style="padding:8px 0"><span class="pk">브랜드</span><span class="pv">${display.brand}</span></div><div class="prow" style="padding:8px 0"><span class="pk">품번</span><span class="pv">${sku}</span></div><div class="prow" style="padding:8px 0"><span class="pk">종류</span><span class="pv">${display.categoryName || S.item}</span></div><div class="prow" style="padding:8px 0"><span class="pk">기준</span><span class="pv">${source}</span></div></div>
-    ${display.note?`<div class="note info mt12"><i data-lucide="info"></i><div>${display.note}</div></div>`:''}
+    ${display.note?`<div class="note info mt12"><i data-lucide="info"></i><div style="white-space:pre-line">${productNoteHtml(display)}</div></div>`:''}
   </div>
 </div>
 <div class="cta-bar"><div class="row gap10"><button class="btn kkbtn btn-xl icononly" style="flex:none;width:56px" onclick="openKakao('product')">${KK}</button><button class="btn btn-primary btn-xl grow" onclick="detailAddContinue()">${sel?'담겼어요 · 계속':'선택 담고 계속'} <i data-lucide="arrow-right"></i></button></div></div>`;
@@ -1269,7 +1564,7 @@ info: () => {
   return `
 ${appbar('예약정보 입력')}
 <div class="body scroll"><div class="pad">
-  <h2 class="h-md">예약정보를 적어주세요</h2>
+  <h2 class="p-sm strong" style="color:var(--gray-900);margin:0">예약정보를 적어주세요</h2>
   <p class="p-sm mt4">예약에 필요한 정보를 입력해 주세요. 사진은 선택사항이에요.</p>
   <div class="bcard pad mt16">
     <input id="mBookingPhotoInput" type="file" accept="image/*" multiple hidden onchange="handlePhotoFiles(this.files, 'info')">
@@ -1300,7 +1595,7 @@ ${appbar('예상 견적')}
   <div class="note info"><i data-lucide="shield-check"></i><div><b>예상 금액이에요.</b> 설치 가능 여부와 최종 금액은 사진 확인 후 확정되며, <b>추가 비용은 없어요.</b></div></div>
   <div class="h-md mt16">선택한 제품 ${S.selected.length}개</div>
   <div class="bcard pad mt8">
-    ${S.selected.map(id=>{const p=productById(id);return `<div class="between" style="padding:7px 0"><span class="p-sm" style="color:var(--gray-700)">${p.name}</span><span class="strong">${won(p.price)}</span></div>`;}).join('')}
+    ${S.selected.map(id=>{const p=productById(id);return `<div class="between" style="padding:7px 0"><span class="p-sm" style="color:var(--gray-700)">${productDisplayName(p)}</span><span class="strong">${won(p.price)}</span></div>`;}).join('')}
   </div>
   <div class="bcard pad mt12">
     <div class="prow"><span class="pk"><i data-lucide="package" style="width:16px;height:16px"></i> 제품가 합계</span><span class="pv">${won(subtotal())}</span></div>
@@ -1315,24 +1610,16 @@ ${appbar('예상 견적')}
 booking: () => {
   const times = [['오전','오전 · 9시–12시'],['오후','오후 · 1시–4시']];
   const ok = S.date && S.time;
-  const minDay = 7, holidays = [6], bookedDays = {10:'오전',18:'오후',24:'오전'};
-  let cells = '<div></div>';
-  for(let d=1; d<=30; d++){
-    const col = d%7, wknd = (col===0?'sun':(col===6?'sat':''));
-    const isHol = holidays.includes(d), isPrep = d<minDay, isBooked = d in bookedDays;
-    const off = isHol || isPrep || isBooked;
-    const cls = `cal-d ${wknd}${off?' dim':''}${S.date===d?' on':''}${isBooked?' booked':''}`;
-    cells += `<div class="${cls}"${off?'':` onclick="selectDate(${d})"`}>${d}${isBooked?'<span class="cd-tag">마감</span>':isHol?'<span class="cd-tag">휴무</span>':''}</div>`;
-  }
+  const cal = bookingCalendarCells(S.date, 'selectDate');
   const hd = ['일','월','화','수','목','금','토'].map((x,i)=>`<div class="cal-hd${i===0?' sun':i===6?' sat':''}">${x}</div>`).join('');
   return `
 ${appbar('예약 일정')}
 <div class="body scroll"><div class="pad">
-  <div class="note info"><i data-lucide="info"></i><div>제품 준비기간으로 <b>주문 후 4일 뒤부터</b> 예약할 수 있어요. 희망 일정을 고르면 사진 확인 후 확정해 연락드려요.</div></div>
+  <div class="note info"><i data-lucide="info"></i><div>제품 준비기간으로 <b>오늘 기준 3일 이후부터</b> 예약할 수 있어요. 일요일과 공휴일은 휴무이고, 토요일은 예약 가능합니다.</div></div>
   <div class="bcard pad mt16">
-    <div class="between" style="margin-bottom:12px"><div class="h-md" style="font-size:18px">2026년 6월</div></div>
-    <div class="calendar">${hd}${cells}</div>
-    <div class="cal-legend"><span><i class="lg-dot sat"></i> 주말</span><span><i class="lg-dot off"></i> 휴무·예약 마감</span></div>
+    <div class="between" style="margin-bottom:12px"><div class="h-md" style="font-size:18px">${cal.title}</div></div>
+    <div class="calendar">${hd}${cal.cells}</div>
+    <div class="cal-legend"><span><i class="lg-dot work"></i> 토요일 영업</span><span><i class="lg-dot off"></i> 일요일·공휴일 휴무</span></div>
   </div>
   <div class="bcard pad mt12">
     <div class="h-md" style="font-size:18px">시간대</div>
@@ -1360,8 +1647,10 @@ ${appbar('접수 확인')}
     <div class="prow" style="padding:7px 0"><span class="pk"><i data-lucide="package" style="width:15px;height:15px"></i> 제품비</span><span class="pv">${won(subtotal())}</span></div>
     <div class="prow" style="padding:7px 0"><span class="pk"><i data-lucide="wrench" style="width:15px;height:15px"></i> 시공비</span><span class="pv">${won(laborTotal())}</span></div>
     <div class="prow" style="padding:7px 0"><span class="pk"><i data-lucide="trash-2" style="width:15px;height:15px"></i> 폐기물처리비${S.selfDisposal?' <span style="color:var(--gray-400)">(직접 처리)</span>':''}</span><span class="pv${S.selfDisposal?' strike':''}">${won(disposalFee())}</span></div>
-    <div class="prow tot"><span class="pk">최종 합계</span><span class="pv">${won(total())}<span class="sub" style="font-weight:600"> 원</span></span></div>
+    <div class="prow" style="padding:7px 0"><span class="pk">합계</span><span class="pv">${won(total())}</span></div>
+    <div class="prow tot"><span class="pk">최종 합계 <span class="sub" style="font-weight:600">부가세 10% 포함</span></span><span class="pv">${won(vatTotal())}<span class="sub" style="font-weight:600"> 원</span></span></div>
   </div>
+  ${cashReceiptBoxM()}
   <div class="note info mt12"><i data-lucide="shield-check"></i><div><b>추가 비용은 없어요.</b> 출장비도 받지 않아요. 사진과 현장이 같다면 위 금액 그대로 진행됩니다.</div></div>
   ${S.submitErr?`<div class="note mt12" style="background:#FDECEC;color:#B42318;display:flex;gap:9px;padding:12px 14px;border-radius:12px;font-size:12.5px"><i data-lucide="alert-circle" style="width:17px;height:17px;flex:none"></i><div>${esc(S.submitErr)}</div></div>`:''}
   <button class="btn btn-secondary btn-lg btnf mt12" onclick="openFinalEstimateM()"><i data-lucide="file-text"></i> 최종 견적서 보기</button>
@@ -1380,20 +1669,20 @@ done: () => {
 <div class="body scroll"><div class="pad" style="text-align:center;padding-top:24px">
   <div class="featured-icon circle" style="width:72px;height:72px;background:var(--success-50);color:var(--success-600);margin:0 auto"><i data-lucide="check" style="width:36px;height:36px"></i></div>
   <h2 class="h-lg mt16">신청이 접수됐어요</h2>
-  <p class="p-md mt4">사진 확인 후 최종 견적을 안내드려요. 매니저가 영업시간 기준 30분 내 안내드려요.</p>
+  <p class="p-md mt4">사진 확인 후 영업시간 기준 2시간 내 최종 견적을 안내드려요. 카카오톡으로도 결과를 받아볼 수 있어요.</p>
   <div class="bcard pad mt20" style="text-align:left">
     <div class="between"><div class="p-sm strong" style="color:var(--gray-700)">접수번호</div><div class="p-sm strong" style="color:var(--gray-900)">${mOrderNo()}</div></div>
     <div class="between mt8"><div class="p-sm strong" style="color:var(--gray-700)">현재 상태</div><span class="badge badge-warning dot">${statusLabel}</span></div>
     ${payAmount>0?`<div class="between mt8"><div class="p-sm strong" style="color:var(--gray-700)">입금 금액</div><div class="p-sm strong" style="color:var(--gray-900)">${won(payAmount)}원</div></div>`:''}
     <div class="divline" style="margin:12px 0"></div>
-    <div class="row gap10"><span class="tile" style="width:38px;height:38px"><i data-lucide="droplet" style="width:20px;height:20px"></i></span><div class="grow" style="text-align:left"><div class="h-sm" style="font-size:14px">${hasProducts?`${S.item} · ${S.selected.length}개`:`${S.item || '사진 확인'} · 사진 ${S.remoteOrder?.photoCount ?? allPhotoEntriesM().length}장`}</div><div class="p-sm">${S.info.region} · ${statusLabel}</div></div></div>
+    <div class="row gap10"><span class="tile" style="width:38px;height:38px"><i data-lucide="droplet" style="width:20px;height:20px"></i></span><div class="grow" style="text-align:left"><div class="p-sm strong" style="color:var(--gray-900)">${hasProducts?`${S.item} · ${S.selected.length}개`:`${S.item || '사진 확인'} · 사진 ${S.remoteOrder?.photoCount ?? allPhotoEntriesM().length}장`}</div><div class="p-sm">${S.info.region} · ${statusLabel}</div></div></div>
     ${hasTransfer?`
     <div class="divline" style="margin:14px 0"></div>
-    <div class="row gap10"><span class="tile" style="width:38px;height:38px;background:var(--brand-50);color:var(--brand-600)"><i data-lucide="wallet" style="width:20px;height:20px"></i></span><div class="grow" style="text-align:left"><div class="h-sm" style="font-size:14px">계좌이체 안내</div><div class="p-sm">제품 금액 입금 확인 후 주문이 진행돼요.</div></div></div>
+    <div class="row gap10"><span class="tile" style="width:38px;height:38px;background:var(--brand-50);color:var(--brand-600)"><i data-lucide="wallet" style="width:20px;height:20px"></i></span><div class="grow" style="text-align:left"><div class="p-sm strong" style="color:var(--gray-900)">계좌이체 안내</div><div class="p-sm">제품 금액 입금 확인 후 주문이 진행돼요.</div></div></div>
     <div class="col gap8 mt12">
-      <div class="between"><span class="p-sm" style="color:var(--gray-600)">예금주</span><span class="strong">${esc(bank.accountHolder)}</span></div>
-      <div class="between"><span class="p-sm" style="color:var(--gray-600)">입금 계좌</span><span class="strong">${esc(bank.bankName)} ${esc(bank.bankAccount)}</span></div>
-      <div class="between"><span class="p-sm" style="color:var(--gray-600)">입금자명</span><span class="strong">${esc(transferData.payerName)}</span></div>
+      <div class="between"><span class="p-sm" style="color:var(--gray-600)">예금주</span><span class="p-sm strong" style="color:var(--gray-900)">${esc(bank.accountHolder)}</span></div>
+      <div class="between"><span class="p-sm" style="color:var(--gray-600)">입금 계좌</span><span class="p-sm strong" style="color:var(--gray-900)">${esc(bank.bankName)} ${esc(bank.bankAccount)}</span></div>
+      <div class="between"><span class="p-sm" style="color:var(--gray-600)">입금자명</span><span class="p-sm strong" style="color:var(--gray-900)">${esc(transferData.payerName)}</span></div>
     </div>
     <div class="note info mt12"><i data-lucide="info"></i><div>입금 확인은 영업시간 기준으로 순차 반영됩니다. 시공비와 최종 금액은 사진 확인 후 확정돼요.</div></div>`:''}
   </div>
@@ -1419,7 +1708,7 @@ orders: () => `
 orderview: () => {
   const remote = S.remoteOrder;
   const addr=remote ? ((remote.roadAddress||'')+(remote.detailAddress?' '+remote.detailAddress:'')) : (S.info.region||'')+(S.info.regionDetail?' '+S.info.regionDetail:'');
-  const remoteDate = remote?.reservation?.date ? String(remote.reservation.date).replace(/^2026-06-/,'6월 ') + '일' : '';
+  const remoteDate = remote?.reservation?.date ? bookingDateLabel(remote.reservation.date) : '';
   const dateTxt=remoteDate ? `${remoteDate}${remote?.reservation?.time?' · '+remote.reservation.time:''}` : (S.date?`${dateLabel()}${S.time?' · '+S.time:''}`:'사진 확인 후 협의');
   const remoteRows = Array.isArray(remote?.selected) ? remote.selected : [];
   const hasProducts=remoteRows.length>0 || S.selected.length>0;
@@ -1431,9 +1720,9 @@ orderview: () => {
   const rows=remoteRows.length ? remoteRows.map(p=>{
     return `<div style="display:flex;align-items:center;gap:12px"><span style="width:46px;height:46px;border-radius:11px;background:var(--gray-100);overflow:hidden;flex:none;display:grid;place-items:center"><i data-lucide="package" style="width:21px;height:21px;color:var(--gray-400)"></i></span><div style="flex:1;min-width:0"><div class="strong" style="font-size:13.5px">${p.name||p.model||'-'}</div><div class="p-sm" style="color:var(--gray-500);margin-top:1px">${p.categoryName||p.serviceCode||''} · ${p.qty||1}개</div></div><div class="strong" style="white-space:nowrap">${won((p.price||0)*(p.qty||1))}<small style="color:var(--gray-400);font-weight:600"> 원</small></div></div>`;
   }).join('') : S.selected.map(id=>{const p=productById(id);const cat=catalogCatOf(id);const im=ITEM_IMG[cat];
-    return `<div style="display:flex;align-items:center;gap:12px"><span style="width:46px;height:46px;border-radius:11px;background:var(--gray-100);overflow:hidden;flex:none;display:grid;place-items:center">${im?`<img src="${im}" alt="" style="width:100%;height:100%;object-fit:cover">`:''}</span><div style="flex:1;min-width:0"><div class="strong" style="font-size:13.5px">${p.brand} ${p.name}</div><div class="p-sm" style="color:var(--gray-500);margin-top:1px">${cat.replace(/\s*교체$/,'')} · 1개</div></div><div class="strong" style="white-space:nowrap">${won(p.price)}<small style="color:var(--gray-400);font-weight:600"> 원</small></div></div>`;}).join('');
+    return `<div style="display:flex;align-items:center;gap:12px"><span style="width:46px;height:46px;border-radius:11px;background:var(--gray-100);overflow:hidden;flex:none;display:grid;place-items:center">${im?`<img src="${im}" alt="" style="width:100%;height:100%;object-fit:cover">`:''}</span><div style="flex:1;min-width:0"><div class="strong" style="font-size:13.5px">${p.brand} ${productDisplayName(p)}</div><div class="p-sm" style="color:var(--gray-500);margin-top:1px">${cat.replace(/\s*교체$/,'')} · 1개</div></div><div class="strong" style="white-space:nowrap">${won(p.price)}<small style="color:var(--gray-400);font-weight:600"> 원</small></div></div>`;}).join('');
   return `
-${appbar('주문 확인')}
+<div class="appbar bordered">${back_btn}<span class="title" style="font-size:13px;font-weight:700">주문 확인</span><span class="spacer"></span>${menu_btn}</div>
 <div class="body scroll"><div class="pad">
   <div class="bcard pad"><div class="between"><span class="badge badge-warning dot">${statusLabel}</span><span class="p-sm strong" style="color:var(--gray-600)">${remote?.orderNumber || S.orderNo}</span></div>
     <div class="atl mt16">
@@ -1445,16 +1734,16 @@ ${appbar('주문 확인')}
     </div>
   </div>
   <div class="bcard pad mt12">
-    <div class="h-sm">예약 정보</div>
+    <div class="p-sm strong" style="color:var(--gray-900)">예약 정보</div>
     <div class="col gap8 mt10">
-      <div class="between"><span class="p-sm" style="color:var(--gray-600)">예약자</span><span class="strong">${remote?.customerName||S.info.name||'-'}</span></div>
-      <div class="between"><span class="p-sm" style="color:var(--gray-600)">연락처</span><span class="strong">${remote?.phone||S.info.phone||'-'}</span></div>
-      <div class="between" style="align-items:flex-start"><span class="p-sm" style="color:var(--gray-600)">시공 주소</span><span class="strong" style="text-align:right;max-width:62%">${addr||'-'}</span></div>
-      <div class="between"><span class="p-sm" style="color:var(--gray-600)">예약 일시</span><span class="strong">${dateTxt}</span></div>
+      <div class="between"><span class="p-sm" style="color:var(--gray-600)">예약자</span><span class="p-sm strong" style="color:var(--gray-900)">${remote?.customerName||S.info.name||'-'}</span></div>
+      <div class="between"><span class="p-sm" style="color:var(--gray-600)">연락처</span><span class="p-sm strong" style="color:var(--gray-900)">${remote?.phone||S.info.phone||'-'}</span></div>
+      <div class="between" style="align-items:flex-start"><span class="p-sm" style="color:var(--gray-600)">시공 주소</span><span class="p-sm strong" style="color:var(--gray-900);text-align:right;max-width:62%">${addr||'-'}</span></div>
+      <div class="between"><span class="p-sm" style="color:var(--gray-600)">예약 일시</span><span class="p-sm strong" style="color:var(--gray-900)">${dateTxt}</span></div>
     </div>
     ${hasProducts?`
     <div class="divline" style="margin:14px 0"></div>
-    <div class="h-sm">선택 제품 <span class="p-sm" style="color:var(--gray-400);font-weight:500">${S.selected.length}개</span></div>
+    <div class="p-sm strong" style="color:var(--gray-900)">선택 제품 <span class="p-sm" style="color:var(--gray-400);font-weight:500">${S.selected.length}개</span></div>
     <div class="col gap12 mt12">${rows}</div>
     <div class="divline" style="margin:14px 0"></div>
     <div class="prow" style="padding:6px 0"><span class="pk"><i data-lucide="package" style="width:15px;height:15px"></i> 제품비</span><span class="pv">${won(productAmount)}</span></div>

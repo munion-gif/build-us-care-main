@@ -37,6 +37,7 @@ export type ReplacementProduct = {
   brand: string;
   model: string;
   sku: string;
+  color?: string;
   size?: string;
   price: number | null;
   note: string;
@@ -440,6 +441,70 @@ export function replacementProductCompactSizeLabel(product: Pick<ReplacementProd
   return fullSizeLabel;
 }
 
+function replacementProductUsefulColor(color?: string) {
+  return Boolean(color && color !== "기본" && color !== "-");
+}
+
+function replacementProductDisplayCategoryLabel(category?: string) {
+  let label = (category ?? "").replace(/\s+/g, " ").trim();
+  if (!label) return "";
+  if (/^샷시\s*손잡이$/.test(label)) return "";
+  if (label === "실리콘") return "";
+  label = label.replace(/\s*세면기$/, "").trim();
+  return label;
+}
+
+function isCodeLikeReplacementProductName(value?: string) {
+  const text = (value ?? "").trim();
+  return Boolean(text && /[A-Za-z0-9]/.test(text) && !/[가-힣]/.test(text));
+}
+
+function cleanReplacementProductDisplayModel(value?: string, category?: string) {
+  let text = (value ?? "").replace(/\s+/g, " ").trim();
+  const categoryLabel = (category ?? "").replace(/\s+/g, " ").trim();
+  if (categoryLabel && text.startsWith(`${categoryLabel} `)) text = text.slice(categoryLabel.length).trim();
+  text = text.replace(/^샷시\s*손잡이\s*/, "").trim();
+  const tokens = text.split(" ").filter(Boolean);
+  if (tokens.length >= 2) {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      outer: for (let size = Math.floor(tokens.length / 2); size >= 1; size -= 1) {
+        for (let start = 0; start + size * 2 <= tokens.length; start += 1) {
+          let same = true;
+          for (let index = 0; index < size; index += 1) {
+            if (tokens[start + index] !== tokens[start + size + index]) {
+              same = false;
+              break;
+            }
+          }
+          if (same) {
+            tokens.splice(start + size, size);
+            changed = true;
+            break outer;
+          }
+        }
+      }
+    }
+    text = tokens.join(" ") || text;
+  }
+
+  const label = replacementProductDisplayCategoryLabel(category);
+  if (label && isCodeLikeReplacementProductName(text) && !text.startsWith(`${label} `)) return `${label} ${text}`;
+  return text;
+}
+
+export function replacementProductDisplayModel(product: ReplacementProduct) {
+  if (product.serviceCode === "silicone_repair" && replacementProductUsefulColor(product.color)) {
+    return `실리콘 ${product.color}`;
+  }
+  return cleanReplacementProductDisplayModel(product.model, product.categoryName);
+}
+
+export function replacementProductDisplayName(product: ReplacementProduct) {
+  return [product.brand, replacementProductDisplayModel(product)].filter(Boolean).join(" ") || product.categoryName || product.sku;
+}
+
 export function replacementProductSnapshot(product: ReplacementProduct) {
   const sizeLabel = replacementProductSizeLabel(product);
   return {
@@ -447,8 +512,9 @@ export function replacementProductSnapshot(product: ReplacementProduct) {
     serviceCode: product.serviceCode,
     category: product.categoryName,
     brand: product.brand,
-    model: product.model,
+    model: replacementProductDisplayModel(product),
     sku: product.sku,
+    ...(replacementProductUsefulColor(product.color) ? { color: product.color } : {}),
     ...(sizeLabel ? { size: sizeLabel } : {}),
     price: product.price,
     image: product.image

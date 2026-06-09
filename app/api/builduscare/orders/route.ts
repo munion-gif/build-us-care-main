@@ -1,20 +1,24 @@
 import { fail, ok } from "@/lib/api-response";
 import { EVENT_TYPES } from "@/lib/event-types";
+import {
+  attachBuilduscareOrderPhotos,
+  builduscarePhotoFiles,
+  upsertBuilduscarePhotoDiagnosis
+} from "@/lib/builduscare-photo-processing";
+import { notifyNewOrder } from "@/lib/notify-admin";
+import { createOrderDateKey, createOrderNumber } from "@/lib/orders";
 import { createPaymentOrderId } from "@/lib/payment-amounts";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import {
   getProductLaborPrice,
   REPLACEMENT_PRODUCTS,
+  replacementProductDisplayModel,
+  replacementProductDisplayName,
   replacementProductSnapshot,
   type ReplacementProduct
 } from "@/lib/replacement-products";
-import {
-  createOrderInquiryMediaPath,
-  isAllowedPhotoContentType,
-  MAX_PHOTO_UPLOAD_BYTES,
-  ORDER_PHOTOS_BUCKET
-} from "@/lib/storage";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
+import { after } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,6 +64,10 @@ type BuildusPayload = {
     disposalAmount?: number;
     totalAmount?: number;
   };
+  cashReceipt?: {
+    type?: string;
+    identity?: string;
+  };
 };
 
 type QuoteLine = {
@@ -83,6 +91,33 @@ function normalizeText(value: unknown) {
 
 function normalizePhone(value: unknown) {
   return String(value ?? "").replace(/\D/g, "");
+}
+
+function cashReceiptSummary(value: BuildusPayload["cashReceipt"]) {
+  const type = normalizeText(value?.type);
+  const identity = normalizePhone(value?.identity);
+
+  if (type === "personal") {
+    return {
+      type,
+      identity,
+      text: `개인 소득공제 / ${identity || "정보 입력 전"}`
+    };
+  }
+
+  if (type === "business") {
+    return {
+      type,
+      identity,
+      text: `사업자 지출증빙 / ${identity || "정보 입력 전"}`
+    };
+  }
+
+  return {
+    type: "none",
+    identity: "",
+    text: "신청 안 함"
+  };
 }
 
 function integer(value: unknown, fallback = 0) {
@@ -119,7 +154,7 @@ function selectedProducts(payload: BuildusPayload) {
 }
 
 function displayProductName(product: ReplacementProduct) {
-  return [product.brand, product.model].filter(Boolean).join(" ") || product.categoryName || product.sku;
+  return replacementProductDisplayName(product);
 }
 
 function buildOrderItems(entries: Array<{ product: ReplacementProduct; qty: number }>, fallbackItem: string, submissionType: SubmissionType) {
@@ -196,6 +231,11 @@ function orderName(lines: QuoteLine[], fallbackItem: string) {
 }
 
 function reservedDate(value: number | string | null | undefined) {
+  const text = normalizeText(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    const parsed = new Date(`${text}T00:00:00+09:00`);
+    return Number.isNaN(parsed.getTime()) ? null : text;
+  }
   const day = integer(value);
   if (day < 1 || day > 30) return null;
   return `2026-06-${String(day).padStart(2, "0")}`;
@@ -207,135 +247,130 @@ function timeSlot(value: string | null | undefined) {
   return null;
 }
 
-async function postJson<T>(request: Request, path: string, body: unknown): Promise<T> {
-  const url = new URL(path, request.url);
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "user-agent": request.headers.get("user-agent") ?? "builduscare-static"
-    },
-    body: JSON.stringify(body)
-  });
-  const json = await response.json().catch(() => null);
-  if (!response.ok || !json?.ok) {
-    const message = json?.error?.message ?? json?.message ?? `${path} request failed.`;
-    throw new Error(message);
-  }
-  return json.data as T;
+function scheduledAtForSlot(date: string | null, slot: string | null) {
+  if (!date || !slot) return null;
+  return `${date}T${slot === "afternoon" ? "13:00:00" : "09:00:00"}+09:00`;
 }
 
-async function attachPhotos(orderId: string, files: File[]) {
-  if (files.length === 0) return [];
+async function createSequentialBuildusOrderNumber(supabase: ReturnType<typeof getSupabaseAdmin>) {
+  const dateKey = createOrderDateKey();
+  const prefix = `BO-${dateKey}-`;
+  const { count, error } = await supabase
+    .from("orders")
+    .select("id", { count: "exact", head: true })
+    .like("order_number", `${prefix}%`);
 
-  const supabase = getSupabaseAdmin();
-  const uploaded: string[] = [];
-  const mediaRows: Array<Record<string, unknown>> = [];
-
-  for (const [index, file] of files.slice(0, 12).entries()) {
-    if (!isAllowedPhotoContentType(file.type)) {
-      throw new Error("지원하지 않는 사진 형식이 포함되어 있습니다.");
-    }
-    if (file.size > MAX_PHOTO_UPLOAD_BYTES) {
-      throw new Error("사진은 장당 10MB 이하만 업로드할 수 있습니다.");
-    }
-
-    const filePath = createOrderInquiryMediaPath(orderId, file.name || `photo-${index + 1}.jpg`, file.type);
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const { error: uploadError } = await supabase.storage.from(ORDER_PHOTOS_BUCKET).upload(filePath, buffer, {
-      contentType: file.type,
-      upsert: false
-    });
-
-    if (uploadError) {
-      throw new Error(uploadError.message);
-    }
-
-    uploaded.push(filePath);
-    mediaRows.push({
-      order_id: orderId,
-      job_id: null,
-      type: "inquiry",
-      url: `storage://${ORDER_PHOTOS_BUCKET}/${filePath}`,
-      file_path: filePath,
-      angle: null,
-      tags: ["customer", "builduscare-static"],
-      sort_order: index
-    });
-  }
-
-  if (mediaRows.length > 0) {
-    const { error: mediaError } = await supabase.from("media").insert(mediaRows);
-    if (mediaError) {
-      throw new Error(mediaError.message);
-    }
-
-    const { error: orderError } = await supabase
-      .from("orders")
-      .update({ inquiry_photos: uploaded })
-      .eq("id", orderId);
-    if (orderError) {
-      throw new Error(orderError.message);
-    }
-  }
-
-  return uploaded;
+  if (error) throw new Error(error.message);
+  return createOrderNumber(new Date(), (count ?? 0) + 1);
 }
 
-async function createPhotoDiagnosis(params: {
-  orderId: string;
-  orderNumber: string;
-  serviceCode: string;
-  photoPaths: string[];
+async function createBuildusOrderBase(params: {
+  supabase: ReturnType<typeof getSupabaseAdmin>;
   name: string;
   phone: string;
   roadAddress: string;
   detailAddress: string;
   postalCode: string;
-  item: string;
+  deviceType?: "desktop" | "mobile";
+  orderReason: string;
+  selfDiagnosis: string;
+  orderItems: ReturnType<typeof buildOrderItems>;
+  primaryServiceCode: string;
+  specialRequests: string;
+  productAmount: number;
+  laborAmount: number;
 }) {
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from("diagnoses")
+  const {
+    supabase,
+    name,
+    phone,
+    roadAddress,
+    detailAddress,
+    postalCode,
+    deviceType,
+    orderReason,
+    selfDiagnosis,
+    orderItems,
+    primaryServiceCode,
+    specialRequests,
+    productAmount,
+    laborAmount
+  } = params;
+  const addressFull = [roadAddress, detailAddress].filter(Boolean).join(" ");
+  const channel = deviceType === "mobile" ? "mobile_web" : "web";
+  const orderStatus = productAmount > 0 ? "pending_product_payment" : "inquiry";
+  const totalAmount = productAmount + laborAmount;
+
+  const [customerResult, orderNumber] = await Promise.all([
+    supabase
+      .from("customers")
+      .upsert({
+        phone,
+        name,
+        acquisition_source: "builduscare_static",
+        address_full: addressFull,
+        address_dong: "unknown",
+        address_apt: detailAddress || null,
+        housing_type: "unknown"
+      }, { onConflict: "phone" })
+      .select("*")
+      .single(),
+    createSequentialBuildusOrderNumber(supabase)
+  ]);
+  if (customerResult.error) throw new Error(customerResult.error.message);
+  const customer = customerResult.data;
+
+  const { data: home, error: homeError } = await supabase
+    .from("homes")
     .insert({
-      order_id: params.orderId,
-      service_type_code: params.serviceCode,
-      service_code: params.serviceCode,
-      image_urls: params.photoPaths,
-      photos: params.photoPaths,
-      result: null,
-      confidence: null,
-      reason: null,
-      details: "Build us Care 사진 확인 접수",
-      recommendation: null,
-      customer_name: params.name,
-      customer_phone: params.phone,
-      raw_response: {
-        source: "builduscare_photo_check",
-        receipt_number: params.orderNumber,
-        order_number: params.orderNumber,
-        order_id: params.orderId,
-        service_code: params.serviceCode,
-        item: params.item,
-        customer: {
-          name: params.name,
-          phone: params.phone
-        },
-        address: {
-          roadAddress: params.roadAddress,
-          detailAddress: params.detailAddress,
-          postalCode: params.postalCode,
-          full: [params.roadAddress, params.detailAddress].filter(Boolean).join(" ")
-        },
-        photo_count: params.photoPaths.length
-      },
+      customer_id: customer.id,
+      address_full: addressFull,
+      address_dong: "unknown",
+      address_apt: detailAddress || null,
+      postal_code: postalCode || null,
+      size_pyung: 0,
+      building_type: "unknown"
+    })
+    .select("*")
+    .single();
+  if (homeError) throw new Error(homeError.message);
+
+  const { data: order, error: orderError } = await supabase
+    .from("orders")
+    .insert({
+      order_number: orderNumber,
+      customer_id: customer.id,
+      home_id: home.id,
+      status: orderStatus,
+      skus: orderItems.map((orderItem) => ({
+        sku: orderItem.service_type_code,
+        qty: orderItem.qty,
+        service_type: "replacement_product",
+        options: orderItem.options,
+        material_skus: [],
+        metadata: orderItem.metadata
+      })),
+      channel,
+      source: "builduscare_static",
+      reason: orderReason,
+      urgency: "scheduled",
+      self_diagnosis: selfDiagnosis,
+      service_type_code: primaryServiceCode,
+      visit_fee: 0,
+      subtotal_amount: totalAmount,
+      total_amount: totalAmount,
+      online_payment_amount: productAmount,
+      onsite_payment_amount: laborAmount,
+      onsite_payment_status: laborAmount > 0 ? "PENDING" : "DONE",
+      special_requests: specialRequests,
+      inquiry_photos: [],
       is_test: false
     })
-    .select("id")
+    .select("*")
     .single();
+  if (orderError) throw new Error(orderError.message);
 
-  if (error) throw new Error(error.message);
-  return data;
+  return { customer, home, order };
 }
 
 export async function POST(request: Request) {
@@ -388,178 +423,110 @@ export async function POST(request: Request) {
     submissionType === "photo_check"
       ? "builduscare 정적 화면 사진 확인 접수"
       : "builduscare 정적 화면 제품 주문 접수";
-  const orderCreatePayload = {
-    customer: {
-      name,
-      phone,
-      acquisition_source: "builduscare_static"
-    },
-    address: {
-      road_address: roadAddress,
-      detail_address: detailAddress,
-      postal_code: postalCode
-    },
-    home: {
-      address_full: [roadAddress, detailAddress].filter(Boolean).join(" "),
-      address_dong: "unknown",
-      postal_code: postalCode,
-      building_type: "unknown",
-      housing_type: "unknown",
-      size_pyung: 0
-    },
-    order: {
-      channel: payload.deviceType === "mobile" ? "mobile_web" : "web",
-      reason: orderReason,
-      urgency: "scheduled",
-      self_diagnosis: selfDiagnosis,
-      skus: orderItems.map((orderItem) => ({
-        sku: orderItem.service_type_code,
-        qty: orderItem.qty,
-        service_type: "replacement_product",
-        options: orderItem.options,
-        material_skus: [],
-        metadata: orderItem.metadata
-      }))
-    },
-    channel: payload.deviceType === "mobile" ? "mobile_web" : "web",
-    reason: orderReason,
-    urgency: "scheduled",
-    service_type_code: primaryServiceCode,
-    visit_fee: 0,
-    special_requests:
-      submissionType === "photo_check"
-        ? "Build us Care 사진 확인 신청"
-        : `Build us Care 제품 주문 신청${payload.selfDisposal ? " / 폐기물 직접 처리" : ""}`,
-    items: orderItems
-  };
+  const cashReceipt = cashReceiptSummary(payload.cashReceipt);
+  const specialRequests =
+    submissionType === "photo_check"
+      ? "Build us Care 사진 확인 신청"
+      : [
+          `Build us Care 제품 주문 신청${payload.selfDisposal ? " / 폐기물 직접 처리" : ""}`,
+          `현금영수증: ${cashReceipt.text}`
+        ].join("\n");
+  const quoteLines = entries.length > 0 ? buildQuoteLines(entries, Boolean(payload.selfDisposal)) : [];
+  const totalMaterial = quoteLines.reduce((sum, line) => sum + line.line_material, 0);
+  const totalLabor = quoteLines.reduce((sum, line) => sum + line.line_labor + line.option_total, 0);
+  const totalFinal = totalMaterial + totalLabor;
 
   try {
-    const orderResult = await postJson<{
-      order: { id: string; order_number: string; access_token: string; status: string };
-      customer: { id: string; name?: string | null; phone?: string | null };
-    }>(request, "/api/orders", orderCreatePayload);
-
-    const photoFiles = formData
-      .getAll("photos")
-      .filter((entry): entry is File => entry instanceof File && entry.size > 0);
-    const photoPaths = await attachPhotos(orderResult.order.id, photoFiles);
-
     const supabase = getSupabaseAdmin();
-    const diagnosis =
-      submissionType === "photo_check"
-        ? await createPhotoDiagnosis({
-            orderId: orderResult.order.id,
-            orderNumber: orderResult.order.order_number,
-            serviceCode: primaryServiceCode,
-            photoPaths,
-            name,
-            phone,
-            roadAddress,
-            detailAddress,
-            postalCode,
-            item
-          })
-        : null;
     const reserved = reservedDate(payload.reservation?.date);
     const slot = timeSlot(payload.reservation?.time);
-    if (reserved && slot) {
-      await postJson(request, `/api/orders/${orderResult.order.id}/reservation`, {
-        accessToken: orderResult.order.access_token,
-        reserved_date: reserved,
-        time_slot: slot,
-        status: "pending",
-        notes: "사진 확인 후 일정 확정"
-      });
-    }
+    const scheduledAt = scheduledAtForSlot(reserved, slot);
+    const { customer, order } = await createBuildusOrderBase({
+      supabase,
+      name,
+      phone,
+      roadAddress,
+      detailAddress,
+      postalCode,
+      deviceType: payload.deviceType,
+      orderReason,
+      selfDiagnosis,
+      orderItems,
+      primaryServiceCode,
+      specialRequests,
+      productAmount: totalMaterial,
+      laborAmount: totalLabor
+    });
+    const photoFiles = builduscarePhotoFiles(formData);
+    const jobPromise = supabase
+      .from("jobs")
+      .insert({
+        order_id: order.id,
+        status: scheduledAt ? "assigned" : "received",
+        scheduled_at: scheduledAt,
+        scheduled_date: reserved,
+        expected_minutes: 0
+      })
+      .select("*")
+      .single();
+    const quotePaymentPromise = entries.length > 0
+      ? (async () => {
+          const now = new Date().toISOString();
+          const { data: insertedQuote, error: quoteError } = await supabase
+            .from("quotes")
+            .insert({
+              order_id: order.id,
+              version: 1,
+              items: quoteLines,
+              total_material: totalMaterial,
+              total_labor: totalLabor,
+              visit_fee: 0,
+              discount: 0,
+              total_final: totalFinal,
+              accepted_at: now
+            })
+            .select("*")
+            .single();
+          if (quoteError) throw new Error(quoteError.message);
 
-    let quote: Record<string, unknown> | null = null;
-    let payment: Record<string, unknown> | null = null;
+          const providerOrderId = createPaymentOrderId();
+          const { data: insertedPayment, error: paymentError } = await supabase
+            .from("payments")
+            .insert({
+              order_id: order.id,
+              quote_id: insertedQuote.id,
+              provider: "bank_transfer",
+              provider_order_id: providerOrderId,
+              method: "transfer",
+              order_name: orderName(quoteLines, item),
+              amount: totalMaterial,
+              status: totalMaterial > 0 ? "pending" : "done",
+              provider_status: totalMaterial > 0 ? "WAITING_DEPOSIT" : "DONE",
+              requested_at: now,
+              product_amount: totalMaterial,
+              service_fee_amount: totalLabor,
+              total_amount: totalFinal,
+              online_payment_amount: totalMaterial,
+              onsite_payment_amount: totalLabor,
+              onsite_payment_status: totalLabor > 0 ? "PENDING" : "DONE",
+              quote_status: "pending_product_payment"
+            })
+            .select("*")
+            .single();
+          if (paymentError) throw new Error(paymentError.message);
+          return { quote: insertedQuote, payment: insertedPayment };
+        })()
+      : Promise.resolve({ quote: null, payment: null });
+
+    const [jobResult, quotePayment] = await Promise.all([jobPromise, quotePaymentPromise]);
+    if (jobResult.error) throw new Error(jobResult.error.message);
+    const quote = quotePayment.quote;
+    const payment = quotePayment.payment;
     let transferUrl: string | null = null;
-
-    if (entries.length > 0) {
-      const quoteLines = buildQuoteLines(entries, Boolean(payload.selfDisposal));
-      const totalMaterial = quoteLines.reduce((sum, line) => sum + line.line_material, 0);
-      const totalLabor = quoteLines.reduce((sum, line) => sum + line.line_labor + line.option_total, 0);
-      const totalFinal = totalMaterial + totalLabor;
-      const now = new Date().toISOString();
-
-      const { data: insertedQuote, error: quoteError } = await supabase
-        .from("quotes")
-        .insert({
-          order_id: orderResult.order.id,
-          version: 1,
-          items: quoteLines,
-          total_material: totalMaterial,
-          total_labor: totalLabor,
-          visit_fee: 0,
-          discount: 0,
-          total_final: totalFinal,
-          accepted_at: now
-        })
-        .select("*")
-        .single();
-      if (quoteError) throw new Error(quoteError.message);
-      quote = insertedQuote;
-
-      const providerOrderId = createPaymentOrderId();
-      const { data: insertedPayment, error: paymentError } = await supabase
-        .from("payments")
-        .insert({
-          order_id: orderResult.order.id,
-          quote_id: insertedQuote.id,
-          provider: "bank_transfer",
-          provider_order_id: providerOrderId,
-          method: "transfer",
-          order_name: orderName(quoteLines, item),
-          amount: totalMaterial,
-          status: totalMaterial > 0 ? "pending" : "done",
-          provider_status: totalMaterial > 0 ? "WAITING_DEPOSIT" : "DONE",
-          requested_at: now,
-          product_amount: totalMaterial,
-          service_fee_amount: totalLabor,
-          total_amount: totalFinal,
-          online_payment_amount: totalMaterial,
-          onsite_payment_amount: totalLabor,
-          onsite_payment_status: totalLabor > 0 ? "PENDING" : "DONE",
-          quote_status: "pending_product_payment"
-        })
-        .select("*")
-        .single();
-      if (paymentError) throw new Error(paymentError.message);
-      payment = insertedPayment;
-
-      const { error: orderUpdateError } = await supabase
-        .from("orders")
-        .update({
-          status: totalMaterial > 0 ? "pending_product_payment" : "inquiry",
-          visit_fee: 0,
-          subtotal_amount: totalMaterial + totalLabor,
-          total_amount: totalFinal,
-          online_payment_amount: totalMaterial,
-          onsite_payment_amount: totalLabor,
-          onsite_payment_status: totalLabor > 0 ? "PENDING" : "DONE"
-        })
-        .eq("id", orderResult.order.id);
-      if (orderUpdateError) throw new Error(orderUpdateError.message);
-
-      await supabase.from("events").insert({
-        event_type: EVENT_TYPES.PAYMENT_STARTED,
-        order_id: orderResult.order.id,
-        customer_id: orderResult.customer.id,
-        service_code: primaryServiceCode,
-        properties: {
-          source: "builduscare_static",
-          payment_id: insertedPayment.id,
-          quote_id: insertedQuote.id,
-          product_amount: totalMaterial,
-          service_fee_amount: totalLabor,
-          total_amount: totalFinal
-        }
-      });
-
+    if (payment) {
       const transferParams = new URLSearchParams({
-        orderId: orderResult.order.id,
-        accessToken: orderResult.order.access_token,
+        orderId: order.id,
+        accessToken: order.access_token,
         amount: String(totalMaterial),
         productAmount: String(totalMaterial),
         serviceFeeAmount: String(totalLabor),
@@ -569,14 +536,91 @@ export async function POST(request: Request) {
       transferUrl = `/payment/transfer?${transferParams.toString()}`;
     }
 
+    after(async () => {
+      await Promise.allSettled([
+        (async () => {
+          if (photoFiles.length === 0) return null;
+          try {
+            const photoPaths = await attachBuilduscareOrderPhotos(order.id, photoFiles);
+            if (submissionType !== "photo_check") return photoPaths;
+            return await upsertBuilduscarePhotoDiagnosis({
+              orderId: order.id,
+              orderNumber: order.order_number,
+              serviceCode: primaryServiceCode,
+              photoPaths,
+              name,
+              phone,
+              roadAddress,
+              detailAddress,
+              postalCode,
+              item
+            });
+          } catch (error) {
+            console.error("Build us Care photo processing failed", error);
+            return null;
+          }
+        })(),
+        supabase.from("job_status_logs").insert({
+          job_id: jobResult.data.id,
+          from_status: null,
+          to_status: jobResult.data.status,
+          memo: "Build us Care 접수와 함께 작업 생성"
+        }),
+        supabase.from("events").insert({
+          event_type: EVENT_TYPES.QUOTE_SUBMITTED,
+          order_id: order.id,
+          customer_id: customer.id,
+          source: "builduscare_static",
+          device_type: payload.deviceType === "mobile" ? "mobile" : "desktop",
+          service_code: primaryServiceCode,
+          properties: {
+            order_number: order.order_number,
+            request_type: submissionType,
+            total_amount: totalFinal
+          }
+        }),
+        payment
+          ? supabase.from("events").insert({
+              event_type: EVENT_TYPES.PAYMENT_STARTED,
+              order_id: order.id,
+              customer_id: customer.id,
+              service_code: primaryServiceCode,
+              properties: {
+                source: "builduscare_static",
+                payment_id: payment.id,
+                quote_id: quote?.id,
+                product_amount: totalMaterial,
+                service_fee_amount: totalLabor,
+                total_amount: totalFinal
+              }
+            })
+          : Promise.resolve(null),
+        supabase.from("notifications").insert({
+          order_id: order.id,
+          channel: "mock",
+          template_code: "order_submitted",
+          recipient: phone,
+          send_status: "queued",
+          payload: { order_number: order.order_number, source: "builduscare_static" }
+        }),
+        notifyNewOrder({
+          orderId: order.id,
+          orderNumber: order.order_number,
+          customerName: name,
+          serviceType: primaryServiceCode,
+          addressFull: [roadAddress, detailAddress].filter(Boolean).join(" ")
+        })
+      ]);
+    });
+
     return ok(
       {
         order: {
-          id: orderResult.order.id,
-          orderNumber: orderResult.order.order_number,
-          accessToken: orderResult.order.access_token,
-          status: payment ? "pending_product_payment" : orderResult.order.status,
-          statusUrl: `/orders/${orderResult.order.id}?accessToken=${orderResult.order.access_token}`,
+          id: order.id,
+          orderNumber: order.order_number,
+          accessToken: order.access_token,
+          status: order.status,
+          statusUrl: `/orders/${order.id}?accessToken=${order.access_token}`,
           transferUrl,
           customerName: name,
           phone,
@@ -589,14 +633,15 @@ export async function POST(request: Request) {
             id: product.id,
             brand: product.brand,
             name: displayProductName(product),
-            model: product.model,
+            model: replacementProductDisplayModel(product),
             sku: product.sku,
+            color: product.color ?? "",
             serviceCode: product.serviceCode,
             categoryName: product.categoryName,
             qty,
             price: integer(product.price)
           })),
-          photoCount: photoPaths.length,
+          photoCount: photoFiles.length,
           reservation: {
             date: reserved,
             time: payload.reservation?.time ?? null
@@ -616,8 +661,16 @@ export async function POST(request: Request) {
                 provider: payment.provider
               }
             : null,
+          cashReceipt:
+            submissionType === "product_order"
+              ? {
+                  type: cashReceipt.type,
+                  identity: cashReceipt.identity,
+                  text: cashReceipt.text
+                }
+              : null,
           quote,
-          diagnosisId: diagnosis?.id ?? null
+          diagnosisId: null
         }
       },
       { status: 201 }
