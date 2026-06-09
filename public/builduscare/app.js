@@ -756,6 +756,12 @@ function cashReceiptPayloadM(){
     identity: S.cashReceiptType === 'none' ? '' : cashReceiptIdentityM()
   };
 }
+function cashReceiptTextM(){
+  const type = S.cashReceiptType || 'none';
+  if(type === 'none') return '신청 안 함';
+  const value = cashReceiptIdentityM() || '정보 입력 전';
+  return type === 'business' ? `사업자 지출증빙 / ${value}` : `개인 소득공제 / ${value}`;
+}
 function cashReceiptOkM(){
   if(S.cashReceiptType === 'none') return true;
   return cashReceiptIdentityM().length >= 10;
@@ -1201,6 +1207,7 @@ async function openFinalEstimateM(){
   const ono=mOrderNo(); const today=new Date().toLocaleDateString('ko-KR');
   const addr=(S.info.region||'')+(S.info.regionDetail?' '+S.info.regionDetail:'');
   const dateTxt=S.date?`${dateLabel(true)}${S.time?' · '+S.time:''}`:'사진 확인 후 협의';
+  const cashReceiptText=cashReceiptTextM();
   const logo=BC_LOGO_URI_M||await imgToDataUriM('assets/bc-logo.png');
   const uris={}; await Promise.all([...new Set(S.selected.map(id=>catalogCatOf(id)))].map(async cat=>{ uris[cat]=ITEM_IMG[cat]?await imgToDataUriM(ITEM_IMG[cat]):''; }));
   const rows=S.selected.map(id=>{const p=productById(id);const cat=catalogCatOf(id);const im=uris[cat];
@@ -1221,7 +1228,7 @@ async function openFinalEstimateM(){
   @media (max-width:520px){body{padding:14px 10px}.sheet{padding:22px 16px;border-radius:16px}.top{flex-direction:column;align-items:flex-start;gap:12px}.meta{text-align:left}.q-logo{height:26px}h1{font-size:22px;margin:18px 0 4px}.info{grid-template-columns:1fr}.info .v{word-break:break-all}.tot .v{font-size:24px}table{font-size:14px}td.it{gap:10px}.thumb{width:44px;height:44px}.it-tx b{word-break:keep-all}.actions{flex-direction:column;margin-top:16px}.btn{width:100%}}@media print{body{background:#fff;padding:0}.sheet{box-shadow:none;border-radius:0}.actions{display:none}}</style></head><body>
   <div class="sheet"><div class="top"><img class="q-logo" src="${logo}" alt="build us care"><div class="meta">발행일 ${today}<br>접수번호 <b>${ono}</b><br>유효기간 발행일로부터 14일</div></div>
   <h1>최종 견적서</h1><div class="sub">선택 제품 ${S.selected.length}종 · 총 ${S.selected.length}개</div>
-  <div class="info"><div class="cell"><div class="k">예약자</div><div class="v">${S.info.name||'-'}</div></div><div class="cell"><div class="k">연락처</div><div class="v">${S.info.phone||'-'}</div></div><div class="cell full"><div class="k">시공 주소</div><div class="v">${addr||'-'}</div></div><div class="cell full"><div class="k">예약 일시</div><div class="v">${dateTxt}</div></div></div>
+  <div class="info"><div class="cell"><div class="k">예약자</div><div class="v">${S.info.name||'-'}</div></div><div class="cell"><div class="k">연락처</div><div class="v">${S.info.phone||'-'}</div></div><div class="cell full"><div class="k">시공 주소</div><div class="v">${addr||'-'}</div></div><div class="cell full"><div class="k">예약 일시</div><div class="v">${dateTxt}</div></div><div class="cell full"><div class="k">현금영수증</div><div class="v">${cashReceiptText}</div></div></div>
   <table><thead><tr><th>제품</th><th class="c">수량</th><th class="r">금액 (원)</th></tr></thead><tbody>${rows}
   <tr class="grp"><td>시공비</td><td class="c">×${S.selected.length}</td><td class="r">${won(laborTotal())}</td></tr>
   <tr class="grp"><td>폐기물 처리비${S.selfDisposal?' <span style="color:#86868b">(직접 처리)</span>':''}</td><td class="c">×1</td><td class="r">${won(disposalFee())}</td></tr>
@@ -1669,7 +1676,7 @@ done: () => {
 <div class="body scroll"><div class="pad" style="text-align:center;padding-top:24px">
   <div class="featured-icon circle" style="width:72px;height:72px;background:var(--success-50);color:var(--success-600);margin:0 auto"><i data-lucide="check" style="width:36px;height:36px"></i></div>
   <h2 class="h-lg mt16">신청이 접수됐어요</h2>
-  <p class="p-md mt4">사진 확인 후 영업시간 기준 2시간 내 최종 견적을 안내드려요. 카카오톡으로도 결과를 받아볼 수 있어요.</p>
+  <p class="p-md mt4">영업시간 기준 2시간 내 견적을 안내드려요. 카카오톡 알림도 가능해요.</p>
   <div class="bcard pad mt20" style="text-align:left">
     <div class="between"><div class="p-sm strong" style="color:var(--gray-700)">접수번호</div><div class="p-sm strong" style="color:var(--gray-900)">${mOrderNo()}</div></div>
     <div class="between mt8"><div class="p-sm strong" style="color:var(--gray-700)">현재 상태</div><span class="badge badge-warning dot">${statusLabel}</span></div>
@@ -1689,7 +1696,7 @@ done: () => {
   ${hasProducts?`<button class="btn btn-secondary btn-lg btnf mt16" onclick="openFinalEstimateM()"><i data-lucide="file-text"></i> 최종 견적서 보기</button>`:''}
   <div class="kakao mt12" style="text-align:left;cursor:pointer" onclick="openKakao('guide')" role="button" tabindex="0"><span class="kk-ic"><i data-lucide="message-circle" style="width:20px;height:20px"></i></span><div class="grow"><div class="kk-t">카카오톡으로 결과 알림 받기</div><div class="kk-d">추가 질문도 톡으로 편하게</div></div><i data-lucide="chevron-right" style="color:#3C1E1E"></i></div>
 </div></div>
-<div class="cta-bar"><button class="btn ${hasTransfer?'btn-secondary':'btn-primary'} btn-xl btnf" onclick="nav('orderview')">주문 현황 보기</button><button class="btn btn-tertiary btn-lg btnf mt8" onclick="goHome()">홈으로</button></div>`;
+<div class="cta-bar">${hasProducts?`<button class="btn ${hasTransfer?'btn-secondary':'btn-primary'} btn-xl btnf" onclick="nav('orderview')">주문 현황 보기</button><button class="btn btn-tertiary btn-lg btnf mt8" onclick="goHome()">홈으로</button>`:`<button class="btn btn-primary btn-xl btnf" onclick="goHome()">홈으로</button>`}</div>`;
 },
 
 orders: () => `

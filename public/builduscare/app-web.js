@@ -821,6 +821,12 @@ function wCashReceiptPayload(){
     identity: W.cashReceiptType === 'none' ? '' : wCashReceiptIdentity()
   };
 }
+function wCashReceiptText(){
+  const type = W.cashReceiptType || 'none';
+  if(type === 'none') return '신청 안 함';
+  const value = wCashReceiptIdentity() || '정보 입력 전';
+  return type === 'business' ? `사업자 지출증빙 / ${value}` : `개인 소득공제 / ${value}`;
+}
 function wCashReceiptOk(){
   if(W.cashReceiptType === 'none') return true;
   return wCashReceiptIdentity().length >= 10;
@@ -1408,6 +1414,7 @@ async function openFinalEstimate(){
   const today = new Date().toLocaleDateString('ko-KR');
   const addr = (W.region||'') + (W.regionDetail ? ' ' + W.regionDetail : '');
   const dateTxt = W.date ? `${bookingDateLabel(W.date, true)}${W.time?' · '+W.time:''}` : '사진 확인 후 협의';
+  const cashReceiptText = wCashReceiptText();
   // Inline logo + each selected product's image as data URIs (popup can't load relative paths)
   const logo = BC_LOGO_URI || await imgToDataUri('assets/bc-logo.png');
   const uris = {};
@@ -1477,6 +1484,7 @@ async function openFinalEstimate(){
       <div class="cell"><div class="k">연락처</div><div class="v">${W.phone||'-'}</div></div>
       <div class="cell full"><div class="k">시공 주소</div><div class="v">${addr||'-'}</div></div>
       <div class="cell full"><div class="k">예약 일시</div><div class="v">${dateTxt}</div></div>
+      <div class="cell full"><div class="k">현금영수증</div><div class="v">${cashReceiptText}</div></div>
     </div>
     <table>
       <thead><tr><th>제품</th><th class="c">수량</th><th class="r">금액 (원)</th></tr></thead>
@@ -1895,7 +1903,7 @@ done: () => {
 <div class="wrap narrow" style="text-align:center">
   <div class="featured-icon circle" style="width:76px;height:76px;background:var(--success-50);color:var(--success-600);margin:24px auto 0"><i data-lucide="check" style="width:38px;height:38px"></i></div>
   <h1 class="web-h2" style="margin-top:18px">신청이 접수됐어요</h1>
-  <p class="web-lede" style="font-size:16px;margin-top:8px">${hasTransfer?'사진 확인 후 최종 견적을 안내드려요. 선택 제품 예약을 위해 제품 금액 입금 안내를 확인해주세요.':'사진 확인 후 영업시간 기준 2시간 내 최종 견적을 안내드려요. 카카오톡으로도 결과를 받아볼 수 있어요.'}</p>
+  <p class="web-lede" style="font-size:16px;margin-top:8px">${hasTransfer?'사진 확인 후 최종 견적을 안내드려요. 선택 제품 예약을 위해 제품 금액 입금 안내를 확인해주세요.':'영업시간 기준 2시간 내 견적을 안내드려요. 카카오톡 알림도 가능해요.'}</p>
   <div class="bcard pad" style="padding:22px;text-align:left;max-width:440px;margin:22px auto 0">
     <div class="between"><div class="p-sm strong" style="color:var(--gray-700)">접수번호</div><div class="p-sm strong">${wOrderNo()}</div></div>
     <div class="between" style="margin-top:8px"><div class="p-sm strong" style="color:var(--gray-700)">현재 상태</div><span class="badge badge-warning dot">${statusLabel}</span></div>
@@ -1916,7 +1924,7 @@ done: () => {
     ${hasProducts?`<button class="web-btn sec lg block" onclick="openFinalEstimate()"><i data-lucide="file-text" style="width:18px;height:18px"></i> 최종 견적서 보기</button>`:''}
     <button class="web-btn kkbtn lg block" onclick="webKakao('guide')">${WKK} 카카오톡으로 결과 알림 받기</button>
   </div>
-  <div class="row gap10" style="justify-content:center;margin-top:14px"><button class="web-btn ${hasTransfer?'sec':'pri'}" onclick="webnav('orderview')">주문 현황 보기</button><button class="web-btn sec" onclick="webnav('home')">홈으로</button></div>
+  <div class="row gap10" style="justify-content:center;margin-top:14px">${hasProducts?`<button class="web-btn ${hasTransfer?'sec':'pri'}" onclick="webnav('orderview')">주문 현황 보기</button>`:''}<button class="web-btn sec" onclick="webnav('home')">홈으로</button></div>
 </div>`;
 },
 
