@@ -37,7 +37,7 @@ const CAT_ICON = {'수전 교체':'assets/prodicon-faucet.webp','양변기 교�
 const LINEUP_IMG = {'수전 교체':'assets/lineup-faucet.png','양변기 교체':'assets/lineup-toilet.png','세면대 교체':'assets/lineup-washbasin.png','비데 설치':'assets/lineup-bidet.png','환풍기 교체':'assets/lineup-vent.png','샷시손잡이':'assets/lineup-windowhandle.png','도어핸들':'assets/lineup-doorhandle.png','실리콘 재시공':'assets/lineup-silicone.png','욕실 악세서리':'assets/lineup-accessory.png'};
 
 const S = { cur:'home', hist:[], item:'수전 교체', selected:[], productPage:1, productSort:'low', brandFilter:'', colorFilter:'', photos:0, photoFiles:[], photoSets:[0,0,0], photoSetFiles:[[],[],[]],
-  info:{region:'', regionDetail:'', postalCode:'', name:'', phone:''}, date:null, time:null, applied:false, selfDisposal:false,
+  info:{region:'', regionDetail:'', postalCode:'', name:'', phone:''}, date:null, time:null, slotDays:{}, slotLoading:false, slotLoadedKey:'', slotErr:'', applied:false, selfDisposal:false,
   regionOk:false, specCheck:false, privacyOk:false, privacyOkInq:false, orderNo:'',
   lookupNo:'', lookupName:'', lookupErr:false, lookupLoading:false, submitting:false, submitErr:'', remoteOrder:null, sashChoice:{}, variantChoice:{}, cashReceiptType:'none', cashReceiptIdentity:'' };
 
@@ -95,6 +95,10 @@ function bookingCalendarBase(){
   const earliest = bookingEarliestDate();
   return { year: earliest.getFullYear(), month: earliest.getMonth(), earliest };
 }
+function bookingMonthKey(){
+  const { year, month } = bookingCalendarBase();
+  return `${year}-${datePad(month + 1)}`;
+}
 function bookingMonthTitle(year, month){ return `${year}년 ${month+1}월`; }
 function bookingDateLabel(value, includeYear=false){
   const date = parseIsoDate(value);
@@ -103,6 +107,54 @@ function bookingDateLabel(value, includeYear=false){
 }
 function isHolidayOrRedDay(date){
   return date.getDay() === 0 || KR_PUBLIC_HOLIDAYS.has(localIsoDate(date));
+}
+function bookingSlotPeriod(value){
+  return value === '오후' || value === 'afternoon' ? 'afternoon' : 'morning';
+}
+function bookingDaySlotInfo(day){
+  return S.slotDays?.[day] || null;
+}
+function bookingSlotAvailable(day, time){
+  if(!day || !time) return false;
+  const info = bookingDaySlotInfo(day);
+  if(!info) return true;
+  const slot = info.slots?.[bookingSlotPeriod(time)];
+  return slot?.available !== false && slot?.isFull !== true;
+}
+function bookingDayFull(day){
+  const info = bookingDaySlotInfo(day);
+  return Boolean(info?.allFull || (info?.slots?.morning?.isFull && info?.slots?.afternoon?.isFull));
+}
+function bookingDayTag(day, isClosed){
+  if(isClosed) return '휴무';
+  const info = bookingDaySlotInfo(day);
+  if(!info) return '';
+  const morningFull = info.slots?.morning?.available === false || info.slots?.morning?.isFull;
+  const afternoonFull = info.slots?.afternoon?.available === false || info.slots?.afternoon?.isFull;
+  if(morningFull && afternoonFull) return '마감';
+  if(morningFull) return '오전마감';
+  if(afternoonFull) return '오후마감';
+  return '';
+}
+function loadSlotAvailabilityM(){
+  const key = bookingMonthKey();
+  if(S.slotLoadedKey === key || S.slotLoading) return;
+  const { year, month } = bookingCalendarBase();
+  S.slotLoading = true;
+  S.slotErr = '';
+  fetch(`/api/slots?year=${year}&month=${month + 1}&fresh=1`, { cache:'no-store' })
+    .then(response => response.ok ? response.json() : Promise.reject(new Error('slot fetch failed')))
+    .then(json => {
+      S.slotDays = json?.data?.days || {};
+      S.slotLoadedKey = key;
+      if(S.date && bookingDayFull(S.date)) S.date = null;
+      if(S.date && S.time && !bookingSlotAvailable(S.date, S.time)) S.time = null;
+    })
+    .catch(() => { S.slotErr = '예약 가능 시간을 불러오지 못했어요. 잠시 후 다시 확인해주세요.'; })
+    .finally(() => {
+      S.slotLoading = false;
+      if(S.cur === 'booking') render('booking');
+    });
 }
 function bookingCalendarCells(selectedIso, onclickName){
   const { year, month, earliest } = bookingCalendarBase();
@@ -116,9 +168,11 @@ function bookingCalendarCells(selectedIso, onclickName){
     const isPrep = date < earliest;
     const isHoliday = KR_PUBLIC_HOLIDAYS.has(iso);
     const isClosed = date.getDay() === 0 || isHoliday;
-    const off = isPrep || isClosed;
+    const isFull = bookingDayFull(iso);
+    const off = isPrep || isClosed || isFull;
+    const tag = bookingDayTag(iso, isClosed);
     const cls = `cal-d ${dow===0?'sun':(dow===6?'sat':'')}${isHoliday?' holiday':''}${off?' dim':''}${selectedIso===iso?' on':''}`;
-    cells += `<div class="${cls}"${off?'':` onclick="${onclickName}('${iso}')"`}>${day}${isClosed?'<span class="cd-tag">휴무</span>':''}</div>`;
+    cells += `<div class="${cls}"${off?'':` onclick="${onclickName}('${iso}')"`}>${day}${tag?`<span class="cd-tag">${tag}</span>`:''}</div>`;
   }
   return { cells, title: bookingMonthTitle(year, month) };
 }
@@ -681,9 +735,18 @@ function tryQuote(){
   if (S.info.phone.replace(/\D/g,'').length >= 10) nav('quote');
 }
 function tryQuoteM(){ if (prebookOkM()) nav('quote'); }
-function selectDate(dateIso){ S.date = dateIso; render('booking'); }
+function selectDate(dateIso){
+  if(bookingDayFull(dateIso)) return;
+  S.date = dateIso;
+  if(S.time && !bookingSlotAvailable(dateIso, S.time)) S.time = null;
+  render('booking');
+}
 function dateLabel(includeYear=false){ return S.date ? bookingDateLabel(S.date, includeYear) : ''; }
-function selectTime(t){ S.time = t; render('booking'); }
+function selectTime(t){
+  if(!S.date || !bookingSlotAvailable(S.date, t)) return;
+  S.time = t;
+  render('booking');
+}
 function allPhotoEntriesM(){
   ensurePhotoState();
   return [...S.photoFiles, ...S.photoSetFiles.flat()].filter(entry=>entry&&entry.file);
@@ -1721,8 +1784,9 @@ ${appbar('예상 견적')}
 <div class="cta-bar"><button class="btn btn-primary btn-xl btnf" onclick="nav('booking')">예약 일정 선택 <i data-lucide="arrow-right"></i></button></div>`,
 
 booking: () => {
+  loadSlotAvailabilityM();
   const times = [['오전','오전 · 9시–12시'],['오후','오후 · 1시–4시']];
-  const ok = S.date && S.time;
+  const ok = S.date && S.time && bookingSlotAvailable(S.date,S.time);
   const cal = bookingCalendarCells(S.date, 'selectDate');
   const hd = ['일','월','화','수','목','금','토'].map((x,i)=>`<div class="cal-hd${i===0?' sun':i===6?' sat':''}">${x}</div>`).join('');
   return `
@@ -1733,10 +1797,15 @@ ${appbar('예약 일정')}
     <div class="between" style="margin-bottom:12px"><div class="h-md" style="font-size:18px">${cal.title}</div></div>
     <div class="calendar">${hd}${cal.cells}</div>
     <div class="cal-legend"><span><i class="lg-dot work"></i> 토요일 영업</span><span><i class="lg-dot off"></i> 일요일·공휴일 휴무</span></div>
+    ${S.slotLoading?`<div class="note info mt12"><i data-lucide="loader"></i><div>예약 가능 시간을 확인 중입니다.</div></div>`:''}
+    ${S.slotErr?`<div class="note mt12" style="background:#FDECEC;color:#B42318"><i data-lucide="alert-circle"></i><div>${esc(S.slotErr)}</div></div>`:''}
   </div>
   <div class="bcard pad mt12">
     <div class="h-md" style="font-size:18px">시간대</div>
-    <div class="chips" style="margin-top:12px">${times.map(t=>`<span class="chip${S.time===t[0]?' on':''}" onclick="selectTime('${t[0]}')">${t[1]}</span>`).join('')}</div>
+    <div class="chips" style="margin-top:12px">${times.map(t=>{
+      const disabled = S.date && !bookingSlotAvailable(S.date,t[0]);
+      return `<span class="chip${S.time===t[0]?' on':''}${disabled?' disabled':''}" ${disabled?'aria-disabled="true"':`onclick="selectTime('${t[0]}')"`}>${t[1]}${disabled?' · 마감':''}</span>`;
+    }).join('')}</div>
     <div class="note info mt12"><i data-lucide="info"></i><div>제품 교체 개수나 항목에 따라 시간이 더 걸릴 수 있습니다.</div></div>
   </div>
   <div class="bcard pad mt12"><div class="row gap10"><i data-lucide="map-pin" style="color:var(--gray-400)"></i><div class="grow"><div class="h-sm" style="font-size:14px">${S.info.region}</div><div class="p-sm">상세 주소는 예약 확정 후 입력</div></div></div></div>
@@ -1823,6 +1892,7 @@ orderview: () => {
   const addr=remote ? ((remote.roadAddress||'')+(remote.detailAddress?' '+remote.detailAddress:'')) : (S.info.region||'')+(S.info.regionDetail?' '+S.info.regionDetail:'');
   const remoteDate = remote?.reservation?.date ? bookingDateLabel(remote.reservation.date) : '';
   const dateTxt=remoteDate ? `${remoteDate}${remote?.reservation?.time?' · '+remote.reservation.time:''}` : (S.date?`${dateLabel()}${S.time?' · '+S.time:''}`:'사진 확인 후 협의');
+  const cashReceiptText = remote?.cashReceipt?.text || cashReceiptTextM();
   const remoteRows = Array.isArray(remote?.selected) ? remote.selected : [];
   const hasProducts=remoteRows.length>0 || S.selected.length>0;
   const statusLabel = paymentStatusLabelM();
@@ -1852,6 +1922,7 @@ orderview: () => {
       <div class="between"><span class="p-sm" style="color:var(--gray-600)">연락처</span><span class="p-sm strong" style="color:var(--gray-900)">${remote?.phone||S.info.phone||'-'}</span></div>
       <div class="between" style="align-items:flex-start"><span class="p-sm" style="color:var(--gray-600)">시공 주소</span><span class="p-sm strong" style="color:var(--gray-900);text-align:right;max-width:62%">${addr||'-'}</span></div>
       <div class="between"><span class="p-sm" style="color:var(--gray-600)">예약 일시</span><span class="p-sm strong" style="color:var(--gray-900)">${dateTxt}</span></div>
+      <div class="between"><span class="p-sm" style="color:var(--gray-600)">현금영수증</span><span class="p-sm strong" style="color:var(--gray-900)">${esc(cashReceiptText)}</span></div>
     </div>
     ${hasProducts?`
     <div class="divline" style="margin:14px 0"></div>

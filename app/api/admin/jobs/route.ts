@@ -77,7 +77,7 @@ export async function POST(request: Request) {
   }
 
   if (!["paid", "product_paid", "scheduled"].includes(order.status)) {
-    return fail("ORDER_NOT_ASSIGNABLE", "결제 완료된 주문만 기사 배정이 가능합니다.", 400);
+    return fail("ORDER_NOT_ASSIGNABLE", `결제 완료된 주문만 기사 배정이 가능합니다. 현재 상태: ${order.status}`, 400);
   }
 
   const scheduledAt = new Date(parsed.data.scheduled_at);
@@ -115,7 +115,7 @@ export async function POST(request: Request) {
   }
 
   const nextJobStatus = order.status === "scheduled" ? "scheduled" : "assigned";
-  const nextOrderStatus = order.status === "scheduled" ? "scheduled" : "paid";
+  const nextOrderStatus = order.status === "scheduled" ? "scheduled" : order.status === "product_paid" ? "product_paid" : "paid";
   const payload = {
     order_id: parsed.data.order_id,
     technician_id: parsed.data.technician_id,

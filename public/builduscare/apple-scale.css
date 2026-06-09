@@ -43,6 +43,7 @@ p,.p-md,.p-sm,.web-lede,.lc-desc{ word-break: keep-all; }
 
 /* chips / filters */
 .chip{ font-size:12.5px; padding:7px 12px; white-space:nowrap; cursor:pointer; user-select:none; }
+.chip.disabled, .chip[aria-disabled="true"]{ color:var(--gray-400); background:var(--gray-50); border-color:var(--gray-100); cursor:default; box-shadow:none; }
 .fbtn{ font-size:12.5px; padding:7px 12px; cursor:pointer; user-select:none; }
 .filter-select{ display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 10px 0 12px; border-radius:999px;
   background:#fff; border:1px solid var(--gray-200); box-shadow:var(--bc-soft); white-space:nowrap; }

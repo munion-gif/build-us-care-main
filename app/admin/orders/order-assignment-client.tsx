@@ -150,16 +150,20 @@ export function OrderAssignmentButton({ orderId, orderNumber, orderStatus, jobs 
     };
   }, [date, open]);
 
+  const currentAssignmentId = firstScheduledJob?.id ?? "";
   const counts = useMemo(() => {
     const currentSlot = slotFromTime(time);
     const map = new Map<string, number>();
     for (const job of dayJobs) {
+      if (job.id === currentAssignmentId) continue;
       if (!job.technician_id || job.status === "cancelled") continue;
       if (jobSlot(job) !== currentSlot) continue;
       map.set(job.technician_id, (map.get(job.technician_id) ?? 0) + 1);
     }
     return map;
-  }, [dayJobs, time]);
+  }, [currentAssignmentId, dayJobs, time]);
+  const selectedAssignedCount = counts.get(technicianId) ?? 0;
+  const selectedTechnicianOverloaded = selectedAssignedCount >= 1;
 
   async function assign() {
     setSaving(true);
@@ -247,18 +251,19 @@ export function OrderAssignmentButton({ orderId, orderNumber, orderStatus, jobs 
                         <input type="radio" name="technician" value={technician.id} checked={technicianId === technician.id} onChange={() => setTechnicianId(technician.id)} />
                         <span>
                           {technician.name} {technician.region ? `(${technician.region})` : ""}
-                          <small>{loadingCounts ? "배정 확인 중..." : `${date} ${slotFromTime(time) === "morning" ? "오전" : "오후"} 배정: ${assignedCount}건`}</small>
+                          <small>{loadingCounts ? "배정 확인 중..." : assignedCount > 0 ? `${date} ${slotFromTime(time) === "morning" ? "오전" : "오후"} 마감` : `${date} ${slotFromTime(time) === "morning" ? "오전" : "오후"} 배정 가능`}</small>
                         </span>
                       </label>
                     );
                   })}
                 </div>
               </div>
+              {selectedTechnicianOverloaded && <p className="adm-form-message adm-form-message-error">선택한 기사는 같은 시간대 배정이 마감되었습니다. 다른 기사를 선택해주세요.</p>}
               {message && <p className="adm-form-message">{message}</p>}
             </div>
             <div className="adm-modal-footer">
               <button className="adm-btn adm-btn-secondary" type="button" onClick={() => setOpen(false)}>취소</button>
-              <button className="adm-btn adm-btn-primary" type="button" disabled={!technicianId || saving} onClick={assign}>{saving ? "배정 중..." : orderStatus === "scheduled" ? "재배정 완료" : "배정 저장"}</button>
+              <button className="adm-btn adm-btn-primary" type="button" disabled={!technicianId || saving || loadingCounts || selectedTechnicianOverloaded} onClick={assign}>{saving ? "배정 중..." : orderStatus === "scheduled" ? "재배정 완료" : "배정 저장"}</button>
             </div>
           </div>
         </div>

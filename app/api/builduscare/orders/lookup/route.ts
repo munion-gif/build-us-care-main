@@ -75,6 +75,12 @@ function compactAddress(order: Record<string, any>) {
   return { roadAddress: full, detailAddress: apt };
 }
 
+function cashReceiptTextFromOrder(order: Record<string, any>) {
+  const text = String(order?.special_requests ?? "");
+  const line = text.split(/\r?\n/).find((entry) => entry.includes("현금영수증:"));
+  return line?.replace(/^.*?현금영수증:\s*/, "").trim() || "신청 안 함";
+}
+
 export async function POST(request: Request) {
   if (!hasSupabaseEnv()) {
     return fail("supabase_not_configured", "Supabase is required to lookup builduscare orders.", 500);
@@ -111,7 +117,7 @@ export async function POST(request: Request) {
     .from("orders")
     .select(
       `
-      id,order_number,access_token,status,created_at,service_type_code,skus,total_amount,subtotal_amount,online_payment_amount,onsite_payment_amount,inquiry_photos,
+      id,order_number,access_token,status,created_at,service_type_code,skus,total_amount,subtotal_amount,online_payment_amount,onsite_payment_amount,inquiry_photos,special_requests,
       customers(id,name,phone,address_full,address_apt),
       homes(id,address_full,address_apt,postal_code),
       payments(id,status,provider,amount,product_amount,service_fee_amount,total_amount,online_payment_amount,onsite_payment_amount,paid_at,approved_at,created_at),
@@ -163,6 +169,9 @@ export async function POST(request: Request) {
       roadAddress: address.roadAddress,
       detailAddress: address.detailAddress,
       selected,
+      cashReceipt: {
+        text: cashReceiptTextFromOrder(order)
+      },
       photoCount: Array.isArray(order.inquiry_photos) ? order.inquiry_photos.length : 0,
       reservation: job?.scheduled_at ? {
         date: kstDateOnly(job.scheduled_at),
