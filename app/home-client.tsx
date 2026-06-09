@@ -1,7 +1,8 @@
 "use client";
 
-const WEB_SRC = "/builduscare/app-web.html";
-const MOBILE_SRC = "/builduscare/app-mobile.html";
+const STATIC_VERSION = "20260609-slots-flow";
+const WEB_SRC = `/builduscare/app-web.html?v=${STATIC_VERSION}`;
+const MOBILE_SRC = `/builduscare/app-mobile.html?v=${STATIC_VERSION}`;
 
 export function HomeClient() {
   return (
