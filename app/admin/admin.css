@@ -69,17 +69,15 @@
 .adm-queue-summary strong { color: #01696f; font-size: 1.5rem; line-height: 1; font-variant-numeric: tabular-nums; }
 .adm-queue-summary span { color: #7a7974; font-size: 0.8125rem; font-weight: 700; }
 .adm-order-queue-list { display: grid; gap: 10px; }
-.adm-order-queue-card { min-height: 132px; display: grid; grid-template-columns: minmax(300px, 1.15fr) minmax(360px, 0.95fr) minmax(180px, 220px); gap: 16px; align-items: stretch; border: 1px solid #e8e5e0; border-radius: 12px; background: #fff; padding: 16px; }
+.adm-order-queue-card { min-height: 120px; display: grid; grid-template-columns: minmax(280px, 1.2fr) minmax(320px, 0.9fr) minmax(180px, 220px); gap: 16px; align-items: stretch; border: 1px solid #e8e5e0; border-radius: 12px; background: #fff; padding: 16px; }
 .adm-order-queue-card:hover { border-color: #d4d1ca; background: #fbfaf7; }
-.adm-order-queue-main { display: grid; align-content: center; gap: 5px; min-width: 0; }
+.adm-order-queue-main { display: grid; align-content: center; gap: 4px; min-width: 0; }
 .adm-order-queue-title { min-height: 30px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .adm-order-queue-title .adm-link { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .adm-order-queue-main strong { min-height: 22px; color: #1c1b19; font-size: 0.9375rem; }
 .adm-order-queue-main p { margin: 0; color: #7a7974; font-size: 0.8125rem; line-height: 1.45; overflow-wrap: anywhere; }
-.adm-order-queue-main .adm-order-product-detail { color: #5c5a54; font-weight: 700; }
-.adm-order-queue-main .adm-order-money-line { color: #1c1b19; font-weight: 800; }
 .adm-order-queue-meta { align-self: stretch; display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
-.adm-order-queue-meta span { min-height: 82px; display: grid; align-content: start; gap: 5px; min-width: 0; border: 1px solid #f0ede8; border-radius: 8px; background: #fbfaf7; padding: 10px 12px; color: #28251d; font-size: 0.8125rem; line-height: 1.35; overflow-wrap: anywhere; }
+.adm-order-queue-meta span { min-height: 74px; display: grid; align-content: start; gap: 5px; min-width: 0; border: 1px solid #f0ede8; border-radius: 8px; background: #fbfaf7; padding: 10px 12px; color: #28251d; font-size: 0.8125rem; line-height: 1.35; overflow-wrap: anywhere; }
 .adm-order-queue-meta b { color: #7a7974; font-size: var(--text-caption); text-transform: uppercase; letter-spacing: 0.05em; }
 .adm-order-queue-meta em { width: fit-content; font-style: normal; }
 .adm-order-queue-meta strong { color: #1c1b19; font-size: 0.9375rem; line-height: 1.15; }

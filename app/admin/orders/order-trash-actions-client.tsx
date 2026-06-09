@@ -86,7 +86,7 @@ export function OrderTrashActions({ orderId, orderNumber, mode = "active", compa
   return (
     <div className={compact ? "adm-trash-actions compact" : "adm-trash-actions"}>
       <button className="adm-btn adm-btn-danger adm-btn-sm" type="button" disabled={loading !== null} onClick={moveToTrash}>
-        {loading === "trash" ? "이동 중..." : "휴지통"}
+        {loading === "trash" ? "이동 중..." : compact ? "삭제" : "휴지통 이동"}
       </button>
       {message ? <small className="adm-trash-message">{message}</small> : null}
     </div>

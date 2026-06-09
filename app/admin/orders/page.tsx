@@ -9,7 +9,6 @@ import { OPERATIONAL_ORDER_STATUSES } from "@/lib/types";
 import { CancellationActions } from "./cancellation-actions-client";
 import { OrderAssignmentButton } from "./order-assignment-client";
 import { OrderBankTransferConfirmButton } from "./order-payment-actions-client";
-import { OrderTestActions } from "./order-test-actions-client";
 import { OrderTrashActions } from "./order-trash-actions-client";
 
 export const dynamic = "force-dynamic";
@@ -231,34 +230,8 @@ function selectedProductSummary(order: any) {
   return formatServiceName(firstServiceCode(order));
 }
 
-function selectedProductDetail(order: any) {
-  const items = quoteItems(order);
-  if (items.length === 0) return "선택 제품 없음";
-  return items
-    .slice(0, 2)
-    .map((line: any) => {
-      const sub = productSubLabel(line);
-      return sub ? `${sub} · ${Number(line.qty ?? 1)}개` : `${Number(line.qty ?? 1)}개`;
-    })
-    .join(" / ");
-}
-
 function customerLine(order: any) {
   return [order?.customers?.name || "성함 없음", order?.customers?.phone || "연락처 없음"].join(" · ");
-}
-
-function cashReceiptTextFromOrder(order: any) {
-  const text = String(order?.special_requests ?? "");
-  const line = text.split(/\r?\n/).find((entry) => entry.includes("현금영수증:"));
-  return line?.replace(/^.*?현금영수증:\s*/, "").trim() || "신청 안 함";
-}
-
-function requestText(order: any) {
-  const special = String(order?.special_requests ?? "")
-    .split(/\r?\n/)
-    .map((entry) => entry.trim())
-    .filter((entry) => entry && !entry.includes("현금영수증:"));
-  return order?.reason || special[0] || "추가 요청 없음";
 }
 
 function paymentBreakdown(order: any) {
@@ -421,20 +394,6 @@ function addressPreview(order: any) {
   return [road, detail].filter(Boolean).join(" ") || "주소 미입력";
 }
 
-function nextActionLabel(order: any) {
-  const status = String(order.status ?? "");
-  if ((status === "inquiry" || status === "submitted") && isPhotoCheckOrder(order) && photoCount(order) > 0) return "사진 확인";
-  if (status === "paid" || status === "product_paid") return assignedTechnician(order) === "미배정" ? "기사 배정" : "방문 전 확인";
-  if (status === "payment_pending" || status === "pending_product_payment") return "입금 확인";
-  if (status === "quoted") return "견적 확인";
-  if (status === "scheduled") return "방문 준비";
-  if (status === "in_progress") return "완료 처리";
-  if (status === "completed") return "검수 완료";
-  if (status === "cancel_requested") return "취소 처리";
-  if (status === "issue" || status === "warranty") return "이슈 확인";
-  return "접수 확인";
-}
-
 export default async function AdminOrdersPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const [{ orders, count, error, schemaWarning, page, limit, trashMode, testMode }, services, technicians] = await Promise.all([
@@ -582,36 +541,35 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
                     {order.is_test ? <span className="adm-badge adm-badge-sky">테스트</span> : null}
                   </div>
                   <strong>{selectedProductSummary(order)}</strong>
-                  <p className="adm-order-product-detail">{selectedProductDetail(order)}</p>
-                  <p className="adm-order-money-line">제품값 {formatKRW(money.productAmount)} · 현장 시공비 {formatKRW(money.onsiteAmount)} · 총 {formatKRW(money.total)}</p>
                   <p>{customerLine(order)} · {formatChannel(order.channel)} · {formatKRDate(order.created_at)}</p>
-                  <p>{addressPreview(order)} · {visitScheduleLabel(order)}</p>
-                  <p>요청 내용: {requestText(order)}</p>
-                  <p>현금영수증: {cashReceiptTextFromOrder(order)}</p>
+                  <p>{addressPreview(order)}</p>
+                  <p>방문 일정: {visitScheduleLabel(order)}</p>
                   {trashMode && deletedMeta(order) ? <p className="adm-trash-meta">{deletedMeta(order)}</p> : null}
                 </div>
                 <div className="adm-order-queue-meta">
                   <span>
-                    <b>사진</b>
-                    <strong>{photos > 0 ? `${photos}장` : "없음"}</strong>
-                    <small>{photos > 0 ? "접수 사진 확인 필요" : "사진 미등록"}</small>
-                  </span>
-                  <span>
-                    <b>현금영수증</b>
-                    <strong>{cashReceiptTextFromOrder(order)}</strong>
-                    <small>주문 전 입력 정보</small>
-                  </span>
-                  <span className={payment.needsConfirmation ? "adm-payment-needs-confirm" : ""}>
                     <b>결제</b>
                     <em className={`adm-badge ${payment.className}`}>{payment.label}</em>
                     <strong className="adm-payment-amount">{formatKRW(payment.amount)}</strong>
                     <small>{payment.detail}</small>
                   </span>
-                  <span><b>담당</b>{assignedTechnician(order)}</span>
+                  <span>
+                    <b>사진</b>
+                    <strong>{photos > 0 ? `${photos}장` : "없음"}</strong>
+                    <small>{photos > 0 ? "고객 첨부 사진 있음" : "등록 없음"}</small>
+                  </span>
+                  <span>
+                    <b>담당</b>
+                    <strong>{assignedTechnician(order)}</strong>
+                    <small>{visitScheduleLabel(order)}</small>
+                  </span>
                 </div>
                 <div className="adm-order-queue-actions">
                   {pendingCancellation ? (
-                    <CancellationActions cancellationId={pendingCancellation.id} refundAmount={Number(pendingCancellation.refund_amount ?? 0)} refundRate={Number(pendingCancellation.refund_rate ?? 0)} />
+                    <>
+                      <CancellationActions cancellationId={pendingCancellation.id} refundAmount={Number(pendingCancellation.refund_amount ?? 0)} refundRate={Number(pendingCancellation.refund_rate ?? 0)} />
+                      <Link className="adm-btn adm-btn-secondary adm-btn-sm" href={`/admin/orders/${order.id}`}>수정</Link>
+                    </>
                   ) : (
                     trashMode ? (
                       <>
@@ -628,11 +586,10 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
                             orderNumber={order.order_number}
                           />
                         ) : null}
-                        <Link className="adm-btn adm-btn-primary adm-btn-sm" href={`/admin/orders/${order.id}`}>{nextActionLabel(order)}</Link>
                         {["paid", "product_paid"].includes(String(order.status)) && (
                           <OrderAssignmentButton compact orderId={order.id} orderNumber={order.order_number} orderStatus={order.status} jobs={Array.isArray(order.jobs) ? order.jobs : []} technicians={technicians} />
                         )}
-                        <OrderTestActions compact isTest={Boolean(order.is_test)} orderId={order.id} orderNumber={order.order_number} />
+                        <Link className="adm-btn adm-btn-secondary adm-btn-sm" href={`/admin/orders/${order.id}`}>수정</Link>
                         <OrderTrashActions compact orderId={order.id} orderNumber={order.order_number} />
                       </>
                     )
