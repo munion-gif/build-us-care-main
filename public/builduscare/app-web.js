@@ -213,6 +213,16 @@ const W_ROUTER_TARGET = wTopWindow();
 function wRouterPath(){
   try { return W_ROUTER_TARGET.location.pathname || '/'; } catch (_) { return window.location.pathname || '/'; }
 }
+function wRouterSearch(){
+  try { return W_ROUTER_TARGET.location.search || ''; } catch (_) { return window.location.search || ''; }
+}
+function wLookupOrderFromSearch(){
+  const params = new URLSearchParams(wRouterSearch());
+  const orderNo = String(params.get('order') || params.get('orderNumber') || params.get('receipt') || '').trim().toUpperCase();
+  if(!orderNo) return;
+  W._lookupNo = orderNo;
+  W._lookupErr = false;
+}
 function wPathForScreen(id){
   if(id === 'products'){
     const slug = W_ITEM_SLUGS[W.item];
@@ -239,7 +249,7 @@ function wScreenFromPath(path){
     if(parts[1] === 'complete') return 'done';
     return 'prebook';
   }
-  if(parts[0] === 'order-lookup') return 'orders';
+  if(parts[0] === 'order-lookup'){ wLookupOrderFromSearch(); return 'orders'; }
   if(parts[0] === 'order-status') return 'orderview';
   return 'home';
 }
