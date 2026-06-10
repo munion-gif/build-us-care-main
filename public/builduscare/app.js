@@ -304,10 +304,10 @@ function sortedProducts(list, sortKey){
   });
 }
 const productBrand = p => p?.brand || '브랜드 미상';
-const productColor = p => p?.color || '기본';
+const normalizeChoiceColor = value => String(value || '').replace(/^색상\s*[·:ㆍ.-]?\s*/,'').trim();
+const productColor = p => normalizeChoiceColor(p?.color) || '기본';
 const usefulColor = color => color && color !== '기본' && color !== '-';
 const visibleColors = colors => colors.filter(color => color !== '-');
-const normalizeChoiceColor = value => String(value || '').replace(/^색상\s*[·:ㆍ.-]?\s*/,'').trim();
 const colorPartsOf = p => String(p?.color || '').split(/\s*\/\s*/).map(normalizeChoiceColor).filter(usefulColor);
 const defaultColorOf = p => colorPartsOf(p)[0] || (usefulColor(productColor(p)) ? productColor(p) : '');
 const uniqueSorted = (list, pick) => [...new Set(list.map(pick).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'ko-KR'));
@@ -381,7 +381,7 @@ function sashColorChoices(id, variantId){
 }
 function sashChosenColor(sourceId, variantId, choices=sashColorChoices(sourceId, variantId)){
   const selected = productById(variantId);
-  const wanted = S.sashColorChoice?.[sourceId] || S.selectedOptions?.[variantId]?.color;
+  const wanted = normalizeChoiceColor(S.sashColorChoice?.[sourceId] || S.selectedOptions?.[variantId]?.color);
   if(wanted && choices.some(v=>v.color===wanted)) return wanted;
   const own = defaultColorOf(selected);
   if(own && (!choices.length || choices.some(v=>v.color===own))) return own;
@@ -393,14 +393,15 @@ function sashVariantForColor(sourceId, variantId, color){
   return choice?.product.id || variantId;
 }
 function rememberSelectedOption(id, color){
-  if(!id || !color) return;
+  const cleanColor = normalizeChoiceColor(color);
+  if(!id || !cleanColor) return;
   S.selectedOptions = S.selectedOptions || {};
-  S.selectedOptions[id] = { ...(S.selectedOptions[id] || {}), color };
+  S.selectedOptions[id] = { ...(S.selectedOptions[id] || {}), color: cleanColor };
 }
 function selectedProductColor(id){
   const p = productById(id);
   if(!p) return '';
-  if(catalogCatOf(id)==='샷시손잡이') return S.selectedOptions?.[id]?.color || defaultColorOf(p);
+  if(catalogCatOf(id)==='샷시손잡이') return normalizeChoiceColor(S.selectedOptions?.[id]?.color) || defaultColorOf(p);
   return productColor(p);
 }
 function productDisplayNameWithOptions(p, id=p?.id){
@@ -559,7 +560,7 @@ function detailSashVariantChoiceId(id){
   return resolvedId;
 }
 function setDetailSashColorChoice(sourceId, variantId, encodedColor){
-  const color = decodeURIComponent(encodedColor || '');
+  const color = normalizeChoiceColor(decodeURIComponent(encodedColor || ''));
   S.sashChoice = S.sashChoice || {};
   S.sashColorChoice = S.sashColorChoice || {};
   S.sashChoice[sourceId] = variantId;
@@ -1794,7 +1795,7 @@ ${appbar('제품 상세', '<button class="iconbtn"><i data-lucide="heart"></i></
     <div class="h-lg mt2">${productDisplayName(p)}</div>
     <div class="row gap8 mt4" style="align-items:baseline"><div style="font-size:22px;font-weight:700">${won(productPrice(display))}원</div><span class="p-sm">제품가</span></div>
     ${detailSashSizeHtml(S.detail, selectedVariantId)}
-    ${catalogCatOf(S.detail)==='샷시손잡이' ? detailSashColorHtml(S.detail, selectedVariantId) : (hasColorVariants ? detailColorChoiceHtml(S.detail, selectedVariantId) : `<span class="flabel mt20">색상</span><div class="chips"><span class="chip on">${display.color || '기본'}</span></div>`)}
+    ${catalogCatOf(S.detail)==='샷시손잡이' ? detailSashColorHtml(S.detail, selectedVariantId) : (hasColorVariants ? detailColorChoiceHtml(S.detail, selectedVariantId) : `<span class="flabel mt20">색상</span><div class="chips"><span class="chip on">${productColor(display) || '기본'}</span></div>`)}
     <span class="flabel mt20">제품 정보</span>
     <div class="bcard pad"><div class="prow" style="padding:8px 0"><span class="pk">브랜드</span><span class="pv">${display.brand}</span></div><div class="prow" style="padding:8px 0"><span class="pk">품번</span><span class="pv">${sku}</span></div><div class="prow" style="padding:8px 0"><span class="pk">종류</span><span class="pv">${display.categoryName || S.item}</span></div><div class="prow" style="padding:8px 0"><span class="pk">기준</span><span class="pv">${source}</span></div></div>
     ${display.note?`<div class="note info mt12"><i data-lucide="info"></i><div style="white-space:pre-line">${productNoteHtml(display)}</div></div>`:''}

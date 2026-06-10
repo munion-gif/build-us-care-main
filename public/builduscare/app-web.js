@@ -311,10 +311,10 @@ const categoryMinPrice = name => {
   return prices.length ? Math.min(...prices) : null;
 };
 const productBrand = p => p?.brand || '브랜드 미상';
-const productColor = p => p?.color || '기본';
+const normalizeChoiceColor = value => String(value || '').replace(/^색상\s*[·:ㆍ.-]?\s*/,'').trim();
+const productColor = p => normalizeChoiceColor(p?.color) || '기본';
 const usefulColor = color => color && color !== '기본' && color !== '-';
 const visibleColors = colors => colors.filter(color => color !== '-');
-const normalizeChoiceColor = value => String(value || '').replace(/^색상\s*[·:ㆍ.-]?\s*/,'').trim();
 const colorPartsOf = p => String(p?.color || '').split(/\s*\/\s*/).map(normalizeChoiceColor).filter(usefulColor);
 const defaultColorOf = p => colorPartsOf(p)[0] || (usefulColor(productColor(p)) ? productColor(p) : '');
 const uniqueSorted = (list, pick) => [...new Set(list.map(pick).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'ko-KR'));
@@ -392,7 +392,7 @@ function wSashColorChoices(id, variantId){
 }
 function wSashChosenColor(sourceId, variantId, choices=wSashColorChoices(sourceId, variantId)){
   const selected = wp(variantId);
-  const wanted = W.sashColorChoice?.[sourceId] || W.selectedOptions?.[variantId]?.color;
+  const wanted = normalizeChoiceColor(W.sashColorChoice?.[sourceId] || W.selectedOptions?.[variantId]?.color);
   if(wanted && choices.some(v=>v.color===wanted)) return wanted;
   const own = defaultColorOf(selected);
   if(own && (!choices.length || choices.some(v=>v.color===own))) return own;
@@ -404,14 +404,15 @@ function wSashVariantForColor(sourceId, variantId, color){
   return choice?.product.id || variantId;
 }
 function wRememberSelectedOption(id, color){
-  if(!id || !color) return;
+  const cleanColor = normalizeChoiceColor(color);
+  if(!id || !cleanColor) return;
   W.selectedOptions = W.selectedOptions || {};
-  W.selectedOptions[id] = { ...(W.selectedOptions[id] || {}), color };
+  W.selectedOptions[id] = { ...(W.selectedOptions[id] || {}), color: cleanColor };
 }
 function wSelectedProductColor(id){
   const p = wp(id);
   if(!p) return '';
-  if(catOf(id)==='샷시손잡이') return W.selectedOptions?.[id]?.color || defaultColorOf(p);
+  if(catOf(id)==='샷시손잡이') return normalizeChoiceColor(W.selectedOptions?.[id]?.color) || defaultColorOf(p);
   return productColor(p);
 }
 function productDisplayNameWithOptions(p, id=p?.id){
@@ -610,7 +611,7 @@ function wSetDetailVariantFields(modal, p, selectedColor=''){
   const sku = modal.querySelector('[data-sash-sku]');
   if(sku) sku.textContent = `품번 · ${p.sku || p.model || '제품 정보 확인'}`;
   const color = modal.querySelector('[data-sash-color]');
-  if(color) color.textContent = `색상 · ${selectedColor || p.color || '기본'}`;
+  if(color) color.textContent = `색상 · ${normalizeChoiceColor(selectedColor || p.color) || '기본'}`;
   const feature = modal.querySelector('[data-sash-feature]');
   if(feature) feature.textContent = productFeatureSpec(p);
   if(window.lucide) lucide.createIcons();
@@ -640,7 +641,7 @@ function wSetSashDetailChoice(sourceId, variantId){
   }
 }
 function wSetSashColorDetailChoice(sourceId, variantId, encodedColor){
-  const color = decodeURIComponent(encodedColor || '');
+  const color = normalizeChoiceColor(decodeURIComponent(encodedColor || ''));
   const modal = document.getElementById('wmodal');
   const p = wp(variantId);
   if(!modal || !p) return;
@@ -1895,7 +1896,7 @@ function webProductModal(id){
         <div class="pm-specs">
           ${spec('ruler',`<span data-sash-note>${productPrimarySpec(display)}</span>`)}
           ${spec('package',`<span data-sash-sku>품번 · ${sku}</span>`)}
-          ${spec('palette',`<span data-sash-color>색상 · ${display.color || '기본'}</span>`)}
+        ${spec('palette',`<span data-sash-color>색상 · ${productColor(display) || '기본'}</span>`)}
           ${spec('info',`<span data-sash-feature>${productFeatureSpec(display)}</span>`)}
         </div>
       </div>
