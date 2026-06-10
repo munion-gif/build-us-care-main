@@ -692,7 +692,7 @@ window.BUILDUS_CARE_CATALOG = {
       "rec": false,
       "recommendLabel": "",
       "recommendDescription": "",
-      "image": "/products/toilets/toilet-replace-029-ccas3880.jpg",
+      "image": "/products/toilets/toilet-replace-029-ccas3880-lower.jpg",
       "sourceWorkbook": "",
       "sourceSheet": "투피스",
       "sourceRow": 4
