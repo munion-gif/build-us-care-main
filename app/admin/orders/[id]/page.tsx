@@ -9,6 +9,7 @@ import {
   formatServiceName
 } from "@/lib/format";
 import { OrderAssignmentButton, OrderScheduleConfirmButton } from "../order-assignment-client";
+import { OrderCustomerLinkCopy } from "../order-customer-link-client";
 import { OrderEditPanel } from "../order-edit-panel-client";
 import { OrderBankTransferConfirmButton } from "../order-payment-actions-client";
 import { OrderStatusTransitionPanel } from "../order-status-transition-panel-client";
@@ -21,6 +22,10 @@ import type { OrderStatus } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 type PageProps = { params: Promise<{ id: string }> };
+
+function siteUrl() {
+  return process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || "https://builduscare.co.kr";
+}
 
 async function getOrder(id: string) {
   if (!hasSupabaseEnv()) return null;
@@ -455,6 +460,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
   const money = paymentBreakdown(order);
   const selectedItems = quoteItems(order);
   const acceptedQuote = latestQuote(order);
+  const customerLookupUrl = `${siteUrl()}/order-lookup?order=${encodeURIComponent(order.order_number)}`;
 
   return (
     <>
@@ -535,6 +541,12 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
             </span>
           </div>
         </section>
+
+        <OrderCustomerLinkCopy
+          orderNumber={order.order_number}
+          lookupUrl={customerLookupUrl}
+          customerName={customer?.name}
+        />
 
         {!isDeleted && (
           <section className="adm-detail-ops-grid">

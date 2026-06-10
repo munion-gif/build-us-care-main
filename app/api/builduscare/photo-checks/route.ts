@@ -1,4 +1,5 @@
 import { fail } from "@/lib/api-response";
+import { POST as createBuilduscareOrder } from "../orders/route";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const response = await fetch(new URL("/api/builduscare/orders", request.url), {
+  const response = await createBuilduscareOrder(new Request(new URL("/api/builduscare/orders", request.url), {
     method: "POST",
     headers: {
       "x-builduscare-submission-type": "photo_check",
@@ -51,7 +52,7 @@ export async function POST(request: Request) {
       "x-forwarded-for": request.headers.get("x-forwarded-for") ?? ""
     },
     body: formData
-  });
+  }));
 
   return new Response(await response.text(), {
     status: response.status,

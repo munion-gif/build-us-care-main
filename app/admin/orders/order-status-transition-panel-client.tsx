@@ -10,6 +10,19 @@ type Props = {
 };
 
 const IMPORTANT_BLOCKED_TARGETS: OperationalOrderStatus[] = ["quoted", "payment_pending", "paid", "scheduled", "in_progress", "completed", "done", "warranty", "canceled"];
+const STAGE_GROUPS: Array<{ label: string; statuses: OrderStatus[] }> = [
+  { label: "접수", statuses: ["inquiry", "submitted", "draft"] },
+  { label: "견적", statuses: ["quoted"] },
+  { label: "입금", statuses: ["payment_pending", "pending_product_payment", "paid", "product_paid"] },
+  { label: "방문", statuses: ["scheduled", "in_progress", "installation_completed", "reservation_confirmed", "preparing", "in_service"] },
+  { label: "완료", statuses: ["completed", "done"] },
+  { label: "예외", statuses: ["cancel_requested", "issue", "warranty", "canceled", "cancelled", "refunded"] }
+];
+
+function activeStageIndex(status: OrderStatus) {
+  const index = STAGE_GROUPS.findIndex((stage) => stage.statuses.includes(status));
+  return index >= 0 ? index : 0;
+}
 
 export function OrderStatusTransitionPanel({ orderId, currentStatus }: Props) {
   const [savingStatus, setSavingStatus] = useState<OperationalOrderStatus | null>(null);
@@ -20,6 +33,7 @@ export function OrderStatusTransitionPanel({ orderId, currentStatus }: Props) {
     return true;
   });
   const ux = getOrderStatusUx(currentStatus);
+  const stageIndex = activeStageIndex(currentStatus);
 
   async function transitionTo(nextStatus: OperationalOrderStatus) {
     if (!window.confirm(`${ux.adminLabel} 상태를 ${getOrderStatusUx(nextStatus).adminLabel}(으)로 변경할까요?`)) return;
@@ -60,6 +74,17 @@ export function OrderStatusTransitionPanel({ orderId, currentStatus }: Props) {
           <p className="adm-status-summary">{ux.adminSummary}</p>
         </div>
         <span className="adm-badge adm-badge-sky">{currentStatus}</span>
+      </div>
+
+      <div className="adm-status-stage-strip" aria-label="운영 처리 단계">
+        {STAGE_GROUPS.map((stage, index) => (
+          <span
+            className={index === stageIndex ? "active" : index < stageIndex && stage.label !== "예외" ? "done" : ""}
+            key={stage.label}
+          >
+            {stage.label}
+          </span>
+        ))}
       </div>
 
       {allowed.length > 0 ? (
