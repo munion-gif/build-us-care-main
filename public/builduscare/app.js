@@ -276,7 +276,12 @@ const won = n => n.toLocaleString('ko-KR');
 const esc = v => String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const productImg = p => p && p.image ? `<img class="product-img" src="${p.image}" alt="" loading="lazy" decoding="async">` : '<i data-lucide="image"></i>';
 const productText = p => [p.categoryName, p.model, p.note, p.sourceSheet].filter(Boolean).join(' ');
-const priceValue = p => Number.isFinite(Number(p?.price)) ? Number(p.price) : Number.POSITIVE_INFINITY;
+const roundProductPrice = value => {
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount > 0 ? Math.ceil(amount / 1000) * 1000 : 0;
+};
+const productPrice = p => roundProductPrice(p?.price);
+const priceValue = p => Number.isFinite(Number(p?.price)) ? productPrice(p) : Number.POSITIVE_INFINITY;
 const lowestFirst = list => [...list].sort((a,b)=> priceValue(a)-priceValue(b) || String(a.name||'').localeCompare(String(b.name||''), 'ko-KR'));
 const PRODUCT_SORTS = [
   ['rank', '랭킹순'],
@@ -302,12 +307,13 @@ const productBrand = p => p?.brand || '브랜드 미상';
 const productColor = p => p?.color || '기본';
 const usefulColor = color => color && color !== '기본' && color !== '-';
 const visibleColors = colors => colors.filter(color => color !== '-');
-const colorPartsOf = p => String(p?.color || '').split(/\s*\/\s*/).map(v=>v.trim()).filter(usefulColor);
+const normalizeChoiceColor = value => String(value || '').replace(/^색상\s*[·:ㆍ.-]?\s*/,'').trim();
+const colorPartsOf = p => String(p?.color || '').split(/\s*\/\s*/).map(normalizeChoiceColor).filter(usefulColor);
 const defaultColorOf = p => colorPartsOf(p)[0] || (usefulColor(productColor(p)) ? productColor(p) : '');
 const uniqueSorted = (list, pick) => [...new Set(list.map(pick).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'ko-KR'));
 const filteredProducts = (list, brand, color) => list.filter(p => (!brand || productBrand(p)===brand) && (!color || productColor(p)===color));
 const productById = id => ALL_PRODUCTS.find(p=>p.id===id);
-const subtotal = () => S.selected.reduce((s,id)=> s + productById(id).price, 0);
+const subtotal = () => S.selected.reduce((s,id)=> s + productPrice(productById(id)), 0);
 const SASH_SIZE_ORDER = ['소','중','대','그립'];
 const COLOR_VARIANT_CATEGORIES = new Set(['환풍기 교체']);
 const COLOR_VARIANT_ORDER = ['화이트','그레이','블루','핑크','엘로우'];
@@ -586,7 +592,7 @@ function detailSashSizeHtml(id, selectedId){
   const selectedSize = sashSizeOf(productById(selectedId)) || '기본';
   return `<span class="flabel mt20">사이즈</span>
     <div class="size-choice-options detail-size-options">
-      ${choices.map(v=>`<button class="size-choice-btn${v.size===selectedSize?' selected':''}" onclick="setDetailSashChoice('${id}','${v.product.id}')"><b>${v.size}</b><span>${won(v.product.price)}원</span></button>`).join('')}
+      ${choices.map(v=>`<button class="size-choice-btn${v.size===selectedSize?' selected':''}" onclick="setDetailSashChoice('${id}','${v.product.id}')"><b>${v.size}</b><span>${won(productPrice(v.product))}원</span></button>`).join('')}
     </div>`;
 }
 function detailSashColorHtml(id, selectedId){
@@ -595,7 +601,7 @@ function detailSashColorHtml(id, selectedId){
   const selectedColor = sashChosenColor(id, selectedId, choices);
   return `<span class="flabel mt20">색상</span>
     <div class="size-choice-options detail-size-options">
-      ${choices.map(v=>`<button class="size-choice-btn${v.color===selectedColor?' selected':''}" onclick="setDetailSashColorChoice('${id}','${v.product.id}','${encodeURIComponent(v.color)}')"><b>${v.color}</b><span>${won(v.product.price)}원</span></button>`).join('')}
+      ${choices.map(v=>`<button class="size-choice-btn${v.color===selectedColor?' selected':''}" onclick="setDetailSashColorChoice('${id}','${v.product.id}','${encodeURIComponent(v.color)}')"><b>${v.color}</b><span>${won(productPrice(v.product))}원</span></button>`).join('')}
     </div>`;
 }
 function detailColorChoiceHtml(id, selectedId){
@@ -603,7 +609,7 @@ function detailColorChoiceHtml(id, selectedId){
   if(!choices.length) return '';
   return `<span class="flabel mt20">색상</span>
     <div class="size-choice-options detail-size-options">
-      ${choices.map(v=>`<button class="size-choice-btn${v.product.id===selectedId?' selected':''}" onclick="setDetailColorChoice('${id}','${v.product.id}')"><b>${v.color}</b><span>${won(v.product.price)}원</span></button>`).join('')}
+      ${choices.map(v=>`<button class="size-choice-btn${v.product.id===selectedId?' selected':''}" onclick="setDetailColorChoice('${id}','${v.product.id}')"><b>${v.color}</b><span>${won(productPrice(v.product))}원</span></button>`).join('')}
     </div>`;
 }
 /* 시공비: 제품 종류별 1개 시공 비용 (선택 제품마다 합산) */
@@ -746,7 +752,7 @@ function openSashSizeSheet(id, fromDetail=false){
     <div class="sash-size-grid">
       ${choices.map(v=>{
         const selected = S.selected.includes(v.product.id);
-        return `<button class="sash-size-option${selected?' selected':''}" onclick="selectSashVariant('${id}','${v.product.id}',${fromDetail?'true':'false'})"><b>${v.size}</b><span>${won(v.product.price)}원</span><small>${v.product.color || '기본'}</small></button>`;
+        return `<button class="sash-size-option${selected?' selected':''}" onclick="selectSashVariant('${id}','${v.product.id}',${fromDetail?'true':'false'})"><b>${v.size}</b><span>${won(productPrice(v.product))}원</span><small>${v.product.color || '기본'}</small></button>`;
       }).join('')}
     </div>
     <p class="p-sm mt12">선택한 사이즈가 장바구니에 담겨요. 같은 사이즈에 색상별 가격 차이가 있으면 최저가 기준으로 담습니다.</p>`);
@@ -762,7 +768,7 @@ function openColorSheet(id, fromDetail=false){
     <div class="sash-size-grid">
       ${choices.map(v=>{
         const selected = S.selected.includes(v.product.id);
-        return `<button class="sash-size-option${selected?' selected':''}" onclick="selectColorVariant('${id}','${v.product.id}',${fromDetail?'true':'false'})"><b>${v.color}</b><span>${won(v.product.price)}원</span><small>${v.product.sku || v.product.model || ''}</small></button>`;
+        return `<button class="sash-size-option${selected?' selected':''}" onclick="selectColorVariant('${id}','${v.product.id}',${fromDetail?'true':'false'})"><b>${v.color}</b><span>${won(productPrice(v.product))}원</span><small>${v.product.sku || v.product.model || ''}</small></button>`;
       }).join('')}
     </div>`);
 }
@@ -1376,7 +1382,7 @@ function pcard(p, rec){
   return `<div class="pcard${sel?' sel':''}" data-pid="${esc(p.id)}"${rec?' style="flex:none;width:152px"':''}>
     <div class="pimg imgph tap${p.image?' has-img':''}" onclick="openDetail('${p.id}')">${productImg(p)}${recTag}</div>
     <div class="psel" onclick="toggleProduct(event,'${p.id}')"><i data-lucide="check"></i></div>
-    <div class="pinfo tap" onclick="openDetail('${p.id}')"><div class="pbrand">${p.brand}</div><div class="pname">${productDisplayName(p)}</div><div class="pprice">${won(p.price)}<small> 원</small></div>${sizeLabel}</div>
+    <div class="pinfo tap" onclick="openDetail('${p.id}')"><div class="pbrand">${p.brand}</div><div class="pname">${productDisplayName(p)}</div><div class="pprice">${won(productPrice(p))}<small> 원</small></div>${sizeLabel}</div>
   </div>`;
 }
 
@@ -1494,7 +1500,7 @@ async function openFinalEstimateM(){
       name: p.name || p.model || '-',
       categoryName,
       qty: Number(p.qty || 1),
-      price: Number(p.price || 0),
+      price: productPrice(p),
       image: p.image || ITEM_IMG[categoryName] || ITEM_IMG[`${categoryName} 교체`] || ''
     };
   }) : S.selected.map(id => {
@@ -1504,7 +1510,7 @@ async function openFinalEstimateM(){
       name: `${p.brand} ${productDisplayNameWithOptions(p, id)}`,
       categoryName: cat.replace(/\s*교체$/,''),
       qty: 1,
-      price: Number(p.price || 0),
+      price: productPrice(p),
       image: ITEM_IMG[cat] || ''
     };
   });
@@ -1786,7 +1792,7 @@ ${appbar('제품 상세', '<button class="iconbtn"><i data-lucide="heart"></i></
   <div class="pad">
     <div class="pbrand" style="font-size:12px">${p.brand}</div>
     <div class="h-lg mt2">${productDisplayName(p)}</div>
-    <div class="row gap8 mt4" style="align-items:baseline"><div style="font-size:22px;font-weight:700">${won(display.price)}원</div><span class="p-sm">제품가</span></div>
+    <div class="row gap8 mt4" style="align-items:baseline"><div style="font-size:22px;font-weight:700">${won(productPrice(display))}원</div><span class="p-sm">제품가</span></div>
     ${detailSashSizeHtml(S.detail, selectedVariantId)}
     ${catalogCatOf(S.detail)==='샷시손잡이' ? detailSashColorHtml(S.detail, selectedVariantId) : (hasColorVariants ? detailColorChoiceHtml(S.detail, selectedVariantId) : `<span class="flabel mt20">색상</span><div class="chips"><span class="chip on">${display.color || '기본'}</span></div>`)}
     <span class="flabel mt20">제품 정보</span>
@@ -1904,7 +1910,7 @@ ${appbar('예상 견적')}
   <div class="note info"><i data-lucide="shield-check"></i><div><b>예상 금액이에요.</b> 설치 가능 여부와 최종 금액은 사진 확인 후 확정되며, <b>추가 비용은 없어요.</b></div></div>
   <div class="h-md mt16">선택한 제품 ${S.selected.length}개</div>
   <div class="bcard pad mt8">
-    ${S.selected.map(id=>{const p=productById(id);return `<div class="between" style="padding:7px 0"><span class="p-sm" style="color:var(--gray-700)">${productDisplayNameWithOptions(p, id)}</span><span class="strong">${won(p.price)}</span></div>`;}).join('')}
+    ${S.selected.map(id=>{const p=productById(id);return `<div class="between" style="padding:7px 0"><span class="p-sm" style="color:var(--gray-700)">${productDisplayNameWithOptions(p, id)}</span><span class="strong">${won(productPrice(p))}</span></div>`;}).join('')}
   </div>
   <div class="bcard pad mt12">
     <div class="prow"><span class="pk"><i data-lucide="package" style="width:16px;height:16px"></i> 제품가 합계</span><span class="pv">${won(subtotal())}</span></div>
@@ -2038,9 +2044,9 @@ orderview: () => {
   const selectedUnits = remoteRows.length ? remoteRows.reduce((sum, row) => sum + Number(row.qty || 1), 0) : S.selected.length;
   const rows=remoteRows.length ? remoteRows.map(p=>{
     const im = p.image || ITEM_IMG[p.categoryName] || ITEM_IMG[`${p.categoryName||''} 교체`] || '';
-    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--gray-100);border-radius:14px;background:#fff"><span style="width:46px;height:46px;border-radius:11px;background:var(--gray-100);overflow:hidden;flex:none;display:grid;place-items:center">${im?`<img src="${im}" alt="" style="width:100%;height:100%;object-fit:cover">`:`<i data-lucide="package" style="width:21px;height:21px;color:var(--gray-400)"></i>`}</span><div style="flex:1;min-width:0"><div class="strong" style="font-size:13.5px">${p.name||p.model||'-'}</div><div class="p-sm" style="color:var(--gray-500);margin-top:1px">${p.categoryName||p.serviceCode||''} · ${p.qty||1}개</div></div><div class="strong" style="white-space:nowrap">${won((p.price||0)*(p.qty||1))}<small style="color:var(--gray-400);font-weight:600"> 원</small></div></div>`;
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--gray-100);border-radius:14px;background:#fff"><span style="width:46px;height:46px;border-radius:11px;background:var(--gray-100);overflow:hidden;flex:none;display:grid;place-items:center">${im?`<img src="${im}" alt="" style="width:100%;height:100%;object-fit:cover">`:`<i data-lucide="package" style="width:21px;height:21px;color:var(--gray-400)"></i>`}</span><div style="flex:1;min-width:0"><div class="strong" style="font-size:13.5px">${p.name||p.model||'-'}</div><div class="p-sm" style="color:var(--gray-500);margin-top:1px">${p.categoryName||p.serviceCode||''} · ${p.qty||1}개</div></div><div class="strong" style="white-space:nowrap">${won(roundProductPrice(p.price)*(p.qty||1))}<small style="color:var(--gray-400);font-weight:600"> 원</small></div></div>`;
   }).join('') : S.selected.map(id=>{const p=productById(id);const cat=catalogCatOf(id);const im=ITEM_IMG[cat];
-    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--gray-100);border-radius:14px;background:#fff"><span style="width:46px;height:46px;border-radius:11px;background:var(--gray-100);overflow:hidden;flex:none;display:grid;place-items:center">${im?`<img src="${im}" alt="" style="width:100%;height:100%;object-fit:cover">`:''}</span><div style="flex:1;min-width:0"><div class="strong" style="font-size:13.5px">${p.brand} ${productDisplayNameWithOptions(p, id)}</div><div class="p-sm" style="color:var(--gray-500);margin-top:1px">${cat.replace(/\s*교체$/,'')} · 1개</div></div><div class="strong" style="white-space:nowrap">${won(p.price)}<small style="color:var(--gray-400);font-weight:600"> 원</small></div></div>`;}).join('');
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--gray-100);border-radius:14px;background:#fff"><span style="width:46px;height:46px;border-radius:11px;background:var(--gray-100);overflow:hidden;flex:none;display:grid;place-items:center">${im?`<img src="${im}" alt="" style="width:100%;height:100%;object-fit:cover">`:''}</span><div style="flex:1;min-width:0"><div class="strong" style="font-size:13.5px">${p.brand} ${productDisplayNameWithOptions(p, id)}</div><div class="p-sm" style="color:var(--gray-500);margin-top:1px">${cat.replace(/\s*교체$/,'')} · 1개</div></div><div class="strong" style="white-space:nowrap">${won(productPrice(p))}<small style="color:var(--gray-400);font-weight:600"> 원</small></div></div>`;}).join('');
   return `
 <div class="appbar bordered">${back_btn}<span class="title" style="font-size:13px;font-weight:700">주문 확인</span><span class="spacer"></span>${menu_btn}</div>
 <div class="body scroll"><div class="pad">

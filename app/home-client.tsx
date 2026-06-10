@@ -1,6 +1,6 @@
 "use client";
 
-const STATIC_VERSION = "20260610-sash-color-choice";
+const STATIC_VERSION = "20260610-sash-price-rounding";
 const WEB_SRC = `/builduscare/app-web.html?v=${STATIC_VERSION}`;
 const MOBILE_SRC = `/builduscare/app-mobile.html?v=${STATIC_VERSION}`;
 

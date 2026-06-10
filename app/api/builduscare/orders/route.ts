@@ -125,6 +125,11 @@ function integer(value: unknown, fallback = 0) {
   return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : fallback;
 }
 
+function roundedProductPrice(value: unknown) {
+  const amount = integer(value);
+  return amount > 0 ? Math.ceil(amount / 1000) * 1000 : 0;
+}
+
 function parsePayload(value: FormDataEntryValue | null): BuildusPayload | null {
   if (typeof value !== "string") return null;
   try {
@@ -182,7 +187,7 @@ function buildOrderItems(entries: Array<{ product: ReplacementProduct; qty: numb
     service_type_code: product.serviceCode,
     item_name: displayProductName(product, selectedColor),
     qty,
-    unit_price: integer(product.price),
+    unit_price: roundedProductPrice(product.price),
     options: selectedColor ? [{ label: "색상", value: selectedColor }] : [],
     metadata: {
       service_type_code: product.serviceCode,
@@ -197,7 +202,7 @@ function buildOrderItems(entries: Array<{ product: ReplacementProduct; qty: numb
 
 function buildQuoteLines(entries: Array<{ product: ReplacementProduct; qty: number; selectedColor: string }>, selfDisposal: boolean) {
   return entries.map(({ product, qty, selectedColor }) => {
-    const unitMaterial = integer(product.price);
+    const unitMaterial = roundedProductPrice(product.price);
     const unitLabor = getProductLaborPrice(product.serviceCode, product);
     const disposalPerUnit = selfDisposal ? 0 : 10000;
     const lineLabor = (unitLabor + disposalPerUnit) * qty;
@@ -646,7 +651,7 @@ export async function POST(request: Request) {
             serviceCode: product.serviceCode,
             categoryName: product.categoryName,
             qty,
-            price: integer(product.price)
+            price: roundedProductPrice(product.price)
           })),
           photoCount: photoFiles.length,
           reservation: {

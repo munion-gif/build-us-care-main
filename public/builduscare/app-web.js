@@ -279,7 +279,12 @@ const won = n => n.toLocaleString('ko-KR');
 const esc = v => String(v ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const productImg = p => p && p.image ? `<img class="product-img" src="${p.image}" alt="" loading="lazy" decoding="async">` : '<i data-lucide="image"></i>';
 const productText = p => [p.categoryName, p.model, p.note, p.sourceSheet].filter(Boolean).join(' ');
-const priceValue = p => Number.isFinite(Number(p?.price)) ? Number(p.price) : Number.POSITIVE_INFINITY;
+const roundProductPrice = value => {
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount > 0 ? Math.ceil(amount / 1000) * 1000 : 0;
+};
+const productPrice = p => roundProductPrice(p?.price);
+const priceValue = p => Number.isFinite(Number(p?.price)) ? productPrice(p) : Number.POSITIVE_INFINITY;
 const lowestFirst = list => [...list].sort((a,b)=> priceValue(a)-priceValue(b) || String(a.name||'').localeCompare(String(b.name||''), 'ko-KR'));
 const PRODUCT_SORTS = [
   ['rank', '랭킹순'],
@@ -309,14 +314,15 @@ const productBrand = p => p?.brand || '브랜드 미상';
 const productColor = p => p?.color || '기본';
 const usefulColor = color => color && color !== '기본' && color !== '-';
 const visibleColors = colors => colors.filter(color => color !== '-');
-const colorPartsOf = p => String(p?.color || '').split(/\s*\/\s*/).map(v=>v.trim()).filter(usefulColor);
+const normalizeChoiceColor = value => String(value || '').replace(/^색상\s*[·:ㆍ.-]?\s*/,'').trim();
+const colorPartsOf = p => String(p?.color || '').split(/\s*\/\s*/).map(normalizeChoiceColor).filter(usefulColor);
 const defaultColorOf = p => colorPartsOf(p)[0] || (usefulColor(productColor(p)) ? productColor(p) : '');
 const uniqueSorted = (list, pick) => [...new Set(list.map(pick).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'ko-KR'));
 const filteredProducts = (list, brand, color) => list.filter(p => (!brand || productBrand(p)===brand) && (!color || productColor(p)===color));
 const wp = id => ALL_PRODUCTS.find(p=>p.id===id);
 const wq = id => W.qty[id] || 1;
 const wunits = () => W.selected.reduce((s,id)=> s+wq(id), 0);
-const wsub = () => W.selected.reduce((s,id)=> s+wp(id).price*wq(id), 0);
+const wsub = () => W.selected.reduce((s,id)=> s+productPrice(wp(id))*wq(id), 0);
 const SASH_SIZE_ORDER = ['소','중','대','그립'];
 const COLOR_VARIANT_CATEGORIES = new Set(['환풍기 교체']);
 const COLOR_VARIANT_ORDER = ['화이트','그레이','블루','핑크','엘로우'];
@@ -598,7 +604,7 @@ function wSetDetailVariantFields(modal, p, selectedColor=''){
     hero.innerHTML = productImg(p);
   }
   const price = modal.querySelector('[data-sash-price]');
-  if(price) price.innerHTML = `${won(p.price)}<small>원부터</small>`;
+  if(price) price.innerHTML = `${won(productPrice(p))}<small>원</small>`;
   const note = modal.querySelector('[data-sash-note]');
   if(note) note.textContent = productPrimarySpec(p);
   const sku = modal.querySelector('[data-sash-sku]');
@@ -675,7 +681,7 @@ function wSashDetailSizeHtml(id, selectedId){
   return `<div class="size-choice-box">
     <div class="size-choice-label">사이즈</div>
     <div class="size-choice-options">
-      ${choices.map(v=>`<button class="size-choice-btn${v.size===selectedSize?' selected':''}" data-variant-id="${v.product.id}" data-sash-size="${v.size}" onclick="wSetSashDetailChoice('${id}','${v.product.id}')"><b>${v.size}</b><span>${won(v.product.price)}원</span></button>`).join('')}
+      ${choices.map(v=>`<button class="size-choice-btn${v.size===selectedSize?' selected':''}" data-variant-id="${v.product.id}" data-sash-size="${v.size}" onclick="wSetSashDetailChoice('${id}','${v.product.id}')"><b>${v.size}</b><span>${won(productPrice(v.product))}원</span></button>`).join('')}
     </div>
   </div>`;
 }
@@ -686,7 +692,7 @@ function wSashDetailColorHtml(id, selectedId){
   return `<div class="size-choice-box color-choice-box">
     <div class="size-choice-label">색상</div>
     <div class="size-choice-options">
-      ${choices.map(v=>`<button class="size-choice-btn color-choice-btn${v.color===selectedColor?' selected':''}" data-variant-id="${v.product.id}" data-sash-color="${esc(v.color)}" onclick="wSetSashColorDetailChoice('${id}','${v.product.id}','${encodeURIComponent(v.color)}')"><b>${v.color}</b><span>${won(v.product.price)}원</span></button>`).join('')}
+      ${choices.map(v=>`<button class="size-choice-btn color-choice-btn${v.color===selectedColor?' selected':''}" data-variant-id="${v.product.id}" data-sash-color="${esc(v.color)}" onclick="wSetSashColorDetailChoice('${id}','${v.product.id}','${encodeURIComponent(v.color)}')"><b>${v.color}</b><span>${won(productPrice(v.product))}원</span></button>`).join('')}
     </div>
   </div>`;
 }
@@ -696,7 +702,7 @@ function wColorDetailHtml(id, selectedId){
   return `<div class="size-choice-box color-choice-box">
     <div class="size-choice-label">색상</div>
     <div class="size-choice-options">
-      ${choices.map(v=>`<button class="size-choice-btn color-choice-btn${v.product.id===selectedId?' selected':''}" data-variant-id="${v.product.id}" onclick="wSetColorDetailChoice('${id}','${v.product.id}')"><b>${v.color}</b><span>${won(v.product.price)}원</span></button>`).join('')}
+      ${choices.map(v=>`<button class="size-choice-btn color-choice-btn${v.product.id===selectedId?' selected':''}" data-variant-id="${v.product.id}" onclick="wSetColorDetailChoice('${id}','${v.product.id}')"><b>${v.color}</b><span>${won(productPrice(v.product))}원</span></button>`).join('')}
     </div>
   </div>`;
 }
@@ -730,7 +736,7 @@ function wEstimateBody(){
   return `
         <div class="h-md">예상 견적</div>
         <div style="margin-top:14px">
-          ${n? `${W.selected.map(id=>{const p=wp(id);return `<div class="qrow-sel"><div class="qrs-info"><div class="qrs-name"><span class="qrs-cat">${catOf(id).replace(/\s*교체$/,'')}</span> ${productDisplayNameWithOptions(p, id)}</div><div class="qrs-price">${won(p.price)}원</div></div><div class="qstep"><button onclick="wSetQty(event,'${id}',-1)" aria-label="감소">−</button><span>${wq(id)}</span><button onclick="wSetQty(event,'${id}',1)" aria-label="증가">+</button></div></div>`;}).join('')}
+          ${n? `${W.selected.map(id=>{const p=wp(id);return `<div class="qrow-sel"><div class="qrs-info"><div class="qrs-name"><span class="qrs-cat">${catOf(id).replace(/\s*교체$/,'')}</span> ${productDisplayNameWithOptions(p, id)}</div><div class="qrs-price">${won(productPrice(p))}원</div></div><div class="qstep"><button onclick="wSetQty(event,'${id}',-1)" aria-label="감소">−</button><span>${wq(id)}</span><button onclick="wSetQty(event,'${id}',1)" aria-label="증가">+</button></div></div>`;}).join('')}
           <div class="prow" style="margin-top:6px"><span class="pk"><i data-lucide="package" style="width:16px;height:16px"></i> 제품가 합계 <span class="sub">${wunits()}개</span></span><span class="pv">${won(wsub())}</span></div>
           <div class="prow"><span class="pk"><i data-lucide="wrench" style="width:16px;height:16px"></i> 시공비 <span class="sub">×${wunits()}</span></span><span class="pv">${won(wlabor())}</span></div>
           <div class="prow"><span class="pk"><i data-lucide="trash-2" style="width:16px;height:16px"></i> 폐기물 처리비 <span class="sub">×${wunits()}</span></span><span class="pv${W.selfDisposal?' strike':''}">${won(wdisp())}</span></div>
@@ -892,7 +898,7 @@ function wOpenSashSizePicker(id){
     <div class="sash-size-grid">
       ${choices.map(v=>{
         const selected = W.selected.includes(v.product.id);
-        return `<button class="sash-size-option${selected?' selected':''}" onclick="wSelectSashVariant('${id}','${v.product.id}')"><b>${v.size}</b><span>${won(v.product.price)}원</span><small>${v.product.color || '기본'}</small></button>`;
+        return `<button class="sash-size-option${selected?' selected':''}" onclick="wSelectSashVariant('${id}','${v.product.id}')"><b>${v.size}</b><span>${won(productPrice(v.product))}원</span><small>${v.product.color || '기본'}</small></button>`;
       }).join('')}
     </div>
     <p class="p-sm mt12">선택한 사이즈가 장바구니에 담겨요. 같은 사이즈에 색상별 가격 차이가 있으면 최저가 기준으로 담습니다.</p>`);
@@ -904,7 +910,7 @@ function wOpenColorVariantPicker(id){
     <div class="sash-size-grid">
       ${choices.map(v=>{
         const selected = W.selected.includes(v.product.id);
-        return `<button class="sash-size-option${selected?' selected':''}" onclick="wSelectColorVariant('${id}','${v.product.id}')"><b>${v.color}</b><span>${won(v.product.price)}원</span><small>${v.product.sku || v.product.model || ''}</small></button>`;
+        return `<button class="sash-size-option${selected?' selected':''}" onclick="wSelectColorVariant('${id}','${v.product.id}')"><b>${v.color}</b><span>${won(productPrice(v.product))}원</span><small>${v.product.sku || v.product.model || ''}</small></button>`;
       }).join('')}
     </div>`);
 }
@@ -1636,7 +1642,7 @@ function legalModal(type){
   document.body.appendChild(o); if(window.lucide) lucide.createIcons();
 }
 function openEstimate(){
-  const rows = W.selected.map(id=>{ const p=wp(id); const q=wq(id); return `<tr><td>${catOf(id).replace(/\\s*교체$/,'')} · ${p.brand} ${productDisplayNameWithOptions(p, id)}</td><td class="c">${q}</td><td class="r">${won(p.price*q)}</td></tr>`; }).join('');
+  const rows = W.selected.map(id=>{ const p=wp(id); const q=wq(id); return `<tr><td>${catOf(id).replace(/\\s*교체$/,'')} · ${p.brand} ${productDisplayNameWithOptions(p, id)}</td><td class="c">${q}</td><td class="r">${won(productPrice(p)*q)}</td></tr>`; }).join('');
   const today = new Date().toLocaleDateString('ko-KR');
   const estimateTotal = wtot();
   const vatIncludedTotal = wvatTotal();
@@ -1713,7 +1719,7 @@ async function openFinalEstimate(){
       name: p.name || p.model || '-',
       categoryName,
       qty: Number(p.qty || 1),
-      price: Number(p.price || 0),
+      price: productPrice(p),
       image: p.image || ITEM_IMG[categoryName] || ITEM_IMG[`${categoryName} 교체`] || ''
     };
   }) : W.selected.map(id => {
@@ -1724,7 +1730,7 @@ async function openFinalEstimate(){
       name: `${p.brand} ${productDisplayNameWithOptions(p, id)}`,
       categoryName: cat.replace(/\s*교체$/,''),
       qty: q,
-      price: Number(p.price || 0),
+      price: productPrice(p),
       image: ITEM_IMG[cat] || ''
     };
   });
@@ -1848,7 +1854,7 @@ const wpcard = (p, rec) => {
   return `<div class="pcard${sel?' sel':''}" data-pid="${p.id}">
     <div class="pimg imgph${p.image?' has-img':''}" style="cursor:pointer" onclick="webProductModal('${p.id}')">${productImg(p)}${recTag}</div>
     <div class="psel" onclick="wToggle(event,'${p.id}')"><i data-lucide="check"></i></div>
-    <div class="pinfo" style="cursor:pointer" onclick="webProductModal('${p.id}')"><div class="pbrand">${p.brand}</div><div class="pname">${productDisplayName(p)}</div><div class="pprice">${won(p.price)}<small> 원</small></div>${sizeLabel}</div>
+    <div class="pinfo" style="cursor:pointer" onclick="webProductModal('${p.id}')"><div class="pbrand">${p.brand}</div><div class="pname">${productDisplayName(p)}</div><div class="pprice">${won(productPrice(p))}<small> 원</small></div>${sizeLabel}</div>
   </div>`;
 };
 function wBuyProduct(ev, id){
@@ -1882,7 +1888,7 @@ function webProductModal(id){
       <div class="pm-detail-info">
         <div class="pm-brand">${p.brand}</div>
         <h2 class="pm-title">${productDisplayName(p)}</h2>
-        <div class="pm-row"><div class="pm-price" data-sash-price>${won(display.price)}<small>원부터</small></div>
+        <div class="pm-row"><div class="pm-price" data-sash-price>${won(productPrice(display))}<small>원</small></div>
           <button class="pm-buy${sel?' added':''}" ${catOf(id)==='샷시손잡이'?'data-sash-buy':''} ${hasColorVariants?'data-color-buy':''} onclick="wBuyProduct(event,'${id}')">${sel?'담김 ✓':'담기'}</button></div>
         ${wSashDetailSizeHtml(id, selectedVariantId)}
         ${catOf(id)==='샷시손잡이'?`<div data-sash-color-wrap>${wSashDetailColorHtml(id, selectedVariantId)}</div>`:wColorDetailHtml(id, selectedVariantId)}
@@ -2287,13 +2293,13 @@ orderview: () => {
     return `<div style="display:flex;align-items:center;gap:14px;padding:12px;border:1px solid var(--gray-100);border-radius:16px;background:#fff">
       <span style="width:52px;height:52px;border-radius:12px;background:var(--gray-100);overflow:hidden;flex:none;display:grid;place-items:center">${im?`<img src="${im}" alt="" style="width:100%;height:100%;object-fit:cover">`:`<i data-lucide="package" style="width:22px;height:22px;color:var(--gray-400)"></i>`}</span>
       <div style="flex:1;min-width:0"><div class="strong" style="font-size:14px">${p.name||p.model||'-'}</div><div class="p-sm" style="color:var(--gray-500);margin-top:1px">${p.categoryName||p.serviceCode||''} · ${p.qty||1}개</div></div>
-      <div class="strong" style="white-space:nowrap">${won((p.price||0)*(p.qty||1))}<small style="color:var(--gray-400);font-weight:600"> 원</small></div>
+      <div class="strong" style="white-space:nowrap">${won(roundProductPrice(p.price)*(p.qty||1))}<small style="color:var(--gray-400);font-weight:600"> 원</small></div>
     </div>`;
   }).join('') : W.selected.map(id=>{const p=wp(id);const q=wq(id);const cat=catOf(id);const im=ITEM_IMG[cat];
     return `<div style="display:flex;align-items:center;gap:14px;padding:12px;border:1px solid var(--gray-100);border-radius:16px;background:#fff">
       <span style="width:52px;height:52px;border-radius:12px;background:var(--gray-100);overflow:hidden;flex:none;display:grid;place-items:center">${im?`<img src="${im}" alt="" style="width:100%;height:100%;object-fit:cover">`:''}</span>
       <div style="flex:1;min-width:0"><div class="strong" style="font-size:14px">${p.brand} ${productDisplayNameWithOptions(p, id)}</div><div class="p-sm" style="color:var(--gray-500);margin-top:1px">${cat.replace(/\s*교체$/,'')} · ${q}개</div></div>
-      <div class="strong" style="white-space:nowrap">${won(p.price*q)}<small style="color:var(--gray-400);font-weight:600"> 원</small></div>
+      <div class="strong" style="white-space:nowrap">${won(productPrice(p)*q)}<small style="color:var(--gray-400);font-weight:600"> 원</small></div>
     </div>`;}).join('');
   return `
 <div class="wrap narrow">
