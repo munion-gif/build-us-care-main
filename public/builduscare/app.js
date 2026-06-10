@@ -304,11 +304,15 @@ function sortedProducts(list, sortKey){
   });
 }
 const productBrand = p => p?.brand || '브랜드 미상';
-const normalizeChoiceColor = value => String(value || '').replace(/^색상\s*[·:ㆍ.-]?\s*/,'').trim();
+const normalizeChoiceColor = value => String(value || '')
+  .replace(/\u00a0/g, ' ')
+  .replace(/^색상(?:\s|[·ㆍ・:：./\\|-])*/,'')
+  .trim();
 const productColor = p => normalizeChoiceColor(p?.color) || '기본';
 const usefulColor = color => color && color !== '기본' && color !== '-';
 const visibleColors = colors => colors.filter(color => color !== '-');
-const colorPartsOf = p => String(p?.color || '').split(/\s*\/\s*/).map(normalizeChoiceColor).filter(usefulColor);
+const splitChoiceColors = value => String(value || '').split(/\s*[/,]\s*/).map(normalizeChoiceColor).filter(usefulColor);
+const colorPartsOf = p => splitChoiceColors(p?.color);
 const defaultColorOf = p => colorPartsOf(p)[0] || (usefulColor(productColor(p)) ? productColor(p) : '');
 const uniqueSorted = (list, pick) => [...new Set(list.map(pick).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'ko-KR'));
 const filteredProducts = (list, brand, color) => list.filter(p => (!brand || productBrand(p)===brand) && (!color || productColor(p)===color));
@@ -369,7 +373,9 @@ function sashColorChoices(id, variantId){
   (CATALOG['샷시손잡이'] || [])
     .filter(v=>sashBaseOf(v)===base && (sashSizeOf(v) || '기본')===size)
     .forEach(v=>{
-      colorPartsOf(v).forEach(color=>{
+      colorPartsOf(v).forEach(rawColor=>{
+        const color = normalizeChoiceColor(rawColor);
+        if(!usefulColor(color)) return;
         const prev = byColor.get(color);
         if(!prev || priceValue(v) < priceValue(prev)) byColor.set(color, v);
       });
@@ -602,7 +608,7 @@ function detailSashColorHtml(id, selectedId){
   const selectedColor = sashChosenColor(id, selectedId, choices);
   return `<span class="flabel mt20">색상</span>
     <div class="size-choice-options detail-size-options">
-      ${choices.map(v=>`<button class="size-choice-btn${v.color===selectedColor?' selected':''}" onclick="setDetailSashColorChoice('${id}','${v.product.id}','${encodeURIComponent(v.color)}')"><b>${v.color}</b><span>${won(productPrice(v.product))}원</span></button>`).join('')}
+      ${choices.map(v=>{ const color=normalizeChoiceColor(v.color); return `<button class="size-choice-btn${color===selectedColor?' selected':''}" onclick="setDetailSashColorChoice('${id}','${v.product.id}','${encodeURIComponent(color)}')"><b>${color}</b><span>${won(productPrice(v.product))}원</span></button>`; }).join('')}
     </div>`;
 }
 function detailColorChoiceHtml(id, selectedId){

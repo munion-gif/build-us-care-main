@@ -311,11 +311,15 @@ const categoryMinPrice = name => {
   return prices.length ? Math.min(...prices) : null;
 };
 const productBrand = p => p?.brand || '브랜드 미상';
-const normalizeChoiceColor = value => String(value || '').replace(/^색상\s*[·:ㆍ.-]?\s*/,'').trim();
+const normalizeChoiceColor = value => String(value || '')
+  .replace(/\u00a0/g, ' ')
+  .replace(/^색상(?:\s|[·ㆍ・:：./\\|-])*/,'')
+  .trim();
 const productColor = p => normalizeChoiceColor(p?.color) || '기본';
 const usefulColor = color => color && color !== '기본' && color !== '-';
 const visibleColors = colors => colors.filter(color => color !== '-');
-const colorPartsOf = p => String(p?.color || '').split(/\s*\/\s*/).map(normalizeChoiceColor).filter(usefulColor);
+const splitChoiceColors = value => String(value || '').split(/\s*[/,]\s*/).map(normalizeChoiceColor).filter(usefulColor);
+const colorPartsOf = p => splitChoiceColors(p?.color);
 const defaultColorOf = p => colorPartsOf(p)[0] || (usefulColor(productColor(p)) ? productColor(p) : '');
 const uniqueSorted = (list, pick) => [...new Set(list.map(pick).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'ko-KR'));
 const filteredProducts = (list, brand, color) => list.filter(p => (!brand || productBrand(p)===brand) && (!color || productColor(p)===color));
@@ -379,8 +383,9 @@ function wSashColorChoices(id, variantId){
   (CATALOG['샷시손잡이'] || [])
     .filter(v=>sashBaseOf(v)===base && (sashSizeOf(v) || '기본')===size)
     .forEach(v=>{
-      const colors = colorPartsOf(v);
-      colors.forEach(color=>{
+      colorPartsOf(v).forEach(rawColor=>{
+        const color = normalizeChoiceColor(rawColor);
+        if(!usefulColor(color)) return;
         const prev = byColor.get(color);
         if(!prev || priceValue(v) < priceValue(prev)) byColor.set(color, v);
       });
@@ -693,7 +698,7 @@ function wSashDetailColorHtml(id, selectedId){
   return `<div class="size-choice-box color-choice-box">
     <div class="size-choice-label">색상</div>
     <div class="size-choice-options">
-      ${choices.map(v=>`<button class="size-choice-btn color-choice-btn${v.color===selectedColor?' selected':''}" data-variant-id="${v.product.id}" data-sash-color="${esc(v.color)}" onclick="wSetSashColorDetailChoice('${id}','${v.product.id}','${encodeURIComponent(v.color)}')"><b>${v.color}</b><span>${won(productPrice(v.product))}원</span></button>`).join('')}
+      ${choices.map(v=>{ const color=normalizeChoiceColor(v.color); return `<button class="size-choice-btn color-choice-btn${color===selectedColor?' selected':''}" data-variant-id="${v.product.id}" data-sash-color="${esc(color)}" onclick="wSetSashColorDetailChoice('${id}','${v.product.id}','${encodeURIComponent(color)}')"><b>${color}</b><span>${won(productPrice(v.product))}원</span></button>`; }).join('')}
     </div>
   </div>`;
 }
@@ -1878,6 +1883,7 @@ function webProductModal(id){
   const hasColorVariants = wColorVariantOptions(id).length > 0;
   const isVariantChoice = catOf(id)==='샷시손잡이' || hasColorVariants;
   const sel = isVariantChoice ? W.selected.includes(selectedVariantId) : wProductSelected(id);
+  const selectedDisplayColor = catOf(id)==='샷시손잡이' ? wSashChosenColor(id, selectedVariantId) : productColor(display);
   const spec = (ic,t)=>`<div class="pm-spec"><span class="pm-ic"><i data-lucide="${ic}"></i></span><p>${t}</p></div>`;
   const sku = display.sku || display.model || '제품 정보 확인';
   const html = `<div class="pm-card">
@@ -1896,7 +1902,7 @@ function webProductModal(id){
         <div class="pm-specs">
           ${spec('ruler',`<span data-sash-note>${productPrimarySpec(display)}</span>`)}
           ${spec('package',`<span data-sash-sku>품번 · ${sku}</span>`)}
-        ${spec('palette',`<span data-sash-color>색상 · ${productColor(display) || '기본'}</span>`)}
+        ${spec('palette',`<span data-sash-color>색상 · ${selectedDisplayColor || '기본'}</span>`)}
           ${spec('info',`<span data-sash-feature>${productFeatureSpec(display)}</span>`)}
         </div>
       </div>
