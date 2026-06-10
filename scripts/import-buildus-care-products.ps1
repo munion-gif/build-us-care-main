@@ -89,7 +89,7 @@ function Get-ImageAliasKeys([string]$model, [string]$sku) {
 
 function Add-UniqueSearchKey($list, [string]$key) {
   $normalized = Normalize-Key $key
-  $validLength = $normalized.Length -ge 3 -or $normalized -match "^[가-힣]{2,}[A-Z]?$"
+  $validLength = $normalized.Length -ge 3 -or $normalized -match "^[가-힣]{2,}[A-Z]?$" -or $normalized -match "^[0-9]+[가-힣]+$"
   if ($validLength -and -not $list.Contains($normalized)) {
     $list.Add($normalized)
   }
@@ -118,6 +118,9 @@ function Get-ImageSearchKeys([string]$model, [string[]]$skuCodes) {
     }
   }
   foreach ($match in [regex]::Matches((Normalize-Key $model), "[A-Z]{1,3}[0-9]{2,}")) {
+    Add-UniqueSearchKey $keys ([string]$match.Value)
+  }
+  foreach ($match in [regex]::Matches($model.ToUpperInvariant(), "[A-Z]{1,4}[-_\s]+[0-9]{2,}")) {
     Add-UniqueSearchKey $keys ([string]$match.Value)
   }
   if ($englishTokens.Count -ge 2) {
@@ -151,11 +154,45 @@ function Get-ImageSearchKeys([string]$model, [string[]]$skuCodes) {
   if ($modelKey.Contains("IMAGE이미지") -or ($modelKey.StartsWith("IMAGE") -and $modelKey.Contains("이미지"))) {
     Add-UniqueSearchKey $keys "IMAGE이미지"
   }
+  if ($modelKey.Contains("VENTUNO") -or $modelKey.Contains("벤투노")) {
+    Add-UniqueSearchKey $keys "밴투노"
+  }
+  if ($modelKey.Contains("ACTIVE") -or $modelKey.Contains("액티브")) {
+    Add-UniqueSearchKey $keys "엑티브"
+  }
+  if ($modelKey.Contains("GL500")) {
+    Add-UniqueSearchKey $keys "GL500"
+  }
+  if ($modelKey.Contains("5종")) {
+    Add-UniqueSearchKey $keys "5품"
+  }
 
   foreach ($alias in (Get-ImageAliasKeys $model ($skuCodes -join " "))) {
     Add-UniqueSearchKey $keys $alias
   }
 
+  return $keys.ToArray()
+}
+
+function Get-ColorSearchKeys([string]$color) {
+  $keys = New-Object System.Collections.Generic.List[string]
+  $colorKey = Normalize-Key $color
+  Add-UniqueSearchKey $keys $colorKey
+  $aliases = @{
+    "블랙" = @("BLACK")
+    "화이트" = @("WHITE")
+    "크롬" = @("CHROME", "크롬")
+    "사틴헤어라인" = @("SATIN", "사틴", "헤어라인", "KAK")
+    "사틴무광" = @("SATIN", "사틴")
+    "그라파이트" = @("GRAPHITE", "그라파이트", "OAK")
+    "니켈" = @("NICKEL", "니켈")
+    "건메탈" = @("GUNMETAL", "건메탈")
+  }
+  if ($aliases.ContainsKey($colorKey)) {
+    foreach ($alias in $aliases[$colorKey]) {
+      Add-UniqueSearchKey $keys $alias
+    }
+  }
   return $keys.ToArray()
 }
 
@@ -554,7 +591,81 @@ function Find-ProductImage($imageCandidates, [string]$serviceCode, [string]$bran
   $modelTokens = [regex]::Matches($model.ToUpperInvariant(), "[A-Z0-9]{3,}") | ForEach-Object { [string]$_.Value } | Where-Object { $_ -notmatch "^[0-9]+$" }
   $aliasKeys = @(Get-ImageAliasKeys $model ($skuCodes -join " "))
   $imageSearchKeys = @(Get-ImageSearchKeys $model $skuCodes)
+  $colorSearchKeys = @(Get-ColorSearchKeys $color)
   $knownColorKeys = @("크롬", "사틴헤어라인", "사틴무광", "사틴", "그라파이트", "블랙", "화이트", "니켈", "건메탈", "브라운", "아이보리", "실버", "그레이", "블루", "핑크", "옐로우", "엘로우", "다크그레이", "다크크레이")
+
+  $preferred = $null
+  $preferredScore = 0
+  $preferredIdentityScore = 0
+  foreach ($image in $brandImages) {
+    $score = 0
+    $identityScore = 0
+    foreach ($code in $skuCodes) {
+      $codeKey = Normalize-Key $code
+      if ($codeKey -and ($image.NameKey.Contains($codeKey) -or $image.PathKey.Contains($codeKey))) {
+        $score += 300
+        $identityScore += 300
+      }
+    }
+    foreach ($searchKey in $imageSearchKeys) {
+      if ($searchKey -and ($image.NameKey.Contains($searchKey) -or $image.PathKey.Contains($searchKey))) {
+        $points = if ($searchKey -match "^[0-9]+[가-힣]+$") { 110 } elseif ($searchKey -match "[가-힣]{2,}[A-Z]$") { 150 } elseif ($searchKey -match "^[가-힣]{2,}$") { 85 } elseif ($searchKey.Length -ge 8) { 140 } elseif ($searchKey.Length -ge 6) { 100 } elseif ($searchKey.Length -ge 4) { 70 } else { 40 }
+        $score += $points
+        $identityScore += $points
+      }
+    }
+    foreach ($colorSearchKey in $colorSearchKeys) {
+      if ($colorSearchKey -and ($image.NameKey.Contains($colorSearchKey) -or $image.PathKey.Contains($colorSearchKey))) {
+        if ($colorSearchKey -eq $colorKey) { $score += 90 } else { $score += 65 }
+      }
+    }
+    if ($sheetKey -and $image.PathKey.Contains($sheetKey) -and -not $strictImageMatch) { $score += 25 }
+    if (($modelKey.Contains("ACTIVE") -or $modelKey.Contains("액티브")) -and $image.PathKey.Contains("엑티브")) {
+      $score += 240
+      $identityScore += 240
+    } elseif (($modelKey.Contains("ACTIVE") -or $modelKey.Contains("액티브")) -and -not $image.PathKey.Contains("엑티브")) {
+      $score -= 140
+    }
+    if ($modelKey.Contains("GL500") -and $image.PathKey.Contains("GL500")) {
+      $score += 260
+      $identityScore += 260
+    }
+    if ($modelKey.Contains("CUBEP") -and $image.PathKey.Contains("CUBEP")) {
+      $score += 220
+      $identityScore += 220
+    } elseif ($modelKey.Contains("CUBEP") -and -not $image.PathKey.Contains("CUBEP")) {
+      $score -= 140
+    }
+    if (($modelKey.Contains("PLATROUND") -or $modelKey.Contains("플랫라운드")) -and ($image.PathKey.Contains("PLATROUND") -or $image.PathKey.Contains("플랫라운드"))) {
+      $score += 240
+      $identityScore += 240
+    } elseif (($modelKey.Contains("PLATROUND") -or $modelKey.Contains("플랫라운드")) -and -not ($image.PathKey.Contains("PLATROUND") -or $image.PathKey.Contains("플랫라운드"))) {
+      $score -= 160
+    }
+    if ($modelKey.Contains("PLAT") -and $modelKey.Contains("플랫") -and -not ($modelKey.Contains("PLATROUND") -or $modelKey.Contains("플랫라운드") -or $modelKey.Contains("라운드")) -and ($image.PathKey.Contains("PLAT액세서리") -or $image.PathKey.Contains("플랫액세서리") -or $image.PathKey.Contains("PLAT5품"))) {
+      $score += 230
+      $identityScore += 230
+    }
+    if ($modelKey.Contains("PLAT") -and $modelKey.Contains("플랫") -and ($image.PathKey.Contains("엑티브") -or $image.PathKey.Contains("CUBEP") -or $image.PathKey.Contains("CONCEPT"))) {
+      $score -= 160
+    }
+    if ($colorKey -ne "블랙" -and $image.PathKey.Contains("BLACK")) { $score -= 140 }
+    if ($modelKey.Contains("PLAT") -and -not ($modelKey.Contains("PLATROUND") -or $modelKey.Contains("라운드")) -and ($image.PathKey.Contains("PLATROUND") -or $image.PathKey.Contains("플랫라운드"))) {
+      $score -= 220
+    }
+    if (($modelKey.Contains("PLATROUND") -or $modelKey.Contains("라운드")) -and $image.PathKey.Contains("플랫액세서리5품") -and -not $image.PathKey.Contains("라운드")) {
+      $score -= 120
+    }
+    if ($score -gt $preferredScore -or ($score -eq $preferredScore -and $identityScore -gt $preferredIdentityScore)) {
+      $preferred = $image
+      $preferredScore = $score
+      $preferredIdentityScore = $identityScore
+    }
+  }
+  if ($preferred -and $preferredScore -ge 85 -and $preferredIdentityScore -ge 60) {
+    return $preferred.FullName
+  }
+
   $best = $null
   $bestScore = 0
   $bestIdentityScore = 0
@@ -590,12 +701,22 @@ function Find-ProductImage($imageCandidates, [string]$serviceCode, [string]$bran
       $score += 80
       $identityScore += 80
     }
-    if ($colorKey -and $image.NameKey -eq $colorKey) { $score += 90 }
-    elseif ($colorKey -and $image.PathKey.Contains($colorKey)) { $score += 65 }
+    foreach ($colorSearchKey in $colorSearchKeys) {
+      if ($colorSearchKey -and ($image.NameKey.Contains($colorSearchKey) -or $image.PathKey.Contains($colorSearchKey))) {
+        $score += if ($colorSearchKey -eq $colorKey) { 80 } else { 60 }
+      }
+    }
     foreach ($knownColorKey in $knownColorKeys) {
       if ($colorKey -and $image.PathKey.Contains($knownColorKey) -and -not ($colorKey.Contains($knownColorKey) -or $knownColorKey.Contains($colorKey))) {
         $score -= 70
       }
+    }
+    if ($colorKey -ne "블랙" -and $image.PathKey.Contains("BLACK")) { $score -= 110 }
+    if ($modelKey.Contains("PLAT") -and -not ($modelKey.Contains("PLATROUND") -or $modelKey.Contains("라운드")) -and ($image.PathKey.Contains("PLATROUND") -or $image.PathKey.Contains("플랫라운드"))) {
+      $score -= 180
+    }
+    if (($modelKey.Contains("PLATROUND") -or $modelKey.Contains("라운드")) -and $image.PathKey.Contains("플랫액세서리5품") -and -not $image.PathKey.Contains("라운드")) {
+      $score -= 100
     }
     if ($serviceCode -eq "silicone_repair" -and $colorKey -and $image.PathKey.Contains($colorKey)) { $identityScore += 120 }
     if ($looseModelKey -and $looseImageKey.Length -ge 3 -and ($looseModelKey.Contains($looseImageKey) -or $looseImageKey.Contains($looseModelKey))) {
@@ -766,6 +887,7 @@ foreach ($workbookFile in $workbooks) {
           note = $product.note
           popular = $product.popular
           image = $product.image
+          sourceImageFile = $product.sourceImageFile
           sourceSheet = $product.sourceSheet
           sourceRow = $product.sourceRow
         }
