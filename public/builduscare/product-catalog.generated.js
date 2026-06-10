@@ -5930,7 +5930,7 @@ window.BUILDUS_CARE_CATALOG = {
       "rec": false,
       "recommendLabel": "",
       "recommendDescription": "",
-      "image": "/products/bidets/bidet-install-002-dst-1300.jpg",
+      "image": "/products/bidets/bidet-install-002-dst-1300-remote.jpg",
       "sourceWorkbook": "대림바스 비데.xlsx",
       "sourceSheet": "비데",
       "sourceRow": 3
@@ -6122,7 +6122,7 @@ window.BUILDUS_CARE_CATALOG = {
       "rec": false,
       "recommendLabel": "",
       "recommendDescription": "",
-      "image": "/products/bidets/bidet-install-010-c832700e.png",
+      "image": "/products/bidets/bidet-install-010-c832700e-sensewell.png",
       "sourceWorkbook": "아메리칸스탠다드 비데.xlsx",
       "sourceSheet": "비데",
       "sourceRow": 5
