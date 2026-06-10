@@ -461,7 +461,7 @@ function productNoteSegments(p){
 }
 const isProductSizeSegment = v => /^사이즈(?:\s|$)/.test(v);
 const isProductColorSegment = v => /^색상(?:\s|$)/.test(v);
-const featureLabelOrder = ['분류', '섹션', '가격구분', '포장', '확인'];
+const featureLabelOrder = ['분류', '섹션', '가격구분', '확인'];
 const featureLabelPattern = /(분류|섹션|가격구분|포장|확인|제조사단가|비고):/g;
 function productPrimarySpec(p){
   const segments = productNoteSegments(p);

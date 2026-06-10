@@ -444,7 +444,11 @@ function productSubSearchText(p){
   return [p?.categoryName, p?.sourceSheet, p?.name, p?.model].filter(Boolean).join(' ');
 }
 function productNoteHtml(p){
-  return esc(String(p?.note || '').replace(/\r\n?/g, '\n'));
+  const text = String(p?.note || '').replace(/\r\n?/g, '\n')
+    .replace(/(?:^|\s)포장:\s*.*?(?=\s(?:분류|섹션|가격구분|확인|제조사단가|비고):|$)/g, '')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+  return esc(text);
 }
 function productSelected(id){
   return S.selected.includes(id) || sashGroupSelected(id) || productGroupSelected(id);
