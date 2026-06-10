@@ -51,14 +51,21 @@ function selectedProductsFromQuote(order: Record<string, any>) {
       item?.metadata?.selected_replacement_product ??
       item?.metadata?.selected_replacement_product_snapshot ??
       item?.metadata?.selected_toilet_product;
+    const optionColor = asArray(item?.options).find((option) => option?.label === "색상")?.value;
+    const selectedColor = item?.metadata?.selected_color ?? optionColor ?? "";
+    const baseName = [selected?.brand, selected?.model].filter(Boolean).join(" ");
+    const name = baseName
+      ? `${baseName}${selectedColor && !baseName.includes(selectedColor) ? ` · ${selectedColor}` : ""}`
+      : item?.item_name || item?.sku;
     return {
       id: selected?.id ?? item?.metadata?.selected_replacement_product_id ?? item?.sku,
       brand: selected?.brand ?? "",
-      name: [selected?.brand, selected?.model].filter(Boolean).join(" ") || item?.item_name || item?.sku,
+      name,
       model: selected?.model ?? "",
       image: selected?.image ?? "",
       sku: selected?.sku ?? item?.sku,
-      color: selected?.color ?? "",
+      color: (selectedColor || selected?.color) ?? "",
+      selectedColor,
       serviceCode: selected?.serviceCode ?? item?.sku ?? item?.metadata?.service_type_code,
       categoryName: selected?.categoryName ?? selected?.category ?? formatServiceName(item?.metadata?.service_type_code ?? item?.sku),
       qty: Number(item?.qty ?? 1),

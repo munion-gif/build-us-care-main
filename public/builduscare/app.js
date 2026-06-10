@@ -39,7 +39,7 @@ const LINEUP_IMG = {'수전 교체':'assets/lineup-faucet.png','양변기 교체
 const S = { cur:'home', hist:[], item:'수전 교체', selected:[], productPage:1, productSort:'low', brandFilter:'', colorFilter:'', photos:0, photoFiles:[], photoSets:[0,0,0], photoSetFiles:[[],[],[]],
   info:{region:'', regionDetail:'', postalCode:'', name:'', phone:''}, date:null, time:null, slotDays:{}, slotLoading:false, slotLoadedKey:'', slotErr:'', applied:false, selfDisposal:false,
   regionOk:false, specCheck:false, privacyOk:false, privacyOkInq:false, orderNo:'',
-  lookupNo:'', lookupName:'', lookupErr:false, lookupLoading:false, submitting:false, submitErr:'', remoteOrder:null, sashChoice:{}, variantChoice:{}, cashReceiptType:'none', cashReceiptIdentity:'' };
+  lookupNo:'', lookupName:'', lookupErr:false, lookupLoading:false, submitting:false, submitErr:'', remoteOrder:null, sashChoice:{}, sashColorChoice:{}, selectedOptions:{}, variantChoice:{}, cashReceiptType:'none', cashReceiptIdentity:'' };
 
 const M_ITEM_SLUGS = {'양변기 교체':'toilet','세면대 교체':'washbasin','수전 교체':'faucet','비데 설치':'bidet','환풍기 교체':'ventilation','샷시손잡이':'window-handle','도어핸들':'door-handle','실리콘 재시공':'silicone','욕실 악세서리':'bath-accessory'};
 const M_SLUG_ITEMS = Object.fromEntries(Object.entries(M_ITEM_SLUGS).map(([name, slug]) => [slug, name]));
@@ -302,6 +302,8 @@ const productBrand = p => p?.brand || '브랜드 미상';
 const productColor = p => p?.color || '기본';
 const usefulColor = color => color && color !== '기본' && color !== '-';
 const visibleColors = colors => colors.filter(color => color !== '-');
+const colorPartsOf = p => String(p?.color || '').split(/\s*\/\s*/).map(v=>v.trim()).filter(usefulColor);
+const defaultColorOf = p => colorPartsOf(p)[0] || (usefulColor(productColor(p)) ? productColor(p) : '');
 const uniqueSorted = (list, pick) => [...new Set(list.map(pick).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'ko-KR'));
 const filteredProducts = (list, brand, color) => list.filter(p => (!brand || productBrand(p)===brand) && (!color || productColor(p)===color));
 const productById = id => ALL_PRODUCTS.find(p=>p.id===id);
@@ -345,6 +347,59 @@ function sashSizeChoices(id){
   const bySize = new Map(options.map(v=>[v.size, v.product]));
   const sizes = ['소','중','대', ...[...bySize.keys()].filter(size=>!['소','중','대'].includes(size))].filter(size=>bySize.has(size));
   return sizes.map(size=>({ size, product:bySize.get(size) }));
+}
+function sashAllVariants(id){
+  const p = productById(id);
+  if(!p || catalogCatOf(id)!=='샷시손잡이') return [];
+  const base = sashBaseOf(p);
+  return (CATALOG['샷시손잡이'] || []).filter(v=>sashBaseOf(v)===base);
+}
+function sashColorChoices(id, variantId){
+  const source = productById(id), selected = productById(variantId) || source;
+  if(!source || !selected || catalogCatOf(source.id)!=='샷시손잡이') return [];
+  const base = sashBaseOf(source);
+  const size = sashSizeOf(selected) || '기본';
+  const byColor = new Map();
+  (CATALOG['샷시손잡이'] || [])
+    .filter(v=>sashBaseOf(v)===base && (sashSizeOf(v) || '기본')===size)
+    .forEach(v=>{
+      colorPartsOf(v).forEach(color=>{
+        const prev = byColor.get(color);
+        if(!prev || priceValue(v) < priceValue(prev)) byColor.set(color, v);
+      });
+    });
+  if(byColor.size < 2) return [];
+  return [...byColor.entries()]
+    .sort(([a,av],[b,bv])=> colorVariantOrder(a)-colorVariantOrder(b) || priceValue(av)-priceValue(bv) || String(a).localeCompare(String(b),'ko-KR'))
+    .map(([color, product])=>({ color, product }));
+}
+function sashChosenColor(sourceId, variantId, choices=sashColorChoices(sourceId, variantId)){
+  const selected = productById(variantId);
+  const wanted = S.sashColorChoice?.[sourceId] || S.selectedOptions?.[variantId]?.color;
+  if(wanted && choices.some(v=>v.color===wanted)) return wanted;
+  const own = defaultColorOf(selected);
+  if(own && (!choices.length || choices.some(v=>v.color===own))) return own;
+  return choices[0]?.color || own || '';
+}
+function sashVariantForColor(sourceId, variantId, color){
+  if(!color) return variantId;
+  const choice = sashColorChoices(sourceId, variantId).find(v=>v.color===color);
+  return choice?.product.id || variantId;
+}
+function rememberSelectedOption(id, color){
+  if(!id || !color) return;
+  S.selectedOptions = S.selectedOptions || {};
+  S.selectedOptions[id] = { ...(S.selectedOptions[id] || {}), color };
+}
+function selectedProductColor(id){
+  const p = productById(id);
+  if(!p) return '';
+  if(catalogCatOf(id)==='샷시손잡이') return S.selectedOptions?.[id]?.color || defaultColorOf(p);
+  return productColor(p);
+}
+function productDisplayNameWithOptions(p, id=p?.id){
+  const color = id && catalogCatOf(id)==='샷시손잡이' ? selectedProductColor(id) : '';
+  return `${productDisplayName(p)}${color ? ` · ${color}` : ''}`;
 }
 function productGroupKey(p, cat){
   const c = cat || catalogCatOf(p?.id);
@@ -476,6 +531,7 @@ function detailSashChoiceId(id){
   const choices = sashSizeChoices(id);
   if(!choices.length) return id;
   return S.sashChoice?.[id]
+    || sashAllVariants(id).find(v=>S.selected.includes(v.id))?.id
     || choices.find(v=>S.selected.includes(v.product.id))?.product.id
     || choices.find(v=>v.product.id===id)?.product.id
     || choices[0].product.id;
@@ -483,6 +539,26 @@ function detailSashChoiceId(id){
 function setDetailSashChoice(sourceId, variantId){
   S.sashChoice = S.sashChoice || {};
   S.sashChoice[sourceId] = variantId;
+  render('detail');
+}
+function detailSashVariantChoiceId(id){
+  const sizeId = detailSashChoiceId(id);
+  const color = sashChosenColor(id, sizeId);
+  const resolvedId = sashVariantForColor(id, sizeId, color);
+  if(color){
+    S.sashColorChoice = S.sashColorChoice || {};
+    S.sashColorChoice[id] = color;
+    rememberSelectedOption(resolvedId, color);
+  }
+  return resolvedId;
+}
+function setDetailSashColorChoice(sourceId, variantId, encodedColor){
+  const color = decodeURIComponent(encodedColor || '');
+  S.sashChoice = S.sashChoice || {};
+  S.sashColorChoice = S.sashColorChoice || {};
+  S.sashChoice[sourceId] = variantId;
+  S.sashColorChoice[sourceId] = color;
+  rememberSelectedOption(variantId, color);
   render('detail');
 }
 function detailColorChoiceId(id){
@@ -494,6 +570,7 @@ function detailColorChoiceId(id){
     || choices[0].product.id;
 }
 function detailVariantChoiceId(id){
+  if(catalogCatOf(id)==='샷시손잡이') return detailSashVariantChoiceId(id);
   const colorId = detailColorChoiceId(id);
   if(colorId !== id || colorVariantOptions(id).length) return colorId;
   return detailSashChoiceId(id);
@@ -506,9 +583,19 @@ function setDetailColorChoice(sourceId, variantId){
 function detailSashSizeHtml(id, selectedId){
   const choices = sashSizeChoices(id);
   if(catalogCatOf(id)!=='샷시손잡이' || !choices.length) return '';
+  const selectedSize = sashSizeOf(productById(selectedId)) || '기본';
   return `<span class="flabel mt20">사이즈</span>
     <div class="size-choice-options detail-size-options">
-      ${choices.map(v=>`<button class="size-choice-btn${v.product.id===selectedId?' selected':''}" onclick="setDetailSashChoice('${id}','${v.product.id}')"><b>${v.size}</b><span>${won(v.product.price)}원</span></button>`).join('')}
+      ${choices.map(v=>`<button class="size-choice-btn${v.size===selectedSize?' selected':''}" onclick="setDetailSashChoice('${id}','${v.product.id}')"><b>${v.size}</b><span>${won(v.product.price)}원</span></button>`).join('')}
+    </div>`;
+}
+function detailSashColorHtml(id, selectedId){
+  const choices = sashColorChoices(id, selectedId);
+  if(catalogCatOf(id)!=='샷시손잡이' || !choices.length) return '';
+  const selectedColor = sashChosenColor(id, selectedId, choices);
+  return `<span class="flabel mt20">색상</span>
+    <div class="size-choice-options detail-size-options">
+      ${choices.map(v=>`<button class="size-choice-btn${v.color===selectedColor?' selected':''}" onclick="setDetailSashColorChoice('${id}','${v.product.id}','${encodeURIComponent(v.color)}')"><b>${v.color}</b><span>${won(v.product.price)}원</span></button>`).join('')}
     </div>`;
 }
 function detailColorChoiceHtml(id, selectedId){
@@ -622,13 +709,17 @@ function toggleProductId(id){
 }
 function selectSashVariant(sourceId, variantId, fromDetail){
   if(!variantId) return;
-  sashVariantOptions(sourceId).forEach(v=>{
-    if(v.product.id!==variantId){
-      const i = S.selected.indexOf(v.product.id);
+  const color = sashChosenColor(sourceId, variantId);
+  const resolvedId = sashVariantForColor(sourceId, variantId, color);
+  sashAllVariants(sourceId).forEach(v=>{
+    if(v.id!==resolvedId){
+      const i = S.selected.indexOf(v.id);
       if(i>=0) S.selected.splice(i,1);
     }
   });
-  if(!S.selected.includes(variantId)) S.selected.push(variantId);
+  if(!S.selected.includes(resolvedId)) S.selected.push(resolvedId);
+  if(color) S.sashColorChoice[sourceId] = color;
+  rememberSelectedOption(resolvedId, color);
   closeSheet();
   if(fromDetail) back(); else syncProductListState();
 }
@@ -685,7 +776,7 @@ function toggleProduct(ev, id){
 function openDetail(id){ S.detail = id; nav('detail'); }
 function detailAddContinue(){
   if(catalogCatOf(S.detail)==='샷시손잡이'){
-    selectSashVariant(S.detail, detailSashChoiceId(S.detail), true);
+    selectSashVariant(S.detail, detailSashVariantChoiceId(S.detail), true);
     return;
   }
   if(colorVariantOptions(S.detail).length){
@@ -820,7 +911,10 @@ async function uploadOrderPhotosM(order, entries){
   }
 }
 function selectedOrderPayloadM(){
-  return S.selected.map(id=>({ id, qty:1 }));
+  return S.selected.map(id=>{
+    const selectedColor = catalogCatOf(id)==='샷시손잡이' ? selectedProductColor(id) : '';
+    return { id, qty:1, ...(selectedColor ? { selectedColor } : {}) };
+  });
 }
 function mDigits(v){ return String(v||'').replace(/\D/g,''); }
 function cashReceiptIdentityM(){
@@ -1407,7 +1501,7 @@ async function openFinalEstimateM(){
     const p = productById(id);
     const cat = catalogCatOf(id);
     return {
-      name: `${p.brand} ${productDisplayName(p)}`,
+      name: `${p.brand} ${productDisplayNameWithOptions(p, id)}`,
       categoryName: cat.replace(/\s*교체$/,''),
       qty: 1,
       price: Number(p.price || 0),
@@ -1694,7 +1788,7 @@ ${appbar('제품 상세', '<button class="iconbtn"><i data-lucide="heart"></i></
     <div class="h-lg mt2">${productDisplayName(p)}</div>
     <div class="row gap8 mt4" style="align-items:baseline"><div style="font-size:22px;font-weight:700">${won(display.price)}원</div><span class="p-sm">제품가</span></div>
     ${detailSashSizeHtml(S.detail, selectedVariantId)}
-    ${hasColorVariants ? detailColorChoiceHtml(S.detail, selectedVariantId) : `<span class="flabel mt20">색상</span><div class="chips"><span class="chip on">${display.color || '기본'}</span></div>`}
+    ${catalogCatOf(S.detail)==='샷시손잡이' ? detailSashColorHtml(S.detail, selectedVariantId) : (hasColorVariants ? detailColorChoiceHtml(S.detail, selectedVariantId) : `<span class="flabel mt20">색상</span><div class="chips"><span class="chip on">${display.color || '기본'}</span></div>`)}
     <span class="flabel mt20">제품 정보</span>
     <div class="bcard pad"><div class="prow" style="padding:8px 0"><span class="pk">브랜드</span><span class="pv">${display.brand}</span></div><div class="prow" style="padding:8px 0"><span class="pk">품번</span><span class="pv">${sku}</span></div><div class="prow" style="padding:8px 0"><span class="pk">종류</span><span class="pv">${display.categoryName || S.item}</span></div><div class="prow" style="padding:8px 0"><span class="pk">기준</span><span class="pv">${source}</span></div></div>
     ${display.note?`<div class="note info mt12"><i data-lucide="info"></i><div style="white-space:pre-line">${productNoteHtml(display)}</div></div>`:''}
@@ -1810,7 +1904,7 @@ ${appbar('예상 견적')}
   <div class="note info"><i data-lucide="shield-check"></i><div><b>예상 금액이에요.</b> 설치 가능 여부와 최종 금액은 사진 확인 후 확정되며, <b>추가 비용은 없어요.</b></div></div>
   <div class="h-md mt16">선택한 제품 ${S.selected.length}개</div>
   <div class="bcard pad mt8">
-    ${S.selected.map(id=>{const p=productById(id);return `<div class="between" style="padding:7px 0"><span class="p-sm" style="color:var(--gray-700)">${productDisplayName(p)}</span><span class="strong">${won(p.price)}</span></div>`;}).join('')}
+    ${S.selected.map(id=>{const p=productById(id);return `<div class="between" style="padding:7px 0"><span class="p-sm" style="color:var(--gray-700)">${productDisplayNameWithOptions(p, id)}</span><span class="strong">${won(p.price)}</span></div>`;}).join('')}
   </div>
   <div class="bcard pad mt12">
     <div class="prow"><span class="pk"><i data-lucide="package" style="width:16px;height:16px"></i> 제품가 합계</span><span class="pv">${won(subtotal())}</span></div>
@@ -1946,7 +2040,7 @@ orderview: () => {
     const im = p.image || ITEM_IMG[p.categoryName] || ITEM_IMG[`${p.categoryName||''} 교체`] || '';
     return `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--gray-100);border-radius:14px;background:#fff"><span style="width:46px;height:46px;border-radius:11px;background:var(--gray-100);overflow:hidden;flex:none;display:grid;place-items:center">${im?`<img src="${im}" alt="" style="width:100%;height:100%;object-fit:cover">`:`<i data-lucide="package" style="width:21px;height:21px;color:var(--gray-400)"></i>`}</span><div style="flex:1;min-width:0"><div class="strong" style="font-size:13.5px">${p.name||p.model||'-'}</div><div class="p-sm" style="color:var(--gray-500);margin-top:1px">${p.categoryName||p.serviceCode||''} · ${p.qty||1}개</div></div><div class="strong" style="white-space:nowrap">${won((p.price||0)*(p.qty||1))}<small style="color:var(--gray-400);font-weight:600"> 원</small></div></div>`;
   }).join('') : S.selected.map(id=>{const p=productById(id);const cat=catalogCatOf(id);const im=ITEM_IMG[cat];
-    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--gray-100);border-radius:14px;background:#fff"><span style="width:46px;height:46px;border-radius:11px;background:var(--gray-100);overflow:hidden;flex:none;display:grid;place-items:center">${im?`<img src="${im}" alt="" style="width:100%;height:100%;object-fit:cover">`:''}</span><div style="flex:1;min-width:0"><div class="strong" style="font-size:13.5px">${p.brand} ${productDisplayName(p)}</div><div class="p-sm" style="color:var(--gray-500);margin-top:1px">${cat.replace(/\s*교체$/,'')} · 1개</div></div><div class="strong" style="white-space:nowrap">${won(p.price)}<small style="color:var(--gray-400);font-weight:600"> 원</small></div></div>`;}).join('');
+    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--gray-100);border-radius:14px;background:#fff"><span style="width:46px;height:46px;border-radius:11px;background:var(--gray-100);overflow:hidden;flex:none;display:grid;place-items:center">${im?`<img src="${im}" alt="" style="width:100%;height:100%;object-fit:cover">`:''}</span><div style="flex:1;min-width:0"><div class="strong" style="font-size:13.5px">${p.brand} ${productDisplayNameWithOptions(p, id)}</div><div class="p-sm" style="color:var(--gray-500);margin-top:1px">${cat.replace(/\s*교체$/,'')} · 1개</div></div><div class="strong" style="white-space:nowrap">${won(p.price)}<small style="color:var(--gray-400);font-weight:600"> 원</small></div></div>`;}).join('');
   return `
 <div class="appbar bordered">${back_btn}<span class="title" style="font-size:13px;font-weight:700">주문 확인</span><span class="spacer"></span>${menu_btn}</div>
 <div class="body scroll"><div class="pad">

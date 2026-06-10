@@ -56,7 +56,7 @@ type BuildusPayload = {
     date?: number | string | null;
     time?: string | null;
   };
-  selected?: Array<{ id?: string; qty?: number }>;
+  selected?: Array<{ id?: string; qty?: number; selectedColor?: string; color?: string }>;
   selfDisposal?: boolean;
   totals?: {
     productAmount?: number;
@@ -145,19 +145,22 @@ function selectedProducts(payload: BuildusPayload) {
       const id = normalizeText(entry?.id);
       const product = id ? productById(id) : null;
       if (!product) return null;
+      const selectedColor = normalizeText(entry?.selectedColor ?? entry?.color);
       return {
         product,
-        qty: Math.max(1, Math.min(20, integer(entry?.qty, 1)))
+        qty: Math.max(1, Math.min(20, integer(entry?.qty, 1))),
+        selectedColor
       };
     })
-    .filter((entry): entry is { product: ReplacementProduct; qty: number } => Boolean(entry));
+    .filter((entry): entry is { product: ReplacementProduct; qty: number; selectedColor: string } => Boolean(entry));
 }
 
-function displayProductName(product: ReplacementProduct) {
-  return replacementProductDisplayName(product);
+function displayProductName(product: ReplacementProduct, selectedColor = "") {
+  const name = replacementProductDisplayName(product);
+  return selectedColor ? `${name} · ${selectedColor}` : name;
 }
 
-function buildOrderItems(entries: Array<{ product: ReplacementProduct; qty: number }>, fallbackItem: string, submissionType: SubmissionType) {
+function buildOrderItems(entries: Array<{ product: ReplacementProduct; qty: number; selectedColor: string }>, fallbackItem: string, submissionType: SubmissionType) {
   if (entries.length === 0) {
     const serviceCode = SERVICE_BY_ITEM[fallbackItem] ?? "photo_inquiry";
     return [{
@@ -175,24 +178,25 @@ function buildOrderItems(entries: Array<{ product: ReplacementProduct; qty: numb
     }];
   }
 
-  return entries.map(({ product, qty }) => ({
+  return entries.map(({ product, qty, selectedColor }) => ({
     service_type_code: product.serviceCode,
-    item_name: displayProductName(product),
+    item_name: displayProductName(product, selectedColor),
     qty,
     unit_price: integer(product.price),
-    options: [],
+    options: selectedColor ? [{ label: "색상", value: selectedColor }] : [],
     metadata: {
       service_type_code: product.serviceCode,
       selected_replacement_product_id: product.id,
       selected_replacement_product_snapshot: replacementProductSnapshot(product),
+      selected_color: selectedColor || null,
       request_type: submissionType,
       source: "builduscare_static"
     }
   }));
 }
 
-function buildQuoteLines(entries: Array<{ product: ReplacementProduct; qty: number }>, selfDisposal: boolean) {
-  return entries.map(({ product, qty }) => {
+function buildQuoteLines(entries: Array<{ product: ReplacementProduct; qty: number; selectedColor: string }>, selfDisposal: boolean) {
+  return entries.map(({ product, qty, selectedColor }) => {
     const unitMaterial = integer(product.price);
     const unitLabor = getProductLaborPrice(product.serviceCode, product);
     const disposalPerUnit = selfDisposal ? 0 : 10000;
@@ -201,7 +205,7 @@ function buildQuoteLines(entries: Array<{ product: ReplacementProduct; qty: numb
 
     return {
       sku: product.serviceCode,
-      item_name: product.categoryName || displayProductName(product),
+      item_name: product.categoryName || displayProductName(product, selectedColor),
       qty,
       unit_labor: unitLabor + disposalPerUnit,
       unit_material: unitMaterial,
@@ -209,13 +213,14 @@ function buildQuoteLines(entries: Array<{ product: ReplacementProduct; qty: numb
       line_labor: lineLabor,
       line_material: lineMaterial,
       line_total: lineMaterial + lineLabor,
-      options: [],
+      options: selectedColor ? [{ label: "색상", value: selectedColor }] : [],
       material_skus: [],
       metadata: {
         service_type_code: product.serviceCode,
         selected_replacement_product_id: product.id,
         selected_replacement_product: replacementProductSnapshot(product),
         selected_replacement_product_snapshot: replacementProductSnapshot(product),
+        selected_color: selectedColor || null,
         disposal_fee_per_unit: disposalPerUnit,
         source: "builduscare_static"
       }
@@ -629,14 +634,15 @@ export async function POST(request: Request) {
           postalCode,
           item,
           requestType: submissionType,
-          selected: entries.map(({ product, qty }) => ({
+          selected: entries.map(({ product, qty, selectedColor }) => ({
             id: product.id,
             brand: product.brand,
-            name: displayProductName(product),
+            name: displayProductName(product, selectedColor),
             model: replacementProductDisplayModel(product),
             image: product.image ?? "",
             sku: product.sku,
-            color: product.color ?? "",
+            color: (selectedColor || product.color) ?? "",
+            selectedColor: selectedColor || "",
             serviceCode: product.serviceCode,
             categoryName: product.categoryName,
             qty,

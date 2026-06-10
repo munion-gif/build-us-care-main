@@ -1,6 +1,6 @@
 "use client";
 
-const STATIC_VERSION = "20260610-hide-sash-package";
+const STATIC_VERSION = "20260610-sash-color-choice";
 const WEB_SRC = `/builduscare/app-web.html?v=${STATIC_VERSION}`;
 const MOBILE_SRC = `/builduscare/app-mobile.html?v=${STATIC_VERSION}`;
 
