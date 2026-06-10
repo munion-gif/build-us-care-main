@@ -375,7 +375,8 @@ function sashColorChoices(id, variantId){
   (CATALOG['샷시손잡이'] || [])
     .filter(v=>sashBaseOf(v)===base && (sashSizeOf(v) || '기본')===size)
     .forEach(v=>{
-      colorPartsOf(v).forEach(rawColor=>{
+      const colors = colorPartsOf(v);
+      colors.forEach(rawColor=>{
         const color = colorButtonLabel(rawColor);
         if(!usefulColor(color)) return;
         const prev = byColor.get(color);
@@ -610,7 +611,7 @@ function detailSashColorHtml(id, selectedId){
   const selectedColor = sashChosenColor(id, selectedId, choices);
   return `<span class="flabel mt20">색상</span>
     <div class="size-choice-options detail-size-options">
-      ${choices.map(v=>{ const color=colorButtonLabel(v.color); return `<button class="size-choice-btn${color===selectedColor?' selected':''}" onclick="setDetailSashColorChoice('${id}','${v.product.id}','${encodeURIComponent(color)}')"><b>${color}</b></button>`; }).join('')}
+      ${choices.map(v=>{ const color=colorButtonLabel(v.color); return `<button class="size-choice-btn color-choice-btn${color===selectedColor?' selected':''}" data-variant-id="${v.product.id}" data-sash-color="${esc(color)}" onclick="setDetailSashColorChoice('${id}','${v.product.id}','${encodeURIComponent(color)}')"><b>${color}</b></button>`; }).join('')}
     </div>`;
 }
 function cleanSashColorButtonLabels(root=document){

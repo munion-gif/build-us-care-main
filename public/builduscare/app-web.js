@@ -385,7 +385,8 @@ function wSashColorChoices(id, variantId){
   (CATALOG['샷시손잡이'] || [])
     .filter(v=>sashBaseOf(v)===base && (sashSizeOf(v) || '기본')===size)
     .forEach(v=>{
-      colorPartsOf(v).forEach(rawColor=>{
+      const colors = colorPartsOf(v);
+      colors.forEach(rawColor=>{
         const color = colorButtonLabel(rawColor);
         if(!usefulColor(color)) return;
         const prev = byColor.get(color);
