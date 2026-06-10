@@ -638,6 +638,7 @@ function wSetSashDetailChoice(sourceId, variantId){
   modal.querySelectorAll('.size-choice-btn[data-sash-size]').forEach(btn=>btn.classList.toggle('selected', btn.dataset.sashSize===selectedSize));
   const colorWrap = modal.querySelector('[data-sash-color-wrap]');
   if(colorWrap) colorWrap.innerHTML = wSashDetailColorHtml(sourceId, p.id);
+  cleanSashColorButtonLabels(modal);
   wSetDetailVariantFields(modal, p, color);
   const buy = modal.querySelector('[data-sash-buy]');
   if(buy){
@@ -658,6 +659,7 @@ function wSetSashColorDetailChoice(sourceId, variantId, encodedColor){
   modal.dataset.sashVariant = variantId;
   modal.dataset.sashColor = color;
   modal.querySelectorAll('.color-choice-btn[data-sash-color]').forEach(btn=>btn.classList.toggle('selected', btn.dataset.sashColor===color));
+  cleanSashColorButtonLabels(modal);
   wSetDetailVariantFields(modal, p, color);
   const buy = modal.querySelector('[data-sash-buy]');
   if(buy){
@@ -702,6 +704,12 @@ function wSashDetailColorHtml(id, selectedId){
       ${choices.map(v=>{ const color=colorButtonLabel(v.color); return `<button class="size-choice-btn color-choice-btn${color===selectedColor?' selected':''}" data-variant-id="${v.product.id}" data-sash-color="${esc(color)}" onclick="wSetSashColorDetailChoice('${id}','${v.product.id}','${encodeURIComponent(color)}')"><b>${color}</b><span>${won(productPrice(v.product))}원</span></button>`; }).join('')}
     </div>
   </div>`;
+}
+function cleanSashColorButtonLabels(root=document){
+  root.querySelectorAll('.size-choice-btn b').forEach(label=>{
+    const clean = colorButtonLabel(label.textContent);
+    if(clean && clean !== label.textContent) label.textContent = clean;
+  });
 }
 function wColorDetailHtml(id, selectedId){
   const choices = wColorVariantOptions(id);
@@ -1916,6 +1924,7 @@ function webProductModal(id){
   document.body.appendChild(o);
   if(catOf(id)==='샷시손잡이') wSetSashDetailChoice(id, selectedVariantId);
   if(hasColorVariants) wSetColorDetailChoice(id, selectedVariantId);
+  cleanSashColorButtonLabels(o);
   if(window.lucide) lucide.createIcons();
 }
 const steps = (i) => `<div class="stepline">${['제품 선택','사진 확인','예약','접수'].map((s,k)=>`<span class="${k===i?'on':''}">${s}</span>${k<3?'<i data-lucide=\"chevron-right\"></i>':''}`).join('')}</div>`;

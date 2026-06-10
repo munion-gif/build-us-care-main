@@ -612,6 +612,12 @@ function detailSashColorHtml(id, selectedId){
       ${choices.map(v=>{ const color=colorButtonLabel(v.color); return `<button class="size-choice-btn${color===selectedColor?' selected':''}" onclick="setDetailSashColorChoice('${id}','${v.product.id}','${encodeURIComponent(color)}')"><b>${color}</b><span>${won(productPrice(v.product))}원</span></button>`; }).join('')}
     </div>`;
 }
+function cleanSashColorButtonLabels(root=document){
+  root.querySelectorAll('.size-choice-btn b').forEach(label=>{
+    const clean = colorButtonLabel(label.textContent);
+    if(clean && clean !== label.textContent) label.textContent = clean;
+  });
+}
 function detailColorChoiceHtml(id, selectedId){
   const choices = colorVariantOptions(id);
   if(!choices.length) return '';
@@ -654,6 +660,7 @@ function render(id, dir){
   S.cur = id;
   el().innerHTML = `<div class="screen ${same?'noanim':(dir||'enter')}">${SCREENS[id]()}</div>`;
   const scr = document.querySelector('.scr'); if(scr) scr.classList.toggle('page-grouped', id!=='home');
+  cleanSashColorButtonLabels(el());
   if (window.lucide) lucide.createIcons();
   if(same){ const b=document.querySelector('.body.scroll'); if(b) b.scrollTop = prev; }
 }
