@@ -10,6 +10,9 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $publicProductsDir = Join-Path $ProjectRoot "public\products"
 $toiletJsonPath = Join-Path $ProjectRoot "lib\toilet-products.generated.json"
 $replacementJsonPath = Join-Path $ProjectRoot "lib\replacement-products.generated.json"
+$reportDir = Join-Path $ProjectRoot "reports"
+$imageMatchJsonPath = Join-Path $reportDir "builduscare-image-match-report.json"
+$imageMatchCsvPath = Join-Path $reportDir "builduscare-image-match-report.csv"
 
 function Get-NodeText($node) {
   if ($null -eq $node) { return "" }
@@ -384,6 +387,113 @@ function Get-EmbeddedImageMap([string]$Path, [int]$SheetIndex) {
   return $map
 }
 
+function Get-EmbeddedImageList([string]$Path, [int]$SheetIndex) {
+  $items = New-Object System.Collections.Generic.List[object]
+  $zipHandle = Open-ZipReadShared $Path
+  $zip = $zipHandle.Zip
+  try {
+    $sheetRelsEntry = $zip.GetEntry("xl/worksheets/_rels/sheet$SheetIndex.xml.rels")
+    if (-not $sheetRelsEntry) { return $items.ToArray() }
+    $sheetRelsReader = New-Object System.IO.StreamReader($sheetRelsEntry.Open())
+    try {
+      $sheetRelsXml = $sheetRelsReader.ReadToEnd()
+    } finally {
+      $sheetRelsReader.Dispose()
+    }
+
+    $drawingPaths = New-Object System.Collections.Generic.List[string]
+    foreach ($match in [regex]::Matches($sheetRelsXml, '<Relationship\b[^>]*/?>')) {
+      $relationshipText = [string]$match.Value
+      $typeMatch = [regex]::Match($relationshipText, '\bType="([^"]+)"')
+      $targetMatch = [regex]::Match($relationshipText, '\bTarget="([^"]+)"')
+      if (-not $typeMatch.Success -or -not $targetMatch.Success) { continue }
+      if ($typeMatch.Groups[1].Value -notlike "*relationships/drawing") { continue }
+      $drawingPaths.Add((Resolve-ZipTarget "xl/worksheets" $targetMatch.Groups[1].Value))
+    }
+
+    $sequence = 0
+    foreach ($drawingPath in $drawingPaths) {
+      $drawingEntry = $zip.GetEntry($drawingPath)
+      if (-not $drawingEntry) { continue }
+      $drawingReader = New-Object System.IO.StreamReader($drawingEntry.Open())
+      try {
+        $drawingXml = $drawingReader.ReadToEnd()
+      } finally {
+        $drawingReader.Dispose()
+      }
+
+      $drawingDir = $drawingPath.Substring(0, $drawingPath.LastIndexOf("/"))
+      $drawingFile = $drawingPath.Substring($drawingPath.LastIndexOf("/") + 1)
+      $relsPath = "$drawingDir/_rels/$drawingFile.rels"
+      $relsEntry = $zip.GetEntry($relsPath)
+      if (-not $relsEntry) { continue }
+      $relsReader = New-Object System.IO.StreamReader($relsEntry.Open())
+      try {
+        $relsXml = $relsReader.ReadToEnd()
+      } finally {
+        $relsReader.Dispose()
+      }
+
+      $rels = @{}
+      foreach ($match in [regex]::Matches($relsXml, '<Relationship\b[^>]*/?>')) {
+        $relationshipText = [string]$match.Value
+        $idMatch = [regex]::Match($relationshipText, '\bId="([^"]+)"')
+        $targetMatch = [regex]::Match($relationshipText, '\bTarget="([^"]+)"')
+        if (-not $idMatch.Success -or -not $targetMatch.Success) { continue }
+        $target = Resolve-ZipTarget $drawingDir ([string]$targetMatch.Groups[1].Value)
+        $rels[[string]$idMatch.Groups[1].Value] = $target
+      }
+
+      $anchorPattern = '<(?:\w+:)?(?:oneCellAnchor|twoCellAnchor)\b[\s\S]*?</(?:\w+:)?(?:oneCellAnchor|twoCellAnchor)>'
+      foreach ($anchor in [regex]::Matches($drawingXml, $anchorPattern)) {
+        $sequence += 1
+        $anchorText = [string]$anchor.Value
+        $rowMatch = [regex]::Match($anchorText, '<(?:\w+:)?from>[\s\S]*?<(?:\w+:)?row>(\d+)</(?:\w+:)?row>')
+        $toRowMatch = [regex]::Match($anchorText, '<(?:\w+:)?to>[\s\S]*?<(?:\w+:)?row>(\d+)</(?:\w+:)?row>')
+        $embedMatch = [regex]::Match($anchorText, 'r:embed="([^"]+)"')
+        if (-not $rowMatch.Success -or -not $embedMatch.Success) { continue }
+        $fromRow = [int]$rowMatch.Groups[1].Value
+        $toRow = if ($toRowMatch.Success) { [int]$toRowMatch.Groups[1].Value } else { $fromRow }
+        if ($toRow -lt $fromRow) { $toRow = $fromRow }
+        $rid = [string]$embedMatch.Groups[1].Value
+        if ($rels.ContainsKey($rid)) {
+          $items.Add([pscustomobject]@{
+            EntryPath = $rels[$rid]
+            FromRow = $fromRow
+            ToRow = $toRow
+            Sequence = $sequence
+          })
+        }
+      }
+    }
+  } finally {
+    $zip.Dispose()
+    $zipHandle.Stream.Dispose()
+  }
+  return $items.ToArray()
+}
+
+function Select-EmbeddedImageEntry($embeddedImageList, $usedEmbeddedImages, [int]$rowIndex) {
+  $unused = @($embeddedImageList)
+  if ($unused.Count -eq 0) { return $null }
+
+  $exact = @($unused | Where-Object { [int]$_.FromRow -eq $rowIndex } | Sort-Object `
+    @{ Expression = { [int]$_.Sequence }; Ascending = $true })
+  if ($exact.Count -gt 0) { return $exact[0] }
+
+  $covering = @($unused | Where-Object { [int]$_.FromRow -le $rowIndex -and [int]$_.ToRow -ge $rowIndex } | Sort-Object `
+    @{ Expression = { [math]::Abs((([double]$_.FromRow + [double]$_.ToRow) / 2) - $rowIndex) }; Ascending = $true },
+    @{ Expression = { [math]::Abs([int]$_.FromRow - $rowIndex) }; Ascending = $true },
+    @{ Expression = { [int]$_.Sequence }; Ascending = $true })
+  if ($covering.Count -gt 0) { return $covering[0] }
+
+  $nearby = @($unused | Where-Object { [math]::Abs([int]$_.FromRow - $rowIndex) -le 1 } | Sort-Object `
+    @{ Expression = { [math]::Abs([int]$_.FromRow - $rowIndex) }; Ascending = $true },
+    @{ Expression = { [int]$_.Sequence }; Ascending = $true })
+  if ($nearby.Count -gt 0) { return $nearby[0] }
+  return $null
+}
+
 function Copy-EmbeddedImage([string]$WorkbookPath, [string]$EntryPath, [string]$DestinationPath) {
   $zipHandle = Open-ZipReadShared $WorkbookPath
   $zip = $zipHandle.Zip
@@ -573,6 +683,67 @@ function Get-ImageCandidates([string]$sourceDir) {
         PathKey = Normalize-Key $_.FullName.Substring($sourceDir.Length)
       }
     }
+}
+
+function Get-ExactImageSkuCodes([string[]]$skuCodes) {
+  @($skuCodes | Where-Object {
+    $codeKey = Normalize-Key $_
+    $codeKey -and $codeKey.Length -ge 4 -and $codeKey -match "[A-Z]" -and $codeKey -match "\d"
+  })
+}
+
+function Find-ExactSkuImage($imageCandidates, [string]$brandRoot, [string]$sheetName, [string]$model, [string[]]$skuCodes, [string]$color = "") {
+  $exactCodes = @(Get-ExactImageSkuCodes $skuCodes)
+  if ($exactCodes.Count -eq 0) { return $null }
+
+  $brandImages = @($imageCandidates | Where-Object { $_.BrandRoot -eq $brandRoot })
+  if ($brandImages.Count -eq 0) { return $null }
+
+  $sheetKey = Normalize-Key $sheetName
+  $modelKeys = @(Get-ImageSearchKeys $model $skuCodes)
+  $colorSearchKeys = @(Get-ColorSearchKeys $color)
+  $best = $null
+  $bestScore = 0
+  $bestCode = ""
+
+  foreach ($image in $brandImages) {
+    $score = 0
+    $matchedCode = ""
+    foreach ($code in $exactCodes) {
+      $codeKey = Normalize-Key $code
+      if ($codeKey -and $image.NameKey.Contains($codeKey)) {
+        $score += 500
+        $matchedCode = $code
+      } elseif ($codeKey -and $image.PathKey.Contains($codeKey)) {
+        $score += 450
+        $matchedCode = $code
+      }
+    }
+    if (-not $matchedCode) { continue }
+    if ($sheetKey -and $image.PathKey.Contains($sheetKey)) { $score += 70 }
+    foreach ($colorSearchKey in $colorSearchKeys) {
+      if ($colorSearchKey -and ($image.NameKey.Contains($colorSearchKey) -or $image.PathKey.Contains($colorSearchKey))) {
+        $score += 35
+      }
+    }
+    foreach ($modelKey in $modelKeys) {
+      if ($modelKey -and ($image.NameKey.Contains($modelKey) -or $image.PathKey.Contains($modelKey))) {
+        $score += 20
+      }
+    }
+    if ($score -gt $bestScore) {
+      $best = $image
+      $bestScore = $score
+      $bestCode = $matchedCode
+    }
+  }
+
+  if (-not $best) { return $null }
+  return [pscustomobject]@{
+    FullName = $best.FullName
+    MatchCode = $bestCode
+    Score = $bestScore
+  }
 }
 
 function Find-ProductImage($imageCandidates, [string]$serviceCode, [string]$brandRoot, [string]$sheetName, [string]$model, [string[]]$skuCodes, [string]$color = "") {
@@ -768,6 +939,7 @@ foreach ($assetDir in $serviceAssetDirs) {
 $toiletProducts = New-Object System.Collections.Generic.List[object]
 $replacementProducts = New-Object System.Collections.Generic.List[object]
 $missingImages = New-Object System.Collections.Generic.List[object]
+$imageMatchReport = New-Object System.Collections.Generic.List[object]
 $counts = @{}
 $sequenceByService = @{}
 
@@ -779,7 +951,8 @@ foreach ($workbookFile in $workbooks) {
   $sheets = Read-XlsxSheets $workbookFile.FullName
   for ($sheetIndex = 0; $sheetIndex -lt $sheets.Count; $sheetIndex++) {
     $sheet = $sheets[$sheetIndex]
-    $embeddedImageMap = Get-EmbeddedImageMap $workbookFile.FullName ($sheetIndex + 1)
+    $embeddedImageList = @(Get-EmbeddedImageList $workbookFile.FullName ($sheetIndex + 1))
+    $usedEmbeddedImages = New-Object "System.Collections.Generic.HashSet[string]"
     if ($sheet.Rows.Count -lt 2) { continue }
     $category = Get-CategorySpec $serviceCode $sheet.Name
     if (-not $category) { continue }
@@ -809,19 +982,14 @@ foreach ($workbookFile in $workbooks) {
       $productId = "${serviceCode}:${categoryId}:$($sequence.ToString("00")):$slug"
       $assetDir = Get-ServiceAssetDir $serviceCode
       $fileSlug = "$($serviceCode -replace "_", "-")-$($sequence.ToString("000"))-$slug"
-      $embeddedEntryPath = if ($embeddedImageMap.ContainsKey($rowIndex)) { [string]$embeddedImageMap[$rowIndex] } else { $null }
-      $preferEmbeddedImage = $serviceCode -eq "sash_handle" -and $embeddedEntryPath
-      $sourceImage = if ($preferEmbeddedImage) { $null } else { Find-ProductImage $imageCandidates $serviceCode $brandRoot $sheet.Name $model $skuCodes $color }
+      $exactSkuImage = Find-ExactSkuImage $imageCandidates $brandRoot $sheet.Name $model $skuCodes $color
+      $embeddedImage = if ($exactSkuImage) { $null } else { Select-EmbeddedImageEntry $embeddedImageList $usedEmbeddedImages $rowIndex }
+      $embeddedEntryPath = if ($embeddedImage) { [string]$embeddedImage.EntryPath } else { $null }
+      $sourceImage = if ($exactSkuImage) { $exactSkuImage.FullName } elseif ($embeddedEntryPath) { $null } else { Find-ProductImage $imageCandidates $serviceCode $brandRoot $sheet.Name $model $skuCodes $color }
+      $imageMatchMethod = if ($exactSkuImage) { "sku-exact" } elseif ($embeddedEntryPath) { "excel-anchor" } elseif ($sourceImage) { "fuzzy-name" } else { "missing" }
+      $imageMatchCode = if ($exactSkuImage) { [string]$exactSkuImage.MatchCode } else { "" }
       $imagePath = $null
-      if ($preferEmbeddedImage) {
-        $ext = ([System.IO.Path]::GetExtension($embeddedEntryPath)).ToLowerInvariant()
-        if (-not $ext) { $ext = ".png" }
-        if ($ext -eq ".jpeg") { $ext = ".jpg" }
-        $destFile = Join-Path (Join-Path $publicProductsDir $assetDir) ($fileSlug + $ext)
-        if (Copy-EmbeddedImage $workbookFile.FullName $embeddedEntryPath $destFile) {
-          $imagePath = "/products/$assetDir/$fileSlug$ext"
-        }
-      } elseif ($sourceImage) {
+      if ($sourceImage) {
         $ext = ([System.IO.Path]::GetExtension($sourceImage)).ToLowerInvariant()
         if ($ext -eq ".jpeg") { $ext = ".jpg" }
         $destFile = Join-Path (Join-Path $publicProductsDir $assetDir) ($fileSlug + $ext)
@@ -844,6 +1012,32 @@ foreach ($workbookFile in $workbooks) {
           Sku = $sku
         })
       }
+      if (-not $imagePath) {
+        if ($imageMatchMethod -ne "missing") {
+          $missingImages.Add([pscustomobject]@{
+            Service = $serviceCode
+            Workbook = $workbookFile.Name
+            Sheet = $sheet.Name
+            Model = $model
+            Sku = $sku
+          })
+        }
+        $imageMatchMethod = "missing"
+      }
+      $imageMatchReport.Add([pscustomobject]@{
+        service = $serviceCode
+        workbook = $workbookFile.Name
+        sheet = $sheet.Name
+        row = $rowIndex + 1
+        brand = $brand
+        model = $model
+        sku = $sku
+        color = Normalize-Text $color
+        method = $imageMatchMethod
+        matchedSku = $imageMatchCode
+        sourceImageFile = if ($sourceImage) { [System.IO.Path]::GetFileName($sourceImage) } elseif ($embeddedEntryPath -and $imagePath) { [System.IO.Path]::GetFileName($embeddedEntryPath) } else { "" }
+        publicImage = if ($imagePath) { $imagePath } else { "" }
+      })
       $cleanColor = Normalize-Text $color
       $cleanSize = Normalize-Text $size
       $product = [ordered]@{
@@ -902,12 +1096,30 @@ foreach ($workbookFile in $workbooks) {
 $jsonOptions = @{ Depth = 20 }
 ($toiletProducts.ToArray() | ConvertTo-Json @jsonOptions) | Set-Content -LiteralPath $toiletJsonPath -Encoding UTF8
 ($replacementProducts.ToArray() | ConvertTo-Json @jsonOptions) | Set-Content -LiteralPath $replacementJsonPath -Encoding UTF8
+New-Item -ItemType Directory -Path $reportDir -Force | Out-Null
+$imageMatchSummary = @($imageMatchReport.ToArray() | Group-Object method | ForEach-Object {
+  [pscustomobject]@{
+    method = $_.Name
+    count = $_.Count
+  }
+})
+[pscustomobject]@{
+  generatedAt = (Get-Date).ToString("s")
+  sourceDir = $SourceDir
+  totalProducts = $imageMatchReport.Count
+  summary = $imageMatchSummary
+  rows = $imageMatchReport.ToArray()
+} | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $imageMatchJsonPath -Encoding UTF8
+$csvLines = $imageMatchReport.ToArray() | ConvertTo-Csv -NoTypeInformation
+$utf8Bom = New-Object System.Text.UTF8Encoding($true)
+[System.IO.File]::WriteAllText($imageMatchCsvPath, ($csvLines -join [Environment]::NewLine), $utf8Bom)
 
 [pscustomobject]@{
   Counts = $counts
   ToiletProducts = $toiletProducts.Count
   ReplacementProducts = $replacementProducts.Count
   MissingImageCount = $missingImages.Count
+  ImageMatchSummary = $imageMatchSummary
   MissingImageSamples = @($missingImages | Select-Object -First 20)
-  OutputFiles = @($toiletJsonPath, $replacementJsonPath)
+  OutputFiles = @($toiletJsonPath, $replacementJsonPath, $imageMatchJsonPath, $imageMatchCsvPath)
 } | ConvertTo-Json -Depth 8
