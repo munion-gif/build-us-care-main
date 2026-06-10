@@ -494,6 +494,44 @@ function Select-EmbeddedImageEntry($embeddedImageList, $usedEmbeddedImages, [int
   return $null
 }
 
+function Get-EmbeddedImageEntryOverride([string]$workbookName, [string]$sheetName, [int]$sourceRow) {
+  $key = "$workbookName|$sheetName|$sourceRow"
+  $overrides = @{
+    "아메리칸스탠다드 양변기.xlsx|투피스|4" = "xl/media/image12.jpeg"
+    "대림바스 비데.xlsx|비데|4" = "xl/media/image3.jpeg"
+    "힘펠 욕실환풍기.xlsx|욕실 환풍기|4" = "xl/media/image4.png"
+    "힘펠 욕실환풍기.xlsx|욕실 환풍기|5" = "xl/media/image3.png"
+    "아메리칸스탠다드 액세서리.xlsx|액세서리|7" = "xl/media/image4.png"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|2" = "xl/media/image43.png"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|3" = "xl/media/image44.png"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|4" = "xl/media/image45.jpeg"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|5" = "xl/media/image46.png"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|6" = "xl/media/image47.jpeg"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|13" = "xl/media/image54.jpeg"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|14" = "xl/media/image55.jpeg"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|15" = "xl/media/image56.jpeg"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|16" = "xl/media/image57.jpeg"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|20" = "xl/media/image61.jpeg"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|23" = "xl/media/image64.jpeg"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|24" = "xl/media/image65.png"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|25" = "xl/media/image66.png"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|26" = "xl/media/image67.png"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|28" = "xl/media/image69.jpeg"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|29" = "xl/media/image70.jpeg"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|30" = "xl/media/image71.jpeg"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|35" = "xl/media/image76.jpeg"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|36" = "xl/media/image77.jpeg"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|37" = "xl/media/image78.jpeg"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|38" = "xl/media/image79.jpeg"
+    "아메리칸스탠다드 수전.xlsx|샤워 욕조수전|39" = "xl/media/image80.jpeg"
+    "아메리칸스탠다드 수전.xlsx|레인샤워수전|19" = "xl/media/image99.jpeg"
+    "아메리칸스탠다드 수전.xlsx|레인샤워수전|23" = "xl/media/image103.jpeg"
+    "아메리칸스탠다드 수전.xlsx|레인샤워수전|25" = "xl/media/image105.jpeg"
+  }
+  if ($overrides.ContainsKey($key)) { return [string]$overrides[$key] }
+  return ""
+}
+
 function Copy-EmbeddedImage([string]$WorkbookPath, [string]$EntryPath, [string]$DestinationPath) {
   $zipHandle = Open-ZipReadShared $WorkbookPath
   $zip = $zipHandle.Zip
@@ -982,9 +1020,10 @@ foreach ($workbookFile in $workbooks) {
       $productId = "${serviceCode}:${categoryId}:$($sequence.ToString("00")):$slug"
       $assetDir = Get-ServiceAssetDir $serviceCode
       $fileSlug = "$($serviceCode -replace "_", "-")-$($sequence.ToString("000"))-$slug"
-      $exactSkuImage = Find-ExactSkuImage $imageCandidates $brandRoot $sheet.Name $model $skuCodes $color
-      $embeddedImage = if ($exactSkuImage) { $null } else { Select-EmbeddedImageEntry $embeddedImageList $usedEmbeddedImages $rowIndex }
-      $embeddedEntryPath = if ($embeddedImage) { [string]$embeddedImage.EntryPath } else { $null }
+      $embeddedImage = Select-EmbeddedImageEntry $embeddedImageList $usedEmbeddedImages $rowIndex
+      $embeddedOverride = Get-EmbeddedImageEntryOverride $workbookFile.Name $sheet.Name ($rowIndex + 1)
+      $embeddedEntryPath = if ($embeddedOverride) { $embeddedOverride } elseif ($embeddedImage) { [string]$embeddedImage.EntryPath } else { $null }
+      $exactSkuImage = if ($embeddedEntryPath) { $null } else { Find-ExactSkuImage $imageCandidates $brandRoot $sheet.Name $model $skuCodes $color }
       $sourceImage = if ($exactSkuImage) { $exactSkuImage.FullName } elseif ($embeddedEntryPath) { $null } else { Find-ProductImage $imageCandidates $serviceCode $brandRoot $sheet.Name $model $skuCodes $color }
       $imageMatchMethod = if ($exactSkuImage) { "sku-exact" } elseif ($embeddedEntryPath) { "excel-anchor" } elseif ($sourceImage) { "fuzzy-name" } else { "missing" }
       $imageMatchCode = if ($exactSkuImage) { [string]$exactSkuImage.MatchCode } else { "" }

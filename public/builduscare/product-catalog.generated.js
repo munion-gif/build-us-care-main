@@ -3888,7 +3888,7 @@ window.BUILDUS_CARE_CATALOG = {
       "rec": false,
       "recommendLabel": "",
       "recommendDescription": "",
-      "image": "/products/faucets/faucet-replace-097-fb2731-0kakd11aa.jpg",
+      "image": "/products/faucets/faucet-replace-097-fb2731-0kakd11aa.png",
       "sourceWorkbook": "아메리칸스탠다드 수전.xlsx",
       "sourceSheet": "샤워 욕조수전",
       "sourceRow": 3
@@ -3912,7 +3912,7 @@ window.BUILDUS_CARE_CATALOG = {
       "rec": false,
       "recommendLabel": "",
       "recommendDescription": "",
-      "image": "/products/faucets/faucet-replace-098-fb2731-0gak211aa.png",
+      "image": "/products/faucets/faucet-replace-098-fb2731-0gak211aa.jpg",
       "sourceWorkbook": "아메리칸스탠다드 수전.xlsx",
       "sourceSheet": "샤워 욕조수전",
       "sourceRow": 4
@@ -3936,7 +3936,7 @@ window.BUILDUS_CARE_CATALOG = {
       "rec": false,
       "recommendLabel": "",
       "recommendDescription": "",
-      "image": "/products/faucets/faucet-replace-099-fb2730-0kakd11aa.jpg",
+      "image": "/products/faucets/faucet-replace-099-fb2730-0kakd11aa.png",
       "sourceWorkbook": "아메리칸스탠다드 수전.xlsx",
       "sourceSheet": "샤워 욕조수전",
       "sourceRow": 5
@@ -3960,7 +3960,7 @@ window.BUILDUS_CARE_CATALOG = {
       "rec": false,
       "recommendLabel": "",
       "recommendDescription": "",
-      "image": "/products/faucets/faucet-replace-100-fb2730-0gak211aa.png",
+      "image": "/products/faucets/faucet-replace-100-fb2730-0gak211aa.jpg",
       "sourceWorkbook": "아메리칸스탠다드 수전.xlsx",
       "sourceSheet": "샤워 욕조수전",
       "sourceRow": 6
@@ -3984,7 +3984,7 @@ window.BUILDUS_CARE_CATALOG = {
       "rec": false,
       "recommendLabel": "",
       "recommendDescription": "",
-      "image": "/products/faucets/faucet-replace-101-fb2661.png",
+      "image": "/products/faucets/faucet-replace-101-fb2661.jpg",
       "sourceWorkbook": "아메리칸스탠다드 수전.xlsx",
       "sourceSheet": "샤워 욕조수전",
       "sourceRow": 7
@@ -4368,7 +4368,7 @@ window.BUILDUS_CARE_CATALOG = {
       "rec": false,
       "recommendLabel": "",
       "recommendDescription": "",
-      "image": "/products/faucets/faucet-replace-117-fb2808-0gak212ea.png",
+      "image": "/products/faucets/faucet-replace-117-fb2808-0gak212ea.jpg",
       "sourceWorkbook": "아메리칸스탠다드 수전.xlsx",
       "sourceSheet": "샤워 욕조수전",
       "sourceRow": 23
@@ -4536,7 +4536,7 @@ window.BUILDUS_CARE_CATALOG = {
       "rec": false,
       "recommendLabel": "",
       "recommendDescription": "",
-      "image": "/products/faucets/faucet-replace-124-fb2711-0gak211ea.png",
+      "image": "/products/faucets/faucet-replace-124-fb2711-0gak211ea.jpg",
       "sourceWorkbook": "아메리칸스탠다드 수전.xlsx",
       "sourceSheet": "샤워 욕조수전",
       "sourceRow": 30
@@ -5208,7 +5208,7 @@ window.BUILDUS_CARE_CATALOG = {
       "rec": false,
       "recommendLabel": "",
       "recommendDescription": "",
-      "image": "/products/faucets/faucet-replace-152-fb4956-0gak231aa.png",
+      "image": "/products/faucets/faucet-replace-152-fb4956-0gak231aa.jpg",
       "sourceWorkbook": "아메리칸스탠다드 수전.xlsx",
       "sourceSheet": "레인샤워수전",
       "sourceRow": 18
@@ -9228,7 +9228,7 @@ window.BUILDUS_CARE_CATALOG = {
       "rec": false,
       "recommendLabel": "",
       "recommendDescription": "",
-      "image": "/products/accessories/bath-accessory-016-fh1051-0gak499an.jpg",
+      "image": "/products/accessories/bath-accessory-016-fh1051-0gak499an.png",
       "sourceWorkbook": "아메리칸스탠다드 액세서리.xlsx",
       "sourceSheet": "액세서리",
       "sourceRow": 7
