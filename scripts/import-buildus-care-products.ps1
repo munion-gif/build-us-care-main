@@ -70,6 +70,95 @@ function Normalize-ImageModelKey([string]$value) {
   return (($key -replace "핸들", "") -replace "손잡이", "") -replace "(대|중|소|그립)$", ""
 }
 
+function Get-ImageAliasKeys([string]$model, [string]$sku) {
+  $text = Normalize-Key "$model $sku"
+  $aliases = New-Object System.Collections.Generic.List[string]
+  $bidetAliases = @{
+    "DST1100" = "SMARTLET1100"
+    "DST1300" = "SMARTLET1300"
+    "DST1300R" = "SMARTLET1300R"
+    "DST2200" = "SMARTLET2200"
+  }
+  foreach ($key in $bidetAliases.Keys) {
+    if ($text.Contains($key) -and -not $aliases.Contains($bidetAliases[$key])) {
+      $aliases.Add($bidetAliases[$key])
+    }
+  }
+  return $aliases.ToArray()
+}
+
+function Add-UniqueSearchKey($list, [string]$key) {
+  $normalized = Normalize-Key $key
+  $validLength = $normalized.Length -ge 3 -or $normalized -match "^[가-힣]{2,}[A-Z]?$"
+  if ($validLength -and -not $list.Contains($normalized)) {
+    $list.Add($normalized)
+  }
+}
+
+function Get-ImageSearchKeys([string]$model, [string[]]$skuCodes) {
+  $keys = New-Object System.Collections.Generic.List[string]
+  $genericTokens = @(
+    "수전", "세면", "세면수전", "샤워", "샤워수전", "욕조", "샤워욕조수전", "레인샤워", "주방", "주방수전",
+    "탑볼", "원홀", "벽붙이", "선반형", "양변기", "세면기", "비데", "환풍기", "욕실", "액세서리", "악세서리",
+    "핸들", "손잡이", "교체", "설치", "메인", "THUM", "IMG", "IMAGE", "MAIN", "ONE", "TWO", "WAY"
+  )
+
+  foreach ($code in $skuCodes) {
+    Add-UniqueSearchKey $keys $code
+    $codeRoot = ([regex]::Match($code.ToUpperInvariant(), "^[A-Z]+[0-9]+")).Value
+    if ($codeRoot) { Add-UniqueSearchKey $keys $codeRoot }
+  }
+
+  $englishTokens = New-Object System.Collections.Generic.List[string]
+  foreach ($match in [regex]::Matches($model.ToUpperInvariant(), "[A-Z][A-Z0-9]{2,}")) {
+    $token = Normalize-Key ([string]$match.Value)
+    if ($token -and $token -notmatch "^[0-9]+$" -and -not $genericTokens.Contains($token)) {
+      Add-UniqueSearchKey $keys $token
+      $englishTokens.Add($token)
+    }
+  }
+  foreach ($match in [regex]::Matches((Normalize-Key $model), "[A-Z]{1,3}[0-9]{2,}")) {
+    Add-UniqueSearchKey $keys ([string]$match.Value)
+  }
+  if ($englishTokens.Count -ge 2) {
+    Add-UniqueSearchKey $keys ($englishTokens[0] + $englishTokens[1])
+  }
+
+  foreach ($match in [regex]::Matches($model, "[가-힣]{2,}")) {
+    $token = Normalize-Key ([string]$match.Value)
+    if ($token -and -not $genericTokens.Contains($token)) {
+      Add-UniqueSearchKey $keys $token
+    }
+  }
+
+  $modelKey = Normalize-Key $model
+  foreach ($match in [regex]::Matches($modelKey, "[가-힣]{2,}[A-Z]")) {
+    Add-UniqueSearchKey $keys ([string]$match.Value)
+  }
+
+  if ($modelKey.Contains("LAKEROUND")) {
+    Add-UniqueSearchKey $keys "LAKER"
+    Add-UniqueSearchKey $keys "레이크R"
+  }
+  if ($modelKey.Contains("LAKESQUARE")) {
+    Add-UniqueSearchKey $keys "LAKES"
+    Add-UniqueSearchKey $keys "레이크S"
+  }
+  if ($modelKey.Contains("PLATROUND")) {
+    Add-UniqueSearchKey $keys "PLATROUND"
+    Add-UniqueSearchKey $keys "플랫라운드"
+  }
+  if ($modelKey.Contains("IMAGE이미지") -or ($modelKey.StartsWith("IMAGE") -and $modelKey.Contains("이미지"))) {
+    Add-UniqueSearchKey $keys "IMAGE이미지"
+  }
+
+  foreach ($alias in (Get-ImageAliasKeys $model ($skuCodes -join " "))) {
+    Add-UniqueSearchKey $keys $alias
+  }
+
+  return $keys.ToArray()
+}
+
 function Get-AsciiSlug([string]$value) {
   $slug = ($value.ToLowerInvariant() -replace "[^a-z0-9]+", "-").Trim("-")
   if ($slug) { return $slug }
@@ -379,7 +468,18 @@ function Get-CategorySpec([string]$serviceCode, [string]$sheetName) {
   if ($serviceCode -eq "silicone_repair") {
     return @{ Id = "silicone"; Name = "실리콘"; Summary = "욕실·주방·창호 주변 마감에 사용하는 실리콘입니다. 기존 실리콘 제거 범위와 색상 호환을 확인해 선택합니다."; Hint = "실리콘 색상·마감 교체" }
   }
+  if ($serviceCode -eq "bath_accessory") {
+    return @{ Id = "bath-accessory-set"; Name = "욕실 악세서리 세트"; Summary = "수건걸이, 휴지걸이, 컵대, 비누대 등 여러 악세서리를 한 번에 구성하는 세트입니다."; Hint = "여러 부위를 한 번에 교체할 때 세트 시공비로 계산합니다." }
+  }
   return $null
+}
+
+function Get-BathAccessoryCategorySpec([string]$model, [string]$feature) {
+  $text = Normalize-Text "$model $feature"
+  if ($text -match "(세트|[0-9]\s*종|액세서리|악세서리)") {
+    return @{ Id = "bath-accessory-set"; Name = "욕실 악세서리 세트"; Summary = "수건걸이, 휴지걸이, 컵대, 비누대 등 여러 악세서리를 한 번에 구성하는 세트입니다."; Hint = "여러 부위를 한 번에 교체할 때 세트 시공비로 계산합니다." }
+  }
+  return @{ Id = "shelf-towel"; Name = "선반 및 수건걸이"; Summary = "수건걸이, 선반, 휴지걸이처럼 단품으로 고정하는 욕실 악세서리입니다."; Hint = "설치 위치와 기존 타공 위치가 맞으면 단품 교체로 진행합니다." }
 }
 
 function Get-ServiceCodeForWorkbook([string]$fileName) {
@@ -391,6 +491,7 @@ function Get-ServiceCodeForWorkbook([string]$fileName) {
   if ($fileName -like "*샷시*손잡이*" -or $fileName -like "*샷시손잡이*") { return "sash_handle" }
   if ($fileName -like "*도어핸들*" -or $fileName -like "*도어*손잡이*" -or $fileName -like "*방문*손잡이*") { return "door_handle" }
   if ($fileName -like "*실리콘*") { return "silicone_repair" }
+  if ($fileName -like "*액세서리*" -or $fileName -like "*악세서리*") { return "bath_accessory" }
   return $null
 }
 
@@ -403,6 +504,7 @@ function Get-ServiceAssetDir([string]$serviceCode) {
   if ($serviceCode -eq "sash_handle") { return "sash-handles" }
   if ($serviceCode -eq "door_handle") { return "door-handles" }
   if ($serviceCode -eq "silicone_repair") { return "silicones" }
+  if ($serviceCode -eq "bath_accessory") { return "accessories" }
   return "misc"
 }
 
@@ -440,38 +542,87 @@ function Find-ProductImage($imageCandidates, [string]$serviceCode, [string]$bran
   $brandImages = @($imageCandidates | Where-Object { $_.BrandRoot -eq $brandRoot })
   if ($brandImages.Count -eq 0) { return $null }
   $sheetKey = Normalize-Key $sheetName
+  if ($sheetKey) {
+    $sheetImages = @($brandImages | Where-Object { $_.PathKey.Contains($sheetKey) })
+    if ($sheetImages.Count -gt 0) { $brandImages = $sheetImages }
+  }
   $modelKey = Normalize-Key $model
   $colorKey = Normalize-Key $color
   if ($colorKey -eq "다크그레이") { $colorKey = "다크크레이" }
   $looseModelKey = Normalize-ImageModelKey $model
   $strictImageMatch = $serviceCode -eq "sash_handle"
   $modelTokens = [regex]::Matches($model.ToUpperInvariant(), "[A-Z0-9]{3,}") | ForEach-Object { [string]$_.Value } | Where-Object { $_ -notmatch "^[0-9]+$" }
+  $aliasKeys = @(Get-ImageAliasKeys $model ($skuCodes -join " "))
+  $imageSearchKeys = @(Get-ImageSearchKeys $model $skuCodes)
+  $knownColorKeys = @("크롬", "사틴헤어라인", "사틴무광", "사틴", "그라파이트", "블랙", "화이트", "니켈", "건메탈", "브라운", "아이보리", "실버", "그레이", "블루", "핑크", "옐로우", "엘로우", "다크그레이", "다크크레이")
   $best = $null
   $bestScore = 0
+  $bestIdentityScore = 0
   foreach ($image in $brandImages) {
     $score = 0
+    $identityScore = 0
     $looseImageKey = Normalize-ImageModelKey $image.NameKey
     foreach ($code in $skuCodes) {
       $codeKey = Normalize-Key $code
-      if ($codeKey -and ($image.NameKey.Contains($codeKey) -or $image.PathKey.Contains($codeKey))) { $score += 120 }
+      if ($codeKey -and ($image.NameKey.Contains($codeKey) -or $image.PathKey.Contains($codeKey))) {
+        $score += 160
+        $identityScore += 160
+      }
     }
-    if ($modelKey -and $image.NameKey.Length -ge 4 -and ($modelKey.Contains($image.NameKey) -or $image.NameKey.Contains($modelKey))) { $score += 95 }
-    if ($modelKey -and $image.PathKey.Length -ge 4 -and ($modelKey.Contains($image.PathKey) -or $image.PathKey.Contains($modelKey))) { $score += 70 }
-    if ($colorKey -and $image.NameKey -eq $colorKey) { $score += 180 }
-    elseif ($colorKey -and $image.PathKey.Contains($colorKey)) { $score += 120 }
-    if ($looseModelKey -and $looseImageKey.Length -ge 3 -and ($looseModelKey.Contains($looseImageKey) -or $looseImageKey.Contains($looseModelKey))) { $score += 80 }
-    if ($sheetKey -and $image.PathKey.Contains($sheetKey) -and -not $strictImageMatch) { $score += 15 }
+    foreach ($aliasKey in $aliasKeys) {
+      if ($aliasKey -and ($image.NameKey.Contains($aliasKey) -or $image.PathKey.Contains($aliasKey))) {
+        $score += 170
+        $identityScore += 170
+      }
+    }
+    foreach ($searchKey in $imageSearchKeys) {
+      if ($searchKey -and ($image.NameKey.Contains($searchKey) -or $image.PathKey.Contains($searchKey))) {
+        $points = if ($searchKey -match "[가-힣]{2,}[A-Z]$") { 150 } elseif ($searchKey -match "^[가-힣]{2,}$") { 70 } elseif ($searchKey.Length -ge 8) { 120 } elseif ($searchKey.Length -ge 6) { 90 } elseif ($searchKey.Length -ge 4) { 60 } else { 40 }
+        $score += $points
+        $identityScore += $points
+      }
+    }
+    if ($modelKey -and $image.NameKey.Length -ge 4 -and ($modelKey.Contains($image.NameKey) -or $image.NameKey.Contains($modelKey))) {
+      $score += 100
+      $identityScore += 100
+    }
+    if ($modelKey -and $image.PathKey.Length -ge 4 -and ($modelKey.Contains($image.PathKey) -or $image.PathKey.Contains($modelKey))) {
+      $score += 80
+      $identityScore += 80
+    }
+    if ($colorKey -and $image.NameKey -eq $colorKey) { $score += 90 }
+    elseif ($colorKey -and $image.PathKey.Contains($colorKey)) { $score += 65 }
+    foreach ($knownColorKey in $knownColorKeys) {
+      if ($colorKey -and $image.PathKey.Contains($knownColorKey) -and -not ($colorKey.Contains($knownColorKey) -or $knownColorKey.Contains($colorKey))) {
+        $score -= 70
+      }
+    }
+    if ($serviceCode -eq "silicone_repair" -and $colorKey -and $image.PathKey.Contains($colorKey)) { $identityScore += 120 }
+    if ($looseModelKey -and $looseImageKey.Length -ge 3 -and ($looseModelKey.Contains($looseImageKey) -or $looseImageKey.Contains($looseModelKey))) {
+      $score += 80
+      $identityScore += 80
+    }
+    if ($sheetKey -and $image.PathKey.Contains($sheetKey) -and -not $strictImageMatch) { $score += 20 }
     foreach ($token in $modelTokens) {
       $tokenKey = Normalize-Key $token
-      if ($tokenKey.Length -ge 3 -and ($image.NameKey.Contains($tokenKey) -or $image.PathKey.Contains($tokenKey))) { $score += 8 }
+      if ($tokenKey.Length -ge 5 -and ($image.NameKey.Contains($tokenKey) -or $image.PathKey.Contains($tokenKey))) {
+        $score += 80
+        $identityScore += 80
+      }
+      elseif ($tokenKey.Length -ge 4 -and ($image.NameKey.Contains($tokenKey) -or $image.PathKey.Contains($tokenKey))) {
+        $score += 45
+        $identityScore += 45
+      }
     }
-    if ($score -gt $bestScore) {
+    if ($score -gt $bestScore -or ($score -eq $bestScore -and $identityScore -gt $bestIdentityScore)) {
       $best = $image
       $bestScore = $score
+      $bestIdentityScore = $identityScore
     }
   }
   if ($strictImageMatch -and $bestScore -lt 30) { return $null }
-  if (-not $strictImageMatch -and $bestScore -le 0) { return $null }
+  if (-not $strictImageMatch -and $bestScore -lt 60) { return $null }
+  if (-not $strictImageMatch -and $serviceCode -ne "silicone_repair" -and $bestIdentityScore -lt 45) { return $null }
   return $best.FullName
 }
 
@@ -488,7 +639,7 @@ function Reset-AssetDir([string]$dir) {
 }
 
 $imageCandidates = @(Get-ImageCandidates $SourceDir)
-$serviceAssetDirs = @("toilets", "basins", "faucets", "bidets", "ventilators", "sash-handles", "door-handles", "silicones")
+$serviceAssetDirs = @("toilets", "basins", "faucets", "bidets", "ventilators", "sash-handles", "door-handles", "silicones", "accessories")
 foreach ($assetDir in $serviceAssetDirs) {
   Reset-AssetDir (Join-Path $publicProductsDir $assetDir)
 }
@@ -523,6 +674,8 @@ foreach ($workbookFile in $workbooks) {
       $feature = Get-ByHeader $row $headers @("특징")
       $price = Parse-Price (Get-ByHeader $row $headers @("온라인 최저가", "단가", "제조사단가"))
       if (-not $brand -or -not $model) { continue }
+      if ($serviceCode -eq "basin_replace" -and (Normalize-Key "$model $skuRaw").Contains("CL1500")) { continue }
+      if ($serviceCode -eq "bath_accessory") { $category = Get-BathAccessoryCategorySpec $model $feature }
       $skuCodes = @(Extract-SkuCodes $skuRaw)
       $sku = if ($skuCodes.Count -gt 0) { $skuCodes -join " / " } else { Normalize-Text $skuRaw }
       if (-not $sku) { $sku = "-" }
@@ -589,6 +742,7 @@ foreach ($workbookFile in $workbooks) {
         note = Build-Note $size $color $feature $doorThickness ($serviceCode -eq "ventilator_replace")
         popular = $false
         image = $imagePath
+        sourceImageFile = if ($sourceImage) { [System.IO.Path]::GetFileName($sourceImage) } elseif ($embeddedEntryPath) { [System.IO.Path]::GetFileName($embeddedEntryPath) } else { "" }
         sourceWorkbook = $workbookFile.Name
         sourceSheet = if ($serviceCode -eq "silicone_repair") { "실리콘" } else { $sheet.Name }
         sourceRow = $rowIndex + 1

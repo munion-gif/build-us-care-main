@@ -57,7 +57,8 @@ function Get-CellValue($cell, $sharedStrings) {
 }
 
 function Read-XlsxRows([string]$Path) {
-  $zip = [System.IO.Compression.ZipFile]::OpenRead($Path)
+  $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite)
+  $zip = New-Object System.IO.Compression.ZipArchive($stream, [System.IO.Compression.ZipArchiveMode]::Read, $false)
   try {
     $shared = Get-SharedStrings $zip
     $workbookEntry = $zip.GetEntry("xl/workbook.xml")
@@ -112,6 +113,7 @@ function Read-XlsxRows([string]$Path) {
     return $result
   } finally {
     $zip.Dispose()
+    $stream.Dispose()
   }
 }
 
