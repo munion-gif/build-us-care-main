@@ -394,6 +394,75 @@ function addressPreview(order: any) {
   return [road, detail].filter(Boolean).join(" ") || "주소 미입력";
 }
 
+function queueNextAction(order: any) {
+  const status = String(order.status ?? "");
+  const payment = paymentState(order);
+  const hasAssigned = assignedTechnician(order) !== "미배정";
+  const photos = photoCount(order);
+
+  if (payment.needsConfirmation) {
+    return {
+      badge: "입금",
+      className: "adm-badge-orange",
+      label: "계좌이체 입금 확인",
+      help: `${formatKRW(payment.amount)} 입금 내역 확인 후 기사 배정으로 진행`
+    };
+  }
+  if (["paid", "product_paid"].includes(status)) {
+    return hasAssigned
+      ? {
+          badge: "확정",
+          className: "adm-badge-sky",
+          label: "방문 확정 필요",
+          help: `${visitScheduleLabel(order)} · 고객에게 방문 확정 상태로 안내`
+        }
+      : {
+          badge: "배정",
+          className: "adm-badge-blue",
+          label: "기사 배정 필요",
+          help: "담당 기사와 방문 시간대를 먼저 지정"
+        };
+  }
+  if (["scheduled", "in_progress"].includes(status)) {
+    return {
+      badge: "방문",
+      className: "adm-badge-sky",
+      label: status === "scheduled" ? "방문 준비" : "현장 진행 중",
+      help: `${visitScheduleLabel(order)} · 담당 ${assignedTechnician(order)}`
+    };
+  }
+  if (["completed", "done"].includes(status)) {
+    return {
+      badge: "완료",
+      className: "adm-badge-green",
+      label: status === "completed" ? "최종 검수" : "완료",
+      help: "완료 리포트와 A/S 가능 상태 확인"
+    };
+  }
+  if (["cancel_requested", "issue", "warranty"].includes(status)) {
+    return {
+      badge: "예외",
+      className: "adm-badge-red",
+      label: "운영 확인 필요",
+      help: "취소, 이슈, A/S 접수 내용을 우선 확인"
+    };
+  }
+  if (status === "quoted") {
+    return {
+      badge: "견적",
+      className: "adm-badge-sky",
+      label: "견적 확인 대기",
+      help: "고객 수락 여부와 입금 안내 흐름 확인"
+    };
+  }
+  return {
+    badge: "접수",
+    className: "adm-badge-gray",
+    label: photos > 0 ? "사진 확인 필요" : "접수 내용 확인",
+    help: photos > 0 ? `고객 사진 ${photos}장 확인 후 견적 안내` : "고객 요청 내용과 연락처 확인"
+  };
+}
+
 export default async function AdminOrdersPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const [{ orders, count, error, schemaWarning, page, limit, trashMode, testMode }, services, technicians] = await Promise.all([
@@ -532,6 +601,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
             const photos = photoCount(order);
             const money = paymentBreakdown(order);
             const pendingCancellation = Array.isArray(order.cancellations) ? order.cancellations.find((item: any) => item.status === "pending") : null;
+            const nextAction = queueNextAction(order);
             return (
               <article className="adm-order-queue-card" key={order.id}>
                 <div className="adm-order-queue-main">
@@ -541,9 +611,15 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
                     {order.is_test ? <span className="adm-badge adm-badge-sky">테스트</span> : null}
                   </div>
                   <strong>{selectedProductSummary(order)}</strong>
+                  <div className="adm-order-queue-next">
+                    <span className={`adm-badge ${nextAction.className}`}>{nextAction.badge}</span>
+                    <div>
+                      <b>{nextAction.label}</b>
+                      <small>{nextAction.help}</small>
+                    </div>
+                  </div>
                   <p>{customerLine(order)} · {formatChannel(order.channel)} · {formatKRDate(order.created_at)}</p>
                   <p>{addressPreview(order)}</p>
-                  <p>방문 일정: {visitScheduleLabel(order)}</p>
                   {trashMode && deletedMeta(order) ? <p className="adm-trash-meta">{deletedMeta(order)}</p> : null}
                 </div>
                 <div className="adm-order-queue-meta">

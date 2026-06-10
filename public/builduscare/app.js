@@ -975,6 +975,31 @@ function photoTimelineHtmlM(){
       <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">방문 교체</div><div class="tld">희망 일정 기준</div></div></div>
       <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">완료 · 보증 시작</div><div class="tld">완료 리포트 · A/S</div></div></div>`;
 }
+function orderStatusSummaryM(hasProducts){
+  if(!hasProducts) return {
+    title:'매니저가 사진을 확인 중이에요',
+    desc:'영업시간 기준 2시간 내 견적을 카카오톡으로 안내해 드릴게요.'
+  };
+  const stage = productOrderStageM();
+  if(stage === 'payment') return {
+    title:'제품 금액 입금 대기',
+    desc:`${won(paymentAmountM())}원 입금 확인 후 방문 안내가 진행돼요.`
+  };
+  if(stage === 'assign') return {
+    title:'기사 배정과 방문 일정 조율 중',
+    desc:'입금 확인이 완료됐고 방문 시간대를 순차 안내해 드릴게요.'
+  };
+  if(stage === 'scheduled') return {
+    title:'방문 일정이 확정됐어요',
+    desc: S.remoteOrder?.reservation?.date ? `${bookingDateLabel(S.remoteOrder.reservation.date)}${S.remoteOrder?.reservation?.time ? ` · ${S.remoteOrder.reservation.time}` : ''} 방문 예정이에요.` : '확정된 일정에 맞춰 방문 준비 중이에요.'
+  };
+  if(stage === 'visit') return { title:'현장 시공이 진행 중이에요', desc:'시공 완료 후 완료 상태와 A/S 안내를 확인할 수 있어요.' };
+  const status = normalizedOrderStatusM();
+  if(status === 'issue') return { title:'시공 후 확인이 필요해요', desc:'담당자가 문제 내용을 확인하고 안내해 드릴게요.' };
+  if(status === 'warranty') return { title:'A/S 접수가 진행 중이에요', desc:'접수 내용을 확인한 뒤 카카오톡으로 안내해 드릴게요.' };
+  if(status === 'completed') return { title:'최종 확인 중이에요', desc:'완료 처리와 정산 확인을 진행 중이에요.' };
+  return { title:'시공이 완료됐어요', desc:'완료 리포트와 A/S 가능 상태를 확인할 수 있어요.' };
+}
 const DEFAULT_BANK_TRANSFER_M = {
   bankName: '농협',
   bankAccount: '355-0094-9209-33',
@@ -1896,6 +1921,7 @@ orderview: () => {
   const remoteRows = Array.isArray(remote?.selected) ? remote.selected : [];
   const hasProducts=remoteRows.length>0 || S.selected.length>0;
   const statusLabel = paymentStatusLabelM();
+  const statusSummary = orderStatusSummaryM(hasProducts);
   const productAmount = remote?.totals ? Number(remote.totals.productAmount||0) : subtotal();
   const serviceAmount = remote?.totals ? Number(remote.totals.onsitePaymentAmount||remote.totals.laborAmount||0) : laborTotal();
   const disposalAmount = remote?.totals ? 0 : disposalFee();
@@ -1911,6 +1937,10 @@ orderview: () => {
 <div class="appbar bordered">${back_btn}<span class="title" style="font-size:13px;font-weight:700">주문 확인</span><span class="spacer"></span>${menu_btn}</div>
 <div class="body scroll"><div class="pad">
   <div class="bcard pad"><div class="between"><span class="badge badge-warning dot">${statusLabel}</span><span class="p-sm strong" style="color:var(--gray-600)">${remote?.orderNumber || S.orderNo}</span></div>
+    <div style="margin-top:12px;padding:12px 13px;border-radius:14px;background:rgba(36,95,255,.07);text-align:left">
+      <div class="p-sm strong" style="color:var(--gray-900)">${esc(statusSummary.title)}</div>
+      <div class="p-sm" style="margin-top:3px;color:var(--gray-600);line-height:1.45">${esc(statusSummary.desc)}</div>
+    </div>
     <div class="atl mt16">
       ${hasProducts ? productTimelineHtmlM() : photoTimelineHtmlM()}
     </div>

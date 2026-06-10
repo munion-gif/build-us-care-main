@@ -76,6 +76,11 @@
 .adm-order-queue-title .adm-link { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .adm-order-queue-main strong { min-height: 22px; color: #1c1b19; font-size: 0.9375rem; }
 .adm-order-queue-main p { margin: 0; color: #7a7974; font-size: 0.8125rem; line-height: 1.45; overflow-wrap: anywhere; }
+.adm-order-queue-next { display: flex; gap: 9px; align-items: flex-start; margin: 5px 0 3px; border: 1px solid #f0ede8; border-radius: 10px; background: #fbfaf7; padding: 9px 10px; }
+.adm-order-queue-next .adm-badge { flex: 0 0 auto; margin-top: 1px; }
+.adm-order-queue-next div { min-width: 0; display: grid; gap: 2px; }
+.adm-order-queue-next b { color: #1c1b19; font-size: 0.8125rem; line-height: 1.35; }
+.adm-order-queue-next small { color: #7a7974; font-size: 0.75rem; line-height: 1.35; overflow-wrap: anywhere; }
 .adm-order-queue-meta { align-self: stretch; display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
 .adm-order-queue-meta span { min-height: 74px; display: grid; align-content: start; gap: 5px; min-width: 0; border: 1px solid #f0ede8; border-radius: 8px; background: #fbfaf7; padding: 10px 12px; color: #28251d; font-size: 0.8125rem; line-height: 1.35; overflow-wrap: anywhere; }
 .adm-order-queue-meta b { color: #7a7974; font-size: var(--text-caption); text-transform: uppercase; letter-spacing: 0.05em; }

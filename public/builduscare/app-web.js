@@ -1184,6 +1184,36 @@ function wPhotoTimelineHtml(){
       <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">방문 교체</div><div class="tld">희망 일정 기준</div></div></div>
       <div class="atl-row todo"><span class="atl-node"></span><div><div class="tlt">완료 · 보증 시작</div><div class="tld">완료 리포트 · A/S</div></div></div>`;
 }
+function wOrderStatusSummary(hasProducts){
+  if(!hasProducts){
+    return {
+      title:'매니저가 사진을 확인 중이에요',
+      desc:'영업시간 기준 2시간 내 견적을 카카오톡으로 안내해 드릴게요.'
+    };
+  }
+  const stage = wProductOrderStage();
+  if(stage === 'payment') return {
+    title:'제품 금액 입금 대기',
+    desc:`${won(wPaymentAmount())}원 입금 확인 후 기사 배정과 방문 일정 안내가 진행돼요.`
+  };
+  if(stage === 'assign') return {
+    title:'기사 배정과 방문 일정 조율 중',
+    desc:'입금 확인이 완료됐고, 담당 기사와 방문 시간대를 순차적으로 안내해 드릴게요.'
+  };
+  if(stage === 'scheduled') return {
+    title:'방문 일정이 확정됐어요',
+    desc: W.remoteOrder?.reservation?.date ? `${bookingDateLabel(W.remoteOrder.reservation.date)}${W.remoteOrder?.reservation?.time ? ` · ${W.remoteOrder.reservation.time}` : ''} 방문 예정이에요.` : '확정된 일정에 맞춰 방문 준비 중이에요.'
+  };
+  if(stage === 'visit') return {
+    title:'현장 시공이 진행 중이에요',
+    desc:'시공 완료 후 완료 상태와 A/S 안내를 확인할 수 있어요.'
+  };
+  const status = wNormalizedOrderStatus();
+  if(status === 'issue') return { title:'시공 후 확인이 필요해요', desc:'담당자가 문제 내용을 확인하고 안내해 드릴게요.' };
+  if(status === 'warranty') return { title:'A/S 접수가 진행 중이에요', desc:'접수 내용을 확인한 뒤 카카오톡으로 안내해 드릴게요.' };
+  if(status === 'completed') return { title:'최종 확인 중이에요', desc:'완료 처리와 정산 확인을 진행 중이에요.' };
+  return { title:'시공이 완료됐어요', desc:'완료 리포트와 A/S 가능 상태를 확인할 수 있어요.' };
+}
 async function wSubmitOrder(){
   if(W.submitting) return;
   if(!wCashReceiptOk()){
@@ -2130,6 +2160,7 @@ orderview: () => {
   const remoteRows = Array.isArray(remote?.selected) ? remote.selected : [];
   const hasProducts=remoteRows.length>0 || W.selected.length>0;
   const statusLabel = wPaymentStatusLabel();
+  const statusSummary = wOrderStatusSummary(hasProducts);
   const productAmount = remote?.totals ? Number(remote.totals.productAmount||0) : wsub();
   const serviceAmount = remote?.totals ? Number(remote.totals.onsitePaymentAmount||remote.totals.laborAmount||0) : wlabor();
   const disposalAmount = remote?.totals ? 0 : wdisp();
@@ -2154,6 +2185,10 @@ orderview: () => {
   <div class="between" style="align-items:center"><h1 class="p-sm strong" style="margin:0;color:var(--gray-900)">주문 확인</h1><button class="web-btn sec" onclick="webnav('orders')"><i data-lucide="chevron-left" style="width:16px;height:16px"></i> 조회</button></div>
   <div class="bcard pad" style="padding:24px;margin-top:18px">
     <div class="between"><span class="badge badge-warning dot">${statusLabel}</span><span class="p-sm strong" style="color:var(--gray-600)">${remote?.orderNumber || W.orderNo}</span></div>
+    <div style="margin-top:14px;padding:13px 14px;border-radius:16px;background:rgba(36,95,255,.07);text-align:left">
+      <div class="p-sm strong" style="color:var(--gray-900)">${esc(statusSummary.title)}</div>
+      <div class="p-sm" style="margin-top:3px;color:var(--gray-600);line-height:1.45">${esc(statusSummary.desc)}</div>
+    </div>
     <div class="atl" style="margin-top:18px">
       ${hasProducts ? wProductTimelineHtml() : wPhotoTimelineHtml()}
     </div>
