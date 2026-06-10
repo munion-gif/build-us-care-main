@@ -306,6 +306,7 @@ function sortedProducts(list, sortKey){
 const productBrand = p => p?.brand || '브랜드 미상';
 const normalizeChoiceColor = value => String(value || '')
   .replace(/\u00a0/g, ' ')
+  .trim()
   .replace(/^색상(?:\s|[·ㆍ・:：./\\|-])*/,'')
   .trim();
 const colorButtonLabel = value => normalizeChoiceColor(value).replace(/^색상.*?[·ㆍ・:：./\\|-]\s*/,'').replace(/^색상\s*/,'').trim();
@@ -609,7 +610,7 @@ function detailSashColorHtml(id, selectedId){
   const selectedColor = sashChosenColor(id, selectedId, choices);
   return `<span class="flabel mt20">색상</span>
     <div class="size-choice-options detail-size-options">
-      ${choices.map(v=>{ const color=colorButtonLabel(v.color); return `<button class="size-choice-btn${color===selectedColor?' selected':''}" onclick="setDetailSashColorChoice('${id}','${v.product.id}','${encodeURIComponent(color)}')"><b>${color}</b><span>${won(productPrice(v.product))}원</span></button>`; }).join('')}
+      ${choices.map(v=>{ const color=colorButtonLabel(v.color); return `<button class="size-choice-btn${color===selectedColor?' selected':''}" onclick="setDetailSashColorChoice('${id}','${v.product.id}','${encodeURIComponent(color)}')"><b>${color}</b></button>`; }).join('')}
     </div>`;
 }
 function cleanSashColorButtonLabels(root=document){

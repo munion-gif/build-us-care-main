@@ -313,6 +313,7 @@ const categoryMinPrice = name => {
 const productBrand = p => p?.brand || '브랜드 미상';
 const normalizeChoiceColor = value => String(value || '')
   .replace(/\u00a0/g, ' ')
+  .trim()
   .replace(/^색상(?:\s|[·ㆍ・:：./\\|-])*/,'')
   .trim();
 const colorButtonLabel = value => normalizeChoiceColor(value).replace(/^색상.*?[·ㆍ・:：./\\|-]\s*/,'').replace(/^색상\s*/,'').trim();
@@ -701,7 +702,7 @@ function wSashDetailColorHtml(id, selectedId){
   return `<div class="size-choice-box color-choice-box">
     <div class="size-choice-label">색상</div>
     <div class="size-choice-options">
-      ${choices.map(v=>{ const color=colorButtonLabel(v.color); return `<button class="size-choice-btn color-choice-btn${color===selectedColor?' selected':''}" data-variant-id="${v.product.id}" data-sash-color="${esc(color)}" onclick="wSetSashColorDetailChoice('${id}','${v.product.id}','${encodeURIComponent(color)}')"><b>${color}</b><span>${won(productPrice(v.product))}원</span></button>`; }).join('')}
+      ${choices.map(v=>{ const color=colorButtonLabel(v.color); return `<button class="size-choice-btn color-choice-btn${color===selectedColor?' selected':''}" data-variant-id="${v.product.id}" data-sash-color="${esc(color)}" onclick="wSetSashColorDetailChoice('${id}','${v.product.id}','${encodeURIComponent(color)}')"><b>${color}</b></button>`; }).join('')}
     </div>
   </div>`;
 }
