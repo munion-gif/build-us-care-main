@@ -306,14 +306,17 @@ function sortedProducts(list, sortKey){
 const productBrand = p => p?.brand || '브랜드 미상';
 const normalizeChoiceColor = value => String(value || '')
   .replace(/\u00a0/g, ' ')
+  .replace(/\s+/g, ' ')
   .trim()
-  .replace(/^색상(?:\s|[·ㆍ・:：./\\|-])*/,'')
+  .replace(/^(?:색상\s*[·ㆍ・:：./\\|-]?\s*)+/,'')
   .trim();
-const colorButtonLabel = value => normalizeChoiceColor(value).replace(/^색상.*?[·ㆍ・:：./\\|-]\s*/,'').replace(/^색상\s*/,'').trim();
+const colorButtonLabel = value => normalizeChoiceColor(value)
+  .replace(/^(?:색상\s*[·ㆍ・:：./\\|-]?\s*)+/,'')
+  .trim();
 const productColor = p => normalizeChoiceColor(p?.color) || '기본';
 const usefulColor = color => color && color !== '기본' && color !== '-';
 const visibleColors = colors => colors.filter(color => color !== '-');
-const splitChoiceColors = value => String(value || '').split(/\s*[/,]\s*/).map(normalizeChoiceColor).filter(usefulColor);
+const splitChoiceColors = value => String(value || '').split(/\s*[/,]\s*/).map(colorButtonLabel).filter(usefulColor);
 const colorPartsOf = p => splitChoiceColors(p?.color);
 const defaultColorOf = p => colorPartsOf(p)[0] || (usefulColor(productColor(p)) ? productColor(p) : '');
 const uniqueSorted = (list, pick) => [...new Set(list.map(pick).filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),'ko-KR'));
@@ -615,9 +618,13 @@ function detailSashColorHtml(id, selectedId){
     </div>`;
 }
 function cleanSashColorButtonLabels(root=document){
-  root.querySelectorAll('.size-choice-btn b').forEach(label=>{
-    const clean = colorButtonLabel(label.textContent);
-    if(clean && clean !== label.textContent) label.textContent = clean;
+  root.querySelectorAll('.color-choice-btn').forEach(btn=>{
+    const clean = colorButtonLabel(btn.dataset.sashColor || btn.textContent);
+    if(!clean) return;
+    btn.dataset.sashColor = clean;
+    btn.querySelectorAll('span').forEach(span=>span.remove());
+    const label = btn.querySelector('b') || btn;
+    if(label.textContent !== clean) label.textContent = clean;
   });
 }
 function startSashColorButtonObserver(){
