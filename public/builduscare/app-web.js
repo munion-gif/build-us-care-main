@@ -711,6 +711,13 @@ function cleanSashColorButtonLabels(root=document){
     if(clean && clean !== label.textContent) label.textContent = clean;
   });
 }
+function startSashColorButtonObserver(){
+  if(window.__buildusSashColorObserver) return;
+  const run = () => cleanSashColorButtonLabels(document);
+  window.__buildusSashColorObserver = new MutationObserver(run);
+  window.__buildusSashColorObserver.observe(document.body, { childList:true, subtree:true, characterData:true });
+  run();
+}
 function wColorDetailHtml(id, selectedId){
   const choices = wColorVariantOptions(id);
   if(!choices.length) return '';
@@ -2362,3 +2369,4 @@ orderview: () => {
 
 wWireBrowserRouter();
 webnav(wScreenFromPath(wRouterPath()), { history: false });
+startSashColorButtonObserver();

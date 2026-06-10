@@ -618,6 +618,13 @@ function cleanSashColorButtonLabels(root=document){
     if(clean && clean !== label.textContent) label.textContent = clean;
   });
 }
+function startSashColorButtonObserver(){
+  if(window.__buildusSashColorObserver) return;
+  const run = () => cleanSashColorButtonLabels(el() || document);
+  window.__buildusSashColorObserver = new MutationObserver(run);
+  window.__buildusSashColorObserver.observe(el() || document.body, { childList:true, subtree:true, characterData:true });
+  run();
+}
 function detailColorChoiceHtml(id, selectedId){
   const choices = colorVariantOptions(id);
   if(!choices.length) return '';
@@ -2120,3 +2127,4 @@ ${appbar('A/S 접수')}
 /* boot */
 mWireBrowserRouter();
 render(mScreenFromPath(mRouterPath()));
+startSashColorButtonObserver();

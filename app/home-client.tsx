@@ -1,6 +1,6 @@
 "use client";
 
-const STATIC_VERSION = "20260610-sash-color-domfix";
+const STATIC_VERSION = "20260610-sash-color-observer";
 const WEB_SRC = `/builduscare/app-web.html?v=${STATIC_VERSION}`;
 const MOBILE_SRC = `/builduscare/app-mobile.html?v=${STATIC_VERSION}`;
 
