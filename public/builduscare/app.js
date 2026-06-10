@@ -308,6 +308,7 @@ const normalizeChoiceColor = value => String(value || '')
   .replace(/\u00a0/g, ' ')
   .replace(/^색상(?:\s|[·ㆍ・:：./\\|-])*/,'')
   .trim();
+const colorButtonLabel = value => normalizeChoiceColor(value).replace(/^색상.*?[·ㆍ・:：./\\|-]\s*/,'').replace(/^색상\s*/,'').trim();
 const productColor = p => normalizeChoiceColor(p?.color) || '기본';
 const usefulColor = color => color && color !== '기본' && color !== '-';
 const visibleColors = colors => colors.filter(color => color !== '-');
@@ -374,7 +375,7 @@ function sashColorChoices(id, variantId){
     .filter(v=>sashBaseOf(v)===base && (sashSizeOf(v) || '기본')===size)
     .forEach(v=>{
       colorPartsOf(v).forEach(rawColor=>{
-        const color = normalizeChoiceColor(rawColor);
+        const color = colorButtonLabel(rawColor);
         if(!usefulColor(color)) return;
         const prev = byColor.get(color);
         if(!prev || priceValue(v) < priceValue(prev)) byColor.set(color, v);
@@ -387,7 +388,7 @@ function sashColorChoices(id, variantId){
 }
 function sashChosenColor(sourceId, variantId, choices=sashColorChoices(sourceId, variantId)){
   const selected = productById(variantId);
-  const wanted = normalizeChoiceColor(S.sashColorChoice?.[sourceId] || S.selectedOptions?.[variantId]?.color);
+  const wanted = colorButtonLabel(S.sashColorChoice?.[sourceId] || S.selectedOptions?.[variantId]?.color);
   if(wanted && choices.some(v=>v.color===wanted)) return wanted;
   const own = defaultColorOf(selected);
   if(own && (!choices.length || choices.some(v=>v.color===own))) return own;
@@ -399,7 +400,7 @@ function sashVariantForColor(sourceId, variantId, color){
   return choice?.product.id || variantId;
 }
 function rememberSelectedOption(id, color){
-  const cleanColor = normalizeChoiceColor(color);
+  const cleanColor = colorButtonLabel(color);
   if(!id || !cleanColor) return;
   S.selectedOptions = S.selectedOptions || {};
   S.selectedOptions[id] = { ...(S.selectedOptions[id] || {}), color: cleanColor };
@@ -407,7 +408,7 @@ function rememberSelectedOption(id, color){
 function selectedProductColor(id){
   const p = productById(id);
   if(!p) return '';
-  if(catalogCatOf(id)==='샷시손잡이') return normalizeChoiceColor(S.selectedOptions?.[id]?.color) || defaultColorOf(p);
+  if(catalogCatOf(id)==='샷시손잡이') return colorButtonLabel(S.selectedOptions?.[id]?.color) || defaultColorOf(p);
   return productColor(p);
 }
 function productDisplayNameWithOptions(p, id=p?.id){
@@ -566,7 +567,7 @@ function detailSashVariantChoiceId(id){
   return resolvedId;
 }
 function setDetailSashColorChoice(sourceId, variantId, encodedColor){
-  const color = normalizeChoiceColor(decodeURIComponent(encodedColor || ''));
+  const color = colorButtonLabel(decodeURIComponent(encodedColor || ''));
   S.sashChoice = S.sashChoice || {};
   S.sashColorChoice = S.sashColorChoice || {};
   S.sashChoice[sourceId] = variantId;
@@ -608,7 +609,7 @@ function detailSashColorHtml(id, selectedId){
   const selectedColor = sashChosenColor(id, selectedId, choices);
   return `<span class="flabel mt20">색상</span>
     <div class="size-choice-options detail-size-options">
-      ${choices.map(v=>{ const color=normalizeChoiceColor(v.color); return `<button class="size-choice-btn${color===selectedColor?' selected':''}" onclick="setDetailSashColorChoice('${id}','${v.product.id}','${encodeURIComponent(color)}')"><b>${color}</b><span>${won(productPrice(v.product))}원</span></button>`; }).join('')}
+      ${choices.map(v=>{ const color=colorButtonLabel(v.color); return `<button class="size-choice-btn${color===selectedColor?' selected':''}" onclick="setDetailSashColorChoice('${id}','${v.product.id}','${encodeURIComponent(color)}')"><b>${color}</b><span>${won(productPrice(v.product))}원</span></button>`; }).join('')}
     </div>`;
 }
 function detailColorChoiceHtml(id, selectedId){

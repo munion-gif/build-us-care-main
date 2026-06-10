@@ -315,6 +315,7 @@ const normalizeChoiceColor = value => String(value || '')
   .replace(/\u00a0/g, ' ')
   .replace(/^색상(?:\s|[·ㆍ・:：./\\|-])*/,'')
   .trim();
+const colorButtonLabel = value => normalizeChoiceColor(value).replace(/^색상.*?[·ㆍ・:：./\\|-]\s*/,'').replace(/^색상\s*/,'').trim();
 const productColor = p => normalizeChoiceColor(p?.color) || '기본';
 const usefulColor = color => color && color !== '기본' && color !== '-';
 const visibleColors = colors => colors.filter(color => color !== '-');
@@ -384,7 +385,7 @@ function wSashColorChoices(id, variantId){
     .filter(v=>sashBaseOf(v)===base && (sashSizeOf(v) || '기본')===size)
     .forEach(v=>{
       colorPartsOf(v).forEach(rawColor=>{
-        const color = normalizeChoiceColor(rawColor);
+        const color = colorButtonLabel(rawColor);
         if(!usefulColor(color)) return;
         const prev = byColor.get(color);
         if(!prev || priceValue(v) < priceValue(prev)) byColor.set(color, v);
@@ -397,7 +398,7 @@ function wSashColorChoices(id, variantId){
 }
 function wSashChosenColor(sourceId, variantId, choices=wSashColorChoices(sourceId, variantId)){
   const selected = wp(variantId);
-  const wanted = normalizeChoiceColor(W.sashColorChoice?.[sourceId] || W.selectedOptions?.[variantId]?.color);
+  const wanted = colorButtonLabel(W.sashColorChoice?.[sourceId] || W.selectedOptions?.[variantId]?.color);
   if(wanted && choices.some(v=>v.color===wanted)) return wanted;
   const own = defaultColorOf(selected);
   if(own && (!choices.length || choices.some(v=>v.color===own))) return own;
@@ -409,7 +410,7 @@ function wSashVariantForColor(sourceId, variantId, color){
   return choice?.product.id || variantId;
 }
 function wRememberSelectedOption(id, color){
-  const cleanColor = normalizeChoiceColor(color);
+  const cleanColor = colorButtonLabel(color);
   if(!id || !cleanColor) return;
   W.selectedOptions = W.selectedOptions || {};
   W.selectedOptions[id] = { ...(W.selectedOptions[id] || {}), color: cleanColor };
@@ -417,7 +418,7 @@ function wRememberSelectedOption(id, color){
 function wSelectedProductColor(id){
   const p = wp(id);
   if(!p) return '';
-  if(catOf(id)==='샷시손잡이') return normalizeChoiceColor(W.selectedOptions?.[id]?.color) || defaultColorOf(p);
+  if(catOf(id)==='샷시손잡이') return colorButtonLabel(W.selectedOptions?.[id]?.color) || defaultColorOf(p);
   return productColor(p);
 }
 function productDisplayNameWithOptions(p, id=p?.id){
@@ -616,7 +617,7 @@ function wSetDetailVariantFields(modal, p, selectedColor=''){
   const sku = modal.querySelector('[data-sash-sku]');
   if(sku) sku.textContent = `품번 · ${p.sku || p.model || '제품 정보 확인'}`;
   const color = modal.querySelector('[data-sash-color]');
-  if(color) color.textContent = `색상 · ${normalizeChoiceColor(selectedColor || p.color) || '기본'}`;
+  if(color) color.textContent = `색상 · ${colorButtonLabel(selectedColor || p.color) || '기본'}`;
   const feature = modal.querySelector('[data-sash-feature]');
   if(feature) feature.textContent = productFeatureSpec(p);
   if(window.lucide) lucide.createIcons();
@@ -646,7 +647,7 @@ function wSetSashDetailChoice(sourceId, variantId){
   }
 }
 function wSetSashColorDetailChoice(sourceId, variantId, encodedColor){
-  const color = normalizeChoiceColor(decodeURIComponent(encodedColor || ''));
+  const color = colorButtonLabel(decodeURIComponent(encodedColor || ''));
   const modal = document.getElementById('wmodal');
   const p = wp(variantId);
   if(!modal || !p) return;
@@ -698,7 +699,7 @@ function wSashDetailColorHtml(id, selectedId){
   return `<div class="size-choice-box color-choice-box">
     <div class="size-choice-label">색상</div>
     <div class="size-choice-options">
-      ${choices.map(v=>{ const color=normalizeChoiceColor(v.color); return `<button class="size-choice-btn color-choice-btn${color===selectedColor?' selected':''}" data-variant-id="${v.product.id}" data-sash-color="${esc(color)}" onclick="wSetSashColorDetailChoice('${id}','${v.product.id}','${encodeURIComponent(color)}')"><b>${color}</b><span>${won(productPrice(v.product))}원</span></button>`; }).join('')}
+      ${choices.map(v=>{ const color=colorButtonLabel(v.color); return `<button class="size-choice-btn color-choice-btn${color===selectedColor?' selected':''}" data-variant-id="${v.product.id}" data-sash-color="${esc(color)}" onclick="wSetSashColorDetailChoice('${id}','${v.product.id}','${encodeURIComponent(color)}')"><b>${color}</b><span>${won(productPrice(v.product))}원</span></button>`; }).join('')}
     </div>
   </div>`;
 }
