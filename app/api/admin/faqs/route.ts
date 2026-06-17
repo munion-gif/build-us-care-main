@@ -3,6 +3,7 @@ import { revalidateTag } from "next/cache";
 import { fail, ok } from "@/lib/api-response";
 import { requireAdmin } from "@/lib/admin-auth";
 import { readJson, validationError } from "@/lib/errors";
+import { DEFAULT_FAQS } from "@/lib/faqs";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 
 const createSchema = z.object({
@@ -16,7 +17,7 @@ const createSchema = z.object({
 export async function GET(request: Request) {
   const authError = requireAdmin(request);
   if (authError) return authError;
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) return ok({ faqs: DEFAULT_FAQS, localMode: true });
 
   const { data, error } = await getSupabaseAdmin()
     .from("faqs")
@@ -25,13 +26,13 @@ export async function GET(request: Request) {
     .order("created_at", { ascending: true });
 
   if (error) return fail("internal_error", error.message, 500);
-  return ok({ faqs: data ?? [] });
+  return ok({ faqs: data ?? [], localMode: false });
 }
 
 export async function POST(request: Request) {
   const authError = requireAdmin(request);
   if (authError) return authError;
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 FAQ를 등록하지 않습니다.", 409, { localMode: true });
 
   const parsed = createSchema.safeParse(await readJson(request));
   if (!parsed.success) return validationError(parsed.error, "Invalid FAQ request.");

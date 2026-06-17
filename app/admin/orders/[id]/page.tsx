@@ -1,11 +1,22 @@
+import { cookies } from "next/headers";
+import Link from "next/link";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import {
-  formatAcquisitionSource,
-  formatChannel,
+  BUILDUSCARE_LOCAL_ADMIN_DIAGNOSIS_COOKIE,
+  BUILDUSCARE_LOCAL_ADMIN_DIAGNOSES_COOKIE,
+  BUILDUSCARE_LOCAL_ADMIN_ORDER_COOKIE,
+  BUILDUSCARE_LOCAL_ADMIN_ORDERS_COOKIE,
+  localAdminOrderHistoryToAdminDetail,
+  localAdminOrderToAdminListItem,
+  readLocalAdminDiagnosisCookie,
+  readLocalAdminDiagnosisHistoryCookie,
+  readLocalAdminOrderHistoryCookie,
+  readLocalAdminOrderCookie
+} from "@/lib/builduscare-local-admin";
+import {
   formatKRDateTime,
   formatKRW,
   formatOrderStatus,
-  formatPaymentMethod,
   formatServiceName
 } from "@/lib/format";
 import { OrderAssignmentButton, OrderScheduleConfirmButton } from "../order-assignment-client";
@@ -28,7 +39,16 @@ function siteUrl() {
 }
 
 async function getOrder(id: string) {
-  if (!hasSupabaseEnv()) return null;
+  if (!hasSupabaseEnv()) {
+    const cookieStore = await cookies();
+    const localOrder = readLocalAdminOrderCookie(cookieStore.get(BUILDUSCARE_LOCAL_ADMIN_ORDER_COOKIE)?.value);
+    if (localOrder?.id === id) {
+      return localAdminOrderToAdminListItem(localOrder);
+    }
+    const history = readLocalAdminOrderHistoryCookie(cookieStore.get(BUILDUSCARE_LOCAL_ADMIN_ORDERS_COOKIE)?.value);
+    const matched = history.find((item) => item.id === id);
+    return matched ? localAdminOrderHistoryToAdminDetail(matched) : null;
+  }
   const { data } = await getSupabaseAdmin()
     .from("orders")
     .select(`
@@ -45,6 +65,7 @@ async function getOrder(id: string) {
       total_amount,
       online_payment_amount,
       onsite_payment_amount,
+      visit_fee,
       created_at,
       is_test,
       test_note,
@@ -73,6 +94,8 @@ async function getOrder(id: string) {
         items,
         total_material,
         total_labor,
+        visit_fee,
+        discount,
         total_final,
         accepted_at,
         created_at
@@ -119,7 +142,27 @@ async function getOrder(id: string) {
 }
 
 async function getOrderDiagnoses(orderId: string) {
-  if (!hasSupabaseEnv()) return [];
+  if (!hasSupabaseEnv()) {
+    const cookieStore = await cookies();
+    const localDiagnosis = readLocalAdminDiagnosisCookie(cookieStore.get(BUILDUSCARE_LOCAL_ADMIN_DIAGNOSIS_COOKIE)?.value);
+    if (localDiagnosis?.orderId === orderId) {
+      return [{
+        id: localDiagnosis.id,
+        image_urls: Array.from({ length: Math.max(0, Number(localDiagnosis.photoCount || 0)) }, (_, index) => `local-photo-${index + 1}`),
+        photos: Array.from({ length: Math.max(0, Number(localDiagnosis.photoCount || 0)) }, (_, index) => `local-photo-${index + 1}`),
+        created_at: localDiagnosis.createdAt
+      }];
+    }
+    const history = readLocalAdminDiagnosisHistoryCookie(cookieStore.get(BUILDUSCARE_LOCAL_ADMIN_DIAGNOSES_COOKIE)?.value);
+    return history
+      .filter((item) => item.orderId === orderId)
+      .map((item) => ({
+        id: item.id,
+        image_urls: Array.from({ length: Math.max(0, Number(item.photoCount || 0)) }, (_, index) => `local-photo-${index + 1}`),
+        photos: Array.from({ length: Math.max(0, Number(item.photoCount || 0)) }, (_, index) => `local-photo-${index + 1}`),
+        created_at: item.createdAt
+      }));
+  }
   const { data } = await getSupabaseAdmin()
     .from("diagnoses")
     .select("id,image_urls,photos,created_at")
@@ -153,7 +196,7 @@ function homeRecord(order: any) {
 
 function firstServiceCode(order: any) {
   const sku = Array.isArray(order?.skus) ? order.skus[0] : null;
-  return sku?.service_type_code ?? sku?.sku ?? order?.service_type_code;
+  return sku?.service_type_code ?? sku?.metadata?.service_type_code ?? sku?.sku ?? order?.service_type_code;
 }
 
 function photoCount(order: any) {
@@ -260,10 +303,14 @@ function humanizeAdminText(value?: string | null) {
   if (!raw) return null;
   const labels: Record<string, string> = {
     builduscare_static: "Build us Care 웹 접수",
+    builduscare_web: "Build us Care 웹 접수",
     hold: "추가 사진 요청",
     no_replacement_needed: "교체 불필요",
     not_needed: "교체 불필요",
     photo_diagnosis: "사진확인 접수",
+    photo_check_request: "사진확인 접수",
+    photo_inquiry: "사진확인 접수",
+    product_order_request: "제품 주문 접수",
     replace_recommended: "교체 추천",
     replacement_recommended: "교체 추천",
     site_check_required: "현장 확인 필요"
@@ -328,11 +375,31 @@ function activeAssignedJob(order: any) {
 }
 
 function isPhotoIntake(order: any) {
-  return order?.source === "photo_diagnosis" || order?.reason === "photo_diagnosis" || asArray(order?.inquiry_photos).length > 0;
+  const serviceCode = firstServiceCode(order);
+  const reason = String(order?.reason ?? "");
+  const skus = Array.isArray(order?.skus) ? order.skus : [];
+  return (
+    order?.source === "photo_diagnosis" ||
+    order?.source === "builduscare_photo_check" ||
+    reason === "photo_diagnosis" ||
+    reason === "photo_check_request" ||
+    serviceCode === "photo_inquiry" ||
+    asArray(order?.inquiry_photos).length > 0 ||
+    skus.some((sku: any) => {
+      const metadata = sku?.metadata ?? {};
+      const skuServiceCode = sku?.service_type_code ?? metadata.service_type_code ?? sku?.sku;
+      return skuServiceCode === "photo_inquiry" || metadata.inquiry_only === true || metadata.request_type === "photo_check";
+    })
+  );
 }
 
 function isUrl(value: string) {
   return /^https?:\/\//i.test(value);
+}
+
+function isRenderablePhotoSrc(value?: string | null) {
+  const src = String(value ?? "").trim();
+  return isUrl(src) || src.startsWith("/") || src.startsWith("data:") || src.startsWith("blob:");
 }
 
 function uniqueStrings(values: string[]) {
@@ -340,7 +407,7 @@ function uniqueStrings(values: string[]) {
 }
 
 async function signPhotoInputs(inputs: string[]) {
-  if (!hasSupabaseEnv()) return inputs.map((input) => ({ src: input, label: input }));
+  if (!hasSupabaseEnv()) return uniqueStrings(inputs).map((input) => ({ src: input, label: input }));
   const supabase = getSupabaseAdmin();
   return Promise.all(
     uniqueStrings(inputs).map(async (input) => {
@@ -434,6 +501,7 @@ function currentAction(order: any) {
 
 export default async function AdminOrderDetailPage({ params }: PageProps) {
   const { id } = await params;
+  const localMode = !hasSupabaseEnv();
   const [order, technicians, diagnoses] = await Promise.all([getOrder(id), getActiveTechnicians(), getOrderDiagnoses(id)]);
   if (!order) return <div className="adm-empty"><div className="adm-empty-title">주문을 찾을 수 없어요.</div></div>;
   const media = asArray(order.media);
@@ -460,7 +528,9 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
   const money = paymentBreakdown(order);
   const selectedItems = quoteItems(order);
   const acceptedQuote = latestQuote(order);
-  const customerLookupUrl = `${siteUrl()}/order-lookup?order=${encodeURIComponent(order.order_number)}`;
+  const lookupParams = new URLSearchParams({ orderNumber: order.order_number });
+  if (customer?.name) lookupParams.set("name", customer.name);
+  const customerLookupUrl = `${siteUrl()}/order-lookup?${lookupParams.toString()}`;
 
   return (
     <>
@@ -468,7 +538,6 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
         <h1 className="adm-page-title">{order.order_number}</h1>
         <p className="adm-page-sub">
           <span className="adm-badge adm-badge-sky">{formatOrderStatus(order.status)}</span>{" "}
-          <span className="adm-badge adm-badge-green">{formatChannel(order.channel ?? "web")}</span>{" "}
           {isTest ? <span className="adm-badge adm-badge-sky">테스트</span> : null}
           {isDeleted ? <span className="adm-badge adm-badge-red">휴지통</span> : null}
         </p>
@@ -510,7 +579,6 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
           <div className="adm-section-head">
             <div>
               <h2 className="adm-card-title">Build us Care 접수 요약</h2>
-              <p className="adm-section-note adm-muted">운영자가 바로 판단해야 하는 고객, 결제, 사진, 방문 정보만 묶었습니다.</p>
             </div>
           </div>
           <div className="adm-buildus-metrics">
@@ -542,16 +610,68 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
           </div>
         </section>
 
-        <OrderCustomerLinkCopy
-          orderNumber={order.order_number}
-          lookupUrl={customerLookupUrl}
-          customerName={customer?.name}
-        />
+        {localMode ? (
+          <section className="adm-card adm-admin-warning" role="status">
+            <strong>로컬 확인 모드입니다.</strong>
+            <p>Supabase 연결 전에는 주문 상세를 읽기 전용으로 확인합니다. 상태 변경, 입금 확인, 기사 배정, 주문 수정, 테스트 전환, 삭제는 비활성입니다.</p>
+          </section>
+        ) : null}
+
+        <section className="adm-card adm-buildus-summary">
+          <div className="adm-section-head">
+            <div>
+              <h2 className="adm-card-title">적용 견적</h2>
+              <p className="adm-muted">제품 주문 화면에서는 확정된 견적과 결제 기준만 확인합니다. 견적 작성과 수정은 견적서 메뉴에서 처리합니다.</p>
+            </div>
+            <div className="adm-inline-actions">
+              <Link className="adm-btn adm-btn-secondary adm-btn-sm" href="/admin/quotes/list">
+                견적서 목록
+              </Link>
+              <Link className="adm-btn adm-btn-primary adm-btn-sm" href={`/admin/quotes?orderId=${encodeURIComponent(order.id)}`}>
+                견적서에서 수정
+              </Link>
+            </div>
+          </div>
+          {acceptedQuote ? (
+            <div className="adm-buildus-metrics">
+              <span>
+                <b>견적 버전</b>
+                <strong>{acceptedQuote.version ? `${acceptedQuote.version}차` : "최신"}</strong>
+                <small>{acceptedQuote.accepted_at ? formatKRDateTime(acceptedQuote.accepted_at) : "확정 전"}</small>
+              </span>
+              <span>
+                <b>제품값</b>
+                <strong>{formatKRW(Number(acceptedQuote.total_material ?? money.productAmount))}</strong>
+                <small>계좌이체 기준</small>
+              </span>
+              <span>
+                <b>시공비</b>
+                <strong>{formatKRW(Number(acceptedQuote.total_labor ?? 0) + Number(acceptedQuote.visit_fee ?? 0))}</strong>
+                <small>현장 결제 기준</small>
+              </span>
+              <span>
+                <b>할인</b>
+                <strong>{formatKRW(Number(acceptedQuote.discount ?? 0))}</strong>
+                <small>견적서 반영</small>
+              </span>
+              <span>
+                <b>최종 견적</b>
+                <strong>{formatKRW(Number(acceptedQuote.total_final ?? money.total))}</strong>
+                <small>{selectedItems.length ? `${selectedItems.length}개 품목` : "품목 없음"}</small>
+              </span>
+            </div>
+          ) : (
+            <div className="adm-empty adm-empty-line">
+              <div className="adm-empty-title">적용된 견적이 없습니다.</div>
+              <p className="adm-muted">견적서 메뉴에서 이 주문 기준으로 견적을 작성하세요.</p>
+            </div>
+          )}
+        </section>
 
         {!isDeleted && (
           <section className="adm-detail-ops-grid">
             <div className="adm-stack">
-              <OrderStatusTransitionPanel orderId={order.id} currentStatus={order.status as OrderStatus} />
+              <OrderStatusTransitionPanel orderId={order.id} currentStatus={order.status as OrderStatus} localMode={localMode} />
               <article className="adm-card adm-quick-panel">
                 <div>
                   <h2 className="adm-card-title">빠른 처리</h2>
@@ -563,6 +683,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
                       orderId={order.id}
                       orderNumber={order.order_number}
                       amount={Number(payment?.amount ?? order.total_amount ?? 0)}
+                      localMode={localMode}
                     />
                   ) : null}
                   <OrderAssignmentButton
@@ -571,36 +692,35 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
                     orderStatus={order.status}
                     jobs={asArray(order.jobs)}
                     technicians={technicians}
+                    localMode={localMode}
                   />
                   {String(order.status) !== "scheduled" && (
                     <OrderScheduleConfirmButton
                       orderId={order.id}
                       disabled={!activeJob || !activeJob?.scheduled_at}
                       reason={!activeJob ? "방문 확정 전 담당 기사를 먼저 배정해주세요." : "방문 확정 전 방문 날짜와 시간대를 먼저 저장해주세요."}
+                      localMode={localMode}
                     />
                   )}
                 </div>
               </article>
             </div>
-            <OrderEditPanel order={orderForEdit} technicians={technicians} />
+            <OrderEditPanel order={orderForEdit} technicians={technicians} localMode={localMode} />
           </section>
         )}
 
-        <details className="adm-card adm-details-card" open>
-          <summary>고객/주문 정보</summary>
+        <details className="adm-card adm-details-card">
+          <summary>고객/방문</summary>
           <div className="adm-admin-info-grid">
             <span><b>고객 성함</b><strong>{customer?.name ?? "-"}</strong></span>
             <span><b>연락처</b><strong>{customer?.phone ?? "-"}</strong></span>
-            <span><b>유입 경로</b><strong>{formatAcquisitionSource(customer?.acquisition_source)}</strong></span>
             <span><b>주소</b><strong>{[home?.address_full ?? customer?.address_full, home?.address_apt ?? customer?.address_apt].filter(Boolean).join(" ") || "-"}</strong></span>
             <span><b>방문 일정</b><strong>{activeJob?.scheduled_at ? `${visitDateLabel(activeJob)} ${visitSlotLabel(activeJob)}` : "미정"}</strong></span>
-            <span><b>현금영수증</b><strong>{cashReceiptTextFromOrder(order)}</strong></span>
-            <span><b>요청 내용</b><strong>{requestText(order)}</strong></span>
           </div>
         </details>
 
-        <details className="adm-card adm-details-card" open>
-          <summary>선택 제품/결제</summary>
+        <details className="adm-card adm-details-card">
+          <summary>제품/입금</summary>
           {selectedItems.length ? (
             <div className="adm-product-lines">
               {selectedItems.map((item: any, index: number) => (
@@ -621,26 +741,42 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
           </div>
           <div className="adm-admin-info-grid" style={{ marginTop: 12 }}>
             <span><b>현재 결제 상태</b><strong>{paymentOperationLabel(order, payment)}</strong></span>
-            <span><b>결제 수단</b><strong>{isBankTransfer(payment) ? "계좌이체" : formatPaymentMethod(payment?.provider, payment?.method)}</strong></span>
-            <span><b>결제 확인 시각</b><strong>{formatKRDateTime(payment?.paid_at ?? payment?.approved_at)}</strong></span>
-            <span><b>적용 견적</b><strong>{acceptedQuote ? `${acceptedQuote.version ? `${acceptedQuote.version}차` : "최신"} · ${acceptedQuote.accepted_at ? formatKRDateTime(acceptedQuote.accepted_at) : "확정 전"}` : "견적 없음"}</strong></span>
+            {acceptedQuote ? <span><b>적용 견적</b><strong>{acceptedQuote.version ? `${acceptedQuote.version}차` : "최신"} · {acceptedQuote.accepted_at ? formatKRDateTime(acceptedQuote.accepted_at) : "확정 전"}</strong></span> : null}
+            {cashReceiptTextFromOrder(order) !== "신청 안 함" ? <span><b>현금영수증</b><strong>{cashReceiptTextFromOrder(order)}</strong></span> : null}
           </div>
         </details>
 
         <details className="adm-card adm-details-card">
-          <summary>사진 확인</summary>
+          <summary>사진</summary>
           <div className="adm-photo-grid">
             {customerPhotos.length ? customerPhotos.map((photo) => (
-              <a className="adm-photo-item" href={photo.src ?? "#"} target="_blank" rel="noreferrer" key={photo.label}>
-                {photo.src ? <img src={photo.src} alt="고객 접수 사진" /> : photo.label}
-              </a>
-            )) : <p className="adm-photo-empty">등록된 고객 사진이 없습니다.</p>}
+              isRenderablePhotoSrc(photo.src) ? (
+                <a className="adm-photo-item" href={photo.src ?? "#"} target="_blank" rel="noreferrer" key={photo.label}>
+                  <img src={photo.src ?? ""} alt="고객 접수 사진" />
+                </a>
+              ) : (
+                <div className="adm-photo-item adm-photo-placeholder" key={photo.label}>
+                  {photo.label}
+                </div>
+              )
+            )) : <p className="adm-photo-empty">등록 사진 없음</p>}
           </div>
         </details>
 
         <details className="adm-card adm-details-card">
-          <summary>운영 도구</summary>
+          <summary>관리</summary>
           <div className="adm-stack">
+            <section className="adm-card adm-quick-panel">
+              <div>
+                <h2 className="adm-card-title">고객 조회 링크</h2>
+                <p className="adm-muted">고객에게 전달한 주문조회 링크를 다시 복사합니다.</p>
+              </div>
+              <OrderCustomerLinkCopy
+                orderNumber={order.order_number}
+                lookupUrl={customerLookupUrl}
+                customerName={customer?.name}
+              />
+            </section>
             {isTest ? (
               <section className="adm-card adm-test-panel is-test">
                 <div>
@@ -648,7 +784,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
                   <p className="adm-muted">운영 통계에서 제외되는 테스트 데이터입니다.</p>
                   {order.test_note ? <p className="adm-trash-meta">테스트 메모: {order.test_note}</p> : null}
                 </div>
-                <OrderTestActions isTest={isTest} orderId={order.id} orderNumber={order.order_number} />
+                <OrderTestActions isTest={isTest} orderId={order.id} orderNumber={order.order_number} localMode={localMode} />
               </section>
             ) : null}
             <section className={isDeleted ? "adm-card adm-trash-panel is-deleted" : "adm-card adm-trash-panel"}>
@@ -661,7 +797,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
                 </p>
                 {order.deleted_reason ? <p className="adm-trash-meta">삭제 메모: {order.deleted_reason}</p> : null}
               </div>
-              <OrderTrashActions mode={isDeleted ? "trash" : "active"} orderId={order.id} orderNumber={order.order_number} />
+              <OrderTrashActions mode={isDeleted ? "trash" : "active"} orderId={order.id} orderNumber={order.order_number} localMode={localMode} />
             </section>
           </div>
         </details>

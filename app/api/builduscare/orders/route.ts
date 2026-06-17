@@ -9,6 +9,7 @@ import { notifyNewOrder } from "@/lib/notify-admin";
 import { createOrderDateKey, createOrderNumber } from "@/lib/orders";
 import { createPaymentOrderId } from "@/lib/payment-amounts";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
+import { closedReservationReason, isBeforeMinReservationDate, isClosedReservationDate } from "@/lib/reservation-policy";
 import {
   getProductLaborPrice,
   REPLACEMENT_PRODUCTS,
@@ -19,12 +20,29 @@ import {
 } from "@/lib/replacement-products";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { after } from "next/server";
+import {
+  BUILDUSCARE_LOCAL_ADMIN_COOKIE_MAX_AGE,
+  BUILDUSCARE_LOCAL_ADMIN_DIAGNOSIS_COOKIE,
+  BUILDUSCARE_LOCAL_ADMIN_DIAGNOSES_COOKIE,
+  BUILDUSCARE_LOCAL_ADMIN_ORDER_COOKIE,
+  BUILDUSCARE_LOCAL_ADMIN_ORDERS_COOKIE,
+  appendLocalAdminDiagnosisHistory,
+  appendLocalAdminOrderHistory,
+  localAdminOrderToHistoryEntry,
+  readLocalAdminDiagnosisHistoryCookie,
+  readLocalAdminOrderHistoryCookie,
+  type LocalAdminDiagnosisHistoryEntry,
+  type LocalAdminOrderHistoryEntry,
+  type LocalAdminDiagnosisCookie,
+  type LocalAdminOrderCookie
+} from "@/lib/builduscare-local-admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const CREATE_LIMIT = 5;
 const CREATE_WINDOW_MS = 15 * 60 * 1000;
+const BUILDUSCARE_SOURCE = "builduscare_web";
 const SERVICE_BY_ITEM: Record<string, string> = {
   "사진 확인": "photo_inquiry",
   "양변기 교체": "toilet_replace",
@@ -140,6 +158,16 @@ function parsePayload(value: FormDataEntryValue | null): BuildusPayload | null {
   }
 }
 
+function readCookieValue(cookieHeader: string | null, cookieName: string) {
+  if (!cookieHeader) return null;
+  const entries = cookieHeader.split(/;\s*/);
+  for (const entry of entries) {
+    const [name, ...rest] = entry.split("=");
+    if (name === cookieName) return rest.join("=");
+  }
+  return null;
+}
+
 function productById(id: string) {
   return REPLACEMENT_PRODUCTS.find((product) => product.id === id) ?? null;
 }
@@ -176,7 +204,7 @@ function buildOrderItems(entries: Array<{ product: ReplacementProduct; qty: numb
       options: [],
       metadata: {
         service_type_code: serviceCode,
-        builduscare_static: true,
+        builduscare_web: true,
         request_type: "photo_check",
         inquiry_only: true
       }
@@ -195,7 +223,7 @@ function buildOrderItems(entries: Array<{ product: ReplacementProduct; qty: numb
       selected_replacement_product_snapshot: replacementProductSnapshot(product),
       selected_color: selectedColor || null,
       request_type: submissionType,
-      source: "builduscare_static"
+      source: BUILDUSCARE_SOURCE
     }
   }));
 }
@@ -227,7 +255,7 @@ function buildQuoteLines(entries: Array<{ product: ReplacementProduct; qty: numb
         selected_replacement_product_snapshot: replacementProductSnapshot(product),
         selected_color: selectedColor || null,
         disposal_fee_per_unit: disposalPerUnit,
-        source: "builduscare_static"
+        source: BUILDUSCARE_SOURCE
       }
     } satisfies QuoteLine;
   });
@@ -260,6 +288,245 @@ function timeSlot(value: string | null | undefined) {
 function scheduledAtForSlot(date: string | null, slot: string | null) {
   if (!date || !slot) return null;
   return `${date}T${slot === "afternoon" ? "13:00:00" : "09:00:00"}+09:00`;
+}
+
+function localAccessToken() {
+  return `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function createLocalBuildusOrderResponse(params: {
+  request: Request;
+  payload: BuildusPayload;
+  submissionType: SubmissionType;
+  name: string;
+  phone: string;
+  roadAddress: string;
+  detailAddress: string;
+  postalCode: string;
+  item: string;
+  entries: Array<{ product: ReplacementProduct; qty: number; selectedColor: string }>;
+  quoteLines: QuoteLine[];
+  totalMaterial: number;
+  totalLabor: number;
+  totalFinal: number;
+  reserved: string | null;
+  cashReceipt: ReturnType<typeof cashReceiptSummary>;
+  photoCount: number;
+  primaryServiceCode: string;
+}) {
+  const orderNumber = createOrderNumber();
+  const orderId = `local-${Date.now().toString(36)}`;
+  const accessToken = localAccessToken();
+  const isProductOrder = params.submissionType === "product_order";
+  const transferUrl = isProductOrder && params.totalMaterial > 0
+    ? `/payment/transfer?${new URLSearchParams({
+        orderId,
+        accessToken,
+        amount: String(params.totalMaterial),
+        productAmount: String(params.totalMaterial),
+        serviceFeeAmount: String(params.totalLabor),
+        onsiteAmount: String(params.totalLabor),
+        totalAmount: String(params.totalFinal)
+      }).toString()}`
+    : null;
+
+  const response = ok(
+      {
+        order: {
+        id: orderId,
+        orderNumber,
+        accessToken,
+        status: isProductOrder ? "pending_product_payment" : "inquiry",
+        statusUrl: `/orders/${orderId}?accessToken=${accessToken}`,
+        transferUrl,
+        customerName: params.name,
+        phone: params.phone,
+        roadAddress: params.roadAddress,
+        detailAddress: params.detailAddress,
+        postalCode: params.postalCode,
+        item: params.item,
+        requestType: params.submissionType,
+        selected: params.entries.map(({ product, qty, selectedColor }) => ({
+          id: product.id,
+          brand: product.brand,
+          name: displayProductName(product, selectedColor),
+          model: replacementProductDisplayModel(product),
+          image: product.image ?? "",
+          sku: product.sku,
+          color: (selectedColor || product.color) ?? "",
+          selectedColor: selectedColor || "",
+          serviceCode: product.serviceCode,
+          categoryName: product.categoryName,
+          qty,
+          price: roundedProductPrice(product.price)
+        })),
+        photoCount: params.photoCount,
+        reservation: {
+          date: params.reserved,
+          time: params.payload.reservation?.time ?? null
+        },
+        totals: {
+          productAmount: params.totalMaterial,
+          laborAmount: params.totalLabor,
+          totalAmount: params.totalFinal,
+          onlinePaymentAmount: params.totalMaterial,
+          onsitePaymentAmount: params.totalLabor
+        },
+        payment: isProductOrder
+          ? {
+              id: `local-payment-${Date.now().toString(36)}`,
+              status: params.totalMaterial > 0 ? "pending" : "done",
+              amount: params.totalMaterial,
+              provider: "bank_transfer"
+            }
+          : null,
+        cashReceipt: isProductOrder
+          ? {
+              type: params.cashReceipt.type,
+              identity: params.cashReceipt.identity,
+              text: params.cashReceipt.text
+            }
+          : null,
+        quote: params.quoteLines.length > 0
+          ? {
+              id: `local-quote-${Date.now().toString(36)}`,
+              items: params.quoteLines,
+              total_material: params.totalMaterial,
+              total_labor: params.totalLabor,
+              total_final: params.totalFinal
+            }
+          : null,
+          diagnosisId: null,
+          localOnly: true
+        }
+      },
+      { status: 201 }
+  );
+  const orderCookieValue: LocalAdminOrderCookie = {
+    id: orderId,
+    orderNumber,
+    accessToken,
+    status: isProductOrder ? "pending_product_payment" : "inquiry",
+    customerName: params.name,
+    phone: params.phone,
+    roadAddress: params.roadAddress,
+    detailAddress: params.detailAddress,
+    postalCode: params.postalCode,
+    item: params.item,
+    requestType: params.submissionType,
+    selected: params.entries.map(({ product, qty, selectedColor }) => ({
+      id: product.id,
+      brand: product.brand,
+      name: displayProductName(product, selectedColor),
+      model: replacementProductDisplayModel(product),
+      image: product.image ?? "",
+      sku: product.sku,
+      color: (selectedColor || product.color) ?? "",
+      selectedColor: selectedColor || "",
+      serviceCode: product.serviceCode,
+      categoryName: product.categoryName,
+      qty,
+      price: roundedProductPrice(product.price)
+    })),
+    photoCount: params.photoCount,
+    reservation: { date: params.reserved, time: params.payload.reservation?.time ?? null },
+    totals: {
+      productAmount: params.totalMaterial,
+      laborAmount: params.totalLabor,
+      totalAmount: params.totalFinal,
+      onlinePaymentAmount: params.totalMaterial,
+      onsitePaymentAmount: params.totalLabor
+    },
+    payment: isProductOrder
+      ? {
+          id: `local-payment-${Date.now().toString(36)}`,
+          status: params.totalMaterial > 0 ? "pending" : "done",
+          amount: params.totalMaterial,
+          provider: "bank_transfer"
+        }
+      : null,
+    cashReceipt: isProductOrder ? { type: params.cashReceipt.type, identity: params.cashReceipt.identity, text: params.cashReceipt.text } : null,
+    quote: params.quoteLines.length > 0
+      ? {
+          id: `local-quote-${Date.now().toString(36)}`,
+          total_material: params.totalMaterial,
+          total_labor: params.totalLabor,
+          total_final: params.totalFinal
+        }
+      : null,
+    localOnly: true,
+    createdAt: new Date().toISOString()
+  };
+  const requestCookieHeader = params.request.headers.get("cookie");
+  const orderHistory = appendLocalAdminOrderHistory(
+    readLocalAdminOrderHistoryCookie(readCookieValue(requestCookieHeader, BUILDUSCARE_LOCAL_ADMIN_ORDERS_COOKIE)),
+    localAdminOrderToHistoryEntry(orderCookieValue)
+  );
+  response.cookies.set(BUILDUSCARE_LOCAL_ADMIN_ORDER_COOKIE, JSON.stringify(orderCookieValue), {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: BUILDUSCARE_LOCAL_ADMIN_COOKIE_MAX_AGE
+  });
+  if (isProductOrder) {
+    response.cookies.set(BUILDUSCARE_LOCAL_ADMIN_ORDERS_COOKIE, JSON.stringify(orderHistory), {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: BUILDUSCARE_LOCAL_ADMIN_COOKIE_MAX_AGE
+    });
+  }
+  if (!isProductOrder) {
+    const diagnosisCookieValue: LocalAdminDiagnosisCookie = {
+      id: `local-diagnosis-${Date.now().toString(36)}`,
+      orderId,
+      orderNumber,
+      serviceTypeCode: params.primaryServiceCode,
+      item: params.item,
+      customerName: params.name,
+      customerPhone: params.phone,
+      roadAddress: params.roadAddress,
+      detailAddress: params.detailAddress,
+      postalCode: params.postalCode,
+      photoCount: params.photoCount,
+      result: null,
+      reason: params.item,
+      createdAt: orderCookieValue.createdAt,
+      localOnly: true
+    };
+    const diagnosisHistory = appendLocalAdminDiagnosisHistory(
+      readLocalAdminDiagnosisHistoryCookie(readCookieValue(requestCookieHeader, BUILDUSCARE_LOCAL_ADMIN_DIAGNOSES_COOKIE)),
+      {
+        id: diagnosisCookieValue.id,
+        orderId,
+        orderNumber,
+        serviceTypeCode: params.primaryServiceCode,
+        item: params.item,
+        customerName: params.name,
+        customerPhone: params.phone,
+        roadAddress: params.roadAddress,
+        detailAddress: params.detailAddress,
+        postalCode: params.postalCode,
+        photoCount: params.photoCount,
+        result: null,
+        reason: params.item,
+        createdAt: diagnosisCookieValue.createdAt
+      } satisfies LocalAdminDiagnosisHistoryEntry
+    );
+    response.cookies.set(BUILDUSCARE_LOCAL_ADMIN_DIAGNOSIS_COOKIE, JSON.stringify(diagnosisCookieValue), {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: BUILDUSCARE_LOCAL_ADMIN_COOKIE_MAX_AGE
+    });
+    response.cookies.set(BUILDUSCARE_LOCAL_ADMIN_DIAGNOSES_COOKIE, JSON.stringify(diagnosisHistory), {
+      httpOnly: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: BUILDUSCARE_LOCAL_ADMIN_COOKIE_MAX_AGE
+    });
+  }
+  return response;
 }
 
 async function createSequentialBuildusOrderNumber(supabase: ReturnType<typeof getSupabaseAdmin>) {
@@ -317,7 +584,7 @@ async function createBuildusOrderBase(params: {
       .upsert({
         phone,
         name,
-        acquisition_source: "builduscare_static",
+        acquisition_source: BUILDUSCARE_SOURCE,
         address_full: addressFull,
         address_dong: "unknown",
         address_apt: detailAddress || null,
@@ -361,7 +628,7 @@ async function createBuildusOrderBase(params: {
         metadata: orderItem.metadata
       })),
       channel,
-      source: "builduscare_static",
+      source: BUILDUSCARE_SOURCE,
       reason: orderReason,
       urgency: "scheduled",
       self_diagnosis: selfDiagnosis,
@@ -384,10 +651,6 @@ async function createBuildusOrderBase(params: {
 }
 
 export async function POST(request: Request) {
-  if (!hasSupabaseEnv()) {
-    return fail("supabase_not_configured", "Supabase is required to create builduscare orders.", 500);
-  }
-
   const submissionType: SubmissionType =
     request.headers.get("x-builduscare-submission-type") === "photo_check" ? "photo_check" : "product_order";
 
@@ -431,8 +694,8 @@ export async function POST(request: Request) {
   const orderReason = submissionType === "photo_check" ? "photo_check_request" : "product_order_request";
   const selfDiagnosis =
     submissionType === "photo_check"
-      ? "builduscare 정적 화면 사진 확인 접수"
-      : "builduscare 정적 화면 제품 주문 접수";
+      ? "Build us Care 사진 확인 접수"
+      : "Build us Care 제품 주문 접수";
   const cashReceipt = cashReceiptSummary(payload.cashReceipt);
   const specialRequests =
     submissionType === "photo_check"
@@ -445,12 +708,46 @@ export async function POST(request: Request) {
   const totalMaterial = quoteLines.reduce((sum, line) => sum + line.line_material, 0);
   const totalLabor = quoteLines.reduce((sum, line) => sum + line.line_labor + line.option_total, 0);
   const totalFinal = totalMaterial + totalLabor;
+  const reserved = reservedDate(payload.reservation?.date);
+  const slot = timeSlot(payload.reservation?.time);
+  if (reserved && isBeforeMinReservationDate(reserved)) {
+    return fail("INVALID_DATE", "제품과 일정 준비 기간 때문에 방문 일정은 오늘 기준 3일 이후 날짜부터 가능합니다.", 400);
+  }
+  if (reserved && isClosedReservationDate(reserved)) {
+    return fail("SLOT_CLOSED", closedReservationReason(reserved), 409);
+  }
+  const scheduledAt = scheduledAtForSlot(reserved, slot);
+  const photoFiles = builduscarePhotoFiles(formData);
+
+  if (!hasSupabaseEnv()) {
+    if (process.env.NODE_ENV === "production") {
+      return fail("supabase_not_configured", "Supabase is required to create builduscare orders.", 500);
+    }
+
+    return createLocalBuildusOrderResponse({
+      request,
+      payload,
+      submissionType,
+      name,
+      phone,
+      roadAddress,
+      detailAddress,
+      postalCode,
+      item,
+      entries,
+      quoteLines,
+      totalMaterial,
+      totalLabor,
+      totalFinal,
+      reserved,
+      cashReceipt,
+      photoCount: photoFiles.length,
+      primaryServiceCode
+    });
+  }
 
   try {
     const supabase = getSupabaseAdmin();
-    const reserved = reservedDate(payload.reservation?.date);
-    const slot = timeSlot(payload.reservation?.time);
-    const scheduledAt = scheduledAtForSlot(reserved, slot);
     const { customer, order } = await createBuildusOrderBase({
       supabase,
       name,
@@ -467,7 +764,6 @@ export async function POST(request: Request) {
       productAmount: totalMaterial,
       laborAmount: totalLabor
     });
-    const photoFiles = builduscarePhotoFiles(formData);
     const jobPromise = supabase
       .from("jobs")
       .insert({
@@ -545,13 +841,33 @@ export async function POST(request: Request) {
       });
       transferUrl = `/payment/transfer?${transferParams.toString()}`;
     }
+    let diagnosisId: string | null = null;
+    if (submissionType === "photo_check") {
+      try {
+        const diagnosis = await upsertBuilduscarePhotoDiagnosis({
+          orderId: order.id,
+          orderNumber: order.order_number,
+          serviceCode: primaryServiceCode,
+          photoPaths: [],
+          name,
+          phone,
+          roadAddress,
+          detailAddress,
+          postalCode,
+          item
+        });
+        diagnosisId = diagnosis?.id ?? null;
+      } catch (error) {
+        console.error("Build us Care immediate diagnosis creation failed", error);
+      }
+    }
 
     after(async () => {
       await Promise.allSettled([
         (async () => {
-          if (photoFiles.length === 0) return null;
+          if (photoFiles.length === 0 && submissionType !== "photo_check") return null;
           try {
-            const photoPaths = await attachBuilduscareOrderPhotos(order.id, photoFiles);
+            const photoPaths = photoFiles.length > 0 ? await attachBuilduscareOrderPhotos(order.id, photoFiles) : [];
             if (submissionType !== "photo_check") return photoPaths;
             return await upsertBuilduscarePhotoDiagnosis({
               orderId: order.id,
@@ -580,7 +896,7 @@ export async function POST(request: Request) {
           event_type: EVENT_TYPES.QUOTE_SUBMITTED,
           order_id: order.id,
           customer_id: customer.id,
-          source: "builduscare_static",
+          source: BUILDUSCARE_SOURCE,
           device_type: payload.deviceType === "mobile" ? "mobile" : "desktop",
           service_code: primaryServiceCode,
           properties: {
@@ -596,7 +912,7 @@ export async function POST(request: Request) {
               customer_id: customer.id,
               service_code: primaryServiceCode,
               properties: {
-                source: "builduscare_static",
+                source: BUILDUSCARE_SOURCE,
                 payment_id: payment.id,
                 quote_id: quote?.id,
                 product_amount: totalMaterial,
@@ -611,7 +927,7 @@ export async function POST(request: Request) {
           template_code: "order_submitted",
           recipient: phone,
           send_status: "queued",
-          payload: { order_number: order.order_number, source: "builduscare_static" }
+          payload: { order_number: order.order_number, source: BUILDUSCARE_SOURCE }
         }),
         notifyNewOrder({
           orderId: order.id,
@@ -682,7 +998,7 @@ export async function POST(request: Request) {
                 }
               : null,
           quote,
-          diagnosisId: null
+          diagnosisId
         }
       },
       { status: 201 }

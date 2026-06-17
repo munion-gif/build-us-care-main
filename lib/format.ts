@@ -40,6 +40,7 @@ const CHANNEL_LABELS: Record<string, string> = {
 const ACQUISITION_SOURCE_LABELS: Record<string, string> = {
   builduscare: "Build us Care 웹",
   builduscare_static: "Build us Care 웹",
+  builduscare_web: "Build us Care 웹",
   direct: "직접 유입",
   instagram: "인스타그램",
   kakao: "카카오톡",

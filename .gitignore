@@ -10,6 +10,14 @@ tsconfig.tsbuildinfo
 tsconfig.typecheck.tsbuildinfo
 
 .vercel
+.deploy/
+.logs/
+.qa/
+.tmp/
+logs/
+reports/
+test-results/
+prototype-static/
 
 # Local runtime artifacts
 .runtime/
@@ -21,6 +29,7 @@ tsconfig.typecheck.tsbuildinfo
 .tmp-*/
 outputs/
 screenshots/
+.tmp*
 
 # Codex / local workspace tooling
 .codex/

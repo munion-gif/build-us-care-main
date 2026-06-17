@@ -5,6 +5,7 @@ export type QuoteDocumentRow = {
   image: string | null;
   productName: string;
   sku: string;
+  categoryLabel?: string;
   qty: number;
   price: number;
   labor: number;
@@ -18,6 +19,8 @@ export type QuoteDocumentCashReceipt = {
 
 export type QuoteDocumentInput = {
   orderNumber?: string | null;
+  customerName?: string | null;
+  customerPhone?: string | null;
   serviceName: string;
   rows: QuoteDocumentRow[];
   address: string;
@@ -34,6 +37,10 @@ export type QuoteDocumentInput = {
 
 function won(value: number) {
   return `${Number(value || 0).toLocaleString("ko-KR")}원`;
+}
+
+function wonNumber(value: number) {
+  return Number(value || 0).toLocaleString("ko-KR");
 }
 
 function escapeHtml(value: string) {
@@ -90,9 +97,9 @@ function latestPayment(payments: any[] = []) {
 
 function quoteRows(items: any[] | undefined): QuoteDocumentRow[] {
   return asArray(items).map((item, index) => {
-    const product = item?.metadata?.selected_replacement_product ?? item?.metadata?.selected_toilet_product ?? null;
+    const product = item?.metadata?.selected_replacement_product_snapshot ?? item?.metadata?.selected_replacement_product ?? item?.metadata?.selected_toilet_product ?? null;
     const qty = Math.max(1, numberValue(item?.qty) || 1);
-    const productName = [product?.brand, product?.model].filter(Boolean).join(" ").trim() || item?.item_name || "선택 제품";
+    const productName = [product?.brand, product?.model ?? product?.name].filter(Boolean).join(" ").trim() || item?.item_name || "선택 제품";
     const unitPrice = numberValue(product?.price ?? item?.unit_material);
     const price = numberValue(item?.line_material) || unitPrice * qty;
     const labor = numberValue(item?.line_labor) || numberValue(item?.unit_labor) * qty;
@@ -103,6 +110,7 @@ function quoteRows(items: any[] | undefined): QuoteDocumentRow[] {
       image: product?.image ?? null,
       productName,
       sku: product?.sku ?? item?.sku ?? "-",
+      categoryLabel: formatServiceName(item?.service_type_code ?? item?.metadata?.service_type_code ?? product?.serviceCode ?? ""),
       qty,
       price,
       labor,
@@ -129,6 +137,14 @@ function cashReceiptTextFromOrder(order: any) {
   return line?.replace(/^.*?현금영수증:\s*/, "").trim() || "신청 안 함";
 }
 
+function customerFromOrder(order: any) {
+  const customer = asArray(order?.customers)[0] ?? order?.customer ?? null;
+  return {
+    name: customer?.name ?? order?.customerName ?? order?.customer_name ?? null,
+    phone: customer?.phone ?? order?.phone ?? order?.customer_phone ?? null
+  };
+}
+
 export function buildQuoteDocumentInputFromOrderStatus(
   order: any,
   options: {
@@ -141,6 +157,7 @@ export function buildQuoteDocumentInputFromOrderStatus(
 ): QuoteDocumentInput {
   const quote = latestQuote(order?.quotes ?? []);
   const payment = options.payment ?? latestPayment(order?.payments ?? []);
+  const customer = customerFromOrder(order);
   const rows = quoteRows(quote?.items);
   const productTotal = numberValue(quote?.total_material) || rows.reduce((sum, row) => sum + row.price, 0);
   const laborTotal = numberValue(quote?.total_labor) || rows.reduce((sum, row) => sum + row.labor, 0);
@@ -150,9 +167,11 @@ export function buildQuoteDocumentInputFromOrderStatus(
 
   return {
     orderNumber: order?.order_number ?? null,
+    customerName: customer.name,
+    customerPhone: customer.phone,
     serviceName: options.serviceName ?? formatServiceName(order?.service_type_code ?? rows[0]?.sku),
     rows,
-    address: order?.home?.address_full ?? "주소 확인 중",
+    address: asArray(order?.homes)[0]?.address_full ?? order?.home?.address_full ?? order?.roadAddress ?? "주소 확인 중",
     visitText: visitTextFromOrder(order),
     productTotal,
     laborTotal,
@@ -165,21 +184,50 @@ export function buildQuoteDocumentInputFromOrderStatus(
 }
 
 export function buildQuoteDocumentHtml(input: QuoteDocumentInput) {
-  const vatIncludedFinalTotal = Math.round(input.finalTotal * 1.1);
-  const rowsHtml = input.rows
-    .map(
-      (row) => `
-        <tr>
-          <td>${row.image ? `<img src="${escapeHtml(quoteDocumentImageSrc(row.image))}" alt="${escapeHtml(row.productName)} 제품 사진" crossorigin="anonymous" />` : "사진 없음"}</td>
-          <td><strong>${escapeHtml(row.productName)}</strong>${row.qty > 1 ? `<small>${row.qty}개</small>` : ""}</td>
-          <td>${escapeHtml(row.sku)}</td>
-          <td>${won(row.price)}</td>
-          <td>${won(row.labor)}</td>
-          <td><strong>${won(row.finalPrice)}</strong></td>
-        </tr>
-      `
-    )
-    .join("");
+  const vatIncludedFinalTotal = Math.round((input.finalTotal * 110) / 100);
+  const laborGroups = input.rows.reduce<Map<string, { label: string; qty: number; amount: number }>>((map, row) => {
+    const key = row.categoryLabel || "시공";
+    const current = map.get(key) ?? { label: key, qty: 0, amount: 0 };
+    current.qty += row.qty;
+    current.amount += row.labor;
+    map.set(key, current);
+    return map;
+  }, new Map());
+  const disposalAmount = Math.max(0, input.finalTotal - input.productTotal - input.laborTotal);
+  const totalQty = input.rows.reduce((sum, row) => sum + row.qty, 0);
+  const issuedAt = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "numeric", day: "numeric" });
+  const summaryCategories = Array.from(new Set(input.rows.map((row) => row.categoryLabel || input.serviceName).filter(Boolean)));
+  const rowsHtml = input.rows.map((row) => `
+      <tr>
+        <td class="photo-cell">${row.image ? `<img src="${escapeHtml(quoteDocumentImageSrc(row.image))}" alt="${escapeHtml(row.productName)} 제품 사진" crossorigin="anonymous" />` : `<span class="photo-empty">-</span>`}</td>
+        <td class="sku-cell">${escapeHtml(row.sku || "-")}</td>
+        <td>
+          <div class="product-copy">
+            <strong>${escapeHtml(row.productName)}</strong>
+            ${row.categoryLabel ? `<small>${escapeHtml(row.categoryLabel)}</small>` : ""}
+          </div>
+        </td>
+        <td class="c">${row.qty}</td>
+        <td class="r">${wonNumber(row.price)}</td>
+      </tr>
+    `).join("") + [...laborGroups.values()].map((group) => `
+      <tr class="fee-row">
+        <td colspan="3" class="fee-label">시공비 · ${escapeHtml(group.label)}</td>
+        <td class="c">×${group.qty}</td>
+        <td class="r">${wonNumber(group.amount)}</td>
+      </tr>
+    `).join("") + `
+      <tr class="fee-row">
+        <td colspan="3" class="fee-label">폐기물 처리비</td>
+        <td class="c">${disposalAmount > 0 ? `×${totalQty}` : "-"}</td>
+        <td class="r">${wonNumber(disposalAmount)}</td>
+      </tr>
+      <tr class="total-row">
+        <td colspan="3" class="fee-label">합계</td>
+        <td class="c"></td>
+        <td class="r">${wonNumber(input.finalTotal)}</td>
+      </tr>
+    `;
   const cashReceiptText = input.cashReceiptText ?? cashReceiptSummary(input.cashReceipt);
 
   return `<!doctype html>
@@ -191,91 +239,143 @@ export function buildQuoteDocumentHtml(input: QuoteDocumentInput) {
   <title>Build us Care 견적서</title>
   <style>
     * { box-sizing: border-box; }
-    body { margin: 0; background: #f7f0e4; color: #22211d; font-family: Arial, "Noto Sans KR", sans-serif; line-height: 1.5; }
-    main { max-width: 960px; margin: 0 auto; padding: 32px; }
-    .sheet { background: #fffaf1; border: 1px solid #d6c8ad; border-radius: 10px; padding: 28px; }
-    .brand { letter-spacing: 0.32em; font-size: 12px; }
-    h1 { margin: 12px 0 8px; font-size: 32px; }
-    p { margin: 0; color: #6f675c; }
-    .meta, .summary, .bank, .receipt { display: grid; gap: 10px; margin-top: 22px; }
-    .meta { grid-template-columns: 0.8fr 1.4fr 0.8fr; border: 1px solid #d6c8ad; border-radius: 8px; overflow: hidden; }
-    .meta div { padding: 12px; border-right: 1px solid #d6c8ad; }
-    .meta div:last-child { border-right: 0; }
-    span { display: block; color: #6f675c; font-size: 12px; font-weight: 700; }
-    span em { display: block; margin-top: 2px; color: #8a8174; font-size: 11px; font-style: normal; font-weight: 700; }
-    strong { display: block; color: #22211d; }
-    table { width: 100%; margin-top: 22px; border-collapse: collapse; border: 1px solid #d6c8ad; border-radius: 8px; overflow: hidden; }
-    th { background: #f0e5ce; color: #6f675c; font-size: 12px; text-align: left; }
-    th, td { padding: 12px; border-bottom: 1px solid #d6c8ad; vertical-align: middle; }
-    tr:last-child td { border-bottom: 0; }
-    td img { width: 64px; height: 64px; object-fit: contain; border: 1px solid #d6c8ad; border-radius: 8px; background: #fff; }
-    td small { display: block; margin-top: 4px; color: #6f675c; font-weight: 700; }
-    .summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-    .summary div, .bank, .receipt { border: 1px solid #d6c8ad; border-radius: 8px; background: rgba(255, 255, 255, 0.62); padding: 14px; }
-    .summary strong { margin-top: 6px; font-size: 20px; }
-    .summary .transfer { border-color: #c7922a; background: #efe2cc; }
-    .bank { grid-template-columns: 1fr 1fr; background: #efe2cc; }
-    .bank p, .receipt p { margin-top: 6px; font-size: 13px; }
-    .note { margin-top: 14px; border-radius: 8px; background: #f0e5ce; padding: 12px 14px; font-weight: 700; }
+    body { margin: 0; background: #f4f4f7; color: #1d1d1f; font-family: Arial, "Noto Sans KR", sans-serif; }
+    main { padding: 28px 0; }
+    .sheet { position: relative; width: min(720px, calc(100vw - 32px)); margin: 0 auto; border-radius: 26px; background: #fff; box-shadow: 0 20px 50px rgba(16,24,40,0.08); overflow: hidden; }
+    .head { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; padding: 30px 32px 22px; border-bottom: 2px solid #1d1d1f; }
+    .head img { width: 128px; height: auto; object-fit: contain; }
+    .head p { margin: 0 0 3px; color: #6e6e73; font-size: 11px; line-height: 16px; text-align: right; }
+    .doc { padding: 24px 28px 18px; }
+    h1 { margin: 0; color: #111; font-size: 22px; line-height: 30px; font-weight: 800; letter-spacing: -0.02em; }
+    .doc > p { margin: 4px 0 18px; color: #6e6e73; font-size: 11px; line-height: 17px; }
+    .meta-card { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid #d8d8de; border-radius: 18px; overflow: hidden; background: #fff; margin-bottom: 22px; }
+    .meta-card > div { padding: 14px 18px; border-bottom: 1px solid #ececf0; }
+    .meta-card > div:nth-child(odd):not(.full) { border-right: 1px solid #ececf0; }
+    .meta-card > div.full { grid-column: 1 / -1; }
+    .meta-card small { display: block; color: #8e8e93; font-size: 10px; line-height: 15px; font-weight: 700; }
+    .meta-card strong { display: block; margin-top: 4px; color: #111; font-size: 13px; line-height: 20px; font-weight: 800; letter-spacing: -0.01em; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    col.photo { width: 52px; }
+    col.sku { width: 64px; }
+    col.qty { width: 72px; }
+    col.amount { width: 96px; }
+    th { padding: 9px 0; border-bottom: 1px solid #d2d2d7; color: #6e6e73; font-size: 10px; font-weight: 700; text-align: left; }
+    td { padding: 10px 0; border-bottom: 1px solid #e5e5ea; vertical-align: top; font-size: 13px; line-height: 19px; }
+    .photo-cell img, .photo-empty { width: 40px; height: 40px; object-fit: contain; border-radius: 6px; background: #fff; display: grid; place-items: center; color: #8e8e93; font-size: 10px; border: 1px solid #ececf0; }
+    .sku-cell { color: #6e6e73; font-size: 10px; line-height: 15px; font-weight: 700; }
+    .product-copy strong { display: block; color: #111; font-size: 13px; line-height: 19px; font-weight: 800; letter-spacing: -0.01em; }
+    .product-copy small { display: block; margin-top: 2px; color: #8e8e93; font-size: 11px; line-height: 17px; font-weight: 700; }
+    .c { text-align: center; white-space: nowrap; }
+    .r { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 700; }
+    .fee-row td { padding-top: 11px; padding-bottom: 11px; }
+    .fee-label { color: #1d1d1f; font-weight: 800; }
+    .total-row td { border-bottom: 2px solid #1d1d1f; font-weight: 800; }
+    .vat { display: flex; justify-content: space-between; gap: 20px; align-items: center; margin-top: 22px; padding-top: 0; }
+    .vat strong { display: block; color: #111; font-size: 16px; line-height: 23px; font-weight: 800; }
+    .vat small { display: block; margin-top: 2px; color: #8e8e93; font-size: 11px; line-height: 17px; font-weight: 700; }
+    .vat span { color: #245fff; font-size: 28px; line-height: 34px; font-weight: 800; letter-spacing: -0.02em; text-align: right; }
+    .receipt-row { display: flex; justify-content: space-between; gap: 16px; margin-top: 18px; padding-top: 14px; border-top: 1px solid #e5e5ea; font-size: 12px; line-height: 18px; font-weight: 800; }
+    .receipt-row small { display: block; color: #6e6e73; font-size: 10px; line-height: 15px; font-weight: 700; }
+    .actions { display: flex; justify-content: center; gap: 10px; padding: 0 28px 22px; }
+    .btn { min-width: 138px; min-height: 48px; border-radius: 999px; font-size: 16px; font-weight: 800; cursor: pointer; }
+    .btn-sec { border: 1px solid #d2d2d7; background: #fff; color: #1d1d1f; }
+    .btn-pri { border: 0; background: #245fff; color: #fff; }
     @media print {
       body { background: #fff; }
       main { padding: 0; }
-      .sheet { border: 0; border-radius: 0; }
+      .sheet { width: 100%; box-shadow: none; border-radius: 0; }
+      .actions { display: none; }
     }
   </style>
 </head>
 <body>
   <main>
     <section class="sheet">
-      <div class="brand">build us care</div>
-      <h1>최종 견적서</h1>
-      <p>선택한 제품과 결제 전 금액을 정리한 견적서입니다.</p>
-      <div class="meta">
-        <div><span>서비스</span><strong>${escapeHtml(input.serviceName)}</strong></div>
-        <div><span>방문 주소</span><strong>${escapeHtml(input.address)}</strong></div>
-        <div><span>방문 일정</span><strong>${escapeHtml(input.visitText)}</strong></div>
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>제품사진</th>
-            <th>제품명</th>
-            <th>품번</th>
-            <th>가격</th>
-            <th>시공비</th>
-            <th>최종가격</th>
-          </tr>
-        </thead>
-        <tbody>${rowsHtml}</tbody>
-      </table>
-      <div class="summary">
-        <div><span>제품 가격</span><strong>${won(input.productTotal)}</strong></div>
-        <div><span>${input.productCatalogMode ? "시공비 현장결제" : "시공비"}</span><strong>${won(input.laborTotal)}</strong></div>
-        <div><span>최종 합계<em>부가세 10% 포함</em></span><strong>${won(vatIncludedFinalTotal)}</strong></div>
-        <div class="transfer"><span>계좌이체 금액</span><strong>${won(input.transferAmount)}</strong></div>
-      </div>
-      <div class="bank">
+      <header class="head">
+        <img src="/builduscare-logo.png" alt="build us care" />
         <div>
-          <span>입금 계좌</span>
-          <strong>계좌번호 안내 예정</strong>
-          <p>주문 확인 후 카톡으로 계좌와 입금 방법을 안내드립니다.</p>
+          <p>발행일 ${escapeHtml(issuedAt)}</p>
+          <p>${input.orderNumber ? `접수번호 ${escapeHtml(input.orderNumber)}` : "견적번호 임시 견적서"}</p>
+          <p>유효기간 발행일로부터 14일</p>
         </div>
-        <div>
-          <span>입금 금액</span>
-          <strong>${won(input.transferAmount)}</strong>
-          <p>입금자명은 주문자 이름으로 보내주세요.</p>
+      </header>
+      <section class="doc">
+        <h1>최종 견적서</h1>
+        <p>${escapeHtml(summaryCategories.join(" · ") || input.serviceName)} · 선택 제품 ${input.rows.length}종 · 총 ${totalQty}개</p>
+        <section class="meta-card">
+          <div><small>예약자</small><strong>${escapeHtml(input.customerName || "확인 중")}</strong></div>
+          <div><small>연락처</small><strong>${escapeHtml(input.customerPhone || "확인 중")}</strong></div>
+          <div class="full"><small>시공 주소</small><strong>${escapeHtml(input.address || "주소 확인 중")}</strong></div>
+          <div class="full"><small>예약 일시</small><strong>${escapeHtml(input.visitText || "방문일 확인 중")}</strong></div>
+          <div class="full"><small>현금영수증</small><strong>${escapeHtml(cashReceiptText)}</strong></div>
+        </section>
+        <table>
+          <colgroup>
+            <col class="photo" />
+            <col class="sku" />
+            <col />
+            <col class="qty" />
+            <col class="amount" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>사진</th>
+              <th>품번</th>
+              <th>제품명</th>
+              <th class="c">수량</th>
+              <th class="r">금액 (원)</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+        <div class="vat">
+          <div><strong>최종합계</strong><small>부가세 10% 포함</small></div>
+          <span>${won(vatIncludedFinalTotal)}</span>
         </div>
+      </section>
+      <div class="actions">
+        <button class="btn btn-sec" onclick="window.print()">인쇄 / PDF 저장</button>
+        <button class="btn btn-pri" onclick="window.close()">닫기</button>
       </div>
-      <div class="receipt">
-        <span>현금영수증</span>
-        <strong>${escapeHtml(cashReceiptText)}</strong>
-        <p>입금 확인 후 입력된 정보 기준으로 현금영수증 처리를 도와드립니다.</p>
-      </div>
-      ${input.productCatalogMode && input.onsiteAmount > 0 ? `<p class="note">제품값은 계좌이체로 결제하고, 시공비 ${won(input.onsiteAmount)}은 시공 완료 후 현장에서 결제합니다.</p>` : ""}
     </section>
   </main>
 </body>
 </html>`;
+}
+
+export function openQuoteDocumentPreviewWindow(input: QuoteDocumentInput) {
+  if (typeof window === "undefined") return;
+  const width = Math.min(820, Math.max(760, window.screen.availWidth - 80));
+  const height = Math.min(980, Math.max(760, window.screen.availHeight - 80));
+  const left = Math.max(0, Math.round((window.screen.availWidth - width) / 2));
+  const top = Math.max(0, Math.round((window.screen.availHeight - height) / 2));
+  const features = [
+    "popup=yes",
+    "noopener=no",
+    "noreferrer=no",
+    "menubar=no",
+    "toolbar=no",
+    "location=no",
+    "status=no",
+    "scrollbars=yes",
+    "resizable=yes",
+    `width=${width}`,
+    `height=${height}`,
+    `left=${left}`,
+    `top=${top}`
+  ].join(",");
+  const popup = window.open("about:blank", "_blank", features);
+  if (!popup) return;
+  popup.document.open();
+  popup.document.write(buildQuoteDocumentHtml(input));
+  popup.document.close();
+  try {
+    popup.moveTo(left, top);
+    popup.resizeTo(width, height);
+  } catch {
+    // Browser may block window positioning.
+  }
+  popup.focus();
 }
 
 async function waitForQuoteDocumentImages(root: Document) {
@@ -298,12 +398,12 @@ function replaceQuoteDocumentImagesWithFallback(root: Document) {
     fallback.textContent = "제품사진";
     fallback.setAttribute("aria-label", image.alt || "제품사진");
     fallback.style.cssText = [
-      "width:64px",
-      "height:64px",
+      "width:40px",
+      "height:40px",
       "display:grid",
       "place-items:center",
       "border:1px solid #d6c8ad",
-      "border-radius:8px",
+      "border-radius:6px",
       "background:#fff",
       "color:#6f675c",
       "font-size:11px",

@@ -44,7 +44,7 @@ export async function attachBuilduscareOrderPhotos(orderId: string, files: File[
         url: `storage://${ORDER_PHOTOS_BUCKET}/${filePath}`,
         file_path: filePath,
         angle: null,
-        tags: ["customer", "builduscare-static"],
+        tags: ["customer", "builduscare-web"],
         sort_order: index
       }
     };
@@ -97,8 +97,6 @@ export async function upsertBuilduscarePhotoDiagnosis(params: {
   postalCode: string;
   item: string;
 }) {
-  if (params.photoPaths.length === 0) return null;
-
   const supabase = getSupabaseAdmin();
   const rawResponse = {
     source: "builduscare_photo_check",

@@ -20,7 +20,7 @@ export async function GET(request: Request, context: Context) {
   }
 
   if (!hasSupabaseEnv()) {
-    return fail("supabase_not_configured", "Supabase is required to read jobs.", 500);
+    return ok({ job: null, localMode: true });
   }
 
   const { id } = await context.params;
@@ -63,7 +63,7 @@ export async function GET(request: Request, context: Context) {
   }
 
   logOperation({ requestId, endpoint: "/api/admin/jobs/:id", method: "GET", adminKeyId, identifiers: { job_id: jobId.data }, success: true });
-  return ok({ job: data });
+  return ok({ job: data, localMode: false });
 }
 
 export async function DELETE(request: Request, context: Context) {
@@ -76,7 +76,7 @@ export async function DELETE(request: Request, context: Context) {
   }
 
   if (!hasSupabaseEnv()) {
-    return fail("supabase_not_configured", "Supabase is required to cancel jobs.", 500);
+    return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 기사 배정을 취소하지 않습니다.", 409, { localMode: true });
   }
 
   const { id } = await context.params;

@@ -5,11 +5,12 @@ import { CANONICAL_SERVICE_OPTIONS } from "@/lib/service-catalog";
 import { formatServiceName } from "@/lib/format";
 import { maskAddress } from "@/lib/pii";
 
-export function TechnicianCreateForm() {
+export function TechnicianCreateForm({ localMode = false }: { localMode?: boolean }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (localMode) return;
     setLoading(true);
     const form = new FormData(event.currentTarget);
     await fetch("/api/admin/technicians", {
@@ -35,7 +36,7 @@ export function TechnicianCreateForm() {
   }
   return (
     <>
-      <button className="adm-btn adm-btn-primary" onClick={() => setOpen(true)}>기사 등록</button>
+      <button className="adm-btn adm-btn-primary" onClick={() => setOpen(true)} disabled={localMode}>{localMode ? "기사 등록 비활성" : "기사 등록"}</button>
       {open && (
         <div className="adm-modal-overlay">
           <form className="adm-modal" onSubmit={submit}>
@@ -80,7 +81,7 @@ export function TechnicianCreateForm() {
             </div>
             <div className="adm-modal-footer">
               <button className="adm-btn adm-btn-secondary" type="button" onClick={() => setOpen(false)}>취소</button>
-              <button className="adm-btn adm-btn-primary" disabled={loading}>{loading ? "등록 중..." : "등록"}</button>
+              <button className="adm-btn adm-btn-primary" disabled={loading || localMode}>{loading ? "등록 중..." : "등록"}</button>
             </div>
           </form>
         </div>
@@ -89,10 +90,11 @@ export function TechnicianCreateForm() {
   );
 }
 
-export function TechnicianActiveToggle({ id, active }: { id: string; active: boolean }) {
+export function TechnicianActiveToggle({ id, active, localMode = false }: { id: string; active: boolean; localMode?: boolean }) {
   const [loading, setLoading] = useState(false);
 
   async function toggle() {
+    if (localMode) return;
     setLoading(true);
     const response = await fetch("/api/admin/technicians", {
       method: "PATCH",
@@ -104,7 +106,7 @@ export function TechnicianActiveToggle({ id, active }: { id: string; active: boo
   }
 
   return (
-    <button className={`adm-badge ${active ? "adm-badge-green" : "adm-badge-gray"}`} type="button" onClick={toggle} disabled={loading}>
+    <button className={`adm-badge ${active ? "adm-badge-green" : "adm-badge-gray"}`} type="button" onClick={toggle} disabled={loading || localMode}>
       {loading ? "변경 중" : active ? "활성" : "비활성"}
     </button>
   );
@@ -122,19 +124,27 @@ function scheduleTime(value?: string | null) {
 
 function firstServiceCode(order: any) {
   const sku = Array.isArray(order?.skus) ? order.skus[0] : null;
-  return sku?.service_type_code ?? sku?.sku ?? order?.service_type_code;
+  return sku?.service_type_code ?? sku?.metadata?.service_type_code ?? sku?.sku ?? order?.service_type_code;
 }
 
-export function TechnicianScheduleButton({ id, name }: { id: string; name: string }) {
+export function TechnicianScheduleButton({ id, name, localMode = false }: { id: string; name: string; localMode?: boolean }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [jobs, setJobs] = useState<any[]>([]);
   const [month, setMonth] = useState(monthText());
+  const [scheduleLocalMode, setScheduleLocalMode] = useState(localMode);
 
   async function load(nextMonth = month) {
+    if (localMode) {
+      setScheduleLocalMode(true);
+      setJobs([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const response = await fetch(`/api/admin/technicians/${id}/schedule?month=${nextMonth}`, { cache: "no-store" });
     const json = await response.json();
+    setScheduleLocalMode(Boolean(json?.data?.localMode));
     setJobs(response.ok ? json.data?.jobs ?? [] : []);
     setLoading(false);
   }
@@ -154,9 +164,9 @@ export function TechnicianScheduleButton({ id, name }: { id: string; name: strin
             <div className="adm-modal-body adm-stack">
               <label>
                 <span className="adm-label">조회 월</span>
-                <input className="adm-input" type="month" value={month} onChange={(event) => { setMonth(event.target.value); void load(event.target.value); }} />
+                <input className="adm-input" type="month" value={month} onChange={(event) => { setMonth(event.target.value); void load(event.target.value); }} disabled={scheduleLocalMode} />
               </label>
-              {loading ? <p className="adm-muted">일정을 불러오는 중입니다...</p> : jobs.length === 0 ? <p className="adm-muted">해당 월 배정 일정이 없습니다.</p> : jobs.map((job) => (
+              {loading ? <p className="adm-muted">일정을 불러오는 중입니다...</p> : scheduleLocalMode ? <p className="adm-muted">로컬 확인 모드에서는 기사 배정 일정을 불러오지 않습니다.</p> : jobs.length === 0 ? <p className="adm-muted">해당 월 배정 일정이 없습니다.</p> : jobs.map((job) => (
                 <p key={job.id}>{scheduleTime(job.scheduled_at)} — {job.orders?.order_number ?? "주문"} {formatServiceName(firstServiceCode(job.orders))} {maskAddress(job.orders?.homes?.address_full, 3)}</p>
               ))}
             </div>

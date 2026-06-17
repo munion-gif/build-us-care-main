@@ -142,7 +142,7 @@ function customerName(order: any) {
 
 function firstServiceCode(order: any) {
   const sku = Array.isArray(order?.skus) ? order.skus[0] : null;
-  return sku?.service_type_code ?? sku?.sku ?? order?.service_type_code ?? order?.service_code;
+  return sku?.service_type_code ?? sku?.metadata?.service_type_code ?? sku?.sku ?? order?.service_type_code ?? order?.service_code;
 }
 
 function diagnosisOrderNumber(diagnosis: any) {
@@ -184,15 +184,15 @@ async function getTodaySummary(supabase: SupabaseAdmin, ranges: DashboardRanges)
     issueOrders,
     weekCompletedJobs
   ] = await Promise.all([
-    supabase.from("orders").select("id", { count: "exact", head: true }).eq("is_test", false).is("deleted_at", null).gte("created_at", ranges.today.start).lt("created_at", ranges.today.end),
+    supabase.from("orders").select("id", { count: "exact", head: true }).or("is_test.is.null,is_test.eq.false").is("deleted_at", null).gte("created_at", ranges.today.start).lt("created_at", ranges.today.end),
     supabase.from("payments").select("id", { count: "exact", head: true }).eq("status", "done").gte("paid_at", ranges.today.start).lt("paid_at", ranges.today.end),
     supabase.from("jobs").select("id", { count: "exact", head: true }).in("status", VISIT_SCHEDULED_STATUSES).gte("scheduled_at", ranges.today.start).lt("scheduled_at", ranges.today.end),
     supabase.from("warranty_cases").select("id", { count: "exact", head: true }).gte("created_at", ranges.today.start).lt("created_at", ranges.today.end),
     supabase.from("payments").select("amount").eq("status", "done").gte("paid_at", week),
-    supabase.from("diagnoses").select("id", { count: "exact", head: true }).eq("is_test", false).is("result", null),
+    supabase.from("diagnoses").select("id", { count: "exact", head: true }).or("is_test.is.null,is_test.eq.false").is("result", null),
     supabase.from("feedbacks").select("nps").not("nps", "is", null),
     supabase.from("quotes").select("id", { count: "exact", head: true }).is("accepted_at", null),
-    supabase.from("orders").select("id", { count: "exact", head: true }).eq("is_test", false).is("deleted_at", null).eq("status", "issue"),
+    supabase.from("orders").select("id", { count: "exact", head: true }).or("is_test.is.null,is_test.eq.false").is("deleted_at", null).eq("status", "issue"),
     supabase.from("jobs").select("id", { count: "exact", head: true }).eq("status", "inspected").gte("ended_at", week)
   ]);
 
@@ -221,8 +221,8 @@ async function getUnassignedPaidOrders(supabase: SupabaseAdmin) {
       jobs(id,technician_id,assigned_technician_name,status,scheduled_at,created_at)
     `
     )
-    .eq("is_test", false)
     .is("deleted_at", null)
+    .or("is_test.is.null,is_test.eq.false")
     .in("status", ["paid", "product_paid"])
     .order("created_at", { ascending: true })
     .limit(80);
@@ -240,8 +240,8 @@ async function getPaymentNeededOrders(supabase: SupabaseAdmin) {
       payments(id,status,amount,provider,method,online_payment_amount,onsite_payment_amount,requested_at,created_at)
     `
     )
-    .eq("is_test", false)
     .is("deleted_at", null)
+    .or("is_test.is.null,is_test.eq.false")
     .in("status", ["payment_pending", "pending_product_payment"])
     .order("created_at", { ascending: true })
     .limit(10);
@@ -259,8 +259,8 @@ async function getPhotoReviewOrders(supabase: SupabaseAdmin) {
       orders(order_number)
     `
     )
-    .eq("is_test", false)
     .is("result", null)
+    .or("is_test.is.null,is_test.eq.false")
     .order("created_at", { ascending: true })
     .limit(10);
 
@@ -343,7 +343,7 @@ async function getRecentDiagnoses(supabase: SupabaseAdmin, ranges: DashboardRang
   const { data, count } = await supabase
     .from("diagnoses")
     .select("id,result,service_type_code,service_code,suggested_service_code,created_at", { count: "exact" })
-    .eq("is_test", false)
+    .or("is_test.is.null,is_test.eq.false")
     .gte("created_at", ranges.recent24h)
     .order("created_at", { ascending: false })
     .limit(500);
@@ -425,6 +425,10 @@ function EmptyRow({ children }: { children: React.ReactNode }) {
   return <p className="adm-muted adm-empty-line">{children}</p>;
 }
 
+function localEmptyText(localMode: boolean, fallback: string, localMessage: string) {
+  return localMode ? localMessage : fallback;
+}
+
 function OrderVisitMeta({ order }: { order: any }) {
   const activeJob = asArray(order?.jobs)
     .filter((job) => job.status !== "cancelled")
@@ -433,8 +437,8 @@ function OrderVisitMeta({ order }: { order: any }) {
   return <span>{kstDateOnly(activeJob.scheduled_at)} {slotFromScheduledAt(activeJob.scheduled_at)}</span>;
 }
 
-function JobList({ jobs }: { jobs: any[] }) {
-  if (jobs.length === 0) return <EmptyRow>방문 일정이 없습니다.</EmptyRow>;
+function JobList({ jobs, localMode = false }: { jobs: any[]; localMode?: boolean }) {
+  if (jobs.length === 0) return <EmptyRow>{localEmptyText(localMode, "방문 일정이 없습니다.", "로컬 확인 모드에서는 방문 일정을 불러오지 않습니다.")}</EmptyRow>;
   return (
     <div className="adm-action-list">
       {jobs.map((job) => {
@@ -457,49 +461,29 @@ function JobList({ jobs }: { jobs: any[] }) {
 }
 
 export default async function AdminDashboardPage() {
+  const localMode = !hasSupabaseEnv();
   const data = await getDashboardData();
   const workflowCards = [
     {
       step: "1",
-      label: "신규 주문",
-      value: data.summary.todayOrders,
-      sub: "오늘 접수",
-      href: "/admin/orders?flow=intake"
-    },
-    {
-      step: "2",
-      label: "사진 확인",
+      label: "사진확인 접수",
       value: data.photoReviewOrders.length,
-      sub: "사진 접수 확인",
+      sub: "확인 대기",
       href: "/admin/diagnoses"
     },
     {
+      step: "2",
+      label: "제품 주문",
+      value: data.paymentNeededOrders.length + data.unassignedPaidOrders.length,
+      sub: "입금/배정 확인",
+      href: "/admin/orders"
+    },
+    {
       step: "3",
-      label: "입금 확인",
-      value: data.paymentNeededOrders.length,
-      sub: "제품값 계좌이체",
-      href: "/admin/orders?flow=payment"
-    },
-    {
-      step: "4",
-      label: "기사 배정",
-      value: data.unassignedPaidOrders.length,
-      sub: "입금 완료, 기사 미배정",
-      href: "/admin/orders?flow=paid"
-    },
-    {
-      step: "5",
-      label: "방문",
-      value: data.summary.todayVisits,
-      sub: "오늘 방문 예정",
-      href: "/admin/jobs"
-    },
-    {
-      step: "6",
-      label: "취소/A/S",
-      value: data.summary.todayWarranty + data.summary.issueOrders,
-      sub: "예외 처리",
-      href: "/admin/orders?flow=issue"
+      label: "일정관리",
+      value: data.jobs.today.length + data.jobs.tomorrow.length,
+      sub: "오늘/내일 방문",
+      href: "/admin/slots"
     }
   ];
 
@@ -507,16 +491,21 @@ export default async function AdminDashboardPage() {
     <>
       <header className="adm-page-header">
         <h1 className="adm-page-title">운영 대시보드</h1>
-        <p className="adm-page-sub">KST {data.ranges.todayDate} 기준 신규 주문, 결제 미배정, 방문, 예외 처리를 우선 확인합니다.</p>
+        <p className="adm-page-sub">KST {data.ranges.todayDate} 기준 사진확인, 제품 주문, 방문 일정만 먼저 확인합니다.</p>
       </header>
       <div className="adm-content">
+        {localMode ? (
+          <section className="adm-card adm-admin-warning" role="status">
+            <strong>로컬 확인 모드입니다.</strong>
+            <p>Supabase 연결 전에는 대시보드가 읽기 전용 기본 상태로 표시됩니다.</p>
+          </section>
+        ) : null}
         <section className="adm-section adm-card">
           <div className="adm-section-head">
             <div>
-              <h2 className="adm-card-title">오늘 처리 흐름</h2>
-              <p className="adm-muted adm-section-note">보고용 지표보다 바로 처리할 업무만 우선 배치했습니다.</p>
+              <h2 className="adm-card-title">오늘 확인할 메뉴</h2>
+              <p className="adm-muted adm-section-note">운영자가 바로 들어가서 처리할 메뉴만 남겼습니다.</p>
             </div>
-            <Link className="adm-link" href="/admin/analytics">분석 보기</Link>
           </div>
           <div className="adm-workflow-strip" aria-label="오늘 처리 흐름">
             {workflowCards.map((card) => (
@@ -534,11 +523,36 @@ export default async function AdminDashboardPage() {
           <div className="adm-stack">
             <article className="adm-card">
               <div className="adm-section-head">
+                <h2 className="adm-card-title">사진확인 접수</h2>
+                <Link className="adm-link" href="/admin/diagnoses">사진 확인</Link>
+              </div>
+              {data.photoReviewOrders.length === 0 ? (
+                <EmptyRow>{localEmptyText(localMode, "확인할 사진 접수가 없습니다.", "로컬 확인 모드에서는 사진확인 접수 목록을 불러오지 않습니다.")}</EmptyRow>
+              ) : (
+                <div className="adm-action-list">
+                  {data.photoReviewOrders.slice(0, 6).map((diagnosis: any) => (
+                    <Link className="adm-action-row" href={`/admin/diagnoses?result=all&id=${diagnosis.id}`} key={diagnosis.id}>
+                      <span>
+                        <strong>{diagnosisOrderNumber(diagnosis)}</strong>
+                        <small>{customerName(diagnosis)} · {formatServiceName(firstServiceCode(diagnosis))} · 사진 {photoCount(diagnosis)}장</small>
+                      </span>
+                      <span>
+                        <small>{formatKRDateTime(diagnosis.created_at)}</small>
+                        <b className={`adm-badge ${badgeClass(diagnosis.result)}`}>{resultLabel(diagnosis.result)}</b>
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </article>
+
+            <article className="adm-card">
+              <div className="adm-section-head">
                 <h2 className="adm-card-title">입금 확인 필요</h2>
                 <Link className="adm-link" href="/admin/orders?flow=payment">입금 확인</Link>
               </div>
               {data.paymentNeededOrders.length === 0 ? (
-                <EmptyRow>입금 확인이 필요한 주문이 없습니다.</EmptyRow>
+                <EmptyRow>{localEmptyText(localMode, "입금 확인이 필요한 주문이 없습니다.", "로컬 확인 모드에서는 입금 확인 대상 주문을 불러오지 않습니다.")}</EmptyRow>
               ) : (
                 <div className="adm-action-list">
                   {data.paymentNeededOrders.map((order: any) => (
@@ -560,10 +574,10 @@ export default async function AdminDashboardPage() {
             <article className="adm-card">
               <div className="adm-section-head">
                 <h2 className="adm-card-title">입금 완료 후 미배정</h2>
-                <Link className="adm-link" href="/admin/orders?status=paid">주문 관리</Link>
+                <Link className="adm-link" href="/admin/orders?status=paid">제품 주문</Link>
               </div>
               {data.unassignedPaidOrders.length === 0 ? (
-                <EmptyRow>미배정 paid 주문이 없습니다.</EmptyRow>
+                <EmptyRow>{localEmptyText(localMode, "미배정 paid 주문이 없습니다.", "로컬 확인 모드에서는 미배정 제품 주문을 불러오지 않습니다.")}</EmptyRow>
               ) : (
                 <div className="adm-action-list">
                   {data.unassignedPaidOrders.map((order: any) => (
@@ -588,7 +602,7 @@ export default async function AdminDashboardPage() {
                 <span className="adm-muted">{data.ranges.tomorrowDate}</span>
               </div>
               {data.tomorrowUnassignedVisits.length === 0 ? (
-                <EmptyRow>내일 방문 예정 중 기사 미배정 건이 없습니다.</EmptyRow>
+                <EmptyRow>{localEmptyText(localMode, "내일 방문 예정 중 기사 미배정 건이 없습니다.", "로컬 확인 모드에서는 내일 방문 예정 배정 목록을 불러오지 않습니다.")}</EmptyRow>
               ) : (
                 <div className="adm-action-list">
                   {data.tomorrowUnassignedVisits.map((job: any) => {
@@ -613,98 +627,18 @@ export default async function AdminDashboardPage() {
           <article className="adm-card">
             <div className="adm-section-head">
               <h2 className="adm-card-title">오늘/내일 방문 일정</h2>
-              <Link className="adm-link" href="/admin/jobs">현장 관리</Link>
+              <Link className="adm-link" href="/admin/slots">일정관리</Link>
             </div>
             <div className="adm-visit-columns">
               <section>
                 <h3 className="adm-section-title">오늘 방문</h3>
-                <JobList jobs={data.jobs.today} />
+              <JobList jobs={data.jobs.today} localMode={localMode} />
               </section>
               <section>
                 <h3 className="adm-section-title">내일 방문</h3>
-                <JobList jobs={data.jobs.tomorrow} />
+              <JobList jobs={data.jobs.tomorrow} localMode={localMode} />
               </section>
             </div>
-          </article>
-        </section>
-
-        <section className="adm-dashboard-alerts adm-section" aria-label="운영 알림">
-          <article className="adm-card">
-            <div className="adm-section-head">
-              <h2 className="adm-card-title">오늘 접수된 A/S</h2>
-              <span className="adm-muted">{data.warrantyCases.length}건</span>
-            </div>
-            {data.warrantyCases.length === 0 ? (
-              <EmptyRow>오늘 접수된 A/S가 없습니다.</EmptyRow>
-            ) : (
-              <div className="adm-action-list">
-                {data.warrantyCases.map((item: any) => {
-                  const order = asOne(item.orders) ?? asOne(asOne(item.jobs)?.orders);
-                  return (
-                    <Link className="adm-action-row" href={order?.id ? `/admin/orders/${order.id}` : "/admin/orders"} key={item.id}>
-                      <span>
-                        <strong>{item.id.slice(0, 8)} · {order?.order_number ?? "-"}</strong>
-                        <small>{item.issue_type ?? item.reason ?? "유형 미확인"} · {item.description ?? "설명 없음"}</small>
-                      </span>
-                      <span>
-                        <b className={`adm-badge ${badgeClass(item.status)}`}>{item.status ?? "open"}</b>
-                      </span>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </article>
-
-          <article className="adm-card">
-            <div className="adm-section-head">
-              <h2 className="adm-card-title">사진 확인 접수</h2>
-              <Link className="adm-link" href="/admin/diagnoses">사진 확인</Link>
-            </div>
-            <div className="adm-big-number">{data.photoReviewOrders.length}<span>건</span></div>
-            {data.photoReviewOrders.length === 0 ? (
-              <EmptyRow>확인할 접수 사진이 없습니다.</EmptyRow>
-            ) : (
-              <div className="adm-action-list">
-                {data.photoReviewOrders.slice(0, 5).map((diagnosis: any) => (
-                  <Link className="adm-action-row" href={`/admin/diagnoses?result=all&id=${diagnosis.id}`} key={diagnosis.id}>
-                    <span>
-                      <strong>{diagnosisOrderNumber(diagnosis)} · 사진 {photoCount(diagnosis)}장</strong>
-                      <small>{customerName(diagnosis)} · {formatServiceName(firstServiceCode(diagnosis))}</small>
-                    </span>
-                    <span>
-                      <b className={`adm-badge ${badgeClass(diagnosis.result)}`}>{resultLabel(diagnosis.result)}</b>
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </article>
-
-          <article className="adm-card">
-            <div className="adm-section-head">
-              <h2 className="adm-card-title">오늘 일정 변경 수</h2>
-              <span className="adm-muted">{data.reschedules.count}건</span>
-            </div>
-            {data.reschedules.events.length === 0 ? (
-              <EmptyRow>오늘 일정 변경이 없습니다.</EmptyRow>
-            ) : (
-              <div className="adm-action-list">
-                {data.reschedules.events.map((event: any) => {
-                  const order = asOne(event.orders);
-                  const props = event.properties ?? {};
-                  return (
-                    <Link className="adm-action-row" href={order?.id ? `/admin/orders/${order.id}` : "/admin/orders"} key={event.id}>
-                      <span>
-                        <strong>{order?.order_number ?? "주문 확인"}</strong>
-                        <small>{props.from_date ?? "-"} {slotLabel(props.from_slot)} → {props.to_date ?? "-"} {slotLabel(props.to_slot)}</small>
-                      </span>
-                      <span><small>{formatKRDateTime(event.created_at)}</small></span>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
           </article>
         </section>
 

@@ -13,7 +13,9 @@ import { formatKRDate, formatKRDateTime, formatKRW, formatServiceName } from "@/
 import { getKakaoChannelChatUrl } from "@/lib/kakao-channel";
 import { getOrderStatusUx } from "@/lib/order-status-ux";
 import { buildQuoteDocumentInputFromOrderStatus, downloadQuoteDocument } from "@/lib/quote-document";
+import { isClosedReservationDate, isKoreanPublicHoliday } from "@/lib/reservation-policy";
 import { useTracking } from "@/lib/use-tracking";
+import { matchesStoredBuilduscareOrder, storedBuilduscareOrderToStatusOrder } from "@/lib/builduscare-local-order";
 
 type OrderStatusClientProps = {
   orderId: string;
@@ -249,6 +251,18 @@ function calendarDays(date: Date) {
   return [...blanks, ...days];
 }
 
+function rescheduleDayTag(dayInfo: SlotDay | undefined, isPolicyClosed: boolean) {
+  if (isPolicyClosed) return "휴무";
+  if (!dayInfo || dayInfo.beforeMinDate) return "";
+  if (dayInfo.blocked) return "차단";
+  const morningFull = dayInfo.slots?.morning?.available === false || dayInfo.slots?.morning?.isFull;
+  const afternoonFull = dayInfo.slots?.afternoon?.available === false || dayInfo.slots?.afternoon?.isFull;
+  if (morningFull && afternoonFull) return "마감";
+  if (morningFull) return "오전마감";
+  if (afternoonFull) return "오후마감";
+  return "";
+}
+
 export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone }: OrderStatusClientProps) {
   const [state, setState] = useState<{ loading: boolean; message: string; order?: any; status?: number }>({
     loading: true,
@@ -282,6 +296,11 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
   const { track } = useTracking();
   const kakaoChatUrl = getKakaoChannelChatUrl(kakaoUrl);
 
+  function readLocalFallbackOrder() {
+    const stored = matchesStoredBuilduscareOrder({ orderId, accessToken });
+    return stored ? storedBuilduscareOrderToStatusOrder(stored) : null;
+  }
+
   async function loadOrder() {
     if (!accessToken) {
       setState({
@@ -299,12 +318,22 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
       });
       const json = await response.json();
       if (!response.ok) {
+        const fallbackOrder = readLocalFallbackOrder();
+        if (fallbackOrder) {
+          setState({ loading: false, message: "", order: fallbackOrder });
+          return;
+        }
         const fallback = response.status === 404 ? "주문을 찾을 수 없어요" : "링크가 만료됐거나 올바르지 않아요. 주문 시 받은 링크를 다시 확인해주세요.";
         setState({ loading: false, status: response.status, message: customerErrorMessage(json?.error, fallback) });
         return;
       }
       setState({ loading: false, message: "", order: json.data.order });
     } catch {
+      const fallbackOrder = readLocalFallbackOrder();
+      if (fallbackOrder) {
+        setState({ loading: false, message: "", order: fallbackOrder });
+        return;
+      }
       setState({ loading: false, status: 0, message: "네트워크 연결이 불안정해요. 다시 시도해주세요." });
     }
   }
@@ -314,6 +343,7 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
   }, [accessToken, orderId]);
 
   const order = state.order;
+  const isLocalOnlyOrder = Boolean(order?.localOnly);
   const orderStatus = normalizeOrderStatusForUi(order?.status);
   const quote = useMemo(() => latestQuote(order?.quotes ?? []), [order?.quotes]);
   const job = useMemo(() => primaryJob(order?.jobs ?? []), [order?.jobs]);
@@ -321,10 +351,11 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
   const payment = useMemo(() => asArray(order?.payments).sort((a: any, b: any) => String(b.paid_at ?? b.approved_at ?? b.created_at ?? "").localeCompare(String(a.paid_at ?? a.approved_at ?? a.created_at ?? "")))[0] ?? null, [order?.payments]);
   const feedbacks = asArray(order?.feedbacks);
   const feedbackExists = feedbacks.length > 0;
-  const showFeedbackCta = Boolean(order && orderStatus === "done" && !feedbackExists);
-  const canCancel = Boolean(order && ["paid", "scheduled"].includes(orderStatus));
+  const showFeedbackCta = Boolean(order && !isLocalOnlyOrder && orderStatus === "done" && !feedbackExists);
+  const canCancel = Boolean(order && !isLocalOnlyOrder && ["paid", "scheduled"].includes(orderStatus));
   const canReschedule = Boolean(
     order &&
+      !isLocalOnlyOrder &&
       ["paid", "scheduled"].includes(orderStatus) &&
       !["in_progress", "done", "inspected"].includes(String(job?.status ?? "")) &&
       !["warranty", "issue", "completed", "done", "canceled"].includes(orderStatus)
@@ -333,6 +364,17 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
   const scheduledAt = job?.scheduled_at ? new Date(job.scheduled_at) : reservation?.reserved_date ? new Date(`${reservation.reserved_date}T${reservation.time_slot === "afternoon" ? "13:00:00" : "09:00:00"}+09:00`) : null;
   const currentReservedDate = dateFromReservationOrJob(reservation, job);
   const currentReservedSlot = slotFromReservationOrJob(reservation, job);
+  const needsVisitConfirmation = Boolean(
+    order &&
+      !isLocalOnlyOrder &&
+      orderStatus === "paid" &&
+      (!currentReservedDate || String(job?.status ?? "") !== "scheduled")
+  );
+  const reservationActionLabel = needsVisitConfirmation ? "방문 일정 확정" : "예약 변경";
+  const reservationModalTitle = needsVisitConfirmation ? "방문 일정 확정" : "예약 변경";
+  const reservationModalDescription = needsVisitConfirmation
+    ? "방문 가능한 날짜와 시간대를 선택해 예약을 확정합니다."
+    : "예약 변경 시 기존 기사 배정이 조정될 수 있습니다.";
   const technicianName = job?.technicians?.name ?? job?.technician?.name ?? "";
   const statusUx = getOrderStatusUx(orderStatus || order?.status);
   const statusGuidance = buildStatusGuidance({
@@ -357,7 +399,7 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
   const selectedDay = slotDays[rescheduleDate];
   const selectedSlotInfo = selectedDay?.slots?.[rescheduleSlot];
   const sameAsCurrent = Boolean(currentReservedDate && rescheduleDate === currentReservedDate && rescheduleSlot === currentReservedSlot);
-  const selectedSlotAvailable = Boolean(sameAsCurrent || selectedSlotInfo?.available);
+  const selectedSlotAvailable = Boolean(sameAsCurrent || (!isClosedReservationDate(rescheduleDate) && selectedSlotInfo?.available));
 
   useEffect(() => {
     if (!rescheduleOpen) return;
@@ -521,21 +563,24 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
     setRescheduleLoading(true);
     setRescheduleMessage("");
     try {
-      const response = await fetch(`/api/orders/${orderId}/reschedule`, {
-        method: "PATCH",
+      const response = await fetch(needsVisitConfirmation ? `/api/orders/${orderId}/reservation` : `/api/orders/${orderId}/reschedule`, {
+        method: needsVisitConfirmation ? "POST" : "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           accessToken,
           reservedDate: rescheduleDate,
-          timeSlot: rescheduleSlot
+          timeSlot: rescheduleSlot,
+          status: "confirmed"
         })
       });
       const json = await response.json();
-      if (!response.ok) throw new Error(customerErrorMessage(json?.error, "예약 변경을 다시 확인해주세요."));
+      if (!response.ok) throw new Error(customerErrorMessage(json?.error, needsVisitConfirmation ? "방문 일정 확정을 다시 확인해주세요." : "예약 변경을 다시 확인해주세요."));
 
       const jobAction = json?.data?.jobAction;
       const message =
-        jobAction === "released"
+        needsVisitConfirmation
+          ? "방문 일정이 확정되었습니다."
+          : jobAction === "released"
           ? "예약이 변경되었습니다. 기사 배정이 조정되면 다시 안내드릴게요."
           : "예약이 변경되었습니다.";
       setRescheduleNotice(message);
@@ -547,7 +592,7 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
       }, { orderId });
       await loadOrder();
     } catch (error) {
-      setRescheduleMessage(error instanceof Error ? error.message : "예약 변경을 다시 시도해주세요.");
+      setRescheduleMessage(error instanceof Error ? error.message : needsVisitConfirmation ? "방문 일정 확정을 다시 시도해주세요." : "예약 변경을 다시 시도해주세요.");
     } finally {
       setRescheduleLoading(false);
     }
@@ -616,7 +661,7 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
             <li key={item}>{item}</li>
           ))}
         </ul>
-        {orderStatus === "done" && (
+        {orderStatus === "done" && !isLocalOnlyOrder && (
           <button type="button" onClick={() => setWarrantyOpen(true)}>
             A/S 신고하기
           </button>
@@ -626,6 +671,9 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
         orderStatus={orderStatus || order.status}
         canCancel={canCancel}
         canReschedule={canReschedule}
+        reservationActionLabel={reservationActionLabel}
+        reservationActionTitle={needsVisitConfirmation ? "방문 일정을 확정해주세요" : undefined}
+        reservationActionBody={needsVisitConfirmation ? "가능한 날짜와 시간대를 선택하면 방문 예약이 확정됩니다." : undefined}
         showFeedback={showFeedbackCta}
         kakaoUrl={kakaoUrl}
         onFeedback={() => setFeedbackOpen(true)}
@@ -645,6 +693,11 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
           <div><dt>주소</dt><dd>{order.home?.address_full ?? "주소 확인 중"}</dd></div>
           <div><dt>접수일</dt><dd>{formatKRDateTime(order.created_at)}</dd></div>
         </dl>
+        {isLocalOnlyOrder && (
+          <p className="order-help-text" style={{ marginTop: 14 }}>
+            로컬 확인용 주문입니다. 변경, 취소, A/S 같은 후속 처리는 실제 DB 연결 후 사용할 수 있어요.
+          </p>
+        )}
       </section>
       <QuoteSummary quote={quote} payment={payment} onDownloadQuote={handleQuoteDownload} downloadLoading={quoteDownloadLoading} />
       {quoteDownloadMessage && <p className="order-inline-message quote-download-message">{quoteDownloadMessage}</p>}
@@ -665,15 +718,15 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
         </section>
       )}
 
-      {["paid", "scheduled", "in_progress", "completed", "done"].includes(orderStatus) && (
+      {!isLocalOnlyOrder && ["paid", "scheduled", "in_progress", "completed", "done"].includes(orderStatus) && (
         <section className="order-card">
           <h2>예약 변경/취소 안내</h2>
-          <p className="order-help-text">예약 변경은 가능한 날짜와 시간대를 직접 선택할 수 있고, 취소는 환불 정책에 따라 요청할 수 있습니다.</p>
+          <p className="order-help-text">{needsVisitConfirmation ? "방문 일정 확정은 가능한 날짜와 시간대를 직접 선택할 수 있습니다." : "예약 변경은 가능한 날짜와 시간대를 직접 선택할 수 있고, 취소는 환불 정책에 따라 요청할 수 있습니다."}</p>
           {rescheduleNotice && <p className="inline-success">{rescheduleNotice}</p>}
           <div className="reservation-action-row">
             {canReschedule && (
               <button className="reschedule-order-button" type="button" onClick={() => setRescheduleOpen(true)} disabled={slotLoading}>
-                {slotLoading ? "변경 가능 시간 확인 중..." : "예약 변경"}
+                {slotLoading ? "가능 시간 확인 중..." : reservationActionLabel}
               </button>
             )}
             {canCancel && <button className="cancel-order-button" type="button" onClick={() => setCancelOpen(true)}>예약 취소하기</button>}
@@ -716,8 +769,8 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
           >
             <div className="feedback-header">
               <div>
-                <strong>예약 변경</strong>
-                <p>예약 변경 시 기존 기사 배정이 조정될 수 있습니다.</p>
+                <strong>{reservationModalTitle}</strong>
+                <p>{reservationModalDescription}</p>
               </div>
               <button type="button" onClick={() => setRescheduleOpen(false)}>
                 닫기
@@ -764,9 +817,15 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
                 ))}
                 {calendarDays(rescheduleMonth).map((day, index) => {
                   if (!day) return <span key={`blank-${index}`} className="blank" />;
+                  const date = new Date(`${day}T00:00:00`);
+                  const isSunday = date.getDay() === 0;
+                  const isSaturday = date.getDay() === 6;
+                  const isHoliday = isKoreanPublicHoliday(day);
+                  const isPolicyClosed = isClosedReservationDate(day);
                   const dayInfo = slotDays[day];
                   const isCurrentDay = day === currentReservedDate;
-                  const isDisabled = slotLoading || (!isCurrentDay && (!dayInfo || dayInfo.beforeMinDate || dayInfo.blocked || dayInfo.allFull));
+                  const isDisabled = slotLoading || (!isCurrentDay && (!dayInfo || dayInfo.beforeMinDate || dayInfo.blocked || dayInfo.allFull || isPolicyClosed));
+                  const tag = rescheduleDayTag(dayInfo, isPolicyClosed);
                   return (
                     <button
                       key={day}
@@ -775,6 +834,9 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
                         "calendar-day",
                         rescheduleDate === day ? "selected" : "",
                         isDisabled ? "disabled" : "",
+                        isSunday ? "sun" : "",
+                        isSaturday ? "sat" : "",
+                        isHoliday ? "holiday" : "",
                         dayInfo?.blocked ? "blocked" : "",
                         dayInfo?.allFull ? "full" : ""
                       ].join(" ")}
@@ -786,8 +848,7 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
                       }}
                     >
                       <span>{Number(day.slice(-2))}</span>
-                      {dayInfo?.allFull && <small>마감</small>}
-                      {dayInfo?.blocked && <small>차단</small>}
+                      {tag && <small>{tag}</small>}
                     </button>
                   );
                 })}
@@ -798,7 +859,7 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
               {(["morning", "afternoon"] as const).map((slot) => {
                 const slotInfo = slotDays[rescheduleDate]?.slots?.[slot];
                 const slotIsCurrent = rescheduleDate === currentReservedDate && slot === currentReservedSlot;
-                const disabled = slotLoading || (!slotIsCurrent && !slotInfo?.available);
+                const disabled = slotLoading || (!slotIsCurrent && (isClosedReservationDate(rescheduleDate) || !slotInfo?.available));
                 return (
                   <button
                     key={slot}
@@ -819,7 +880,7 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
 
             {rescheduleMessage && <p className="feedback-message">{rescheduleMessage}</p>}
             <button className="submit-feedback" type="submit" disabled={rescheduleLoading || !selectedSlotAvailable}>
-              {rescheduleLoading ? "변경 중..." : "변경하기"}
+              {rescheduleLoading ? (needsVisitConfirmation ? "확정 중..." : "변경 중...") : (needsVisitConfirmation ? "확정하기" : "변경하기")}
             </button>
           </form>
         </div>
@@ -1442,6 +1503,16 @@ const orderStatusCss = `
   .calendar-day.disabled {
     background: #f4f3f0;
     color: var(--color-text-faint);
+  }
+  .calendar-day.sat:not(.disabled) {
+    color: var(--color-primary);
+  }
+  .calendar-day.sun,
+  .calendar-day.holiday {
+    color: #ef4444;
+  }
+  .calendar-day.selected {
+    color: var(--color-primary);
   }
   .calendar-day.full small {
     color: #991b1b;

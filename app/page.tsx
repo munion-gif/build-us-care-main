@@ -1,5 +1,5 @@
-import { HomeClient } from "./home-client";
+import { HomeLanding } from "@/components/builduscare/HomeLanding";
 
 export default function HomePage() {
-  return <HomeClient />;
+  return <HomeLanding />;
 }

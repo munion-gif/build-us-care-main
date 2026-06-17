@@ -27,6 +27,7 @@ async function getSettings() {
 }
 
 export default async function AdminSettingsPage() {
+  const localMode = !hasSupabaseEnv();
   const [settings, faqs] = await Promise.all([getSettings(), getAdminFaqs()]);
 
   return (
@@ -36,6 +37,12 @@ export default async function AdminSettingsPage() {
         <p className="adm-page-sub">카카오 상담 링크, 대표 전화번호, 방문 슬롯 수, 점검 안내를 관리합니다.</p>
       </header>
       <div className="adm-content adm-stack">
+        {localMode ? (
+          <section className="adm-card adm-admin-warning" role="status">
+            <strong>로컬 확인 모드입니다.</strong>
+            <p>Supabase 연결 전에는 운영 설정과 FAQ를 읽기 전용으로 확인하고, 데이터 내보내기는 로컬 샘플 파일로 확인합니다.</p>
+          </section>
+        ) : null}
         <section className="adm-card adm-section">
           <div className="adm-section-head">
             <div>
@@ -44,13 +51,22 @@ export default async function AdminSettingsPage() {
             </div>
           </div>
           <div className="adm-quick-filter-row" aria-label="데이터 내보내기">
-            <a className="adm-btn adm-btn-primary" href="/api/admin/data-export">마스킹 Excel 다운로드</a>
-            <a className="adm-btn adm-btn-secondary" href="/api/admin/data-export?include_pii=1">개인정보 포함 다운로드</a>
+            {localMode ? (
+              <>
+                <a className="adm-btn adm-btn-primary" href="/api/admin/data-export">로컬 샘플 Excel 다운로드</a>
+                <a className="adm-btn adm-btn-secondary" href="/api/admin/data-export?include_pii=1">로컬 샘플 PII 다운로드</a>
+              </>
+            ) : (
+              <>
+                <a className="adm-btn adm-btn-primary" href="/api/admin/data-export">마스킹 Excel 다운로드</a>
+                <a className="adm-btn adm-btn-secondary" href="/api/admin/data-export?include_pii=1">개인정보 포함 다운로드</a>
+              </>
+            )}
           </div>
-          <p className="adm-help">기본 다운로드는 고객명, 전화번호, 주소를 마스킹합니다. 개인정보 포함 파일은 운영상 필요한 경우에만 사용하세요.</p>
+          <p className="adm-help">{localMode ? "로컬 확인 모드에서는 실제 운영 데이터 대신 샘플 내보내기 파일을 제공합니다." : "기본 다운로드는 고객명, 전화번호, 주소를 마스킹합니다. 개인정보 포함 파일은 운영상 필요한 경우에만 사용하세요."}</p>
         </section>
-        <SettingsForm initialSettings={settings} />
-        <FAQManager initialFaqs={faqs} />
+        <SettingsForm initialSettings={settings} localMode={localMode} />
+        <FAQManager initialFaqs={faqs} localMode={localMode} />
       </div>
     </>
   );

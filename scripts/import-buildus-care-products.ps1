@@ -169,6 +169,10 @@ function Get-ImageSearchKeys([string]$model, [string[]]$skuCodes) {
   if ($modelKey.Contains("5종")) {
     Add-UniqueSearchKey $keys "5품"
   }
+  if ($modelKey.Contains("슬릿")) {
+    Add-UniqueSearchKey $keys "슬릭"
+    Add-UniqueSearchKey $keys ($modelKey -replace "슬릿", "슬릭")
+  }
 
   foreach ($alias in (Get-ImageAliasKeys $model ($skuCodes -join " "))) {
     Add-UniqueSearchKey $keys $alias
@@ -474,7 +478,7 @@ function Get-EmbeddedImageList([string]$Path, [int]$SheetIndex) {
 }
 
 function Select-EmbeddedImageEntry($embeddedImageList, $usedEmbeddedImages, [int]$rowIndex) {
-  $unused = @($embeddedImageList)
+  $unused = @($embeddedImageList | Where-Object { -not $usedEmbeddedImages.Contains([string]$_.EntryPath) })
   if ($unused.Count -eq 0) { return $null }
 
   $exact = @($unused | Where-Object { [int]$_.FromRow -eq $rowIndex } | Sort-Object `
@@ -1023,10 +1027,27 @@ foreach ($workbookFile in $workbooks) {
       $embeddedImage = Select-EmbeddedImageEntry $embeddedImageList $usedEmbeddedImages $rowIndex
       $embeddedOverride = Get-EmbeddedImageEntryOverride $workbookFile.Name $sheet.Name ($rowIndex + 1)
       $embeddedEntryPath = if ($embeddedOverride) { $embeddedOverride } elseif ($embeddedImage) { [string]$embeddedImage.EntryPath } else { $null }
-      $exactSkuImage = if ($embeddedEntryPath) { $null } else { Find-ExactSkuImage $imageCandidates $brandRoot $sheet.Name $model $skuCodes $color }
-      $sourceImage = if ($exactSkuImage) { $exactSkuImage.FullName } elseif ($embeddedEntryPath) { $null } else { Find-ProductImage $imageCandidates $serviceCode $brandRoot $sheet.Name $model $skuCodes $color }
-      $imageMatchMethod = if ($exactSkuImage) { "sku-exact" } elseif ($embeddedEntryPath) { "excel-anchor" } elseif ($sourceImage) { "fuzzy-name" } else { "missing" }
+      $exactSkuImage = Find-ExactSkuImage $imageCandidates $brandRoot $sheet.Name $model $skuCodes $color
+      $preferEmbeddedAfterExact = $serviceCode -eq "faucet_replace"
+      $sourceImage = $null
+      $imageMatchMethod = "missing"
+      if ($exactSkuImage) {
+        $sourceImage = $exactSkuImage.FullName
+        $imageMatchMethod = "sku-exact"
+      } elseif ($preferEmbeddedAfterExact -and $embeddedEntryPath) {
+        $imageMatchMethod = "excel-anchor"
+      } else {
+        $sourceImage = Find-ProductImage $imageCandidates $serviceCode $brandRoot $sheet.Name $model $skuCodes $color
+        if ($sourceImage) {
+          $imageMatchMethod = "fuzzy-name"
+        } elseif ($embeddedEntryPath) {
+          $imageMatchMethod = "excel-anchor"
+        }
+      }
       $imageMatchCode = if ($exactSkuImage) { [string]$exactSkuImage.MatchCode } else { "" }
+      if ($imageMatchMethod -eq "excel-anchor" -and $embeddedEntryPath) {
+        [void]$usedEmbeddedImages.Add([string]$embeddedEntryPath)
+      }
       $imagePath = $null
       if ($sourceImage) {
         $ext = ([System.IO.Path]::GetExtension($sourceImage)).ToLowerInvariant()

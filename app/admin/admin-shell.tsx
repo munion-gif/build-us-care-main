@@ -7,13 +7,22 @@ import {
   CalendarDays,
   Camera,
   ClipboardList,
+  FileText,
+  ListChecks,
 } from "lucide-react";
 
 const menus = [
   [Camera, "사진확인 접수", "/admin/diagnoses"],
   [ClipboardList, "제품 주문", "/admin/orders"],
+  [FileText, "견적서", "/admin/quotes"],
+  [ListChecks, "견적서 목록", "/admin/quotes/list"],
   [CalendarDays, "일정관리", "/admin/slots"]
 ] as const;
+
+function isMenuActive(pathname: string, href: string) {
+  if (href === "/admin/quotes") return pathname === href || pathname.startsWith("/admin/quotes/new");
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -68,7 +77,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </Link>
         <nav className="adm-sidebar-nav">
           {menus.map(([Icon, label, href]) => (
-            <Link key={href} className={`adm-sidebar-link ${pathname === href || pathname.startsWith(`${href}/`) ? "active" : ""}`} href={href}>
+            <Link key={href} className={`adm-sidebar-link ${isMenuActive(pathname, href) ? "active" : ""}`} href={href}>
               <Icon aria-hidden="true" size={17} strokeWidth={2.2} />
               {label}
               {href === "/admin/orders" && unassignedCount > 0 && <b className="adm-nav-badge">{unassignedCount}</b>}
@@ -87,7 +96,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <header className="adm-mobile-top">
           <nav className="adm-mobile-nav">
             {menus.map(([, label, href]) => (
-              <Link key={href} className={pathname === href || pathname.startsWith(`${href}/`) ? "active" : ""} href={href}>
+              <Link key={href} className={isMenuActive(pathname, href) ? "active" : ""} href={href}>
                 {label}
                 {href === "/admin/orders" && unassignedCount > 0 && <b className="adm-nav-badge">{unassignedCount}</b>}
                 {href === "/admin/orders" && cancelRequestedCount > 0 && <b className="adm-nav-badge adm-nav-badge-warn">{cancelRequestedCount}</b>}

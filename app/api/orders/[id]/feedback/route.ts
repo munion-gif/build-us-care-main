@@ -1,5 +1,6 @@
 import { fail, ok } from "@/lib/api-response";
 import { parseAdminKeys } from "@/lib/admin-auth";
+import { matchLocalBuildusOrderFromRequest } from "@/lib/builduscare-local-order-server";
 import { readJson, validationError } from "@/lib/errors";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { createFeedbackSchema, feedbackQuerySchema, uuidSchema } from "@/lib/validation";
@@ -30,18 +31,24 @@ function isAuthorized(orderAccessToken: string, accessToken: string | undefined,
 }
 
 export async function POST(request: Request, context: Context) {
+  const { id } = await context.params;
+  const body = await readJson(request);
+  const localAccessToken = typeof body?.accessToken === "string" ? body.accessToken : undefined;
+
   if (!hasSupabaseEnv()) {
-    return fail("supabase_not_configured", "Supabase is required to create feedback.", 500);
+    const localOrder = matchLocalBuildusOrderFromRequest(request, { orderId: id, accessToken: localAccessToken });
+    if (localOrder) {
+      return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 후기를 저장하지 않습니다.", 409, { localMode: true });
+    }
+    return fail("not_found", "로컬 확인 모드에서 일치하는 주문을 찾을 수 없어요.", 404, { localMode: true });
   }
 
-  const { id } = await context.params;
   const orderId = uuidSchema.safeParse(id);
 
   if (!orderId.success) {
     return validationError(orderId.error, "Invalid order id.");
   }
 
-  const body = await readJson(request);
   if (body?.nps === undefined || body?.nps === null || body?.nps === "") {
     return fail("NPS_REQUIRED", "nps는 필수 항목입니다 (0-10)", 400);
   }
@@ -123,7 +130,7 @@ export async function POST(request: Request, context: Context) {
 
 export async function GET(request: Request, context: Context) {
   if (!hasSupabaseEnv()) {
-    return fail("supabase_not_configured", "Supabase is required to read feedback.", 500);
+    return fail("not_found", "로컬 확인 모드에서는 후기 정보를 저장하지 않습니다.", 404, { localMode: true });
   }
 
   const { id } = await context.params;
@@ -166,5 +173,5 @@ export async function GET(request: Request, context: Context) {
     return fail("not_found", "Feedback not found.", 404);
   }
 
-  return ok({ feedback: data });
+  return ok({ feedback: data, localMode: false });
 }

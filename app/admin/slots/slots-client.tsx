@@ -113,7 +113,7 @@ function jobCustomer(job: AdminJob) {
   return [job.orders?.customers?.name || "성함 없음", job.orders?.customers?.phone || "연락처 없음"].join(" · ");
 }
 
-export function AdminSlotsClient() {
+export function AdminSlotsClient({ localMode = false }: { localMode?: boolean }) {
   const [month, setMonth] = useState(() => new Date());
   const [days, setDays] = useState<Record<string, SlotDay>>({});
   const [cap, setCap] = useState(0);
@@ -169,6 +169,10 @@ export function AdminSlotsClient() {
   }
 
   async function toggleBlock(dateText: string) {
+    if (localMode) {
+      setMessage("로컬 확인 모드에서는 날짜 차단을 변경하지 않습니다.");
+      return;
+    }
     const day = days[dateText];
     setMessage("");
     const response = day?.blocked
@@ -186,6 +190,10 @@ export function AdminSlotsClient() {
   }
 
   async function saveCap() {
+    if (localMode) {
+      setMessage("로컬 확인 모드에서는 슬롯 cap을 저장하지 않습니다.");
+      return;
+    }
     setMessage("");
     const nextCap = draftCap.trim() === "" ? 0 : Number(draftCap);
     if (!Number.isFinite(nextCap) || nextCap < 0) {
@@ -222,6 +230,12 @@ export function AdminSlotsClient() {
 
   return (
     <div className="adm-content">
+      {localMode ? (
+        <section className="adm-card adm-admin-warning" role="status">
+          <strong>로컬 확인 모드입니다.</strong>
+          <p>Supabase 연결 전에는 슬롯 cap 저장과 날짜 차단 변경을 비활성화합니다.</p>
+        </section>
+      ) : null}
       <section className="adm-card adm-section adm-slot-controls">
         <div>
           <h2 className="adm-section-title">전체 방문 cap</h2>
@@ -229,10 +243,10 @@ export function AdminSlotsClient() {
         </div>
         <label className="adm-slot-cap">
           <span>슬롯당 최대 건수</span>
-          <input className="adm-input" type="number" min={0} max={20} value={draftCap} placeholder="자동" onChange={(event) => setDraftCap(event.target.value)} />
+          <input className="adm-input" type="number" min={0} max={20} value={draftCap} placeholder="자동" onChange={(event) => setDraftCap(event.target.value)} disabled={localMode} />
         </label>
-        <button className="adm-btn adm-btn-primary" type="button" onClick={saveCap}>
-          저장
+        <button className="adm-btn adm-btn-primary" type="button" onClick={saveCap} disabled={localMode}>
+          {localMode ? "로컬에서 저장 불가" : "저장"}
         </button>
       </section>
 
@@ -297,33 +311,32 @@ export function AdminSlotsClient() {
               <h2 className="adm-section-title">{selectedDate} 배정 현황</h2>
               <p className="adm-muted">현재 cap {cap}건 기준으로 남은 슬롯을 확인합니다.</p>
             </div>
-            <button className={`adm-btn ${days[selectedDate].blocked ? "adm-btn-secondary" : "adm-btn-danger"}`} type="button" onClick={() => void toggleBlock(selectedDate)}>
-              {days[selectedDate].blocked ? "차단 해제" : "날짜 차단"}
+            <button className={`adm-btn ${days[selectedDate].blocked ? "adm-btn-secondary" : "adm-btn-danger"}`} type="button" onClick={() => void toggleBlock(selectedDate)} disabled={localMode}>
+              {localMode ? "로컬에서 변경 불가" : days[selectedDate].blocked ? "차단 해제" : "날짜 차단"}
             </button>
           </div>
           {(["morning", "afternoon"] as const).map((period) => {
             const periodJobs = selectedAssignments?.[period] ?? [];
-            const remaining = Math.max(0, (days[selectedDate].slots[period].maxCount ?? cap) - periodJobs.length);
+            const maxCount = days[selectedDate].slots[period].maxCount ?? cap;
+            const remaining = Math.max(0, maxCount - periodJobs.length);
             return (
               <div className="adm-slot-panel-section" key={period}>
-                <h3>{period === "morning" ? "오전" : "오후"}</h3>
+                <h3>{period === "morning" ? "오전" : "오후"} · {periodJobs.length}/{maxCount}</h3>
                 {periodJobs.map((job) => (
                   <article className="adm-slot-job-card" key={job.id}>
                     <div>
                       <strong>
                         <a href={job.orders?.id ? `/admin/orders/${job.orders.id}` : "#"}>{job.orders?.order_number ?? "주문번호 없음"}</a>
-                        {" · "}
-                        {jobProductLabel(job)}
                       </strong>
-                      <p>{jobAddress(job)}</p>
-                      <p>{jobCustomer(job)} · 예약시간대 {slotLabel(period)} {kstTime(job.scheduled_at)} · 담당 {job.technicians?.name ?? "미배정"}</p>
+                      <p>제품 · {jobProductLabel(job)}</p>
+                      <p>주소 · {jobAddress(job)}</p>
+                      <p>연락처 · {jobCustomer(job)}</p>
+                      <p>예약시간대 · {slotLabel(period)} {kstTime(job.scheduled_at)}</p>
+                      <p>담당기사 · {job.technicians?.name ?? "미배정"}</p>
                     </div>
-                    <span>{formatKRW(job.orders?.total_amount)}</span>
                   </article>
                 ))}
-                {Array.from({ length: remaining }, (_, index) => (
-                  <p key={`${period}-empty-${index}`}>○ 미배정 슬롯 {index + 1}개 남음</p>
-                ))}
+                {remaining > 0 ? <p className="adm-muted">남은 슬롯 {remaining}개</p> : null}
               </div>
             );
           })}

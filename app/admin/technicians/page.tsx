@@ -41,6 +41,7 @@ async function getWeekAssignedCounts() {
 }
 
 export default async function AdminTechniciansPage() {
+  const localMode = !hasSupabaseEnv();
   const [technicians, weekCounts] = await Promise.all([
     measure("admin.technicians.fetchTechnicians", () => getTechnicians()),
     measure("admin.technicians.fetchWeekCounts", () => getWeekAssignedCounts())
@@ -56,12 +57,18 @@ export default async function AdminTechniciansPage() {
         <p className="adm-page-sub">기사 역량, 담당 서비스, 품질 지표를 관리합니다.</p>
       </header>
       <div className="adm-content adm-stack">
+        {localMode ? (
+          <section className="adm-card adm-admin-warning" role="status">
+            <strong>로컬 확인 모드입니다.</strong>
+            <p>Supabase 연결 전에는 기사 등록과 활성 상태 변경이 비활성화됩니다.</p>
+          </section>
+        ) : null}
         <section className="adm-section-head">
           <div>
             <h2 className="adm-card-title">기사 운영 현황</h2>
             <p className="adm-muted adm-section-note">활성 여부, 이번 주 배정량, 담당 서비스만 빠르게 확인합니다.</p>
           </div>
-          <TechnicianCreateForm />
+          <TechnicianCreateForm localMode={localMode} />
         </section>
         <section className="adm-queue-summary">
           <article><strong>{technicians.length}</strong><span>전체 기사</span></article>
@@ -70,7 +77,9 @@ export default async function AdminTechniciansPage() {
           <article><strong>{inactiveCount}</strong><span>비활성</span></article>
         </section>
         {technicians.length === 0 ? (
-          <section className="adm-card adm-empty-line">등록된 기사가 없습니다.</section>
+          <section className="adm-card adm-empty-line">
+            {localMode ? "로컬 확인 모드에서는 등록 기사 목록을 불러오지 않습니다." : "등록된 기사가 없습니다."}
+          </section>
         ) : (
           <section className="adm-tech-grid" aria-label="기사 목록">
             {technicians.map((tech: any) => {
@@ -84,7 +93,7 @@ export default async function AdminTechniciansPage() {
                       <strong>{tech.name}</strong>
                       <p>{maskPhone(tech.phone)} · {tech.region ?? "담당 지역 미입력"}</p>
                     </div>
-                    <TechnicianActiveToggle id={tech.id} active={Boolean(tech.is_active)} />
+                    <TechnicianActiveToggle id={tech.id} active={Boolean(tech.is_active)} localMode={localMode} />
                   </div>
                   <div className="adm-tech-profile">
                     <span className="adm-badge adm-badge-gray">{tech.type ?? "유형 미입력"}</span>
@@ -108,7 +117,7 @@ export default async function AdminTechniciansPage() {
                   </div>
                   <div className="adm-tech-actions">
                     <span className="adm-muted">남은 기준 슬롯 {Math.max(0, 14 - weekCount)}개</span>
-                    <TechnicianScheduleButton id={tech.id} name={tech.name} />
+                    <TechnicianScheduleButton id={tech.id} name={tech.name} localMode={localMode} />
                   </div>
                 </article>
               );

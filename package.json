@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/clean-next-dev.mjs",
     "dev": "next dev",
     "dev:local": "next dev -H 127.0.0.1 -p 3000",
     "dev:lan": "next dev -H 0.0.0.0 -p 3000",

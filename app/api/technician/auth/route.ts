@@ -10,7 +10,10 @@ const schema = z.object({
 
 export async function POST(request: Request) {
   if (!hasSupabaseEnv()) {
-    return fail("supabase_not_configured", "Supabase is required.", 500);
+    return ok({
+      technician: { id: "local-technician", name: "기사님" },
+      localMode: true
+    });
   }
 
   const parsed = schema.safeParse(await readJson(request));

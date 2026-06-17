@@ -33,16 +33,16 @@ const patchSchema = z.object({
 export async function GET(request: Request) {
   const authError = requireAdmin(request);
   if (authError) return authError;
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) return ok({ technicians: [], localMode: true });
   const { data, error } = await getSupabaseAdmin().from("technicians").select("*").order("created_at", { ascending: false });
   if (error) return fail("internal_error", error.message, 500);
-  return ok({ technicians: data });
+  return ok({ technicians: data, localMode: false });
 }
 
 export async function POST(request: Request) {
   const authError = requireAdmin(request);
   if (authError) return authError;
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 기사를 등록하지 않습니다.", 409, { localMode: true });
   const parsed = schema.safeParse(await readJson(request));
   if (!parsed.success) return validationError(parsed.error, "Invalid technician request.");
   const { data, error } = await getSupabaseAdmin().from("technicians").insert(parsed.data).select("*").single();
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   const authError = requireAdmin(request);
   if (authError) return authError;
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 기사 정보를 수정하지 않습니다.", 409, { localMode: true });
   const parsed = patchSchema.safeParse(await readJson(request));
   if (!parsed.success) return validationError(parsed.error, "Invalid technician update request.");
   const { id, ...patch } = parsed.data;

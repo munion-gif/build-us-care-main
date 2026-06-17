@@ -17,6 +17,7 @@ export function TechnicianJobsClient() {
   const [name, setName] = useState("기사님");
   const [jobs, setJobs] = useState<TechJob[]>([]);
   const [loading, setLoading] = useState(true);
+  const [localMode, setLocalMode] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -26,6 +27,7 @@ export function TechnicianJobsClient() {
         window.location.href = "/technician/login";
         return;
       }
+      setLocalMode(Boolean(payload?.data?.localMode) || String(payload?.error?.code ?? "") === "SUPABASE_NOT_CONFIGURED");
       setName(payload.data?.technician?.name ?? "기사님");
       setJobs(payload.data?.jobs ?? []);
       setLoading(false);
@@ -42,6 +44,12 @@ export function TechnicianJobsClient() {
           <p className="tech-sub">오늘과 앞으로 예정된 현장만 보여드립니다.</p>
         </div>
       </header>
+
+      {localMode ? (
+        <section className="tech-empty" style={{ minHeight: 0, marginBottom: "var(--space-4)" }}>
+          로컬 확인 모드에서는 기사 배정 데이터를 불러오지 않습니다.
+        </section>
+      ) : null}
 
       {loading ? (
         <section className="tech-empty">일정을 불러오고 있어요.</section>

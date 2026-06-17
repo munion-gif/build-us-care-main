@@ -11,6 +11,7 @@ type Technician = {
 type Props = {
   order: any;
   technicians: Technician[];
+  localMode?: boolean;
 };
 
 function asArray(value: any) {
@@ -44,7 +45,7 @@ function scheduledAt(date: string, slot: string) {
   return `${date}T${slot === "afternoon" ? "13:00:00" : "09:00:00"}+09:00`;
 }
 
-export function OrderEditPanel({ order, technicians }: Props) {
+export function OrderEditPanel({ order, technicians, localMode = false }: Props) {
   const activeJob = useMemo(() => firstActiveJob(order), [order]);
   const warrantyCases = asArray(order.warranty_cases);
   const firstWarranty = warrantyCases[0] ?? null;
@@ -65,6 +66,10 @@ export function OrderEditPanel({ order, technicians }: Props) {
   const [message, setMessage] = useState("");
 
   async function saveOrderInfo() {
+    if (localMode) {
+      setMessage("로컬 확인 모드에서는 고객/주문 정보를 저장할 수 없어요.");
+      return;
+    }
     if (!window.confirm("고객/주문 정보를 수정할까요?")) return;
     setSaving("order");
     setMessage("");
@@ -90,6 +95,10 @@ export function OrderEditPanel({ order, technicians }: Props) {
   }
 
   async function saveTechnician() {
+    if (localMode) {
+      setMessage("로컬 확인 모드에서는 기사 배정을 저장할 수 없어요.");
+      return;
+    }
     if (!technicianId || !reservedDate) {
       setMessage("기사와 방문 날짜를 선택해주세요.");
       return;
@@ -120,6 +129,10 @@ export function OrderEditPanel({ order, technicians }: Props) {
 
   async function saveWarranty() {
     if (!firstWarranty) return;
+    if (localMode) {
+      setMessage("로컬 확인 모드에서는 A/S 상태를 저장할 수 없어요.");
+      return;
+    }
     if (!window.confirm("A/S 상태를 수정할까요?")) return;
     setSaving("warranty");
     setMessage("");
@@ -152,41 +165,41 @@ export function OrderEditPanel({ order, technicians }: Props) {
       <h2 className="adm-card-title">정보 수정</h2>
       <div className="adm-stack">
         <div className="adm-form-row adm-form-row-3">
-          <label><span className="adm-label">고객명</span><input className="adm-input" value={customerName} onChange={(event) => setCustomerName(event.target.value)} /></label>
-          <label><span className="adm-label">전화번호</span><input className="adm-input" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} /></label>
-          <label><span className="adm-label">주문 메모</span><input className="adm-input" value={specialRequests} onChange={(event) => setSpecialRequests(event.target.value)} /></label>
+          <label><span className="adm-label">고객명</span><input className="adm-input" value={customerName} onChange={(event) => setCustomerName(event.target.value)} disabled={localMode} /></label>
+          <label><span className="adm-label">전화번호</span><input className="adm-input" value={customerPhone} onChange={(event) => setCustomerPhone(event.target.value)} disabled={localMode} /></label>
+          <label><span className="adm-label">주문 메모</span><input className="adm-input" value={specialRequests} onChange={(event) => setSpecialRequests(event.target.value)} disabled={localMode} /></label>
         </div>
         <div className="adm-form-row adm-form-row-3">
-          <label><span className="adm-label">주소</span><input className="adm-input" value={addressFull} onChange={(event) => setAddressFull(event.target.value)} /></label>
-          <label><span className="adm-label">동/지역</span><input className="adm-input" value={addressDong} onChange={(event) => setAddressDong(event.target.value)} /></label>
-          <label><span className="adm-label">아파트/단지</span><input className="adm-input" value={addressApt} onChange={(event) => setAddressApt(event.target.value)} /></label>
+          <label><span className="adm-label">주소</span><input className="adm-input" value={addressFull} onChange={(event) => setAddressFull(event.target.value)} disabled={localMode} /></label>
+          <label><span className="adm-label">동/지역</span><input className="adm-input" value={addressDong} onChange={(event) => setAddressDong(event.target.value)} disabled={localMode} /></label>
+          <label><span className="adm-label">아파트/단지</span><input className="adm-input" value={addressApt} onChange={(event) => setAddressApt(event.target.value)} disabled={localMode} /></label>
         </div>
-        <button className="adm-btn adm-btn-primary adm-btn-sm" type="button" disabled={saving === "order"} onClick={saveOrderInfo}>
-          {saving === "order" ? "저장 중..." : "고객/주문 정보 저장"}
+        <button className="adm-btn adm-btn-primary adm-btn-sm" type="button" disabled={saving === "order" || localMode} onClick={saveOrderInfo}>
+          {saving === "order" ? "저장 중..." : localMode ? "로컬에서 저장 불가" : "고객/주문 정보 저장"}
         </button>
 
         <hr className="adm-divider" />
 
         <div className="adm-form-row adm-form-row-3">
-          <label><span className="adm-label">방문 날짜</span><input className="adm-input" type="date" value={reservedDate} onChange={(event) => setReservedDate(event.target.value)} /></label>
+          <label><span className="adm-label">방문 날짜</span><input className="adm-input" type="date" value={reservedDate} onChange={(event) => setReservedDate(event.target.value)} disabled={localMode} /></label>
           <label>
             <span className="adm-label">시간대</span>
-            <select className="adm-input" value={timeSlot} onChange={(event) => setTimeSlot(event.target.value)}>
+            <select className="adm-input" value={timeSlot} onChange={(event) => setTimeSlot(event.target.value)} disabled={localMode}>
               <option value="morning">오전</option>
               <option value="afternoon">오후</option>
             </select>
           </label>
           <label>
             <span className="adm-label">담당 기사</span>
-            <select className="adm-input" value={technicianId} onChange={(event) => setTechnicianId(event.target.value)}>
+            <select className="adm-input" value={technicianId} onChange={(event) => setTechnicianId(event.target.value)} disabled={localMode}>
               <option value="">기사 선택</option>
               {technicians.map((technician) => <option key={technician.id} value={technician.id}>{technician.name}{technician.region ? ` (${technician.region})` : ""}</option>)}
             </select>
           </label>
         </div>
         <div className="adm-inline-actions">
-          <button className="adm-btn adm-btn-primary adm-btn-sm" type="button" disabled={saving === "technician"} onClick={saveTechnician}>
-            {saving === "technician" ? "저장 중..." : "기사 배정 저장"}
+          <button className="adm-btn adm-btn-primary adm-btn-sm" type="button" disabled={saving === "technician" || localMode} onClick={saveTechnician}>
+            {saving === "technician" ? "저장 중..." : localMode ? "로컬에서 저장 불가" : "기사 배정 저장"}
           </button>
         </div>
 
@@ -194,16 +207,17 @@ export function OrderEditPanel({ order, technicians }: Props) {
           <>
             <hr className="adm-divider" />
             <div className="adm-form-row adm-form-row-3">
-              <label><span className="adm-label">A/S 상태</span><input className="adm-input" value={warrantyStatus} onChange={(event) => setWarrantyStatus(event.target.value)} /></label>
-              <label><span className="adm-label">책임 구분</span><input className="adm-input" value={warrantyResponsibility} onChange={(event) => setWarrantyResponsibility(event.target.value)} placeholder="예: 시공/제품/고객" /></label>
-              <label className="adm-inline-check"><input type="checkbox" checked={warrantyResolved} onChange={(event) => setWarrantyResolved(event.target.checked)} /> 해결 완료 처리</label>
+              <label><span className="adm-label">A/S 상태</span><input className="adm-input" value={warrantyStatus} onChange={(event) => setWarrantyStatus(event.target.value)} disabled={localMode} /></label>
+              <label><span className="adm-label">책임 구분</span><input className="adm-input" value={warrantyResponsibility} onChange={(event) => setWarrantyResponsibility(event.target.value)} placeholder="예: 시공/제품/고객" disabled={localMode} /></label>
+              <label className="adm-inline-check"><input type="checkbox" checked={warrantyResolved} onChange={(event) => setWarrantyResolved(event.target.checked)} disabled={localMode} /> 해결 완료 처리</label>
             </div>
-            <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" disabled={saving === "warranty"} onClick={saveWarranty}>
-              {saving === "warranty" ? "저장 중..." : "A/S 상태 저장"}
+            <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" disabled={saving === "warranty" || localMode} onClick={saveWarranty}>
+              {saving === "warranty" ? "저장 중..." : localMode ? "로컬에서 저장 불가" : "A/S 상태 저장"}
             </button>
           </>
         )}
 
+        {localMode ? <p className="adm-help">로컬 확인 모드에서는 주문 상세 수정과 A/S 편집이 비활성입니다.</p> : null}
         {message && <p className="adm-form-message">{message}</p>}
       </div>
     </section>

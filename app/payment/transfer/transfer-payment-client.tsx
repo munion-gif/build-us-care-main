@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { buildQuoteDocumentInputFromOrderStatus, downloadQuoteDocument } from "@/lib/quote-document";
+import { matchesStoredBuilduscareOrder, storedBuilduscareOrderToStatusOrder } from "@/lib/builduscare-local-order";
 
 function won(value: number) {
   return `${value.toLocaleString("ko-KR")}원`;
@@ -12,6 +13,10 @@ function won(value: number) {
 function numberParam(value: string | null) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function vatIncludedAmount(value: number) {
+  return Math.round((value * 110) / 100);
 }
 
 export function TransferPaymentClient() {
@@ -25,11 +30,13 @@ export function TransferPaymentClient() {
   const serviceFeeAmount = numberParam(searchParams.get("serviceFeeAmount"));
   const onsiteAmount = numberParam(searchParams.get("onsiteAmount"));
   const totalAmount = numberParam(searchParams.get("totalAmount")) || productAmount + serviceFeeAmount;
+  const finalAmount = vatIncludedAmount(totalAmount);
   const bankName = process.env.NEXT_PUBLIC_BANK_TRANSFER_BANK ?? "농협";
   const bankAccount = process.env.NEXT_PUBLIC_BANK_TRANSFER_ACCOUNT ?? "355-0094-9209-33";
   const accountHolder = process.env.NEXT_PUBLIC_BANK_TRANSFER_HOLDER ?? "주식회사 무니온";
   const hasBankAccount = Boolean(bankName && bankAccount && accountHolder);
   const statusUrl = orderId && accessToken ? `/orders/${orderId}?accessToken=${encodeURIComponent(accessToken)}` : null;
+  const hasPaymentRequest = amount > 0 || productAmount > 0 || serviceFeeAmount > 0 || onsiteAmount > 0 || totalAmount > 0;
 
   async function handleQuoteDownload() {
     if (!orderId || !accessToken) {
@@ -42,7 +49,13 @@ export function TransferPaymentClient() {
     try {
       const response = await fetch(`/api/orders/${encodeURIComponent(orderId)}/status?accessToken=${encodeURIComponent(accessToken)}`);
       const result = await response.json().catch(() => null);
-      const order = result?.data?.order;
+      let order = result?.data?.order;
+      if ((!response.ok || !order) && orderId && accessToken) {
+        const stored = matchesStoredBuilduscareOrder({ orderId, accessToken });
+        if (stored) {
+          order = storedBuilduscareOrderToStatusOrder(stored);
+        }
+      }
       if (!response.ok || !order) {
         throw new Error(result?.error?.message ?? result?.message ?? "견적 정보를 불러오지 못했어요.");
       }
@@ -59,6 +72,61 @@ export function TransferPaymentClient() {
     } finally {
       setDownloadLoading(false);
     }
+  }
+
+  if (!hasPaymentRequest) {
+    return (
+      <main className="transfer-page">
+        <section className="transfer-card">
+          <p className="brand-kicker">build us care</p>
+          <h1>계좌이체 안내</h1>
+          <span>최종 견적이 저장되었습니다. 금액을 확인한 뒤 입금 안내에 따라 진행해 주세요.</span>
+
+          <div className="transfer-amount">
+            <small>계좌이체 금액</small>
+            <strong>{won(0)}</strong>
+          </div>
+
+          <dl className="transfer-breakdown">
+            <div>
+              <dt>제품 가격</dt>
+              <dd>{won(0)}</dd>
+            </div>
+            <div>
+              <dt>시공비</dt>
+              <dd>{won(0)}</dd>
+            </div>
+            <div>
+              <dt>예상 총액</dt>
+              <dd>{won(0)}</dd>
+            </div>
+          </dl>
+
+          <div className="transfer-bank">
+            <small>입금 계좌</small>
+            {hasBankAccount ? (
+              <>
+                <strong>{bankName} {bankAccount}</strong>
+                <span>예금주 {accountHolder}</span>
+              </>
+            ) : (
+              <>
+                <strong>카톡으로 계좌 안내 예정</strong>
+                <span>주문 확인 후 담당자가 입금 계좌와 진행 방법을 안내드립니다.</span>
+              </>
+            )}
+          </div>
+
+          <div className="transfer-actions">
+            <button className="transfer-action-button secondary" type="button">
+              견적서 다운로드
+            </button>
+            <Link className="transfer-action-button" href="/">홈으로 이동</Link>
+          </div>
+        </section>
+        <TransferPaymentStyles />
+      </main>
+    );
   }
 
   return (
@@ -83,8 +151,12 @@ export function TransferPaymentClient() {
             <dd>{won(serviceFeeAmount)}</dd>
           </div>
           <div>
-            <dt>예상 총액</dt>
+            <dt>합계</dt>
             <dd>{won(totalAmount)}</dd>
+          </div>
+          <div>
+            <dt>최종합계 · 부가세 10% 포함</dt>
+            <dd>{won(finalAmount)}</dd>
           </div>
           {onsiteAmount > 0 && (
             <div>
@@ -121,7 +193,14 @@ export function TransferPaymentClient() {
         </div>
         {downloadMessage && <p className="transfer-inline-message">{downloadMessage}</p>}
       </section>
-      <style jsx>{`
+      <TransferPaymentStyles />
+    </main>
+  );
+}
+
+function TransferPaymentStyles() {
+  return (
+      <style>{`
         .transfer-page {
           min-height: 100vh;
           display: grid;
@@ -207,7 +286,7 @@ export function TransferPaymentClient() {
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 10px;
         }
-        :global(.transfer-action-button) {
+        .transfer-action-button {
           display: inline-flex;
           justify-content: center;
           align-items: center;
@@ -250,6 +329,5 @@ export function TransferPaymentClient() {
           }
         }
       `}</style>
-    </main>
   );
 }

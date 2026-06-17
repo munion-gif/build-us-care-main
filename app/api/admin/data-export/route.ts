@@ -269,12 +269,38 @@ async function readSheet(spec: QuerySpec, includePii: boolean, from: string | nu
 export async function GET(request: Request) {
   const authError = requireAdmin(request);
   if (authError) return authError;
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
 
   const { searchParams } = new URL(request.url);
   const includePii = searchParams.get("include_pii") === "1";
   const from = searchParams.get("from");
   const to = searchParams.get("to");
+
+  if (!hasSupabaseEnv()) {
+    const dataSheets = [
+      {
+        name: "local_mode",
+        columns: ["mode", "message", "from", "to"],
+        rows: [
+          {
+            mode: "local",
+            message: "로컬 확인 모드에서는 실제 데이터 내보내기를 생성하지 않습니다.",
+            from: from ?? "",
+            to: to ?? ""
+          }
+        ]
+      }
+    ];
+    const body = workbookXml([summarySheet(dataSheets, includePii), ...dataSheets]);
+    const suffix = includePii ? "with-pii" : "masked";
+    return new Response(body, {
+      headers: {
+        "Content-Type": "application/vnd.ms-excel; charset=utf-8",
+        "Content-Disposition": `attachment; filename="buildus-care-data-export-${suffix}.xls"`,
+        "Cache-Control": "no-store",
+        "X-Local-Mode": "true"
+      }
+    });
+  }
 
   try {
     const dataSheets = [];

@@ -7,6 +7,10 @@ const ADMIN_LOGIN_LIMIT = 8;
 const ADMIN_LOGIN_WINDOW_MS = 10 * 60 * 1000;
 
 export async function POST(request: Request) {
+  if (!process.env.ADMIN_PASSWORD || !process.env.ADMIN_SESSION_SECRET) {
+    return NextResponse.json({ ok: true, data: { localMode: true } });
+  }
+
   const ip = getClientIp(request.headers);
   const rateLimitKey = `admin-login:${ip}`;
   const rateLimit = checkRateLimit(rateLimitKey, {
@@ -35,7 +39,7 @@ export async function POST(request: Request) {
   const body = await readJson(request);
   const password = typeof body?.password === "string" ? body.password : "";
 
-  if (!process.env.ADMIN_PASSWORD || !process.env.ADMIN_SESSION_SECRET || password !== process.env.ADMIN_PASSWORD) {
+  if (password !== process.env.ADMIN_PASSWORD) {
     return NextResponse.json({ ok: false, error: { code: "unauthorized", message: "비밀번호가 올바르지 않아요" } }, { status: 401 });
   }
 

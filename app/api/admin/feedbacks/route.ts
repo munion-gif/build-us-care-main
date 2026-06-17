@@ -19,7 +19,8 @@ export async function GET(request: Request) {
   }
 
   if (!hasSupabaseEnv()) {
-    return fail("supabase_not_configured", "Supabase is required to list feedbacks.", 500);
+    logOperation({ requestId, endpoint: "/api/admin/feedbacks", method: "GET", adminKeyId, success: true });
+    return ok({ feedbacks: [], pagination: { limit: 50, offset: 0, count: 0 }, localMode: true });
   }
 
   const { searchParams } = new URL(request.url);
@@ -86,5 +87,5 @@ export async function GET(request: Request) {
   }
 
   logOperation({ requestId, endpoint: "/api/admin/feedbacks", method: "GET", adminKeyId, success: true });
-  return ok({ feedbacks: data, pagination: { limit, offset, count: count ?? 0 } });
+  return ok({ feedbacks: data, pagination: { limit, offset, count: count ?? 0 }, localMode: false });
 }

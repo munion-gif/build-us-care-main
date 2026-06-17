@@ -1,5 +1,6 @@
 import { fail, ok } from "@/lib/api-response";
 import { parseAdminKeys } from "@/lib/admin-auth";
+import { matchLocalBuildusOrderFromRequest } from "@/lib/builduscare-local-order-server";
 import { readJson, validationError } from "@/lib/errors";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { createOrderPhotoPath, ORDER_PHOTO_UPLOAD_EXPIRES_IN, ORDER_PHOTOS_BUCKET } from "@/lib/storage";
@@ -20,7 +21,14 @@ function hasValidAdminKey(request: Request) {
 
 export async function POST(request: Request, context: Context) {
   if (!hasSupabaseEnv()) {
-    return fail("supabase_not_configured", "Supabase is required to create photo upload URLs.", 500);
+    const { id } = await context.params;
+    const body = await readJson(request);
+    const accessToken = typeof body?.accessToken === "string" ? body.accessToken : null;
+    const localOrder = matchLocalBuildusOrderFromRequest(request, { orderId: id, accessToken });
+    if (localOrder) {
+      return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 사진 업로드 URL을 만들지 않습니다.", 409, { localMode: true });
+    }
+    return fail("not_found", "로컬 확인 모드에서 일치하는 주문을 찾을 수 없어요.", 404, { localMode: true });
   }
 
   const { id } = await context.params;

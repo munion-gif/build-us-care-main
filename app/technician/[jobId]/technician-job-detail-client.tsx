@@ -17,6 +17,7 @@ export function TechnicianJobDetailClient({ jobId }: { jobId: string }) {
   const [job, setJob] = useState<JobDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("현장 정보를 불러오고 있어요.");
+  const [localMode, setLocalMode] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -32,10 +33,18 @@ export function TechnicianJobDetailClient({ jobId }: { jobId: string }) {
         }
         if (!alive) return;
         setJob(payload.data?.job ?? null);
-        setMessage(response.ok ? "" : "현장을 찾을 수 없어요.");
+        const code = String(payload?.error?.code ?? "");
+        if (Boolean(payload?.data?.localMode) || code === "SUPABASE_NOT_CONFIGURED") {
+          setLocalMode(true);
+          setMessage("로컬 확인 모드에서는 기사 현장 상세를 불러오지 않습니다.");
+        } else {
+          setLocalMode(false);
+          setMessage(response.ok ? "" : "현장을 찾을 수 없어요.");
+        }
       } catch {
         if (!alive) return;
         setJob(null);
+        setLocalMode(false);
         setMessage("현장 정보를 불러오지 못했어요. 다시 시도해주세요.");
       } finally {
         if (alive) setLoading(false);
@@ -52,7 +61,17 @@ export function TechnicianJobDetailClient({ jobId }: { jobId: string }) {
   }
 
   if (!job) {
-    return <main className="tech-container"><section className="tech-empty">{message || "현장을 찾을 수 없어요."}</section></main>;
+    return (
+      <main className="tech-container">
+        <section className="tech-empty">
+          <div className="tech-stack" style={{ width: "100%" }}>
+            <strong>{localMode ? "로컬 확인 모드입니다." : "현장을 찾을 수 없어요."}</strong>
+            <p className="tech-sub">{message || "현장을 찾을 수 없어요."}</p>
+            <Link className="tech-button secondary" href="/technician">목록으로 돌아가기</Link>
+          </div>
+        </section>
+      </main>
+    );
   }
 
   return (
@@ -77,7 +96,15 @@ export function TechnicianJobDetailClient({ jobId }: { jobId: string }) {
       </section>
 
       <section className="tech-stack" style={{ marginTop: "var(--space-4)" }}>
-        {job.status === "scheduled" ? (
+        {localMode ? (
+          <section className="tech-empty">
+            <div className="tech-stack" style={{ width: "100%" }}>
+              <strong>로컬 확인 모드입니다.</strong>
+              <p className="tech-sub">시공 시작, 사진 업로드, 완료 보고는 실제 기사 배정 데이터가 연결된 뒤 사용할 수 있습니다.</p>
+              <Link className="tech-button secondary" href="/technician">목록으로 돌아가기</Link>
+            </div>
+          </section>
+        ) : job.status === "scheduled" ? (
           <Link className="tech-button" href={`/technician/${job.id}/checkin`}>시공 시작</Link>
         ) : job.status === "in_progress" ? (
           <>

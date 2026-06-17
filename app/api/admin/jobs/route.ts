@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   }
 
   if (!hasSupabaseEnv()) {
-    return fail("supabase_not_configured", "Supabase is required to create jobs.", 500);
+    return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 기사 배정을 저장하지 않습니다.", 409, { localMode: true });
   }
 
   const body = await readJson(request);
@@ -155,10 +155,6 @@ export async function GET(request: Request) {
     return authError;
   }
 
-  if (!hasSupabaseEnv()) {
-    return fail("supabase_not_configured", "Supabase is required to list jobs.", 500);
-  }
-
   const { searchParams } = new URL(request.url);
   const orderId = searchParams.get("order_id");
   const technicianId = searchParams.get("technician_id");
@@ -167,6 +163,11 @@ export async function GET(request: Request) {
   const dateTo = searchParams.get("date_to");
   const limit = parseBoundedInt(searchParams.get("limit"), 50, 1, 100);
   const offset = parseBoundedInt(searchParams.get("offset"), 0, 0, 10000);
+
+  if (!hasSupabaseEnv()) {
+    return ok({ jobs: [], pagination: { limit, offset, count: 0 }, localMode: true });
+  }
+
   const supabase = getSupabaseAdmin();
 
   let query = supabase
@@ -222,5 +223,5 @@ export async function GET(request: Request) {
   }
 
   logOperation({ requestId, endpoint: "/api/admin/jobs", method: "GET", adminKeyId, success: true });
-  return ok({ jobs: data, pagination: { limit, offset, count: count ?? 0 } });
+  return ok({ jobs: data, pagination: { limit, offset, count: count ?? 0 }, localMode: false });
 }

@@ -11,7 +11,12 @@ type HeaderProps = {
   kakaoUrl: string | null;
 };
 
-const navItems: ReadonlyArray<readonly [string, string]> = [];
+const navItems: ReadonlyArray<readonly [string, string]> = [
+  ["서비스", "/service"],
+  ["제품", "/products"],
+  ["사진확인", "/photo-check"],
+  ["주문조회", "/order-lookup"]
+];
 
 function Logo() {
   return (
@@ -25,16 +30,24 @@ export function Header({ kakaoUrl }: HeaderProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const isApp = useIsApp();
+  const kakaoChatUrl = getKakaoChannelChatUrl(kakaoUrl) ?? "https://pf.kakao.com/_PxkzsX";
+  const isPaymentHeader = pathname.startsWith("/payment/transfer");
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
-  const kakaoChatUrl = getKakaoChannelChatUrl(kakaoUrl);
-  const hasMenuItems = navItems.length > 0;
+  const hasMenuItems = navItems.length > 0 && !isPaymentHeader;
+  const showDesktopKakao = isPaymentHeader;
+  const isServiceHeader = pathname.startsWith("/service");
+  const isNarrowHeader =
+    pathname.startsWith("/photo-check") ||
+    pathname.startsWith("/order-lookup") ||
+    pathname.startsWith("/order-status");
+  const headerClassName = `global-header${isServiceHeader ? " header-service" : ""}${isNarrowHeader ? " header-narrow" : ""}${isPaymentHeader ? " header-payment" : ""}`;
 
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
 
   return (
-    <header className="global-header" style={{ paddingTop: isApp ? "var(--safe-area-top)" : undefined }}>
+    <header className={headerClassName} style={{ paddingTop: isApp ? "var(--safe-area-top)" : undefined }}>
       <style>{headerCss}</style>
       <div className="header-inner">
         <Logo />
@@ -50,33 +63,21 @@ export function Header({ kakaoUrl }: HeaderProps) {
           <span aria-hidden="true" />
         )}
         <div className="desktop-actions">
-          {kakaoChatUrl ? (
+          {showDesktopKakao ? (
             <a className="filled-cta" href={kakaoChatUrl} target="_blank" rel="noreferrer">
               <span className="kakao-mark" aria-hidden="true">TALK</span>
               카톡 상담
             </a>
-          ) : (
-            <button className="filled-cta" type="button" disabled>
-              <span className="kakao-mark" aria-hidden="true">TALK</span>
-              카톡 상담
-            </button>
-          )}
+          ) : null}
         </div>
-        {kakaoChatUrl ? (
-          <a className="mobile-kakao-cta" href={kakaoChatUrl} target="_blank" rel="noreferrer" aria-label="카카오톡 상담 열기">
-            <span className="kakao-mark" aria-hidden="true">TALK</span>
-            카톡
-          </a>
+        {hasMenuItems ? (
+          <>
+            <button className="mobile-menu-button" type="button" onClick={() => setOpen((current) => !current)} aria-label={open ? "메뉴 닫기" : "메뉴 열기"} aria-expanded={open}>
+              <Menu size={24} />
+            </button>
+          </>
         ) : (
-          <button className="mobile-kakao-cta" type="button" disabled aria-label="카카오톡 상담 준비 중">
-            <span className="kakao-mark" aria-hidden="true">TALK</span>
-            카톡
-          </button>
-        )}
-        {hasMenuItems && (
-          <button className="mobile-menu-button" type="button" onClick={() => setOpen((current) => !current)} aria-label={open ? "메뉴 닫기" : "메뉴 열기"} aria-expanded={open}>
-            <Menu size={24} />
-          </button>
+          <span aria-hidden="true" />
         )}
       </div>
       {open && hasMenuItems && (
@@ -98,23 +99,32 @@ export function Header({ kakaoUrl }: HeaderProps) {
 
 const headerCss = `
   .global-header {
+    --header-content-max: 1120px;
+    --header-content-pad: 40px;
     position: sticky;
     top: 0;
     z-index: 50;
-    height: 54px;
+    height: 38px;
     border-bottom: 1px solid rgba(120, 120, 140, 0.14);
     background: rgba(245, 245, 247, 0.82);
     backdrop-filter: blur(20px) saturate(1.7);
   }
+  .global-header.header-service {
+    --header-content-max: 1320px;
+  }
+  .global-header.header-narrow {
+    --header-content-max: 760px;
+  }
   .header-inner {
-    width: min(var(--content-wide), 100%);
+    width: min(var(--header-content-max), 100%);
     height: 100%;
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    position: relative;
+    display: flex;
     align-items: center;
-    gap: 24px;
+    justify-content: flex-start;
+    gap: 0;
     margin-inline: auto;
-    padding-inline: 24px;
+    padding-inline: var(--header-content-pad);
   }
   .site-logo {
     display: inline-flex;
@@ -125,10 +135,14 @@ const headerCss = `
   .site-logo .logo-image {
     display: block;
     width: auto;
-    height: 26px;
+    height: 22px;
     object-fit: contain;
   }
   .desktop-nav {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
     display: flex;
     gap: 24px;
     align-items: center;
@@ -137,19 +151,20 @@ const headerCss = `
   .mobile-menu nav a {
     color: var(--color-text-muted);
     text-decoration: none;
-    font-size: 14px;
-    line-height: 20px;
-    font-weight: 600;
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 500;
     transition: color var(--transition);
   }
   .desktop-nav a:hover,
   .desktop-nav a.active,
   .mobile-menu nav a.active {
-    color: var(--color-primary);
-    font-weight: 700;
+    color: var(--color-text);
+    font-weight: 500;
   }
   .desktop-actions {
-    display: flex;
+    display: inline-flex;
+    margin-left: auto;
     justify-content: flex-end;
     gap: 8px;
   }
@@ -177,12 +192,7 @@ const headerCss = `
     border: 1px solid var(--color-primary);
     background: var(--color-primary);
     color: #ffffff;
-  }
-  .filled-cta {
     gap: 8px;
-    border-color: var(--color-primary);
-    background: var(--color-primary);
-    color: #ffffff;
     box-shadow: none;
   }
   .kakao-mark {
@@ -194,8 +204,8 @@ const headerCss = `
     background: #fee500;
     color: #101828;
     font-size: var(--text-caption);
-    font-weight: 700;
     line-height: 1;
+    font-weight: 700;
     letter-spacing: 0;
   }
   .filled-cta:disabled {
@@ -207,37 +217,10 @@ const headerCss = `
     height: 44px;
     display: none;
     place-items: center;
-    justify-self: end;
     border: 0;
     border-radius: var(--radius-full);
     background: transparent;
     color: var(--color-text);
-  }
-  .mobile-kakao-cta {
-    min-height: 40px;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    border: 1px solid var(--color-primary);
-    border-radius: 999px;
-    padding: 0 11px;
-    background: var(--color-primary);
-    color: #ffffff;
-    text-decoration: none;
-    font-size: var(--text-label);
-    line-height: var(--leading-button);
-    font-weight: 700;
-    white-space: nowrap;
-  }
-  .mobile-kakao-cta .kakao-mark {
-    min-width: 32px;
-    height: 18px;
-    font-size: 10px;
-  }
-  .mobile-kakao-cta:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
   }
   .mobile-menu-backdrop {
     position: fixed;
@@ -275,29 +258,32 @@ const headerCss = `
     font-weight: 700;
   }
   @media (max-width: 820px) {
-    .header-inner {
-      grid-template-columns: minmax(0, 1fr) auto auto;
-      gap: var(--space-2);
-      padding-inline: var(--space-3);
+    .global-header {
+      height: 54px;
     }
-    .desktop-nav,
+    .header-inner {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 12px;
+      padding-inline: 16px;
+    }
+    .desktop-nav {
+      display: none;
+      position: static;
+      transform: none;
+    }
     .desktop-actions {
       display: none;
     }
     .mobile-menu-button {
       display: grid;
-    }
-    .mobile-kakao-cta {
-      display: inline-flex;
+      justify-self: end;
     }
     .site-logo .logo-image {
       height: 28px;
     }
   }
   @media (max-width: 520px) {
-    .mobile-kakao-cta {
-      display: none;
-    }
     .site-logo .logo-image {
       height: 26px;
     }

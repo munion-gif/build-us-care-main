@@ -1,5 +1,5 @@
 import { fail } from "@/lib/api-response";
-import { isAdminIpAllowed, isAdminIpBypassEnabled } from "@/lib/admin-ip-access";
+import { isAdminIpAllowed, isAdminIpBypassEnabled, isLocalAdminDevBypassEnabled } from "@/lib/admin-ip-access";
 import { verifyAdminSessionToken } from "@/lib/admin-session";
 import { fingerprintSecret } from "@/lib/operational-log";
 
@@ -27,6 +27,10 @@ export function requireAdmin(request: Request) {
 }
 
 export function hasAdminAccess(request: Request) {
+  if (isLocalAdminDevBypassEnabled(request.headers)) {
+    return true;
+  }
+
   if (isAdminIpBypassEnabled() && isAdminIpAllowed(request.headers)) {
     return true;
   }

@@ -25,6 +25,7 @@ type Props = {
   jobs?: Job[];
   technicians: Technician[];
   compact?: boolean;
+  localMode?: boolean;
 };
 
 function tomorrowDate() {
@@ -75,16 +76,22 @@ function visitLabel(date: string, time: string) {
 export function OrderScheduleConfirmButton({
   orderId,
   disabled,
-  reason
+  reason,
+  localMode = false
 }: {
   orderId: string;
   disabled: boolean;
   reason: string;
+  localMode?: boolean;
 }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
   async function confirmSchedule() {
+    if (localMode) {
+      setMessage("로컬 확인 모드에서는 방문 확정을 처리할 수 없어요.");
+      return;
+    }
     if (disabled) {
       setMessage(reason);
       return;
@@ -107,15 +114,15 @@ export function OrderScheduleConfirmButton({
 
   return (
     <div className="adm-inline-actions">
-      <button className="adm-btn adm-btn-primary adm-btn-sm" type="button" disabled={saving} onClick={confirmSchedule}>
-        {saving ? "확정 중..." : "방문 확정"}
+      <button className="adm-btn adm-btn-primary adm-btn-sm" type="button" disabled={saving || localMode} onClick={confirmSchedule}>
+        {saving ? "확정 중..." : localMode ? "로컬에서 확정 불가" : "방문 확정"}
       </button>
       {message && <span className="adm-help" style={{ marginTop: 0 }}>{message}</span>}
     </div>
   );
 }
 
-export function OrderAssignmentButton({ orderId, orderNumber, orderStatus, jobs = [], technicians, compact }: Props) {
+export function OrderAssignmentButton({ orderId, orderNumber, orderStatus, jobs = [], technicians, compact, localMode = false }: Props) {
   const firstScheduledJob = jobs
     .filter((job) => job.status !== "cancelled")
     .sort((a, b) => String(b.scheduled_at ?? b.created_at ?? "").localeCompare(String(a.scheduled_at ?? a.created_at ?? "")))[0];
@@ -166,6 +173,10 @@ export function OrderAssignmentButton({ orderId, orderNumber, orderStatus, jobs 
   const selectedTechnicianOverloaded = selectedAssignedCount >= 1;
 
   async function assign() {
+    if (localMode) {
+      setMessage("로컬 확인 모드에서는 기사 배정을 저장할 수 없어요.");
+      return;
+    }
     setSaving(true);
     setMessage("");
     try {
@@ -190,6 +201,10 @@ export function OrderAssignmentButton({ orderId, orderNumber, orderStatus, jobs 
   }
 
   async function cancelJob(jobId: string) {
+    if (localMode) {
+      setMessage("로컬 확인 모드에서는 배정을 취소할 수 없어요.");
+      return;
+    }
     if (!window.confirm("이 배정을 취소할까요? 주문 상태는 결제완료로 돌아갑니다.")) return;
     const response = await fetch(`/api/admin/jobs/${jobId}`, { method: "DELETE" });
     if (response.ok) window.location.reload();
@@ -206,13 +221,13 @@ export function OrderAssignmentButton({ orderId, orderNumber, orderStatus, jobs 
     <>
       <div className={compact ? "adm-inline-actions" : "adm-stack"}>
         {assignedJobs.map((job) => (
-          <button key={job.id} className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={() => cancelJob(job.id)}>
-            배정 취소
+          <button key={job.id} className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={() => cancelJob(job.id)} disabled={localMode}>
+            {localMode ? "로컬에서 취소 불가" : "배정 취소"}
           </button>
         ))}
         {isAssignable && (
-          <button className="adm-btn adm-btn-primary adm-btn-sm" type="button" onClick={() => setOpen(true)}>
-            {orderStatus === "scheduled" ? "기사 재배정" : "기사 배정"}
+          <button className="adm-btn adm-btn-primary adm-btn-sm" type="button" onClick={() => setOpen(true)} disabled={localMode}>
+            {localMode ? "로컬에서 배정 불가" : orderStatus === "scheduled" ? "기사 재배정" : "기사 배정"}
           </button>
         )}
       </div>
@@ -233,11 +248,11 @@ export function OrderAssignmentButton({ orderId, orderNumber, orderStatus, jobs 
               <div className="adm-form-row adm-form-row-2">
                 <label>
                   <span className="adm-label">방문 날짜</span>
-                  <input className="adm-input" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+                  <input className="adm-input" type="date" value={date} onChange={(event) => setDate(event.target.value)} disabled={localMode} />
                 </label>
                 <label>
                   <span className="adm-label">방문 시간</span>
-                  <input className="adm-input" type="time" value={time} onChange={(event) => setTime(event.target.value)} />
+                  <input className="adm-input" type="time" value={time} onChange={(event) => setTime(event.target.value)} disabled={localMode} />
                 </label>
               </div>
               <div>
@@ -248,7 +263,7 @@ export function OrderAssignmentButton({ orderId, orderNumber, orderStatus, jobs 
                     const assignedCount = counts.get(technician.id) ?? 0;
                     return (
                       <label key={technician.id} className={`adm-radio-row ${assignedCount > 0 ? "is-warn" : ""}`}>
-                        <input type="radio" name="technician" value={technician.id} checked={technicianId === technician.id} onChange={() => setTechnicianId(technician.id)} />
+                        <input type="radio" name="technician" value={technician.id} checked={technicianId === technician.id} onChange={() => setTechnicianId(technician.id)} disabled={localMode} />
                         <span>
                           {technician.name} {technician.region ? `(${technician.region})` : ""}
                           <small>{loadingCounts ? "배정 확인 중..." : assignedCount > 0 ? `${date} ${slotFromTime(time) === "morning" ? "오전" : "오후"} 마감` : `${date} ${slotFromTime(time) === "morning" ? "오전" : "오후"} 배정 가능`}</small>
@@ -263,7 +278,7 @@ export function OrderAssignmentButton({ orderId, orderNumber, orderStatus, jobs 
             </div>
             <div className="adm-modal-footer">
               <button className="adm-btn adm-btn-secondary" type="button" onClick={() => setOpen(false)}>취소</button>
-              <button className="adm-btn adm-btn-primary" type="button" disabled={!technicianId || saving || loadingCounts || selectedTechnicianOverloaded} onClick={assign}>{saving ? "배정 중..." : orderStatus === "scheduled" ? "재배정 완료" : "배정 저장"}</button>
+              <button className="adm-btn adm-btn-primary" type="button" disabled={localMode || !technicianId || saving || loadingCounts || selectedTechnicianOverloaded} onClick={assign}>{saving ? "배정 중..." : localMode ? "로컬에서 저장 불가" : orderStatus === "scheduled" ? "재배정 완료" : "배정 저장"}</button>
             </div>
           </div>
         </div>

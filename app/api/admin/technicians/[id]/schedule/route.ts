@@ -20,7 +20,11 @@ function monthRange(monthText: string | null) {
 export async function GET(request: Request, context: Context) {
   const authError = requireAdmin(request);
   if (authError) return authError;
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) {
+    const { searchParams } = new URL(request.url);
+    const range = monthRange(searchParams.get("month"));
+    return ok({ month: range.label, jobs: [], localMode: true });
+  }
 
   const { id } = await context.params;
   const technicianId = uuidSchema.safeParse(id);
@@ -39,5 +43,5 @@ export async function GET(request: Request, context: Context) {
 
   if (error) return fail("internal_error", error.message, 500);
 
-  return ok({ month: range.label, jobs: data ?? [] });
+  return ok({ month: range.label, jobs: data ?? [], localMode: false });
 }

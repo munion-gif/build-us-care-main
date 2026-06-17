@@ -29,7 +29,7 @@ export async function PATCH(request: Request, context: Context) {
   }
 
   if (!hasSupabaseEnv()) {
-    return fail("supabase_not_configured", "Supabase is required to update job status.", 500);
+    return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 현장 상태를 변경하지 않습니다.", 409, { localMode: true });
   }
 
   const { id } = await context.params;

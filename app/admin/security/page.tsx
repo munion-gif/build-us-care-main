@@ -184,15 +184,15 @@ async function loadSecurityData(): Promise<SecurityData> {
       supabase
         .from("orders")
         .select("id", { count: "exact", head: true })
-        .eq("is_test", false)
         .is("deleted_at", null)
+        .or("is_test.is.null,is_test.eq.false")
         .gte("created_at", since24h)
     ),
     safeCount(
       supabase
         .from("diagnoses")
         .select("id", { count: "exact", head: true })
-        .eq("is_test", false)
+        .or("is_test.is.null,is_test.eq.false")
         .gte("created_at", since24h)
     ),
     safeCount(
@@ -236,8 +236,8 @@ async function loadSecurityData(): Promise<SecurityData> {
     supabase
       .from("orders")
       .select("id,source,campaign,landing_path,created_at")
-      .eq("is_test", false)
       .is("deleted_at", null)
+      .or("is_test.is.null,is_test.eq.false")
       .gte("created_at", since7d)
       .order("created_at", { ascending: false })
       .limit(500)
@@ -314,11 +314,13 @@ async function loadSecurityData(): Promise<SecurityData> {
 }
 
 function countText(result: CountResult) {
+  if (result.error === "supabase_not_configured") return "로컬 확인";
   if (result.error) return "확인 실패";
   return `${result.value ?? 0}건`;
 }
 
 function countSub(result: CountResult, fallback: string) {
+  if (result.error === "supabase_not_configured") return "Supabase 연결 후 실제 집계를 확인합니다.";
   return result.error ? result.error : fallback;
 }
 
@@ -397,6 +399,7 @@ function CheckCard({ check }: { check: SecurityCheck }) {
 }
 
 export default async function AdminSecurityPage() {
+  const localMode = !hasSupabaseEnv();
   const cookieStore = await cookies();
   const currentSessionValid = verifyAdminSessionToken(cookieStore.get("admin_session")?.value, process.env.ADMIN_SESSION_SECRET);
   const ipBypassEnabled = isAdminIpBypassEnabled();
@@ -415,9 +418,11 @@ export default async function AdminSecurityPage() {
   const runtimeChecks: SecurityCheck[] = [
     {
       label: "현재 관리자 세션",
-      status: currentSessionValid || ipBypassEnabled ? "pass" : "fail",
-      summary: currentSessionValid ? "유효함" : ipBypassEnabled ? "IP 통과 모드" : "확인 실패",
-      detail: ipBypassEnabled
+      status: localMode ? "info" : currentSessionValid || ipBypassEnabled ? "pass" : "fail",
+      summary: localMode ? "로컬 확인 모드" : currentSessionValid ? "유효함" : ipBypassEnabled ? "IP 통과 모드" : "확인 실패",
+      detail: localMode
+        ? "로컬 환경에서는 실제 관리자 세션 대신 로컬 확인 모드 기준으로 화면을 재현합니다."
+        : ipBypassEnabled
         ? "허용 IP에서는 관리자 세션 없이도 접근할 수 있습니다."
         : `관리자 세션은 최대 ${Math.floor(ADMIN_SESSION_MAX_AGE_SECONDS / 3600)}시간 동안 유지됩니다.`
     },
@@ -444,7 +449,7 @@ export default async function AdminSecurityPage() {
     {
       label: "사진확인 이미지 입력",
       status: "pass",
-      summary: "정적 접수 업로드로 통합",
+      summary: "Build us Care 접수 업로드로 통합",
       detail: "공개 사진 판정 API는 제거했고, 현재 사진은 Build us Care 주문 접수 API에서만 처리합니다."
     },
     {
@@ -484,7 +489,7 @@ export default async function AdminSecurityPage() {
   const passCount = allChecks.filter((check) => check.status === "pass").length;
   const warnCount = allChecks.filter((check) => check.status === "warn").length;
   const failCount = allChecks.filter((check) => check.status === "fail").length;
-  const overallStatus: CheckStatus = failCount > 0 ? "fail" : warnCount > 0 ? "warn" : "pass";
+  const overallStatus: CheckStatus = localMode ? "info" : failCount > 0 ? "fail" : warnCount > 0 ? "warn" : "pass";
 
   return (
     <>
@@ -495,6 +500,12 @@ export default async function AdminSecurityPage() {
       </header>
 
       <section className="adm-content adm-stack">
+        {localMode ? (
+          <section className="adm-card adm-admin-warning" role="status">
+            <strong>로컬 확인 모드입니다.</strong>
+            <p>Supabase 연결 전에는 보안 점검 데이터 일부를 확인할 수 없어 환경설정 위주 상태만 표시합니다.</p>
+          </section>
+        ) : null}
         <section className="adm-security-hero adm-card">
           <div className="adm-security-hero-main">
             <span className={statusClass(overallStatus)}>
@@ -503,7 +514,9 @@ export default async function AdminSecurityPage() {
             </span>
             <h2>운영 보안 상태</h2>
             <p>
-              실패 {failCount}개, 주의 {warnCount}개, 정상 {passCount}개입니다. 설정값 자체는 노출하지 않고 상태만 점검합니다.
+              {localMode
+                ? "로컬 확인 모드 기준 상태입니다. 실제 운영 보안 점검은 Supabase와 운영 비밀값이 연결된 환경에서 확인합니다."
+                : `실패 ${failCount}개, 주의 ${warnCount}개, 정상 ${passCount}개입니다. 설정값 자체는 노출하지 않고 상태만 점검합니다.`}
             </p>
           </div>
           <div className="adm-security-hero-side">
@@ -571,7 +584,7 @@ export default async function AdminSecurityPage() {
                 <thead><tr><th>캠페인</th><th>주문</th><th>이벤트</th></tr></thead>
                 <tbody>
                   {securityData.traffic.campaigns.length === 0 ? (
-                    <tr><td colSpan={3}>캠페인 데이터가 없습니다.</td></tr>
+                    <tr><td colSpan={3}>{localMode ? "로컬 확인 모드에서는 캠페인 유입 데이터를 불러오지 않습니다." : "캠페인 데이터가 없습니다."}</td></tr>
                   ) : (
                     securityData.traffic.campaigns.map((campaign) => (
                       <tr key={campaign.key}>
@@ -590,7 +603,7 @@ export default async function AdminSecurityPage() {
                 <thead><tr><th>경로</th><th>주문</th><th>이벤트</th></tr></thead>
                 <tbody>
                   {securityData.traffic.landings.length === 0 ? (
-                    <tr><td colSpan={3}>랜딩 경로 데이터가 없습니다.</td></tr>
+                    <tr><td colSpan={3}>{localMode ? "로컬 확인 모드에서는 랜딩 경로 유입 데이터를 불러오지 않습니다." : "랜딩 경로 데이터가 없습니다."}</td></tr>
                   ) : (
                     securityData.traffic.landings.map((landing) => (
                       <tr key={landing.key}>

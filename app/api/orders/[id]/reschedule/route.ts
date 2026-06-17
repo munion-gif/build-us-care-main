@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { fail, ok } from "@/lib/api-response";
+import { matchLocalBuildusOrderFromRequest } from "@/lib/builduscare-local-order-server";
 import { readJson, validationError } from "@/lib/errors";
 import { insertJobStatusLog } from "@/lib/jobs";
 import { periodCapFromConfig, resolveDefaultSlotCap } from "@/lib/slot-capacity";
+import { closedReservationReason, isBeforeMinReservationDate, isClosedReservationDate } from "@/lib/reservation-policy";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { accessTokenSchema, uuidSchema } from "@/lib/validation";
 
@@ -60,16 +62,6 @@ function kstDayUtcRange(dateText: string) {
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
-function minReservationDateText() {
-  const minDate = new Date();
-  minDate.setDate(minDate.getDate() + 3);
-  return kstDateOnly(minDate);
-}
-
-function isBeforeMinReservationDate(dateText: string) {
-  return dateText < minReservationDateText();
-}
-
 function scheduledAtForSlot(dateText: string, slot: SlotPeriod) {
   return `${dateText}T${slot === "afternoon" ? "13:00:00" : "09:00:00"}+09:00`;
 }
@@ -91,6 +83,9 @@ async function assertSlotAvailable(params: {
   const { supabase, orderId, reservedDate, timeSlot } = params;
   if (isBeforeMinReservationDate(reservedDate)) {
     return fail("INVALID_DATE", "제품과 일정 준비 기간 때문에 예약 변경은 오늘 기준 3일 이후 날짜부터 가능합니다.", 400);
+  }
+  if (isClosedReservationDate(reservedDate)) {
+    return fail("SLOT_CLOSED", closedReservationReason(reservedDate), 409);
   }
 
   const [configResult, capResult] = await Promise.all([
@@ -175,13 +170,22 @@ async function sameTechnicianAvailable(params: {
 }
 
 export async function PATCH(request: Request, context: Context) {
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required to reschedule orders.", 500);
-
   const { id } = await context.params;
+  const rawBody = await readJson(request);
+  const localAccessToken = typeof rawBody?.accessToken === "string" ? rawBody.accessToken : undefined;
+
+  if (!hasSupabaseEnv()) {
+    const localOrder = matchLocalBuildusOrderFromRequest(request, { orderId: id, accessToken: localAccessToken });
+    if (localOrder) {
+      return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 예약 변경을 저장하지 않습니다.", 409, { localMode: true });
+    }
+    return fail("not_found", "로컬 확인 모드에서 일치하는 주문을 찾을 수 없어요.", 404, { localMode: true });
+  }
+
   const orderId = uuidSchema.safeParse(id);
   if (!orderId.success) return validationError(orderId.error, "Invalid order id.");
 
-  const parsed = rescheduleSchema.safeParse(await readJson(request));
+  const parsed = rescheduleSchema.safeParse(rawBody);
   if (!parsed.success) return validationError(parsed.error, "Invalid reschedule request.");
 
   const reservedDate = parsed.data.reserved_date ?? parsed.data.reservedDate;

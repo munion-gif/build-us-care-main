@@ -16,10 +16,14 @@ export default function TechnicianLoginPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ token })
     });
+    const payload = await response.json().catch(() => null);
     setLoading(false);
     if (!response.ok) {
       setError("기사 토큰이 올바르지 않아요.");
       return;
+    }
+    if (payload?.data?.localMode) {
+      setError("로컬 확인 모드에서는 로그인 없이 기사 화면을 확인할 수 있어요.");
     }
     window.location.href = "/technician";
   }

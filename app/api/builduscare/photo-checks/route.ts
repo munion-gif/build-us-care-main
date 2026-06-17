@@ -48,16 +48,23 @@ export async function POST(request: Request) {
     method: "POST",
     headers: {
       "x-builduscare-submission-type": "photo_check",
-      "user-agent": request.headers.get("user-agent") ?? "builduscare-static",
-      "x-forwarded-for": request.headers.get("x-forwarded-for") ?? ""
+      "user-agent": request.headers.get("user-agent") ?? "builduscare-web",
+      "x-forwarded-for": request.headers.get("x-forwarded-for") ?? "",
+      cookie: request.headers.get("cookie") ?? ""
     },
     body: formData
   }));
 
+  const headers = new Headers({
+    "content-type": response.headers.get("content-type") ?? "application/json"
+  });
+  const setCookies = typeof (response.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie === "function"
+    ? (response.headers as Headers & { getSetCookie: () => string[] }).getSetCookie()
+    : [response.headers.get("set-cookie")].filter((value): value is string => Boolean(value));
+  for (const value of setCookies) headers.append("set-cookie", value);
+
   return new Response(await response.text(), {
     status: response.status,
-    headers: {
-      "content-type": response.headers.get("content-type") ?? "application/json"
-    }
+    headers
   });
 }

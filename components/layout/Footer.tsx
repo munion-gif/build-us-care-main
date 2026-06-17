@@ -1,41 +1,87 @@
 import Link from "next/link";
 
+const productLinks = [
+  ["수전", "/products/faucet"],
+  ["양변기", "/products/toilet"],
+  ["세면대", "/products/washbasin"],
+  ["비데", "/products/bidet"],
+  ["환풍기", "/products/ventilation"],
+  ["도어핸들", "/products/door-handle"],
+  ["샷시손잡이", "/products/window-handle"],
+  ["실리콘 재시공", "/products/silicone"],
+  ["욕실 악세서리", "/products/bath-accessory"]
+] as const;
+
 export function Footer() {
   return (
-    <footer className="global-footer">
+    <footer className="site-foot">
       <style>{footerCss}</style>
-      <div className="footer-inner">
-        <section className="footer-column footer-brand" aria-label="회사 정보">
-          <Link href="/" className="footer-logo">
-            <img className="footer-logo-image" src="/assets/bc-logo.png" alt="Build us Care" />
-          </Link>
-          <dl className="footer-meta">
-            <div>
-              <dt>운영사</dt>
-              <dd>주식회사 무니온(muniOn)</dd>
+      <div className="fwrap">
+        <div className="fcols">
+          <div>
+            <h5>서비스</h5>
+            <Link href="/service">서비스 소개</Link>
+            <Link href="/photo-check">사진판정</Link>
+            <Link href="/products">가격 안내</Link>
+            <Link href="/products">교체 사례</Link>
+          </div>
+
+          <div>
+            <h5>제품</h5>
+            <div className="fsub">
+              <div>
+                {productLinks.slice(0, 5).map(([label, href]) => (
+                  <Link key={href} href={href}>{label}</Link>
+                ))}
+              </div>
+              <div>
+                {productLinks.slice(5).map(([label, href]) => (
+                  <Link key={href} href={href}>{label}</Link>
+                ))}
+              </div>
             </div>
-            <div>
-              <dt>대표</dt>
-              <dd>김영태</dd>
+          </div>
+
+          <div>
+            <h5>고객지원</h5>
+            <Link href="/order-lookup">주문조회</Link>
+            <Link href="/order-lookup">A/S 접수</Link>
+            <a href="https://pf.kakao.com/_PxkzsX" target="_blank" rel="noopener noreferrer">카카오톡 상담</a>
+            <a href="mailto:munion@mymunion.com">munion@mymunion.com</a>
+          </div>
+
+          <div>
+            <h5>고객센터</h5>
+            <p>평일 오전 10:00 – 오후 7:00</p>
+            <p>금요일 오후 6:00까지</p>
+            <p>휴무 : 일요일·법정공휴일</p>
+            <div className="fsoc">
+              <a href="https://www.instagram.com/builduscare" target="_blank" rel="noopener noreferrer" aria-label="인스타그램">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <rect x="2.5" y="2.5" width="19" height="19" rx="5.5" />
+                  <circle cx="12" cy="12" r="4.2" />
+                  <circle cx="17.4" cy="6.6" r="1.1" fill="currentColor" stroke="none" />
+                </svg>
+              </a>
+              <a href="https://pf.kakao.com/_PxkzsX" target="_blank" rel="noopener noreferrer" aria-label="카카오톡">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 4.2C6.9 4.2 2.8 7.4 2.8 11.3c0 2.5 1.7 4.7 4.2 5.9-.2.6-.7 2.4-.8 2.7-.1.4.1.4.4.3.2-.1 2.7-1.8 3.7-2.5.5.1 1.1.1 1.7.1 5.1 0 9.2-3.2 9.2-7.1S17.1 4.2 12 4.2z" />
+                </svg>
+              </a>
             </div>
-            <div>
-              <dt>사업자등록번호</dt>
-              <dd>601-81-39840</dd>
-            </div>
-            <div>
-              <dt>주소</dt>
-              <dd>경기도 용인시 수지구 포은대로59번길 37, B407호</dd>
-            </div>
-            <div>
-              <dt>이메일</dt>
-              <dd>munion@mymunion.com</dd>
-            </div>
-          </dl>
-        </section>
-      </div>
-      <div className="footer-bottom">
-        <div className="footer-bottom-inner">
-          <span>© 2026 Buildus Care. All rights reserved.</span>
+          </div>
+        </div>
+
+        <div className="flegal">
+          <div className="flinks">
+            <Link href="/privacy">개인정보처리방침</Link>
+            <Link href="/terms">이용약관</Link>
+            <Link href="/refund-policy">취소·환불 안내</Link>
+            <Link href="/as-policy">A/S 기준</Link>
+          </div>
+          <p>주식회사 무니온 · 대표 김영태 · 경기도 용인시 포은대로59번길 37, 시그니처광교</p>
+          <p>사업자등록번호 601-81-39840 · 통신판매업신고 2025-용인수지-3087 · munion@mymunion.com</p>
+          <p>ⓒ 2026 Build us Care. All rights reserved. · 대한민국</p>
         </div>
       </div>
     </footer>
@@ -43,118 +89,104 @@ export function Footer() {
 }
 
 const footerCss = `
-  .global-footer {
-    border-top: 1px solid var(--color-border);
-    background: #f5f5f7;
-    color: var(--color-text-muted);
+  .site-foot {
+    background: #F5F5F7;
+    border-top: 1px solid var(--gray-200, #eaecf0);
+    margin-top: 0;
   }
-  .footer-inner,
-  .footer-bottom-inner {
-    width: min(var(--content-wide), 100%);
-    margin-inline: auto;
-    padding-inline: var(--space-6);
+  .site-foot .fwrap {
+    max-width: 1120px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 48px 40px 36px;
+    word-break: keep-all;
   }
-  .footer-inner {
+  .site-foot .fcols {
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    align-items: flex-start;
-    gap: clamp(2rem, 7vw, 7rem);
-    padding-block: 2.5rem 1.75rem;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 28px;
   }
-  .footer-column {
-    min-width: 0;
-  }
-  .footer-heading {
-    margin: 0 0 0.75rem;
-    color: var(--color-text);
-    font-size: var(--text-label);
-    line-height: var(--leading-label);
+  .site-foot h5 {
+    margin: 0 0 12px;
+    color: var(--gray-900, #101828);
+    font-size: 13px;
+    line-height: 1.4;
     font-weight: 700;
   }
-  .footer-logo {
-    display: inline-flex;
-    align-items: center;
-    text-decoration: none;
-  }
-  .footer-logo-image {
+  .site-foot a,
+  .site-foot p {
     display: block;
-    width: min(168px, 58vw);
-    height: auto;
-  }
-  .footer-meta {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 0.375rem 1.25rem;
-    margin-top: var(--space-3);
-    font-size: var(--text-caption);
-    line-height: var(--leading-caption);
-  }
-  .footer-meta div {
-    display: contents;
-  }
-  .footer-meta dt {
-    color: var(--color-text-faint);
-    font-weight: 600;
-  }
-  .footer-meta dd {
     margin: 0;
-    overflow-wrap: anywhere;
-  }
-  .footer-link-grid {
-    display: grid;
-    gap: 0.625rem;
-  }
-  .footer-links a,
-  .footer-policy-links a {
-    color: var(--color-text-muted);
+    color: var(--gray-500, #667085);
+    font-size: 12.5px;
+    line-height: 1.9;
     text-decoration: none;
-    font-size: var(--text-label);
-    line-height: var(--leading-label);
-    font-weight: 600;
   }
-  .footer-links a:hover,
-  .footer-policy-links a:hover {
-    color: var(--color-text);
+  .site-foot a:hover {
+    color: var(--gray-900, #101828);
   }
-  .footer-bottom {
-    border-top: 1px solid var(--color-border);
+  .site-foot .fsub {
+    display: grid;
+    grid-template-columns: auto auto;
+    justify-content: start;
+    gap: 0 28px;
   }
-  .footer-bottom-inner {
-    min-height: 50px;
+  .site-foot .fsoc {
     display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: var(--space-4);
-    font-size: var(--text-caption);
-    line-height: var(--leading-caption);
+    gap: 10px;
+    margin-top: 14px;
   }
-  .footer-policy-links {
+  .site-foot .fsoc a {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--gray-200, #eaecf0);
+    border-radius: 50%;
+    background: #fff;
+    color: var(--gray-600, #475467);
+  }
+  .site-foot .fsoc a:hover {
+    border-color: var(--gray-300, #d0d5dd);
+    color: var(--gray-900, #101828);
+  }
+  .site-foot .fsoc svg {
+    width: 17px;
+    height: 17px;
+  }
+  .site-foot .flegal {
+    margin-top: 34px;
+    padding-top: 22px;
+    border-top: 1px solid var(--gray-200, #eaecf0);
+  }
+  .site-foot .flegal p {
+    color: var(--gray-400, #98a2b3);
+    font-size: 11.5px;
+    line-height: 1.8;
+  }
+  .site-foot .flinks {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.875rem;
+    gap: 6px 16px;
+    margin-bottom: 12px;
   }
-  @media (max-width: 640px) {
-    .footer-inner {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 1.625rem;
-      padding-inline: var(--space-4);
-      padding-block: 1.75rem;
+  .site-foot .flinks a {
+    color: var(--gray-600, #475467);
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  @media (max-width: 860px) {
+    .site-foot .fcols {
+      grid-template-columns: 1fr 1fr;
+      gap: 24px 16px;
     }
-    .footer-logo-image {
-      width: min(190px, 68vw);
+  }
+  @media (max-width: 560px) {
+    .site-foot .fwrap {
+      padding: 32px 20px 28px;
     }
-    .footer-bottom-inner {
-      min-height: 0;
-      display: grid;
-      gap: 0.75rem;
-      padding-inline: var(--space-4);
-      padding-block: 0.875rem;
-    }
-    .footer-meta {
-      gap: 0.25rem 0.875rem;
-    }
-    .footer-link-grid {
+    .site-foot .fcols {
       grid-template-columns: 1fr;
     }
   }

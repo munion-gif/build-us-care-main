@@ -23,7 +23,15 @@ export async function GET(request: Request) {
     logOperation({ requestId, endpoint: "/api/admin/slot-configs", method: "GET", adminKeyId, success: false, errorCode: "UNAUTHORIZED" });
     return authError;
   }
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) {
+    return ok({
+      configs: [],
+      cap: 3,
+      capSource: "local_mock",
+      activeTechnicianCount: 0,
+      localMode: true
+    });
+  }
 
   const supabase = getSupabaseAdmin();
   let configsResult: any;
@@ -44,7 +52,8 @@ export async function GET(request: Request) {
     configs: configsResult.data?.filter((row: any) => row.type !== "cap") ?? [],
     cap: capResult.cap,
     capSource: capResult.capSource,
-    activeTechnicianCount: capResult.activeTechnicianCount
+    activeTechnicianCount: capResult.activeTechnicianCount,
+    localMode: false
   });
 }
 
@@ -56,7 +65,7 @@ export async function POST(request: Request) {
     logOperation({ requestId, endpoint: "/api/admin/slot-configs", method: "POST", adminKeyId, success: false, errorCode: "UNAUTHORIZED" });
     return authError;
   }
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 일정 설정을 저장하지 않습니다.", 409, { localMode: true });
 
   const body = await readJson(request);
   const supabase = getSupabaseAdmin();

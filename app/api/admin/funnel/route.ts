@@ -8,10 +8,19 @@ export const revalidate = 300;
 export async function GET(request: Request) {
   const authError = requireAdmin(request);
   if (authError) return authError;
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
 
   const { searchParams } = new URL(request.url);
   const period = searchParams.get("period") === "30d" ? "30d" : "7d";
+  if (!hasSupabaseEnv()) {
+    const report = buildAdminFunnelReport([]);
+    return ok({
+      period,
+      steps: report.steps,
+      channels: report.channels,
+      localMode: true
+    });
+  }
+
   const since = new Date(Date.now() - (period === "30d" ? 30 : 7) * 24 * 60 * 60 * 1000).toISOString();
   const supabase = getSupabaseAdmin();
 
@@ -28,6 +37,7 @@ export async function GET(request: Request) {
   return ok({
     period,
     steps: report.steps,
-    channels: report.channels
+    channels: report.channels,
+    localMode: false
   });
 }

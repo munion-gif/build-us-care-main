@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAdminIpAllowed, isAdminIpBypassEnabled } from "@/lib/admin-ip-access";
+import { isAdminIpAllowed, isAdminIpBypassEnabled, isLocalAdminDevBypassEnabled } from "@/lib/admin-ip-access";
 
 const textEncoder = new TextEncoder();
 
@@ -59,11 +59,53 @@ const retiredPublicApiPrefixes = [
   "/api/reservations"
 ];
 
+const retiredStaticPublicPaths = new Set([
+  "/app-web.html",
+  "/app-mobile.html",
+  "/app-web.js",
+  "/app.js"
+]);
+
+const legacyPublicRedirects = new Map<string, string>([
+  ["/services", "/"],
+  ["/cases", "/"],
+  ["/products/toilets", "/products/toilet"],
+  ["/products/basins", "/products/washbasin"],
+  ["/products/window-handles", "/products/window-handle"],
+  ["/products/door-handles", "/products/door-handle"],
+  ["/products/bath-accessories", "/products/bath-accessory"]
+]);
+
 function isRetiredPublicApi(pathname: string) {
   return retiredPublicApiPaths.has(pathname) || retiredPublicApiPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
 export async function middleware(req: NextRequest) {
+  const legacyRedirectPath = legacyPublicRedirects.get(req.nextUrl.pathname);
+  if (legacyRedirectPath) {
+    const redirectUrl = new URL(legacyRedirectPath, req.url);
+    redirectUrl.search = req.nextUrl.search;
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (req.nextUrl.pathname === "/order-status") {
+    const orderId = req.nextUrl.searchParams.get("id") ?? req.nextUrl.searchParams.get("orderId");
+    if (orderId) {
+      const redirectUrl = new URL(`/orders/${encodeURIComponent(orderId)}`, req.url);
+      const accessToken = req.nextUrl.searchParams.get("accessToken");
+      if (accessToken) redirectUrl.searchParams.set("accessToken", accessToken);
+      return NextResponse.redirect(redirectUrl);
+    }
+  }
+
+  if (req.nextUrl.pathname === "/builduscare" || req.nextUrl.pathname.startsWith("/builduscare/")) {
+    return new NextResponse("Not Found", { status: 404 });
+  }
+
+  if (retiredStaticPublicPaths.has(req.nextUrl.pathname)) {
+    return new NextResponse("Not Found", { status: 404 });
+  }
+
   if (isRetiredPublicApi(req.nextUrl.pathname)) {
     return NextResponse.json({ ok: false, error: { code: "not_found", message: "Not found." } }, { status: 404 });
   }
@@ -74,7 +116,14 @@ export async function middleware(req: NextRequest) {
       return new NextResponse("Not Found", { status: 404 });
     }
 
-    const bypassLogin = allowedByIp && isAdminIpBypassEnabled(process.env.ADMIN_IP_BYPASS_LOGIN);
+    const localDevBypass = isLocalAdminDevBypassEnabled(
+      req.headers,
+      req.headers.get("host"),
+      process.env.ADMIN_API_KEY,
+      process.env.ADMIN_PASSWORD,
+      process.env.ADMIN_SESSION_SECRET
+    );
+    const bypassLogin = localDevBypass || (allowedByIp && isAdminIpBypassEnabled(process.env.ADMIN_IP_BYPASS_LOGIN));
     if (bypassLogin && req.nextUrl.pathname === "/admin/login") {
       return NextResponse.redirect(new URL("/admin/dashboard", req.url));
     }
@@ -89,6 +138,17 @@ export async function middleware(req: NextRequest) {
   }
 
   if (req.nextUrl.pathname.startsWith("/technician") && req.nextUrl.pathname !== "/technician/login") {
+    const localTechnicianBypass = isLocalAdminDevBypassEnabled(
+      req.headers,
+      req.headers.get("host"),
+      process.env.ADMIN_API_KEY,
+      process.env.ADMIN_PASSWORD,
+      process.env.ADMIN_SESSION_SECRET
+    );
+    if (localTechnicianBypass) {
+      return NextResponse.next();
+    }
+
     const token = req.nextUrl.searchParams.get("token");
     if (token) {
       const redirectUrl = new URL("/technician", req.url);
@@ -117,6 +177,19 @@ export const config = {
     "/admin/:path*",
     "/api/admin/:path*",
     "/technician/:path*",
+    "/services",
+    "/products/toilets",
+    "/products/basins",
+    "/products/window-handles",
+    "/products/door-handles",
+    "/products/bath-accessories",
+    "/order-status",
+    "/builduscare/:path*",
+    "/builduscare",
+    "/app-web.html",
+    "/app-mobile.html",
+    "/app-web.js",
+    "/app.js",
     "/api/cases/:path*",
     "/api/diagnoses/:path*",
     "/api/faqs/:path*",

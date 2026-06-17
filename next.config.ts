@@ -1,19 +1,37 @@
 import os from "node:os";
 import type { NextConfig } from "next";
 
+const quoteProductRedirects = [
+  ["toilet_replace", "toilet"],
+  ["basin_replace", "washbasin"],
+  ["washbasin_replace", "washbasin"],
+  ["faucet_replace", "faucet"],
+  ["bidet_install", "bidet"],
+  ["ventilator_replace", "ventilation"],
+  ["sash_handle", "window-handle"],
+  ["door_handle", "door-handle"],
+  ["silicone_repair", "silicone"],
+  ["bath_accessory", "bath-accessory"]
+].map(([sourceCode, category]) => ({
+  source: `/quote/${sourceCode}`,
+  destination: `/products/${category}`,
+  permanent: false
+}));
+
 const legacyPublicPageRedirects = [
-  "/services/:path*",
-  "/cases/:path*",
-  "/request/photo/:path*",
-  "/orders/lookup/:path*",
-  "/quote/:path*",
-  "/flow/:path*",
-  "/lab/:path*",
-  "/payment/success/:path*",
-  "/payment/fail/:path*"
-].map((source) => ({
+  ["/services", "/"],
+  ["/services/:path*", "/"],
+  ["/orders/lookup", "/order-lookup"],
+  ["/orders/lookup/:path*", "/order-lookup"],
+  ["/quote/:path*", "/products"],
+  ["/cases/:path*", "/"],
+  ["/flow/:path*", "/"],
+  ["/lab/:path*", "/"],
+  ["/payment/success/:path*", "/order-lookup"],
+  ["/payment/fail/:path*", "/order-lookup"]
+].map(([source, destination]) => ({
   source,
-  destination: "/",
+  destination,
   permanent: false
 }));
 
@@ -33,6 +51,7 @@ function configuredDevOrigins() {
 
 const nextConfig: NextConfig = {
   typedRoutes: false,
+  devIndicators: false,
   allowedDevOrigins: Array.from(new Set(["127.0.0.1", ...localDevOrigins(), ...configuredDevOrigins()])),
   async redirects() {
     return [
@@ -42,6 +61,17 @@ const nextConfig: NextConfig = {
         destination: "https://builduscare.co.kr/:path*",
         permanent: true
       },
+      {
+        source: "/request/photo",
+        destination: "/",
+        permanent: false
+      },
+      {
+        source: "/request/photo/:path*",
+        destination: "/",
+        permanent: false
+      },
+      ...quoteProductRedirects,
       ...legacyPublicPageRedirects
     ];
   },

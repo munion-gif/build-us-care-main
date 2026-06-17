@@ -39,20 +39,21 @@ const SETTING_KEYS = [
 export async function GET(request: Request) {
   const authError = requireAdmin(request);
   if (authError) return authError;
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) return ok({ settings: {}, localMode: true });
 
   const { data, error } = await getSupabaseAdmin().from("app_configs").select("key,value,description,updated_at").in("key", [...SETTING_KEYS]);
   if (error) return fail("internal_error", error.message, 500);
 
   return ok({
-    settings: Object.fromEntries((data ?? []).map((row) => [row.key, row.value]))
+    settings: Object.fromEntries((data ?? []).map((row) => [row.key, row.value])),
+    localMode: false
   });
 }
 
 export async function POST(request: Request) {
   const authError = requireAdmin(request);
   if (authError) return authError;
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 운영 설정을 저장하지 않습니다.", 409, { localMode: true });
 
   const parsed = settingsSchema.safeParse(await readJson(request));
   if (!parsed.success) return validationError(parsed.error, "Invalid settings request.");

@@ -27,7 +27,15 @@ function csv(rows: Record<string, unknown>[]) {
 export async function GET(request: Request) {
   const authError = requireAdmin(request);
   if (authError) return authError;
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) {
+    return new Response(csv([]), {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": 'attachment; filename="events-export-local.csv"',
+        "X-Local-Mode": "true"
+      }
+    });
+  }
 
   const { searchParams } = new URL(request.url);
   const supabase = getSupabaseAdmin();
@@ -51,7 +59,8 @@ export async function GET(request: Request) {
   return new Response(csv((data ?? []) as unknown as Record<string, unknown>[]), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="events-export-${source ?? "all"}-${campaign ?? "all"}.csv"`
+      "Content-Disposition": `attachment; filename="events-export-${source ?? "all"}-${campaign ?? "all"}.csv"`,
+      "X-Local-Mode": "false"
     }
   });
 }

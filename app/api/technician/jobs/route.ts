@@ -10,7 +10,11 @@ function firstServiceCode(order: any) {
 
 export async function GET(request: Request) {
   if (!hasSupabaseEnv()) {
-    return fail("supabase_not_configured", "Supabase is required.", 500);
+    return ok({
+      technician: { id: "local-technician", name: "기사님" },
+      jobs: [],
+      localMode: true
+    });
   }
 
   const supabase = getSupabaseAdmin();
@@ -59,5 +63,5 @@ export async function GET(request: Request) {
     };
   });
 
-  return ok({ technician: { id: technician.id, name: technician.name }, jobs });
+  return ok({ technician: { id: technician.id, name: technician.name }, jobs, localMode: false });
 }

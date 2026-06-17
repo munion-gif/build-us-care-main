@@ -6,15 +6,20 @@ type Props = {
   diagnosisId: string;
   receiptNumber?: string | null;
   isTest?: boolean;
+  localMode?: boolean;
 };
 
-export function DiagnosisTestActions({ diagnosisId, receiptNumber, isTest = false }: Props) {
+export function DiagnosisTestActions({ diagnosisId, receiptNumber, isTest = false, localMode = false }: Props) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const nextIsTest = !isTest;
   const label = isTest ? "운영 접수 전환" : "테스트 접수 표시";
 
   async function updateTestFlag() {
+    if (localMode) {
+      setMessage("로컬 확인 모드에서는 테스트 상태를 변경할 수 없어요.");
+      return;
+    }
     const targetLabel = nextIsTest ? "테스트 접수" : "운영 접수";
     const note = window.prompt(`${receiptNumber ?? "이 사진확인 접수"}를 ${targetLabel}로 전환할까요?\n메모가 있으면 입력해주세요.`, nextIsTest ? "관리자 테스트" : "");
     if (note === null) return;
@@ -40,8 +45,8 @@ export function DiagnosisTestActions({ diagnosisId, receiptNumber, isTest = fals
 
   return (
     <div className="adm-test-actions">
-      <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={updateTestFlag} disabled={busy}>
-        {busy ? "처리 중" : label}
+      <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={updateTestFlag} disabled={busy || localMode}>
+        {busy ? "처리 중" : localMode ? "로컬에서 변경 불가" : label}
       </button>
       {message ? <p className="adm-form-message adm-form-message-error">{message}</p> : null}
     </div>

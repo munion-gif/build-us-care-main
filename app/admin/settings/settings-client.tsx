@@ -16,12 +16,17 @@ type Settings = {
   cancel_policy_no_refund_status?: string;
 };
 
-export function SettingsForm({ initialSettings }: { initialSettings: Settings }) {
+export function SettingsForm({ initialSettings, localMode = false }: { initialSettings: Settings; localMode?: boolean }) {
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const fieldDisabled = localMode || saving;
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (localMode) {
+      setMessage("로컬 확인 모드에서는 설정을 저장하지 않습니다.");
+      return;
+    }
     setSaving(true);
     setMessage("");
     const form = new FormData(event.currentTarget);
@@ -61,7 +66,7 @@ export function SettingsForm({ initialSettings }: { initialSettings: Settings })
       <div className="adm-form-row">
         <label>
           <span className="adm-label">카카오 채널 URL</span>
-          <input className="adm-input" name="kakao_channel_url" defaultValue={initialSettings.kakao_channel_url ?? ""} placeholder="https://pf.kakao.com/..." />
+          <input className="adm-input" name="kakao_channel_url" defaultValue={initialSettings.kakao_channel_url ?? ""} placeholder="https://pf.kakao.com/..." disabled={fieldDisabled} />
         </label>
         {(initialSettings.kakao_channel_url || "").trim() && (
           <div className="adm-inline-help">
@@ -73,16 +78,16 @@ export function SettingsForm({ initialSettings }: { initialSettings: Settings })
       <div className="adm-form-row adm-form-row-2">
         <label>
           <span className="adm-label">대표 전화번호</span>
-          <input className="adm-input" name="service_phone" defaultValue={initialSettings.service_phone ?? ""} placeholder="010-0000-0000" />
+          <input className="adm-input" name="service_phone" defaultValue={initialSettings.service_phone ?? ""} placeholder="010-0000-0000" disabled={fieldDisabled} />
         </label>
         <label>
           <span className="adm-label">슬롯 최대 방문 수</span>
-          <input className="adm-input" name="slot_cap" type="number" min={0} max={20} defaultValue={initialSettings.slot_cap ?? ""} placeholder="자동" />
+          <input className="adm-input" name="slot_cap" type="number" min={0} max={20} defaultValue={initialSettings.slot_cap ?? ""} placeholder="자동" disabled={fieldDisabled} />
           <span className="adm-help">오전/오후 각 최대 방문 건수. 비워두면 활성 기사 수 기준으로 자동 설정됩니다.</span>
         </label>
       </div>
       <label className="adm-inline-check">
-        <input name="maintenance_mode" type="checkbox" defaultChecked={initialSettings.maintenance_mode === "true"} />
+        <input name="maintenance_mode" type="checkbox" defaultChecked={initialSettings.maintenance_mode === "true"} disabled={fieldDisabled} />
         서비스 점검 중 안내를 홈 상단에 표시
       </label>
       <hr className="adm-divider" />
@@ -90,17 +95,17 @@ export function SettingsForm({ initialSettings }: { initialSettings: Settings })
       <div className="adm-form-row adm-form-row-2">
         <label>
           <span className="adm-label">관리자 이메일</span>
-          <input className="adm-input" name="admin_email" type="email" defaultValue={initialSettings.admin_email ?? ""} placeholder="admin@example.com" />
+          <input className="adm-input" name="admin_email" type="email" defaultValue={initialSettings.admin_email ?? ""} placeholder="admin@example.com" disabled={fieldDisabled} />
         </label>
         <label>
           <span className="adm-label">관리자 전화번호</span>
-          <input className="adm-input" name="admin_phone" defaultValue={initialSettings.admin_phone ?? ""} placeholder="010-0000-0000" />
+          <input className="adm-input" name="admin_phone" defaultValue={initialSettings.admin_phone ?? ""} placeholder="010-0000-0000" disabled={fieldDisabled} />
         </label>
       </div>
       <div className="adm-form-row">
         <label>
           <span className="adm-label">알림 방식</span>
-          <select className="adm-input" name="notify_channel" defaultValue={initialSettings.notify_channel ?? "none"}>
+          <select className="adm-input" name="notify_channel" defaultValue={initialSettings.notify_channel ?? "none"} disabled={fieldDisabled}>
             <option value="none">DB 기록만</option>
             <option value="email">이메일</option>
             <option value="sms">SMS</option>
@@ -113,31 +118,32 @@ export function SettingsForm({ initialSettings }: { initialSettings: Settings })
       <div className="adm-form-row adm-form-row-3">
         <label>
           <span className="adm-label">전액 환불 기준 시간</span>
-          <input className="adm-input" name="cancel_policy_full_refund_hours" type="number" min={0} max={720} defaultValue={initialSettings.cancel_policy_full_refund_hours ?? "24"} />
+          <input className="adm-input" name="cancel_policy_full_refund_hours" type="number" min={0} max={720} defaultValue={initialSettings.cancel_policy_full_refund_hours ?? "24"} disabled={fieldDisabled} />
           <span className="adm-help">결제 후 이 시간 이내일 때 전액 환불 후보가 됩니다.</span>
         </label>
         <label>
           <span className="adm-label">방문 전 남은 일수</span>
-          <input className="adm-input" name="cancel_policy_full_refund_days_before" type="number" min={0} max={30} defaultValue={initialSettings.cancel_policy_full_refund_days_before ?? "3"} />
+          <input className="adm-input" name="cancel_policy_full_refund_days_before" type="number" min={0} max={30} defaultValue={initialSettings.cancel_policy_full_refund_days_before ?? "3"} disabled={fieldDisabled} />
           <span className="adm-help">방문 이 일수 이상 전이면 전액 환불을 자동 처리합니다.</span>
         </label>
         <label>
           <span className="adm-label">부분 환불 비율</span>
-          <input className="adm-input" name="cancel_policy_partial_refund_rate" type="number" min={0} max={1} step="0.1" defaultValue={initialSettings.cancel_policy_partial_refund_rate ?? "0.5"} />
+          <input className="adm-input" name="cancel_policy_partial_refund_rate" type="number" min={0} max={1} step="0.1" defaultValue={initialSettings.cancel_policy_partial_refund_rate ?? "0.5"} disabled={fieldDisabled} />
           <span className="adm-help">방문 1-2일 전 취소 요청의 환불 비율입니다.</span>
         </label>
       </div>
       <div className="adm-form-row">
         <label>
           <span className="adm-label">환불 불가 상태</span>
-          <input className="adm-input" name="cancel_policy_no_refund_status" defaultValue={initialSettings.cancel_policy_no_refund_status ?? "in_progress,completed,done,canceled,cancelled,warranty"} />
+          <input className="adm-input" name="cancel_policy_no_refund_status" defaultValue={initialSettings.cancel_policy_no_refund_status ?? "in_progress,completed,done,canceled,cancelled,warranty"} disabled={fieldDisabled} />
           <span className="adm-help">쉼표로 구분합니다. 예: in_progress,completed,done</span>
         </label>
       </div>
+      {localMode ? <p className="adm-form-message">로컬 확인 모드에서는 저장 기능이 비활성화됩니다.</p> : null}
       {message && <p className="adm-form-message">{message}</p>}
       <div className="adm-modal-footer" style={{ padding: 0, marginTop: 16 }}>
-        <button className="adm-btn adm-btn-primary" type="submit" disabled={saving}>
-          {saving ? "저장 중..." : "설정 저장"}
+        <button className="adm-btn adm-btn-primary" type="submit" disabled={saving || localMode}>
+          {localMode ? "로컬에서 저장 불가" : saving ? "저장 중..." : "설정 저장"}
         </button>
       </div>
     </form>

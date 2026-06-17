@@ -7,6 +7,7 @@ import type { OperationalOrderStatus, OrderStatus } from "@/lib/types";
 type Props = {
   orderId: string;
   currentStatus: OrderStatus;
+  localMode?: boolean;
 };
 
 const IMPORTANT_BLOCKED_TARGETS: OperationalOrderStatus[] = ["quoted", "payment_pending", "paid", "scheduled", "in_progress", "completed", "done", "warranty", "canceled"];
@@ -24,7 +25,7 @@ function activeStageIndex(status: OrderStatus) {
   return index >= 0 ? index : 0;
 }
 
-export function OrderStatusTransitionPanel({ orderId, currentStatus }: Props) {
+export function OrderStatusTransitionPanel({ orderId, currentStatus, localMode = false }: Props) {
   const [savingStatus, setSavingStatus] = useState<OperationalOrderStatus | null>(null);
   const [message, setMessage] = useState("");
   const allowed = getAllowedOrderTransitions(currentStatus).filter((status) => {
@@ -36,6 +37,10 @@ export function OrderStatusTransitionPanel({ orderId, currentStatus }: Props) {
   const stageIndex = activeStageIndex(currentStatus);
 
   async function transitionTo(nextStatus: OperationalOrderStatus) {
+    if (localMode) {
+      setMessage("로컬 확인 모드에서는 상태를 변경할 수 없어요.");
+      return;
+    }
     if (!window.confirm(`${ux.adminLabel} 상태를 ${getOrderStatusUx(nextStatus).adminLabel}(으)로 변경할까요?`)) return;
     setSavingStatus(nextStatus);
     setMessage("");
@@ -94,7 +99,7 @@ export function OrderStatusTransitionPanel({ orderId, currentStatus }: Props) {
               key={status}
               type="button"
               className={status === "canceled" ? "adm-transition-button danger" : "adm-transition-button"}
-              disabled={Boolean(savingStatus)}
+              disabled={Boolean(savingStatus) || localMode}
               onClick={() => transitionTo(status)}
             >
               <span>{getOrderStatusUx(status).adminLabel}</span>

@@ -8,11 +8,12 @@ type PageProps = { params: Promise<{ id: string }> };
 
 function firstServiceCode(order: any) {
   const sku = Array.isArray(order?.skus) ? order.skus[0] : null;
-  return sku?.service_type_code ?? sku?.sku ?? order?.service_type_code;
+  return sku?.service_type_code ?? sku?.metadata?.service_type_code ?? sku?.sku ?? order?.service_type_code;
 }
 
 export default async function AdminJobDetailPage({ params }: PageProps) {
   const { id } = await params;
+  const localMode = !hasSupabaseEnv();
   let job: any = null;
   let materials: any[] = [];
   if (hasSupabaseEnv()) {
@@ -28,7 +29,22 @@ export default async function AdminJobDetailPage({ params }: PageProps) {
     job = data;
     materials = materialRows ?? [];
   }
-  if (!job) return <div>작업을 찾을 수 없어요.</div>;
+  if (!job) {
+    return (
+      <>
+        <header className="adm-page-header">
+          <h1 className="adm-page-title">현장 상세</h1>
+          <p className="adm-page-sub">현장 상세는 실제 기사 배정 데이터가 있어야 확인할 수 있습니다.</p>
+        </header>
+        <div className="adm-content">
+          <section className="adm-card adm-admin-warning" role="status">
+            <strong>{localMode ? "로컬 확인 모드입니다." : "작업을 찾을 수 없어요."}</strong>
+            <p>{localMode ? "Supabase 연결 전에는 개별 현장 상세를 읽기 전용으로 재현하지 않습니다. 현장 목록과 일정관리 화면에서 구조만 확인하세요." : "삭제되었거나 접근할 수 없는 현장일 수 있습니다."}</p>
+          </section>
+        </div>
+      </>
+    );
+  }
   return (
     <>
       <header className="adm-page-header">

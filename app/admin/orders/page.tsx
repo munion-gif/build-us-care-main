@@ -1,5 +1,14 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { formatChannel, formatKRDate, formatKRW, formatOrderStatus, formatServiceName } from "@/lib/format";
+import {
+  BUILDUSCARE_LOCAL_ADMIN_ORDER_COOKIE,
+  BUILDUSCARE_LOCAL_ADMIN_ORDERS_COOKIE,
+  localAdminOrderHistoryToAdminListItem,
+  localAdminOrderToAdminListItem,
+  readLocalAdminOrderHistoryCookie,
+  readLocalAdminOrderCookie
+} from "@/lib/builduscare-local-admin";
 import { measure } from "@/lib/perf";
 import { getServiceFilterCodes } from "@/lib/service-catalog";
 import { getAllServiceItems } from "@/lib/service-items";
@@ -20,7 +29,6 @@ const channels = ["", "kakao", "web", "phone", "store", "instagram"];
 const workflowFilters = [
   { key: "all", label: "전체", href: "/admin/orders" },
   { key: "intake", label: "신규", href: "/admin/orders?flow=intake" },
-  { key: "quote", label: "견적", href: "/admin/orders?flow=quote" },
   { key: "payment", label: "입금 확인", href: "/admin/orders?flow=payment" },
   { key: "paid", label: "결제완료", href: "/admin/orders?flow=paid" },
   { key: "visit", label: "방문 예정", href: "/admin/orders?flow=visit" },
@@ -71,15 +79,17 @@ function buildOrdersQuery(params: Record<string, string | undefined>, options: {
 
   query = query.range(from, from + limit - 1);
 
-  if (!params.search) {
-    query = query.or("service_type_code.is.null,service_type_code.neq.photo_inquiry");
-  }
+  query = query
+    .or("service_type_code.is.null,service_type_code.neq.photo_inquiry")
+    .or("reason.is.null,reason.not.in.(photo_check_request,photo_diagnosis)");
 
   if (options.includeLifecycle) {
     if (trashMode) {
       query = query.not("deleted_at", "is", null);
+    } else if (testMode) {
+      query = query.is("deleted_at", null).eq("is_test", true);
     } else {
-      query = query.is("deleted_at", null).eq("is_test", testMode);
+      query = query.is("deleted_at", null).or("is_test.is.null,is_test.eq.false");
     }
   }
 
@@ -106,7 +116,7 @@ function buildOrdersQuery(params: Record<string, string | undefined>, options: {
 }
 
 function applyClientOrderFilters(orders: any[], params: Record<string, string | undefined>) {
-  const visibleOrders = params.search ? orders : orders.filter((order) => !isPhotoCheckOrder(order));
+  const visibleOrders = orders.filter((order) => !isPhotoCheckOrder(order));
   if (params.flow === "intake") return visibleOrders;
   return visibleOrders;
 }
@@ -115,22 +125,41 @@ async function getOrders(params: Record<string, string | undefined>) {
   const trashMode = params.trash === "1" || params.flow === "trash";
   const testMode = !trashMode && (params.test === "1" || params.flow === "test");
   if (!hasSupabaseEnv()) {
-    return { orders: [], count: 0, error: "Supabase 환경변수가 설정되어 있지 않습니다.", page: 1, limit: 20, trashMode, testMode };
+    const cookieStore = await cookies();
+    const history = readLocalAdminOrderHistoryCookie(cookieStore.get(BUILDUSCARE_LOCAL_ADMIN_ORDERS_COOKIE)?.value);
+    const localOrder = readLocalAdminOrderCookie(cookieStore.get(BUILDUSCARE_LOCAL_ADMIN_ORDER_COOKIE)?.value);
+    const seededOrders = history.length > 0
+      ? history.map(localAdminOrderHistoryToAdminListItem)
+      : localOrder
+        ? [localAdminOrderToAdminListItem(localOrder)]
+        : [];
+    const orders = applyClientOrderFilters(seededOrders, params);
+    return {
+      orders,
+      count: orders.length,
+      error: null,
+      page: 1,
+      limit: 20,
+      schemaWarning: null,
+      localMode: true,
+      trashMode,
+      testMode
+    };
   }
   const primary = buildOrdersQuery(params, { includeLifecycle: true });
   const primaryResult = await primary.query;
   if (!primaryResult.error) {
     const orders = applyClientOrderFilters(primaryResult.data ?? [], params);
-    return { orders, count: primaryResult.count ?? 0, error: null, page: primary.page, limit: primary.limit, schemaWarning: null, trashMode, testMode };
+    return { orders, count: primaryResult.count ?? 0, error: null, page: primary.page, limit: primary.limit, schemaWarning: null, localMode: false, trashMode, testMode };
   }
 
   if (!isLifecycleSchemaError(primaryResult.error)) {
-    return { orders: [], count: 0, error: primaryResult.error.message, page: primary.page, limit: primary.limit, schemaWarning: null, trashMode, testMode };
+    return { orders: [], count: 0, error: primaryResult.error.message, page: primary.page, limit: primary.limit, schemaWarning: null, localMode: false, trashMode, testMode };
   }
 
   const schemaWarning = "DB에 테스트/휴지통 컬럼이 REST API 기준으로 아직 반영되지 않았습니다. 일반 주문 목록은 호환 모드로 표시하고, 테스트/휴지통 분리는 제한합니다.";
   if (trashMode || testMode) {
-    return { orders: [], count: 0, error: null, page: primary.page, limit: primary.limit, schemaWarning, trashMode, testMode };
+    return { orders: [], count: 0, error: null, page: primary.page, limit: primary.limit, schemaWarning, localMode: false, trashMode, testMode };
   }
 
   const fallback = buildOrdersQuery(params, { includeLifecycle: false });
@@ -143,6 +172,7 @@ async function getOrders(params: Record<string, string | undefined>) {
     page: fallback.page,
     limit: fallback.limit,
     schemaWarning,
+    localMode: false,
     trashMode,
     testMode
   };
@@ -160,7 +190,7 @@ async function getActiveTechnicians() {
 
 function firstServiceCode(order: any) {
   const sku = Array.isArray(order?.skus) ? order.skus[0] : null;
-  return sku?.service_type_code ?? sku?.sku ?? order?.service_type_code;
+  return sku?.service_type_code ?? sku?.metadata?.service_type_code ?? sku?.sku ?? order?.service_type_code;
 }
 
 function isPhotoCheckOrder(order: any) {
@@ -168,7 +198,7 @@ function isPhotoCheckOrder(order: any) {
   if (order?.service_type_code === "photo_inquiry" || firstServiceCode(order) === "photo_inquiry") return true;
   return skus.some((sku: any) => {
     const metadata = sku?.metadata ?? {};
-    const serviceCode = sku?.service_type_code ?? sku?.sku ?? metadata.service_type_code;
+    const serviceCode = sku?.service_type_code ?? metadata.service_type_code ?? sku?.sku;
     return (
       serviceCode === "photo_inquiry" ||
       metadata.inquiry_only === true ||
@@ -227,11 +257,23 @@ function selectedProductSummary(order: any) {
     const suffix = items.length > 1 ? ` 외 ${items.length - 1}개` : ` × ${Number(first.qty ?? 1)}개`;
     return `${productLabel(first)}${suffix}`;
   }
+  const skus = Array.isArray(order?.skus) ? order.skus : [];
+  const firstSku = skus[0];
+  const rawName = String(firstSku?.item_name ?? "").trim();
+  if (rawName) {
+    return skus.length > 1 ? `${rawName} 외 ${skus.length - 1}개` : rawName;
+  }
   return formatServiceName(firstServiceCode(order));
 }
 
 function customerLine(order: any) {
   return [order?.customers?.name || "성함 없음", order?.customers?.phone || "연락처 없음"].join(" · ");
+}
+
+function cashReceiptTextFromOrder(order: any) {
+  const text = String(order?.special_requests ?? "");
+  const line = text.split(/\r?\n/).find((entry) => entry.includes("현금영수증:"));
+  return line?.replace(/^.*?현금영수증:\s*/, "").trim() || "신청 안 함";
 }
 
 function paymentBreakdown(order: any) {
@@ -465,7 +507,7 @@ function queueNextAction(order: any) {
 
 export default async function AdminOrdersPage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const [{ orders, count, error, schemaWarning, page, limit, trashMode, testMode }, services, technicians] = await Promise.all([
+  const [{ orders, count, error, schemaWarning, localMode, page, limit, trashMode, testMode }, services, technicians] = await Promise.all([
     measure("admin.orders.fetchOrders", () => getOrders(params)),
     measure("admin.orders.fetchServices", () => getAllServiceItems()),
     measure("admin.orders.fetchTechnicians", () => getActiveTechnicians())
@@ -587,6 +629,12 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
             <small>Supabase SQL editor에서 `202606010001_order_trash.sql`, `202606010002_test_flags.sql` 적용 여부와 REST 스키마 캐시를 확인해 주세요.</small>
           </section>
         ) : null}
+        {localMode ? (
+          <section className="adm-card adm-admin-warning" role="status">
+            <strong>로컬 확인 모드입니다.</strong>
+            <p>Supabase 연결 전에는 최근 로컬 제품 주문 내역을 읽기 전용으로 확인합니다.</p>
+          </section>
+        ) : null}
         <section className="adm-order-queue-list" aria-label="주문 처리 큐">
           {error ? (
             <div className="adm-card adm-admin-error" role="alert">
@@ -600,6 +648,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
             const payment = paymentState(order);
             const photos = photoCount(order);
             const money = paymentBreakdown(order);
+            const cashReceiptText = cashReceiptTextFromOrder(order);
             const pendingCancellation = Array.isArray(order.cancellations) ? order.cancellations.find((item: any) => item.status === "pending") : null;
             const nextAction = queueNextAction(order);
             return (
@@ -618,8 +667,9 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
                       <small>{nextAction.help}</small>
                     </div>
                   </div>
-                  <p>{customerLine(order)} · {formatChannel(order.channel)} · {formatKRDate(order.created_at)}</p>
+                  <p>{customerLine(order)} · {formatKRDate(order.created_at)}</p>
                   <p>{addressPreview(order)}</p>
+                  <p>현금영수증 · {cashReceiptText}</p>
                   {trashMode && deletedMeta(order) ? <p className="adm-trash-meta">{deletedMeta(order)}</p> : null}
                 </div>
                 <div className="adm-order-queue-meta">
@@ -632,7 +682,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
                   <span>
                     <b>사진</b>
                     <strong>{photos > 0 ? `${photos}장` : "없음"}</strong>
-                    <small>{photos > 0 ? "고객 첨부 사진 있음" : "등록 없음"}</small>
+                    <small>{photos > 0 ? "고객 첨부" : "첨부 없음"}</small>
                   </span>
                   <span>
                     <b>담당</b>
@@ -643,14 +693,14 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
                 <div className="adm-order-queue-actions">
                   {pendingCancellation ? (
                     <>
-                      <CancellationActions cancellationId={pendingCancellation.id} refundAmount={Number(pendingCancellation.refund_amount ?? 0)} refundRate={Number(pendingCancellation.refund_rate ?? 0)} />
+                      <CancellationActions cancellationId={pendingCancellation.id} refundAmount={Number(pendingCancellation.refund_amount ?? 0)} refundRate={Number(pendingCancellation.refund_rate ?? 0)} localMode={localMode} />
                       <Link className="adm-btn adm-btn-secondary adm-btn-sm" href={`/admin/orders/${order.id}`}>수정</Link>
                     </>
                   ) : (
                     trashMode ? (
                       <>
                         <Link className="adm-btn adm-btn-secondary adm-btn-sm" href={`/admin/orders/${order.id}`}>상세 확인</Link>
-                        <OrderTrashActions compact mode="trash" orderId={order.id} orderNumber={order.order_number} />
+                        <OrderTrashActions compact mode="trash" orderId={order.id} orderNumber={order.order_number} localMode={localMode} />
                       </>
                     ) : (
                       <>
@@ -660,13 +710,14 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
                             compact
                             orderId={order.id}
                             orderNumber={order.order_number}
+                            localMode={localMode}
                           />
                         ) : null}
                         {["paid", "product_paid"].includes(String(order.status)) && (
-                          <OrderAssignmentButton compact orderId={order.id} orderNumber={order.order_number} orderStatus={order.status} jobs={Array.isArray(order.jobs) ? order.jobs : []} technicians={technicians} />
+                          <OrderAssignmentButton compact orderId={order.id} orderNumber={order.order_number} orderStatus={order.status} jobs={Array.isArray(order.jobs) ? order.jobs : []} technicians={technicians} localMode={localMode} />
                         )}
                         <Link className="adm-btn adm-btn-secondary adm-btn-sm" href={`/admin/orders/${order.id}`}>수정</Link>
-                        <OrderTrashActions compact orderId={order.id} orderNumber={order.order_number} />
+                        <OrderTrashActions compact orderId={order.id} orderNumber={order.order_number} localMode={localMode} />
                       </>
                     )
                   )}

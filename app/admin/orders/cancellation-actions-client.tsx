@@ -7,13 +7,18 @@ type Props = {
   cancellationId: string;
   refundAmount: number;
   refundRate: number;
+  localMode?: boolean;
 };
 
-export function CancellationActions({ cancellationId, refundAmount, refundRate }: Props) {
+export function CancellationActions({ cancellationId, refundAmount, refundRate, localMode = false }: Props) {
   const [loading, setLoading] = useState<"approve" | "reject" | null>(null);
   const [message, setMessage] = useState("");
 
   async function submit(action: "approve" | "reject") {
+    if (localMode) {
+      setMessage("로컬 확인 모드에서는 취소 처리를 변경할 수 없어요.");
+      return;
+    }
     setLoading(action);
     setMessage("");
     try {
@@ -38,11 +43,11 @@ export function CancellationActions({ cancellationId, refundAmount, refundRate }
       <span className="adm-help" style={{ marginTop: 0 }}>
         환불 {formatKRW(refundAmount)} ({Math.round(refundRate * 100)}%)
       </span>
-      <button className="adm-btn adm-btn-primary adm-btn-sm" type="button" disabled={loading !== null} onClick={() => submit("approve")}>
-        {loading === "approve" ? "처리 중" : "승인+환불"}
+      <button className="adm-btn adm-btn-primary adm-btn-sm" type="button" disabled={loading !== null || localMode} onClick={() => submit("approve")}>
+        {loading === "approve" ? "처리 중" : localMode ? "로컬에서 승인 불가" : "승인+환불"}
       </button>
-      <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" disabled={loading !== null} onClick={() => submit("reject")}>
-        {loading === "reject" ? "처리 중" : "반려"}
+      <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" disabled={loading !== null || localMode} onClick={() => submit("reject")}>
+        {loading === "reject" ? "처리 중" : localMode ? "로컬에서 반려 불가" : "반려"}
       </button>
       {message && <span className="adm-help">{message}</span>}
     </div>

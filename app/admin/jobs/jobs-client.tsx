@@ -4,12 +4,13 @@ import { useState } from "react";
 import { JOB_PHOTO_GUIDES, jobPhotoGuide } from "@/lib/photo-guides";
 
 const checklist = ["시공 전·후 사진 일치 확인", "자재 사용 영수증 확인", "누수/오작동 없음", "예상 시간 ±30분 이내", "현장 청결 유지"];
-export function JobActions({ job, materials = [], isLate = false }: { job: any; materials?: any[]; isLate?: boolean }) {
+export function JobActions({ job, materials = [], isLate = false, localMode = false }: { job: any; materials?: any[]; isLate?: boolean; localMode?: boolean }) {
   const [modal, setModal] = useState<"start" | "complete" | "inspect" | null>(null);
   const [loading, setLoading] = useState(false);
   const [lateRequested, setLateRequested] = useState(false);
 
   async function patch(path: string, body: any) {
+    if (localMode) return;
     setLoading(true);
     const response = await fetch(path, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     setLoading(false);
@@ -21,6 +22,7 @@ export function JobActions({ job, materials = [], isLate = false }: { job: any; 
   }
 
   async function uploadPhoto(type: string, file: File) {
+    if (localMode) return;
     const guide = jobPhotoGuide(type);
     const signed = await fetch(`/api/admin/jobs/${job.id}/media/upload-url`, {
       method: "POST",
@@ -43,6 +45,7 @@ export function JobActions({ job, materials = [], isLate = false }: { job: any; 
   }
 
   async function requestLateCheck() {
+    if (localMode) return;
     setLoading(true);
     const response = await fetch(`/api/admin/jobs/${job.id}/late-check`, { method: "POST" });
     setLoading(false);
@@ -57,19 +60,19 @@ export function JobActions({ job, materials = [], isLate = false }: { job: any; 
     <div className="adm-job-actions">
       <div className="adm-job-action-row">
         {isLate && (
-          <button className="adm-btn adm-btn-secondary" disabled={loading || lateRequested} onClick={requestLateCheck}>
-            {lateRequested ? "재확인 요청됨" : "기사 재확인"}
+          <button className="adm-btn adm-btn-secondary" disabled={loading || lateRequested || localMode} onClick={requestLateCheck}>
+            {localMode ? "로컬에서 요청 불가" : lateRequested ? "재확인 요청됨" : "기사 재확인"}
           </button>
         )}
-        {job.status === "scheduled" && <button className="adm-btn adm-btn-primary" disabled={loading} onClick={() => setModal("start")}>시작</button>}
-        {job.status === "in_progress" && <button className="adm-btn adm-btn-primary" disabled={loading} onClick={() => setModal("complete")}>완료</button>}
-        {job.status === "done" && <button className="adm-btn adm-btn-primary" disabled={loading} onClick={() => setModal("inspect")}>검수</button>}
+        {job.status === "scheduled" && <button className="adm-btn adm-btn-primary" disabled={loading || localMode} onClick={() => setModal("start")}>{localMode ? "로컬에서 시작 불가" : "시작"}</button>}
+        {job.status === "in_progress" && <button className="adm-btn adm-btn-primary" disabled={loading || localMode} onClick={() => setModal("complete")}>{localMode ? "로컬에서 완료 불가" : "완료"}</button>}
+        {job.status === "done" && <button className="adm-btn adm-btn-primary" disabled={loading || localMode} onClick={() => setModal("inspect")}>{localMode ? "로컬에서 검수 불가" : "검수"}</button>}
       </div>
       <div className="adm-job-photo-actions">
         {JOB_PHOTO_GUIDES.map((guide) => (
-          <label key={guide.key} className="adm-btn adm-btn-secondary adm-btn-sm" title={guide.guide}>
-            {guide.shortLabel}
-            <input type="file" accept="image/*" hidden onChange={(event) => event.target.files?.[0] && uploadPhoto(guide.key, event.target.files[0])} />
+          <label key={guide.key} className={`adm-btn adm-btn-secondary adm-btn-sm${localMode ? " is-disabled" : ""}`} title={guide.guide}>
+            {localMode ? `${guide.shortLabel} 비활성` : guide.shortLabel}
+            <input type="file" accept="image/*" hidden disabled={localMode} onChange={(event) => event.target.files?.[0] && uploadPhoto(guide.key, event.target.files[0])} />
           </label>
         ))}
       </div>

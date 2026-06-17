@@ -15,14 +15,6 @@ function normalizeResult(result?: string | null) {
   return labels[result ?? ""] ?? result ?? "현장확인필요";
 }
 
-function workflowHint(result: string) {
-  if (result === "교체추천") return "교체가 필요해 보이면 추천 서비스 코드와 고객 안내 문구를 정리한 뒤 견적/서비스 단계로 넘기세요.";
-  if (result === "현장확인필요") return "사진만으로 판단이 어려운 건입니다. 상담 메모를 남기고 방문 확인 대상으로 분류하세요.";
-  if (result === "보류") return "사진이 부족하거나 조건이 애매한 건입니다. 추가 사진 요청 문구를 남겨두세요.";
-  if (result === "교체불필요") return "교체가 필요하지 않은 사유를 고객이 이해할 수 있게 남기고 종료 처리하세요.";
-  return "사진을 확인한 뒤 고객에게 안내할 다음 단계를 선택하세요.";
-}
-
 function orderNumber(diagnosis: any) {
   const order = Array.isArray(diagnosis.orders) ? diagnosis.orders[0] : diagnosis.orders;
   return order?.order_number ?? diagnosis.raw_response?.receipt_number ?? diagnosis.raw_response?.order_number ?? null;
@@ -57,28 +49,20 @@ function cashReceiptTextFromOrder(diagnosis: any) {
   return line?.replace(/^.*?현금영수증:\s*/, "").trim() || "신청 안 함";
 }
 
-function humanizeAdminText(value?: string | null) {
-  const raw = String(value ?? "").trim();
-  if (!raw) return null;
-  const labels: Record<string, string> = {
-    hold: "추가 사진 요청",
-    no_replacement_needed: "교체 불필요",
-    not_needed: "교체 불필요",
-    photo_diagnosis: "사진확인 접수",
-    replace_recommended: "교체 추천",
-    replacement_recommended: "교체 추천",
-    site_check_required: "현장 확인 필요"
-  };
-  return labels[raw] ?? raw.replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+function isPhotoSrc(value?: string | null) {
+  const src = String(value ?? "").trim();
+  return /^(https?:)?\/\//i.test(src) || src.startsWith("/") || src.startsWith("data:") || src.startsWith("blob:");
 }
 
-export function DiagnosisPanel({ diagnosis }: { diagnosis: any }) {
+export function DiagnosisPanel({ diagnosis, localMode = false }: { diagnosis: any; localMode?: boolean }) {
   const [result, setResult] = useState(normalizeResult(diagnosis.result));
   const [reason, setReason] = useState(diagnosis.reason ?? "");
   const [service, setService] = useState(canonicalServiceCode(diagnosis.suggested_service_code ?? diagnosis.service_type_code ?? diagnosis.service_code));
   const [saving, setSaving] = useState(false);
   const [converting, setConverting] = useState(false);
   const [message, setMessage] = useState("");
+  const photoInputs = (diagnosis.signedPhotos ?? diagnosis.image_urls ?? diagnosis.photos ?? [])
+    .filter((value: unknown): value is string => typeof value === "string" && value.length > 0);
 
   useEffect(() => {
     setResult(normalizeResult(diagnosis.result));
@@ -88,6 +72,10 @@ export function DiagnosisPanel({ diagnosis }: { diagnosis: any }) {
   }, [diagnosis.id, diagnosis.reason, diagnosis.result, diagnosis.service_code, diagnosis.service_type_code, diagnosis.suggested_service_code]);
 
   async function save() {
+    if (localMode) {
+      setMessage("로컬 확인 모드에서는 저장할 수 없어요.");
+      return;
+    }
     setSaving(true);
     setMessage("");
     try {
@@ -108,6 +96,10 @@ export function DiagnosisPanel({ diagnosis }: { diagnosis: any }) {
   }
 
   async function convertToQuote() {
+    if (localMode) {
+      setMessage("로컬 확인 모드에서는 주문·견적을 생성할 수 없어요.");
+      return;
+    }
     setConverting(true);
     setMessage("");
     try {
@@ -131,15 +123,22 @@ export function DiagnosisPanel({ diagnosis }: { diagnosis: any }) {
     <div className="adm-card adm-stack adm-diagnosis-panel">
       <div className="adm-diagnosis-panel-head">
         <div>
-          <h2>상세정보</h2>
+          <h2>접수 상세</h2>
           <p>
             {orderNumber(diagnosis) ? `접수번호 ${orderNumber(diagnosis)} · ` : ""}
             고객 {customerName(diagnosis)} · {customerPhone(diagnosis)}
           </p>
         </div>
-        <span className="adm-badge adm-badge-gray">
-          사진 {(diagnosis.signedPhotos ?? diagnosis.image_urls ?? diagnosis.photos ?? []).length}장
-        </span>
+        <div className="adm-action-row-buttons">
+          <span className="adm-badge adm-badge-gray">
+            사진 {(diagnosis.signedPhotos ?? diagnosis.image_urls ?? diagnosis.photos ?? []).length}장
+          </span>
+          {relatedOrder(diagnosis)?.id ? (
+            <a className="adm-btn adm-btn-secondary adm-btn-sm" href={`/admin/orders/${relatedOrder(diagnosis).id}`}>
+              주문 보기
+            </a>
+          ) : null}
+        </div>
       </div>
       <div className="adm-admin-info-grid adm-admin-info-grid-compact">
         <span><b>요청 품목</b><strong>{requestItemLabel(diagnosis)}</strong></span>
@@ -150,24 +149,24 @@ export function DiagnosisPanel({ diagnosis }: { diagnosis: any }) {
       </div>
       <div className="adm-diagnosis-panel-grid">
         <section className="adm-diagnosis-info">
-          <div className="adm-next-action">
-            <strong>다음 액션</strong>
-            <p>{workflowHint(result)}</p>
-          </div>
           <div className="adm-photo-grid">
-            {(diagnosis.signedPhotos ?? []).length ? (diagnosis.signedPhotos ?? []).map((photo: string) => (
-              <a className="adm-photo-item" href={photo} target="_blank" rel="noreferrer" key={photo}>
-                <img src={photo} alt="확인 사진" />
-              </a>
-            )) : <p className="adm-photo-empty">등록된 고객 사진이 없습니다.</p>}
+            {photoInputs.length ? photoInputs.map((photo: string, index: number) => (
+              isPhotoSrc(photo) ? (
+                <a className="adm-photo-item" href={photo} target="_blank" rel="noreferrer" key={photo}>
+                  <img src={photo} alt="확인 사진" />
+                </a>
+              ) : (
+                <div className="adm-photo-item adm-photo-placeholder" key={`${photo}-${index}`}>
+                  첨부 사진 {index + 1}
+                </div>
+              )
+            )) : <p className="adm-photo-empty">등록 사진 없음</p>}
           </div>
-          {humanizeAdminText(diagnosis.recommendation) ? <p className="adm-muted adm-inline-copy">{humanizeAdminText(diagnosis.recommendation)}</p> : null}
-          {humanizeAdminText(diagnosis.details) ? <p className="adm-muted adm-inline-copy">{humanizeAdminText(diagnosis.details)}</p> : null}
         </section>
         <section className="adm-diagnosis-form">
           <label>
             <span className="adm-label">판정</span>
-            <select className="adm-input" value={result} onChange={(e) => setResult(e.target.value)}>
+            <select className="adm-input" value={result} onChange={(e) => setResult(e.target.value)} disabled={localMode}>
               <option value="교체추천">교체추천</option>
               <option value="보류">보류</option>
               <option value="교체불필요">교체불필요</option>
@@ -176,7 +175,7 @@ export function DiagnosisPanel({ diagnosis }: { diagnosis: any }) {
           </label>
           <label>
             <span className="adm-label">추천 서비스</span>
-            <select className="adm-input" value={service} onChange={(e) => setService(e.target.value)}>
+            <select className="adm-input" value={service} onChange={(e) => setService(e.target.value)} disabled={localMode}>
               <option value="">추천 서비스 선택</option>
               {CANONICAL_SERVICE_OPTIONS.map((option) => (
                 <option key={option.code} value={option.code}>{option.displayName}</option>
@@ -188,19 +187,20 @@ export function DiagnosisPanel({ diagnosis }: { diagnosis: any }) {
           </label>
           <label>
             <span className="adm-label">상담 메모</span>
-            <textarea className="adm-input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="고객 메시지 및 내부 메모" />
+            <textarea className="adm-input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="고객 메시지 및 내부 메모" disabled={localMode} />
           </label>
           {message ? <p className="adm-form-message adm-form-message-error">{message}</p> : null}
+          {localMode ? <p className="adm-help">로컬 확인 모드에서는 판정 저장, 주문·견적 생성이 비활성입니다.</p> : null}
           <div className="adm-action-row-buttons">
-            <button className="adm-btn adm-btn-primary" onClick={save} disabled={saving}>{saving ? "저장 중" : "확인 저장"}</button>
-            <button className="adm-btn adm-btn-secondary" type="button" onClick={convertToQuote} disabled={converting}>
-              {converting ? "전환 중" : "주문·견적 생성"}
+            <button className="adm-btn adm-btn-primary" onClick={save} disabled={saving || localMode}>{saving ? "저장 중" : localMode ? "로컬에서 저장 불가" : "확인 저장"}</button>
+            <button className="adm-btn adm-btn-secondary" type="button" onClick={convertToQuote} disabled={converting || localMode}>
+              {converting ? "전환 중" : localMode ? "로컬에서 전환 불가" : "주문·견적 생성"}
             </button>
             <a className="adm-btn adm-btn-secondary" href="/admin/orders?flow=intake">상담 주문 확인</a>
           </div>
           <div className="adm-action-row-buttons">
-            <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={() => setReason("사진이 부족해 추가 사진이 필요합니다. 전체 사진, 문제 부위 근접 사진, 주변 환경 사진을 다시 요청해주세요.")}>추가 사진 요청</button>
-            <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={() => setReason("사진 기준으로 교체가 필요하지 않아 보입니다. 현재는 사용 유지 안내 후 종료합니다.")}>종료 안내</button>
+            <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={() => setReason("사진이 부족해 추가 사진이 필요합니다. 전체 사진, 문제 부위 근접 사진, 주변 환경 사진을 다시 요청해주세요.")} disabled={localMode}>추가 사진 요청</button>
+            <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={() => setReason("사진 기준으로 교체가 필요하지 않아 보입니다. 현재는 사용 유지 안내 후 종료합니다.")} disabled={localMode}>종료 안내</button>
           </div>
         </section>
       </div>

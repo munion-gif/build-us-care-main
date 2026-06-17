@@ -23,7 +23,7 @@ function latestDonePayment(order: any) {
 export async function POST(request: Request, context: Context) {
   const authError = requireAdmin(request);
   if (authError) return authError;
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 취소 승인을 처리하지 않습니다.", 409, { localMode: true });
 
   const { id } = await context.params;
   const cancellationId = uuidSchema.safeParse(id);

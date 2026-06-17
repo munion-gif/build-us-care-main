@@ -119,7 +119,7 @@ async function createQuoteForOrder(supabase: SupabaseAdmin, orderId: string, ser
 export async function POST(request: Request, context: Context) {
   const authError = requireAdmin(request);
   if (authError) return authError;
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 사진확인을 주문으로 전환하지 않습니다.", 409, { localMode: true });
 
   const { id } = await context.params;
   const parsedId = uuidSchema.safeParse(id);

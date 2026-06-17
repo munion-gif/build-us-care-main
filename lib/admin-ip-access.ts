@@ -48,6 +48,34 @@ export function isAdminIpBypassEnabled(flag = process.env.ADMIN_IP_BYPASS_LOGIN)
   return value === "1" || value === "true" || value === "yes";
 }
 
+function hasConfiguredAdminSecret(value: string | undefined | null) {
+  return Boolean(value?.trim().replace(/^["']|["']$/g, "").trim());
+}
+
+export function isLocalAdminDevBypassEnabled(
+  headers: HeaderReader,
+  host: string | null = headers.get("host"),
+  adminApiKey = process.env.ADMIN_API_KEY,
+  adminPassword = process.env.ADMIN_PASSWORD,
+  adminSessionSecret = process.env.ADMIN_SESSION_SECRET
+) {
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL === "1") {
+    return false;
+  }
+
+  const normalizedHost = host ?? "";
+  const isLocalHost =
+    normalizedHost.startsWith("localhost") ||
+    normalizedHost.startsWith("127.0.0.1") ||
+    normalizedHost.startsWith("[::1]");
+
+  if (!isLocalHost) {
+    return false;
+  }
+
+  return !hasConfiguredAdminSecret(adminApiKey) && !hasConfiguredAdminSecret(adminPassword) && !hasConfiguredAdminSecret(adminSessionSecret);
+}
+
 export function isAdminIpAllowed(headers: HeaderReader, host: string | null = headers.get("host"), allowedIps = process.env.ADMIN_ALLOWED_IPS) {
   const rules = adminAllowedIpRules(allowedIps);
   if (rules.length === 0) return true;

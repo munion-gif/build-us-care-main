@@ -48,7 +48,7 @@ async function getTechnicianCount() {
 
 function firstServiceCode(order: any) {
   const sku = Array.isArray(order?.skus) ? order.skus[0] : null;
-  return sku?.service_type_code ?? sku?.sku ?? order?.service_type_code;
+  return sku?.service_type_code ?? sku?.metadata?.service_type_code ?? sku?.sku ?? order?.service_type_code;
 }
 
 function jobTime(value?: string | null) {
@@ -83,7 +83,7 @@ function addressPreview(job: any) {
   return address ? maskAddress(address, 3) : "주소 확인 필요";
 }
 
-function JobCard({ job, materials }: { job: any; materials: any[] }) {
+function JobCard({ job, materials, localMode = false }: { job: any; materials: any[]; localMode?: boolean }) {
   const late = isLateStart(job);
   return (
     <article className="adm-job-card">
@@ -98,13 +98,14 @@ function JobCard({ job, materials }: { job: any; materials: any[] }) {
         <strong>{formatServiceName(firstServiceCode(job.orders))}</strong>
         <p>{job.technicians?.name ?? job.assigned_technician_name ?? "기사 미배정"} · {addressPreview(job)}</p>
       </div>
-      <JobActions job={job} materials={materials} isLate={late} />
+      <JobActions job={job} materials={materials} isLate={late} localMode={localMode} />
     </article>
   );
 }
 
 export default async function AdminJobsPage({ searchParams }: PageProps) {
   const params = await searchParams;
+  const localMode = !hasSupabaseEnv();
   const date = params.date ?? kstDate(0);
   const [jobs, materials, technicianCount] = await Promise.all([getJobs(date), getMaterials(), getTechnicianCount()]);
   const groups = {
@@ -120,6 +121,12 @@ export default async function AdminJobsPage({ searchParams }: PageProps) {
         <p className="adm-page-sub">시공 시작, 완료, 검수와 현장 사진을 기록합니다.</p>
       </header>
       <div className="adm-content">
+        {localMode ? (
+          <section className="adm-card adm-admin-warning" role="status">
+            <strong>로컬 확인 모드입니다.</strong>
+            <p>Supabase 연결 전에는 현장 관리 보드를 빈 기본 상태로 확인합니다. 현장 액션은 실제 데이터 연결 후 사용합니다.</p>
+          </section>
+        ) : null}
         <nav className="adm-filter-bar">
           <a className="adm-btn adm-btn-secondary" href={`/admin/jobs?date=${kstDate(-1)}`}>어제</a>
           <a className="adm-btn adm-btn-secondary" href={`/admin/jobs?date=${kstDate(0)}`}>오늘</a>
@@ -135,9 +142,13 @@ export default async function AdminJobsPage({ searchParams }: PageProps) {
           <article><strong>{groups.active.length}</strong><span>진행 중</span></article>
           <article><strong>{groups.complete.length}</strong><span>완료 보고</span></article>
         </section>
-        {technicianCount === 0 && (
+        {(localMode || technicianCount === 0) && (
           <section className="adm-card adm-section">
-            <p className="adm-muted">등록된 기사가 없습니다. 기사 관리에서 먼저 추가해주세요.</p>
+            <p className="adm-muted">
+              {localMode
+                ? "로컬 확인 모드에서는 등록 기사와 현장 배정 목록을 불러오지 않습니다."
+                : "등록된 기사가 없습니다. 기사 관리에서 먼저 추가해주세요."}
+            </p>
             <a className="adm-btn adm-btn-primary adm-btn-sm" href="/admin/technicians">기사 관리로 이동</a>
           </section>
         )}
@@ -156,7 +167,7 @@ export default async function AdminJobsPage({ searchParams }: PageProps) {
               {(rows as any[]).length === 0 ? (
                 <p className="adm-muted adm-empty-line">해당 현장이 없습니다.</p>
               ) : (
-                (rows as any[]).map((job) => <JobCard job={job} materials={materials} key={job.id} />)
+                (rows as any[]).map((job) => <JobCard job={job} materials={materials} key={job.id} localMode={localMode} />)
               )}
             </section>
           ))}

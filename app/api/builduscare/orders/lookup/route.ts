@@ -1,7 +1,9 @@
 import { fail, ok } from "@/lib/api-response";
+import { localBuildusOrderToLookupOrder, matchLocalBuildusOrderByLookup } from "@/lib/builduscare-local-order-server";
 import { readJson } from "@/lib/errors";
 import { formatServiceName } from "@/lib/format";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
+import { REPLACEMENT_PRODUCTS, replacementProductDisplayModel } from "@/lib/replacement-products";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 
 export const runtime = "nodejs";
@@ -47,29 +49,40 @@ function selectedProductsFromQuote(order: Record<string, any>) {
   const quote = latest(order.quotes, ["accepted_at", "created_at"]);
   const items = asArray(quote?.items);
   return items.map((item) => {
+    const metadata = item?.metadata ?? {};
     const selected =
-      item?.metadata?.selected_replacement_product ??
-      item?.metadata?.selected_replacement_product_snapshot ??
-      item?.metadata?.selected_toilet_product;
+      metadata?.selected_replacement_product ??
+      metadata?.selected_replacement_product_snapshot ??
+      metadata?.selected_toilet_product;
+    const selectedId = selected?.id ?? metadata?.selected_replacement_product_id ?? item?.sku;
+    const selectedSku = selected?.sku ?? item?.sku;
+    const selectedServiceCode = selected?.serviceCode ?? metadata?.service_type_code ?? item?.sku;
+    const catalogProduct =
+      REPLACEMENT_PRODUCTS.find((product) => product.id === selectedId) ??
+      REPLACEMENT_PRODUCTS.find((product) => product.serviceCode === selectedServiceCode && selectedSku && product.sku === selectedSku) ??
+      REPLACEMENT_PRODUCTS.find((product) => product.serviceCode === selectedServiceCode && selected?.model && replacementProductDisplayModel(product) === selected.model) ??
+      null;
     const optionColor = asArray(item?.options).find((option) => option?.label === "색상")?.value;
-    const selectedColor = item?.metadata?.selected_color ?? optionColor ?? "";
-    const baseName = [selected?.brand, selected?.model].filter(Boolean).join(" ");
+    const selectedColor = metadata?.selected_color ?? optionColor ?? "";
+    const model = selected?.model ?? (catalogProduct ? replacementProductDisplayModel(catalogProduct) : "");
+    const brand = selected?.brand ?? catalogProduct?.brand ?? "";
+    const baseName = [brand, model].filter(Boolean).join(" ");
     const name = baseName
       ? `${baseName}${selectedColor && !baseName.includes(selectedColor) ? ` · ${selectedColor}` : ""}`
       : item?.item_name || item?.sku;
     return {
-      id: selected?.id ?? item?.metadata?.selected_replacement_product_id ?? item?.sku,
-      brand: selected?.brand ?? "",
+      id: selected?.id ?? catalogProduct?.id ?? metadata?.selected_replacement_product_id ?? item?.sku,
+      brand,
       name,
-      model: selected?.model ?? "",
-      image: selected?.image ?? "",
-      sku: selected?.sku ?? item?.sku,
-      color: (selectedColor || selected?.color) ?? "",
+      model,
+      image: selected?.image ?? catalogProduct?.image ?? "",
+      sku: selected?.sku ?? catalogProduct?.sku ?? item?.sku,
+      color: (selectedColor || selected?.color || catalogProduct?.color) ?? "",
       selectedColor,
-      serviceCode: selected?.serviceCode ?? item?.sku ?? item?.metadata?.service_type_code,
-      categoryName: selected?.categoryName ?? selected?.category ?? formatServiceName(item?.metadata?.service_type_code ?? item?.sku),
+      serviceCode: selected?.serviceCode ?? catalogProduct?.serviceCode ?? item?.sku ?? metadata?.service_type_code,
+      categoryName: selected?.categoryName ?? selected?.category ?? catalogProduct?.categoryName ?? formatServiceName(metadata?.service_type_code ?? item?.sku),
       qty: Number(item?.qty ?? 1),
-      price: Number(item?.unit_material ?? selected?.price ?? 0)
+      price: Number(item?.unit_material ?? selected?.price ?? catalogProduct?.price ?? 0)
     };
   });
 }
@@ -79,7 +92,7 @@ function compactAddress(order: Record<string, any>) {
   const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers;
   const full = home?.address_full ?? customer?.address_full ?? "";
   const apt = home?.address_apt ?? customer?.address_apt ?? "";
-  return { roadAddress: full, detailAddress: apt };
+  return { roadAddress: full, detailAddress: apt && !String(full).includes(String(apt)) ? apt : "" };
 }
 
 function cashReceiptTextFromOrder(order: Record<string, any>) {
@@ -89,16 +102,28 @@ function cashReceiptTextFromOrder(order: Record<string, any>) {
 }
 
 export async function POST(request: Request) {
-  if (!hasSupabaseEnv()) {
-    return fail("supabase_not_configured", "Supabase is required to lookup builduscare orders.", 500);
-  }
-
   const body = await readJson(request);
   const orderNumber = normalizeText(body?.orderNumber).toUpperCase();
   const name = normalizeText(body?.name);
 
   if (!orderNumber) return fail("BAD_REQUEST", "주문번호를 입력해주세요.", 400);
   if (!name) return fail("BAD_REQUEST", "예약자 성함을 입력해주세요.", 400);
+
+  if (!hasSupabaseEnv()) {
+    const localOrder = matchLocalBuildusOrderByLookup(request, { orderNumber, customerName: name });
+    if (localOrder) {
+      return ok({
+        order: localBuildusOrderToLookupOrder(localOrder),
+        message: "주문을 찾았어요.",
+        localMode: true
+      });
+    }
+    return ok({
+      order: null,
+      message: "로컬 저장 주문만 조회할 수 있어요.",
+      localMode: true
+    });
+  }
 
   const rateLimit = checkRateLimit(`builduscare-lookup:${getClientIp(request.headers)}:${orderNumber}:${name}`, {
     limit: LOOKUP_LIMIT,

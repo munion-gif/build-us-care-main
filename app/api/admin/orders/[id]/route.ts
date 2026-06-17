@@ -1,6 +1,14 @@
 import { z } from "zod";
 import { fail, ok } from "@/lib/api-response";
 import { requireAdmin } from "@/lib/admin-auth";
+import {
+  BUILDUSCARE_LOCAL_ADMIN_ORDER_COOKIE,
+  BUILDUSCARE_LOCAL_ADMIN_ORDERS_COOKIE,
+  localAdminOrderHistoryToAdminDetail,
+  localAdminOrderToAdminListItem,
+  readLocalAdminOrderCookie,
+  readLocalAdminOrderHistoryCookie
+} from "@/lib/builduscare-local-admin";
 import { readJson, validationError } from "@/lib/errors";
 import { insertJobStatusLog } from "@/lib/jobs";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
@@ -56,10 +64,55 @@ function primaryActiveJob(jobs: any[]) {
     .sort((a, b) => String(b.scheduled_at ?? b.created_at ?? "").localeCompare(String(a.scheduled_at ?? a.created_at ?? "")))[0] ?? null;
 }
 
+function readCookieValue(request: Request, cookieName: string) {
+  const cookieHeader = request.headers.get("cookie");
+  if (!cookieHeader) return null;
+  const entries = cookieHeader.split(/;\s*/);
+  for (const entry of entries) {
+    const [name, ...rest] = entry.split("=");
+    if (name === cookieName) return rest.join("=");
+  }
+  return null;
+}
+
+export async function GET(request: Request, context: Context) {
+  const authError = requireAdmin(request);
+  if (authError) return authError;
+
+  const { id } = await context.params;
+
+  if (!hasSupabaseEnv()) {
+    const localOrder = readLocalAdminOrderCookie(readCookieValue(request, BUILDUSCARE_LOCAL_ADMIN_ORDER_COOKIE));
+    if (localOrder && localOrder.id === id) {
+      return ok({ order: localAdminOrderToAdminListItem(localOrder), localMode: true });
+    }
+    const history = readLocalAdminOrderHistoryCookie(readCookieValue(request, BUILDUSCARE_LOCAL_ADMIN_ORDERS_COOKIE));
+    const matched = history.find((entry) => entry.id === id);
+    if (matched) {
+      return ok({ order: localAdminOrderHistoryToAdminDetail(matched), localMode: true });
+    }
+    return fail("not_found", "로컬 확인 모드에서 주문을 찾을 수 없어요.", 404, { localMode: true });
+  }
+
+  const orderId = uuidSchema.safeParse(id);
+  if (!orderId.success) return validationError(orderId.error, "Invalid order id.");
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("orders")
+    .select("*,customers(*),homes(*),payments(*),quotes(*),media(*),jobs(*),cancellations(*),feedbacks(*)")
+    .eq("id", orderId.data)
+    .maybeSingle();
+
+  if (error) return fail("internal_error", error.message, 500);
+  if (!data) return fail("not_found", "주문을 찾을 수 없습니다.", 404);
+  return ok({ order: data, localMode: false });
+}
+
 export async function PATCH(request: Request, context: Context) {
   const authError = requireAdmin(request);
   if (authError) return authError;
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 주문 정보를 수정하지 않습니다.", 409, { localMode: true });
 
   const { id } = await context.params;
   const orderId = uuidSchema.safeParse(id);

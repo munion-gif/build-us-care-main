@@ -16,7 +16,7 @@ const reorderSchema = z.object({
 export async function PATCH(request: Request, context: Context) {
   const authError = requireAdmin(request);
   if (authError) return authError;
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 FAQ 순서를 변경하지 않습니다.", 409, { localMode: true });
 
   const { id } = await context.params;
   const parsed = reorderSchema.safeParse(await readJson(request));

@@ -1,5 +1,6 @@
 import { fail, ok } from "@/lib/api-response";
 import { parseAdminKeys } from "@/lib/admin-auth";
+import { matchLocalBuildusOrderFromRequest } from "@/lib/builduscare-local-order-server";
 import { readJson, validationError } from "@/lib/errors";
 import { isOrderPhotoPath } from "@/lib/storage";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
@@ -17,7 +18,14 @@ function hasValidAdminKey(request: Request) {
 
 export async function POST(request: Request, context: Context) {
   if (!hasSupabaseEnv()) {
-    return fail("supabase_not_configured", "Supabase is required to store photo metadata.", 500);
+    const { id } = await context.params;
+    const body = await readJson(request);
+    const accessToken = typeof body?.accessToken === "string" ? body.accessToken : null;
+    const localOrder = matchLocalBuildusOrderFromRequest(request, { orderId: id, accessToken });
+    if (localOrder) {
+      return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 사진 메타데이터를 저장하지 않습니다.", 409, { localMode: true });
+    }
+    return fail("not_found", "로컬 확인 모드에서 일치하는 주문을 찾을 수 없어요.", 404, { localMode: true });
   }
 
   const { id } = await context.params;

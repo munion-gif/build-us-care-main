@@ -4,10 +4,16 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 const ROUTE_LABELS: Array<[RegExp, string]> = [
+  [/^\/products(?:\/|$)/, "제품을 불러오고 있어요."],
+  [/^\/photo-check(?:\/|$)/, "사진 확인 화면을 불러오고 있어요."],
+  [/^\/reservation(?:\/|$)/, "예약 화면을 불러오고 있어요."],
+  [/^\/order-lookup(?:\/|$)/, "주문 조회 화면을 불러오고 있어요."],
   [/^\/orders\//, "주문 상태를 불러오고 있어요."],
   [/^\/payment\/transfer/, "계좌이체 안내를 불러오고 있어요."],
   [/^\/$/, "홈으로 이동하고 있어요."]
 ];
+
+const FEEDBACK_DELAY_MS = 1600;
 
 function routeMessage(pathname: string) {
   return ROUTE_LABELS.find(([pattern]) => pattern.test(pathname))?.[1] ?? "페이지를 불러오고 있어요.";
@@ -20,25 +26,56 @@ function normalizedUrl(url: URL) {
 export function NavigationFeedback() {
   const pathname = usePathname();
   const [message, setMessage] = useState("");
-  const timeoutRef = useRef<number | null>(null);
+  const showTimeoutRef = useRef<number | null>(null);
+  const clearTimeoutRef = useRef<number | null>(null);
   const visible = message.length > 0;
   const currentRouteMessage = useMemo(() => routeMessage(pathname), [pathname]);
 
   useEffect(() => {
     setMessage("");
-    if (timeoutRef.current) {
-      window.clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
+    if (showTimeoutRef.current) {
+      window.clearTimeout(showTimeoutRef.current);
+      showTimeoutRef.current = null;
+    }
+    if (clearTimeoutRef.current) {
+      window.clearTimeout(clearTimeoutRef.current);
+      clearTimeoutRef.current = null;
     }
   }, [pathname]);
 
   useEffect(() => {
-    function clearLater() {
-      if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
-      timeoutRef.current = window.setTimeout(() => {
+    function clearAllTimers() {
+      if (showTimeoutRef.current) {
+        window.clearTimeout(showTimeoutRef.current);
+        showTimeoutRef.current = null;
+      }
+      if (clearTimeoutRef.current) {
+        window.clearTimeout(clearTimeoutRef.current);
+        clearTimeoutRef.current = null;
+      }
+    }
+
+    function showIfStillWaiting(nextMessage: string) {
+      clearAllTimers();
+      showTimeoutRef.current = window.setTimeout(() => {
+        setMessage(nextMessage);
+        showTimeoutRef.current = null;
+        clearTimeoutRef.current = window.setTimeout(() => {
+          setMessage("");
+          clearTimeoutRef.current = null;
+        }, 8000);
+      }, FEEDBACK_DELAY_MS);
+    }
+
+    function clearNow() {
+      clearAllTimers();
+      setMessage("");
+    }
+
+    function clearOnPageReady() {
+      window.requestAnimationFrame(() => {
         setMessage("");
-        timeoutRef.current = null;
-      }, 8000);
+      });
     }
 
     function handleClick(event: MouseEvent) {
@@ -53,8 +90,7 @@ export function NavigationFeedback() {
       if (normalizedUrl(destination) === normalizedUrl(new URL(window.location.href)) && destination.hash) return;
       if (normalizedUrl(destination) === normalizedUrl(new URL(window.location.href))) return;
 
-      setMessage(routeMessage(destination.pathname));
-      clearLater();
+      showIfStillWaiting(routeMessage(destination.pathname));
     }
 
     function handleSubmit(event: SubmitEvent) {
@@ -62,16 +98,19 @@ export function NavigationFeedback() {
       if (!(form instanceof HTMLFormElement)) return;
       const method = (form.method || "get").toLowerCase();
       if (method !== "get") return;
-      setMessage(currentRouteMessage);
-      clearLater();
+      showIfStillWaiting(currentRouteMessage);
     }
 
     document.addEventListener("click", handleClick, true);
     document.addEventListener("submit", handleSubmit, true);
+    window.addEventListener("pageshow", clearNow);
+    window.addEventListener("popstate", clearOnPageReady);
     return () => {
       document.removeEventListener("click", handleClick, true);
       document.removeEventListener("submit", handleSubmit, true);
-      if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
+      window.removeEventListener("pageshow", clearNow);
+      window.removeEventListener("popstate", clearOnPageReady);
+      clearAllTimers();
     };
   }, [currentRouteMessage]);
 

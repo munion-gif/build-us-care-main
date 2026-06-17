@@ -347,7 +347,7 @@ export function getProductLaborPrice(serviceCode: string, product?: Pick<Replace
   if (canonical === "bidet_install") return BIDET_INSTALL_LABOR_PRICE;
   if (canonical === "ventilator_replace") {
     const text = replacementProductSearchText(product);
-    if (text.includes("복합") || text.includes("휴젠뜨") || text.includes("온풍") || text.includes("제습") || text.includes("헤어") || text.includes("바디") || text.includes("히터")) {
+    if (text.includes("복합") || text.includes("휴젠뜨") || text.includes("제로크 프라임") || text.includes("습도감지") || text.includes("온풍") || text.includes("제습") || text.includes("헤어") || text.includes("바디") || text.includes("히터")) {
       return VENTILATOR_COMPLEX_REPLACE_LABOR_PRICE;
     }
     return VENTILATOR_REPLACE_LABOR_PRICE;
@@ -406,11 +406,6 @@ function isReplacementProductSizeSegment(segment: string) {
 
 function normalizeReplacementProductSize(value: string) {
   return value
-    .replace(/\[W\]/gi, "W")
-    .replace(/\[D\]/gi, "D")
-    .replace(/\[H\]/gi, "H")
-    .replace(/\s*[xX]\s*/g, "×")
-    .replace(/\s*×\s*/g, "×")
     .replace(/\s*\/\s*/g, " / ")
     .replace(/\s+/g, " ")
     .trim();

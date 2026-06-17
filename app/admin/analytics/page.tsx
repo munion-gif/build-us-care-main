@@ -48,9 +48,9 @@ async function getAnalytics() {
   const warrantyUpper = new Date(now - Math.max(warrantyDays - reminderDays, 0) * 24 * 60 * 60 * 1000).toISOString();
 
   const [orders, paidOrders, diagnoses, events, warrantyJobs] = await Promise.all([
-    measure("admin.analytics.countOrders", () => supabase.from("orders").select("id", { count: "exact", head: true }).eq("is_test", false).is("deleted_at", null).gte("created_at", since)),
-    measure("admin.analytics.countPaidOrders", () => supabase.from("orders").select("id", { count: "exact", head: true }).eq("is_test", false).is("deleted_at", null).in("status", ["paid", "product_paid"]).gte("created_at", since)),
-    measure("admin.analytics.fetchDiagnoses", () => supabase.from("diagnoses").select("result").eq("is_test", false).gte("created_at", since)),
+    measure("admin.analytics.countOrders", () => supabase.from("orders").select("id", { count: "exact", head: true }).or("is_test.is.null,is_test.eq.false").is("deleted_at", null).gte("created_at", since)),
+    measure("admin.analytics.countPaidOrders", () => supabase.from("orders").select("id", { count: "exact", head: true }).or("is_test.is.null,is_test.eq.false").is("deleted_at", null).in("status", ["paid", "product_paid"]).gte("created_at", since)),
+    measure("admin.analytics.fetchDiagnoses", () => supabase.from("diagnoses").select("result").or("is_test.is.null,is_test.eq.false").gte("created_at", since)),
     measure("admin.analytics.fetchEvents", () => supabase
       .from("events")
       .select("id,event_type,session_id,source,properties")
@@ -101,6 +101,7 @@ async function getAnalytics() {
 }
 
 export default async function AdminAnalyticsPage() {
+  const localMode = !hasSupabaseEnv();
   const data = await measure("admin.analytics.getAnalytics", () => getAnalytics());
   const paymentStep = findAdminFunnelStep(data.funnel, EVENT_TYPES.PAYMENT_COMPLETED);
 
@@ -111,6 +112,12 @@ export default async function AdminAnalyticsPage() {
         <p className="adm-page-sub">이번 주 주문, 사진 판정, 결제 전환 데이터를 확인합니다.</p>
       </header>
       <div className="adm-content">
+        {localMode ? (
+          <section className="adm-card adm-admin-warning" role="status">
+            <strong>로컬 확인 모드입니다.</strong>
+            <p>Supabase 연결 전에는 운영 분석 데이터를 집계하지 않고 기본값만 표시합니다.</p>
+          </section>
+        ) : null}
         <section className="adm-kpi-grid">
           <article className="adm-kpi-card"><div className="adm-kpi-label">신규 주문</div><div className="adm-kpi-value">{data.orders.total}</div><div className="adm-kpi-sub">건</div></article>
           <article className="adm-kpi-card"><div className="adm-kpi-label">결제 완료</div><div className="adm-kpi-value">{data.orders.paid}</div><div className="adm-kpi-sub">전환율 {data.orders.conversionRate}</div></article>
@@ -151,7 +158,7 @@ export default async function AdminAnalyticsPage() {
             <thead><tr><th>주문번호</th><th>고객</th><th>전화번호</th><th>시공 완료일</th></tr></thead>
             <tbody>
               {data.warrantyExpiringSoon.orders.length === 0 ? (
-                <tr><td colSpan={4}>A/S 만료 임박 고객이 없습니다.</td></tr>
+                <tr><td colSpan={4}>{localMode ? "로컬 확인 모드에서는 A/S 만료 임박 고객 목록을 불러오지 않습니다." : "A/S 만료 임박 고객이 없습니다."}</td></tr>
               ) : (
                 data.warrantyExpiringSoon.orders.map((order) => (
                   <tr key={`${order.orderNumber}-${order.completedAt}`}>

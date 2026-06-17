@@ -16,7 +16,13 @@ function firstServiceCode(order: any) {
 }
 
 export async function GET(request: Request, context: Context) {
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) {
+    return ok({
+      job: null,
+      technician: { id: "local-technician", name: "기사님" },
+      localMode: true
+    });
+  }
 
   const { id } = await context.params;
   const parsed = uuidSchema.safeParse(id);
@@ -69,6 +75,7 @@ export async function GET(request: Request, context: Context) {
       },
       media: signedMedia
     },
-    technician: { id: technician.id, name: technician.name }
+    technician: { id: technician.id, name: technician.name },
+    localMode: false
   });
 }

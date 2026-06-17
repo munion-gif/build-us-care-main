@@ -32,7 +32,7 @@ function toDraft(faq?: FAQItem | null): FAQDraft {
   };
 }
 
-export function FAQManager({ initialFaqs }: { initialFaqs: FAQItem[] }) {
+export function FAQManager({ initialFaqs, localMode = false }: { initialFaqs: FAQItem[]; localMode?: boolean }) {
   const [faqs, setFaqs] = useState(initialFaqs);
   const [draft, setDraft] = useState<FAQDraft>(emptyDraft);
   const [saving, setSaving] = useState(false);
@@ -50,6 +50,10 @@ export function FAQManager({ initialFaqs }: { initialFaqs: FAQItem[] }) {
   }
 
   async function save() {
+    if (localMode) {
+      setMessage("로컬 확인 모드에서는 FAQ를 저장하지 않습니다.");
+      return;
+    }
     setSaving(true);
     setMessage("");
     try {
@@ -77,6 +81,10 @@ export function FAQManager({ initialFaqs }: { initialFaqs: FAQItem[] }) {
   }
 
   async function remove(id: string) {
+    if (localMode) {
+      setMessage("로컬 확인 모드에서는 FAQ를 삭제하지 않습니다.");
+      return;
+    }
     if (!window.confirm("이 FAQ를 삭제할까요?")) return;
     setSaving(true);
     setMessage("");
@@ -94,6 +102,10 @@ export function FAQManager({ initialFaqs }: { initialFaqs: FAQItem[] }) {
   }
 
   async function move(faq: FAQItem, delta: number) {
+    if (localMode) {
+      setMessage("로컬 확인 모드에서는 순서를 변경하지 않습니다.");
+      return;
+    }
     const nextOrder = Math.max(0, Number(faq.display_order ?? 0) + delta);
     setSaving(true);
     setMessage("");
@@ -119,6 +131,7 @@ export function FAQManager({ initialFaqs }: { initialFaqs: FAQItem[] }) {
         <h2 className="adm-card-title">FAQ 관리</h2>
         <p className="adm-muted">홈 하단에 노출되는 자주 묻는 질문을 관리합니다.</p>
       </div>
+      {localMode ? <p className="adm-form-message">로컬 확인 모드에서는 FAQ 편집 기능이 비활성화됩니다.</p> : null}
       <div className="adm-table-wrap">
         <table className="adm-table">
           <thead>
@@ -135,10 +148,10 @@ export function FAQManager({ initialFaqs }: { initialFaqs: FAQItem[] }) {
                 <td><span className={`adm-badge ${faq.is_active === false ? "adm-badge-gray" : "adm-badge-green"}`}>{faq.is_active === false ? "숨김" : "노출"}</span></td>
                 <td>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={() => setDraft(toDraft(faq))}>수정</button>
-                    <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={() => move(faq, -1)} disabled={saving}>↑</button>
-                    <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={() => move(faq, 1)} disabled={saving}>↓</button>
-                    <button className="adm-btn adm-btn-danger adm-btn-sm" type="button" onClick={() => remove(faq.id)} disabled={saving}>삭제</button>
+                    <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={() => setDraft(toDraft(faq))} disabled={localMode}>수정</button>
+                    <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={() => move(faq, -1)} disabled={saving || localMode}>↑</button>
+                    <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={() => move(faq, 1)} disabled={saving || localMode}>↓</button>
+                    <button className="adm-btn adm-btn-danger adm-btn-sm" type="button" onClick={() => remove(faq.id)} disabled={saving || localMode}>삭제</button>
                   </div>
                 </td>
               </tr>
@@ -151,34 +164,34 @@ export function FAQManager({ initialFaqs }: { initialFaqs: FAQItem[] }) {
         <div className="adm-form-row adm-form-row-2">
           <label>
             <span className="adm-label">질문</span>
-            <input className="adm-input" value={draft.question} onChange={(event) => updateDraft({ question: event.target.value })} />
+            <input className="adm-input" value={draft.question} onChange={(event) => updateDraft({ question: event.target.value })} disabled={localMode} />
           </label>
           <label>
             <span className="adm-label">카테고리</span>
-            <input className="adm-input" value={draft.category} onChange={(event) => updateDraft({ category: event.target.value })} />
+            <input className="adm-input" value={draft.category} onChange={(event) => updateDraft({ category: event.target.value })} disabled={localMode} />
           </label>
         </div>
         <div className="adm-form-row">
           <label>
             <span className="adm-label">답변</span>
-            <textarea className="adm-input" rows={4} value={draft.answer} onChange={(event) => updateDraft({ answer: event.target.value })} />
+            <textarea className="adm-input" rows={4} value={draft.answer} onChange={(event) => updateDraft({ answer: event.target.value })} disabled={localMode} />
           </label>
         </div>
         <div className="adm-form-row adm-form-row-2">
           <label>
             <span className="adm-label">표시 순서</span>
-            <input className="adm-input" type="number" min={0} value={draft.display_order} onChange={(event) => updateDraft({ display_order: Number(event.target.value) })} />
+            <input className="adm-input" type="number" min={0} value={draft.display_order} onChange={(event) => updateDraft({ display_order: Number(event.target.value) })} disabled={localMode} />
           </label>
           <label className="adm-inline-check" style={{ alignSelf: "end" }}>
-            <input type="checkbox" checked={draft.is_active} onChange={(event) => updateDraft({ is_active: event.target.checked })} />
+            <input type="checkbox" checked={draft.is_active} onChange={(event) => updateDraft({ is_active: event.target.checked })} disabled={localMode} />
             홈에 노출
           </label>
         </div>
         {message && <p className="adm-form-message">{message}</p>}
         <div className="adm-modal-footer" style={{ padding: 0 }}>
-          {draft.id && <button className="adm-btn adm-btn-secondary" type="button" onClick={() => setDraft(emptyDraft)}>새 FAQ로 전환</button>}
-          <button className="adm-btn adm-btn-primary" type="button" onClick={save} disabled={saving || !draft.question.trim() || !draft.answer.trim()}>
-            {saving ? "저장 중..." : draft.id ? "수정 저장" : "FAQ 추가"}
+          {draft.id && <button className="adm-btn adm-btn-secondary" type="button" onClick={() => setDraft(emptyDraft)} disabled={localMode}>새 FAQ로 전환</button>}
+          <button className="adm-btn adm-btn-primary" type="button" onClick={save} disabled={saving || localMode || !draft.question.trim() || !draft.answer.trim()}>
+            {localMode ? "로컬에서 편집 불가" : saving ? "저장 중..." : draft.id ? "수정 저장" : "FAQ 추가"}
           </button>
         </div>
       </div>

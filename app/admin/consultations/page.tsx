@@ -36,7 +36,7 @@ function kstDayUtcRange(dateText: string) {
 
 function firstServiceCode(order: any) {
   const sku = Array.isArray(order?.skus) ? order.skus[0] : null;
-  return sku?.service_type_code ?? sku?.sku ?? order?.service_type_code;
+  return sku?.service_type_code ?? sku?.metadata?.service_type_code ?? sku?.sku ?? order?.service_type_code;
 }
 
 function kstDateOnly(value?: string | null) {
@@ -142,8 +142,8 @@ async function getConsultationData() {
         payments(id,status,amount,paid_at,approved_at)
       `
       )
-      .eq("is_test", false)
       .is("deleted_at", null)
+      .or("is_test.is.null,is_test.eq.false")
       .in("status", ["paid", "product_paid"])
       .order("created_at", { ascending: false })
       .limit(30),
@@ -174,7 +174,7 @@ async function getConsultationData() {
         orders(id,order_number,status,channel,service_type_code,skus,customers(name,phone),homes(address_full))
       `
       )
-      .eq("is_test", false)
+      .or("is_test.is.null,is_test.eq.false")
       .or("result.is.null,result.in.(hold,site_check_required,replace_recommended,replacement_recommended,보류,현장확인필요,교체추천)")
       .order("created_at", { ascending: false })
       .limit(30)
@@ -224,6 +224,7 @@ function OrderActionRow({ order, meta, action = "상세 확인" }: { order: any;
 }
 
 export default async function AdminConsultationsPage() {
+  const localMode = !hasSupabaseEnv();
   const data = await getConsultationData();
 
   return (
@@ -233,6 +234,12 @@ export default async function AdminConsultationsPage() {
         <p className="adm-page-sub">카톡 상담 전에 확인해야 할 사진접수, 결제완료 주문, 예정 방문을 한 화면에서 봅니다.</p>
       </header>
       <div className="adm-content">
+        {localMode ? (
+          <section className="adm-card adm-admin-warning" role="status">
+            <strong>로컬 확인 모드입니다.</strong>
+            <p>Supabase 연결 전에는 상담/방문 관리 데이터를 읽기 전용 기본 상태로 확인합니다.</p>
+          </section>
+        ) : null}
         <section className="adm-queue-summary adm-section">
           <article>
             <strong>{data.counts.pendingDiagnoses}</strong>
@@ -382,8 +389,8 @@ export default async function AdminConsultationsPage() {
             <Link className="adm-workflow-card" href="/admin/orders?flow=issue">
               <span className="adm-workflow-step">4</span>
               <strong>취소/A/S</strong>
-              <b>확인</b>
-              <small>예외 건은 주문 관리에서 처리</small>
+              <b>{localMode ? "로컬 확인" : "주문 관리"}</b>
+              <small>{localMode ? "로컬에서는 예외 건 흐름을 읽기 전용으로 확인합니다." : "예외 건은 주문 관리에서 처리"}</small>
             </Link>
           </div>
         </section>

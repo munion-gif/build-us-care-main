@@ -1,5 +1,15 @@
+import { cookies } from "next/headers";
 import { DiagnosisPanel } from "./diagnoses-client";
+import { DiagnosisDeleteActions } from "./diagnosis-delete-actions-client";
 import { DiagnosisTestActions } from "./diagnosis-test-actions-client";
+import {
+  BUILDUSCARE_LOCAL_ADMIN_DIAGNOSIS_COOKIE,
+  BUILDUSCARE_LOCAL_ADMIN_DIAGNOSES_COOKIE,
+  localAdminDiagnosisHistoryToAdminListItem,
+  localAdminDiagnosisToAdminListItem,
+  readLocalAdminDiagnosisHistoryCookie,
+  readLocalAdminDiagnosisCookie
+} from "@/lib/builduscare-local-admin";
 import { formatKRDateTime, formatServiceName } from "@/lib/format";
 import { measure } from "@/lib/perf";
 import { ORDER_PHOTO_VIEW_EXPIRES_IN, ORDER_PHOTOS_BUCKET } from "@/lib/storage";
@@ -108,6 +118,9 @@ function humanizeAdminText(value?: string | null) {
     no_replacement_needed: "교체 불필요",
     not_needed: "교체 불필요",
     photo_diagnosis: "사진확인 접수",
+    photo_check_request: "사진확인 접수",
+    photo_inquiry: "사진확인 접수",
+    product_order_request: "제품 주문 접수",
     replace_recommended: "교체 추천",
     replacement_recommended: "교체 추천",
     site_check_required: "현장 확인 필요"
@@ -204,7 +217,17 @@ async function findDiagnosisIdsByOrderNumber(search: string) {
 }
 
 async function getDiagnoses(result = "all", page = 1, orderSearch = "", testMode = false) {
-  if (!hasSupabaseEnv()) return { list: [], count: 0, page: 1, limit: 20 };
+  if (!hasSupabaseEnv()) {
+    const cookieStore = await cookies();
+    const history = readLocalAdminDiagnosisHistoryCookie(cookieStore.get(BUILDUSCARE_LOCAL_ADMIN_DIAGNOSES_COOKIE)?.value);
+    const localDiagnosis = readLocalAdminDiagnosisCookie(cookieStore.get(BUILDUSCARE_LOCAL_ADMIN_DIAGNOSIS_COOKIE)?.value);
+    const list = history.length > 0
+      ? history.map(localAdminDiagnosisHistoryToAdminListItem)
+      : localDiagnosis
+        ? [localAdminDiagnosisToAdminListItem(localDiagnosis)]
+        : [];
+    return { list, count: list.length, page: 1, limit: 20 };
+  }
   const limit = 20;
   const from = (Math.max(page, 1) - 1) * limit;
   const supabase = getSupabaseAdmin();
@@ -216,9 +239,10 @@ async function getDiagnoses(result = "all", page = 1, orderSearch = "", testMode
   let query = supabase
     .from("diagnoses")
     .select("id,order_id,service_type_code,service_code,image_urls,photos,result,confidence,reason,details,recommendation,raw_response,customer_name,customer_phone,created_at,is_test,test_marked_at,test_note,orders(order_number,service_type_code,skus,special_requests,inquiry_photos,customers(name,phone,address_full,address_apt),homes(address_full,address_apt,postal_code))", { count: "exact" })
-    .eq("is_test", testMode)
     .order("created_at", { ascending: false })
     .range(from, from + limit - 1);
+
+  query = testMode ? query.eq("is_test", true) : query.or("is_test.is.null,is_test.eq.false");
 
   if (result !== "all") query = query.in("result", RESULT_FILTER_VALUES[result] ?? [result]);
   if (matchedIds) query = query.in("id", matchedIds);
@@ -229,6 +253,7 @@ async function getDiagnoses(result = "all", page = 1, orderSearch = "", testMode
 }
 
 export default async function AdminDiagnosesPage({ searchParams }: PageProps) {
+  const localMode = !hasSupabaseEnv();
   const params = await searchParams;
   const result = params.result ?? "all";
   const testMode = params.test === "1";
@@ -237,7 +262,11 @@ export default async function AdminDiagnosesPage({ searchParams }: PageProps) {
   const { list, count, limit } = await measure("admin.diagnoses.getDiagnoses", () => getDiagnoses(result, page, orderSearch, testMode));
   const totalPages = Math.max(Math.ceil(count / limit), 1);
   const selectedRaw = params.id ? list.find((item: any) => item.id === params.id) : null;
-  const selected = selectedRaw ? await measure("admin.diagnoses.signSelected", () => signImages(selectedRaw)) : null;
+  const selected = selectedRaw
+    ? localMode
+      ? selectedRaw
+      : await measure("admin.diagnoses.signSelected", () => signImages(selectedRaw))
+    : null;
   const filters = ["all", "교체추천", "교체불필요", "보류", "현장확인필요"];
   const summary = {
     waiting: list.filter((item: any) => !item.result).length,
@@ -268,6 +297,12 @@ export default async function AdminDiagnosesPage({ searchParams }: PageProps) {
           <button className="adm-btn adm-btn-primary" type="submit">조회</button>
           {orderSearch ? <a className="adm-btn adm-btn-secondary" href={diagnosesHref({ result, testMode })}>초기화</a> : null}
         </form>
+        {localMode ? (
+          <section className="adm-card adm-admin-warning" role="status">
+            <strong>로컬 확인 모드입니다.</strong>
+            <p>Supabase 연결 전에는 최근 로컬 사진확인 접수 내역을 읽기 전용으로 확인합니다. 판정 저장, 주문·견적 생성, 테스트 전환, 삭제는 비활성입니다.</p>
+          </section>
+        ) : null}
         <nav className="adm-filter-bar">
           {filters.map((filter) => (
             <a className={`adm-btn ${result === filter ? "adm-btn-primary" : "adm-btn-secondary"}`} href={diagnosesHref({ result: filter, orderSearch, testMode })} key={filter}>
@@ -301,11 +336,12 @@ export default async function AdminDiagnosesPage({ searchParams }: PageProps) {
                 <p className="adm-muted adm-section-note">{orderNumber(selected) ?? "접수번호 미연결"} · {requestItemLabel(selected)} · {addressLine(selected)}</p>
               </div>
               <div className="adm-action-row-buttons">
-                <DiagnosisTestActions diagnosisId={selected.id} isTest={Boolean(selected.is_test)} receiptNumber={orderNumber(selected)} />
+                <DiagnosisTestActions diagnosisId={selected.id} isTest={Boolean(selected.is_test)} receiptNumber={orderNumber(selected)} localMode={localMode} />
+                <DiagnosisDeleteActions diagnosisId={selected.id} receiptNumber={orderNumber(selected)} hasLinkedOrder={Boolean(relatedOrder(selected)?.id)} localMode={localMode} />
                 <a className="adm-btn adm-btn-secondary" href={diagnosesHref({ result, orderSearch, testMode })}>목록만 보기</a>
               </div>
             </div>
-            <DiagnosisPanel diagnosis={selected} />
+            <DiagnosisPanel diagnosis={selected} localMode={localMode} />
           </section>
         ) : null}
         <div className="adm-diagnoses-layout">
@@ -329,10 +365,10 @@ export default async function AdminDiagnosesPage({ searchParams }: PageProps) {
                     <span>{requestItemLabel(item)}</span>
                     <span>{item.customer_name ?? "이름 미입력"}</span>
                     <span>{item.customer_phone ?? "연락처 없음"}</span>
-                    <span>{formatKRDateTime(item.created_at)}</span>
                   </div>
                   <p>{addressLine(item)}</p>
-                  <p>현금영수증: {cashReceiptTextFromOrder(item)}</p>
+                  <p>{formatKRDateTime(item.created_at)}</p>
+                  {cashReceiptTextFromOrder(item) !== "신청 안 함" ? <p>현금영수증: {cashReceiptTextFromOrder(item)}</p> : null}
                   {diagnosisNote(item) ? <p className="adm-queue-note">{diagnosisNote(item)}</p> : null}
                 </div>
                 <div className="adm-queue-side">

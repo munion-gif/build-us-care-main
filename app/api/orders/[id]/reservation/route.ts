@@ -1,8 +1,10 @@
 import { fail, ok } from "@/lib/api-response";
 import { hasAdminAccess } from "@/lib/admin-auth";
+import { matchLocalBuildusOrderFromRequest } from "@/lib/builduscare-local-order-server";
 import { readJson, validationError } from "@/lib/errors";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { periodCapFromConfig, resolveDefaultSlotCap, type SlotPeriod } from "@/lib/slot-capacity";
+import { closedReservationReason, isClosedReservationDate, minReservationDateText } from "@/lib/reservation-policy";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { reservationSchema, uuidSchema } from "@/lib/validation";
 
@@ -47,12 +49,6 @@ function kstDateOnly(value: string | Date) {
   const month = parts.find((part) => part.type === "month")?.value;
   const day = parts.find((part) => part.type === "day")?.value;
   return `${year}-${month}-${day}`;
-}
-
-function minReservationDateText() {
-  const minDate = new Date();
-  minDate.setDate(minDate.getDate() + 3);
-  return kstDateOnly(minDate);
 }
 
 function scheduledAtForSlot(dateText: string, slot: SlotPeriod) {
@@ -120,7 +116,14 @@ async function assertSlotAvailable(params: {
 
 export async function POST(request: Request, context: Context) {
   if (!hasSupabaseEnv()) {
-    return fail("supabase_not_configured", "Supabase is required to create visit schedules.", 500);
+    const { id } = await context.params;
+    const body = await readJson(request);
+    const accessToken = typeof body?.accessToken === "string" ? body.accessToken : null;
+    const localOrder = matchLocalBuildusOrderFromRequest(request, { orderId: id, accessToken });
+    if (localOrder) {
+      return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 방문 일정을 저장하지 않습니다.", 409, { localMode: true });
+    }
+    return fail("not_found", "로컬 확인 모드에서 일치하는 주문을 찾을 수 없어요.", 404, { localMode: true });
   }
 
   const { id } = await context.params;
@@ -156,6 +159,9 @@ export async function POST(request: Request, context: Context) {
   if (parsed.data.reserved_date < minReservationDateText()) {
     return fail("INVALID_DATE", "제품과 일정 준비 기간 때문에 방문 일정은 오늘 기준 3일 이후 날짜부터 가능합니다.", 400);
   }
+  if (isClosedReservationDate(parsed.data.reserved_date)) {
+    return fail("SLOT_CLOSED", closedReservationReason(parsed.data.reserved_date), 409);
+  }
 
   if (parsed.data.time_slot !== "morning" && parsed.data.time_slot !== "afternoon") {
     return fail("INVALID_TIME_SLOT", "현재 방문 일정은 오전 또는 오후 시간대만 선택할 수 있습니다.", 400);
@@ -181,10 +187,31 @@ export async function POST(request: Request, context: Context) {
   const existingDate = existingJob?.scheduled_at ? kstDateOnly(existingJob.scheduled_at) : null;
   const existingSlot = existingJob?.scheduled_at ? slotFromScheduledAt(existingJob.scheduled_at) : null;
   if (existingJob && existingDate === parsed.data.reserved_date && existingSlot === parsed.data.time_slot) {
+    if (parsed.data.status === "confirmed" && (existingJob.status !== "scheduled" || order.status !== "scheduled")) {
+      const { data: confirmedJob, error: confirmJobError } = await supabase
+        .from("jobs")
+        .update({ status: "scheduled" })
+        .eq("id", existingJob.id)
+        .select("*")
+        .single();
+      if (confirmJobError) return fail("internal_error", confirmJobError.message, 500);
+
+      const { error: confirmOrderError } = await supabase
+        .from("orders")
+        .update({ status: "scheduled" })
+        .eq("id", orderId.data);
+      if (confirmOrderError) return fail("internal_error", confirmOrderError.message, 500);
+
+      return ok({
+        reservation: jobReservationPayload(confirmedJob, parsed.data.reserved_date, parsed.data.time_slot),
+        order_status: "scheduled",
+        confirmed: true
+      });
+    }
     return ok({ reservation: jobReservationPayload(existingJob, parsed.data.reserved_date, parsed.data.time_slot), order_status: order.status, idempotent: true });
   }
 
-  const protectedStatuses = ["paid", "product_paid", "scheduled", "in_progress", "completed", "done", "canceled", "issue", "warranty"];
+  const protectedStatuses = ["in_progress", "completed", "done", "canceled", "issue", "warranty"];
   const nextOrderStatus = protectedStatuses.includes(order.status)
     ? order.status
     : parsed.data.status === "confirmed"

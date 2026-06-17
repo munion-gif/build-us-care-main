@@ -1,0 +1,203 @@
+/* ============================================================================
+   UNTITLED UI — Colors & Type Foundations
+   Source: "Untitled UI – FREE Figma UI kit and design system v2.0 (Community)"
+   Primary typeface: Inter (loaded from Google Fonts CDN — exact match, no sub).
+   All tokens below were lifted from the .fig source of truth.
+   ============================================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Roboto+Mono:wght@400;500&display=swap');
+
+:root {
+  /* ---------------------------------------------------------------- TYPE  */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'Roboto Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* weights */
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  /* ----------------------------------------------------- BRAND (violet)  */
+  --brand-25:  #FCFAFF;
+  --brand-50:  #F9F5FF;
+  --brand-100: #F4EBFF;
+  --brand-200: #E9D7FE;
+  --brand-300: #D6BBFB;
+  --brand-400: #B692F6;
+  --brand-500: #9E77ED;
+  --brand-600: #7F56D9;   /* PRIMARY brand color */
+  --brand-700: #6941C6;
+  --brand-800: #53389E;
+  --brand-900: #42307D;
+  --brand-950: #2C1C5F;
+
+  /* ------------------------------------------------- GRAY (cool neutral)  */
+  --gray-25:  #FCFCFD;
+  --gray-50:  #F9FAFB;
+  --gray-100: #F2F4F7;
+  --gray-200: #EAECF0;
+  --gray-300: #D0D5DD;
+  --gray-400: #98A2B3;
+  --gray-500: #667085;
+  --gray-600: #475467;
+  --gray-700: #344054;
+  --gray-800: #1D2939;
+  --gray-900: #101828;
+  --gray-950: #0C111D;
+
+  /* base */
+  --white: #FFFFFF;
+  --black: #000000;
+
+  /* ---------------------------------------------------------- ERROR (red) */
+  --error-25:  #FFFBFA;
+  --error-50:  #FEF3F2;
+  --error-100: #FEE4E2;
+  --error-200: #FECDCA;
+  --error-300: #FDA29B;
+  --error-400: #F97066;
+  --error-500: #F04438;
+  --error-600: #D92D20;
+  --error-700: #B42318;
+
+  /* ----------------------------------------------------- WARNING (amber)  */
+  --warning-25:  #FFFCF5;
+  --warning-50:  #FFFAEB;
+  --warning-100: #FEF0C7;
+  --warning-200: #FEDF89;
+  --warning-300: #FEC84B;
+  --warning-400: #FDB022;
+  --warning-500: #F79009;
+  --warning-600: #DC6803;
+  --warning-700: #B54708;
+
+  /* ----------------------------------------------------- SUCCESS (green)  */
+  --success-25:  #F6FEF9;
+  --success-50:  #ECFDF3;
+  --success-100: #DCFAE6;
+  --success-200: #ABEFC6;
+  --success-300: #75E0A7;
+  --success-400: #47CD89;
+  --success-500: #12B76A;
+  --success-600: #039855;
+  --success-700: #027A48;
+
+  /* --------------------------------------------- BLUE (informational/links) */
+  --blue-50:  #EFF8FF;
+  --blue-100: #D1E9FF;
+  --blue-200: #B2DDFF;
+  --blue-300: #84CAFF;
+  --blue-500: #2E90FA;
+  --blue-600: #1570EF;
+  --blue-700: #175CD3;
+
+  /* ============================================================ SEMANTIC  */
+  /* text */
+  --text-primary:        var(--gray-900);   /* headings, primary copy   */
+  --text-secondary:      var(--gray-700);   /* secondary copy           */
+  --text-tertiary:       var(--gray-500);   /* supporting / hints       */
+  --text-quaternary:     var(--gray-400);   /* placeholder              */
+  --text-white:          var(--white);
+  --text-brand:          var(--brand-700);  /* links, brand text        */
+  --text-error:          var(--error-600);
+  --text-placeholder:    var(--gray-500);
+
+  /* surface / background */
+  --bg-primary:          var(--white);
+  --bg-secondary:        var(--gray-50);
+  --bg-tertiary:         var(--gray-100);
+  --bg-brand-solid:      var(--brand-600);
+  --bg-brand-section:    var(--brand-700);  /* dark violet sections     */
+  --bg-disabled:         var(--gray-100);
+
+  /* border */
+  --border-primary:      var(--gray-300);
+  --border-secondary:    var(--gray-200);
+  --border-disabled:     var(--gray-300);
+  --border-brand:        var(--brand-500);
+  --border-error:        var(--error-300);
+
+  /* focus ring (brand) */
+  --ring-brand:   0 0 0 4px rgba(158,119,237,0.24);
+  --ring-gray:    0 0 0 4px rgba(152,162,179,0.14);
+  --ring-error:   0 0 0 4px rgba(240,68,56,0.24);
+
+  /* ====================================================== TYPE SEMANTICS  */
+  /* Display — used for hero / marketing headlines (Inter, -2% tracking)   */
+  --display-2xl: var(--fw-semibold) 72px/90px var(--font-sans);
+  --display-xl:  var(--fw-semibold) 60px/72px var(--font-sans);
+  --display-lg:  var(--fw-semibold) 48px/60px var(--font-sans);
+  --display-md:  var(--fw-semibold) 36px/44px var(--font-sans);
+  --display-sm:  var(--fw-semibold) 30px/38px var(--font-sans);
+  --display-xs:  var(--fw-semibold) 24px/32px var(--font-sans);
+  --tracking-display: -0.02em;   /* apply to display-md and larger        */
+
+  /* Text — body / UI                                                      */
+  --text-xl: 20px/30px;
+  --text-lg: 18px/28px;
+  --text-md: 16px/24px;   /* default body */
+  --text-sm: 14px/20px;   /* default UI / labels */
+  --text-xs: 12px/18px;   /* captions, badges */
+
+  /* ===================================================== SPACING (4px)    */
+  --spacing-xxs: 2px;
+  --spacing-xs:  4px;
+  --spacing-sm:  6px;
+  --spacing-md:  8px;
+  --spacing-lg:  12px;
+  --spacing-xl:  16px;
+  --spacing-2xl: 20px;
+  --spacing-3xl: 24px;
+  --spacing-4xl: 32px;
+  --spacing-5xl: 40px;
+  --spacing-6xl: 48px;
+  --spacing-7xl: 64px;
+  --spacing-8xl: 80px;
+  --spacing-9xl: 96px;
+  --spacing-10xl: 128px;
+  --spacing-11xl: 160px;
+
+  /* ===================================================== RADIUS           */
+  --radius-none: 0px;
+  --radius-xxs: 2px;
+  --radius-xs:  4px;
+  --radius-sm:  6px;
+  --radius-md:  8px;    /* buttons, inputs, default */
+  --radius-lg:  10px;
+  --radius-xl:  12px;   /* cards */
+  --radius-2xl: 16px;
+  --radius-3xl: 20px;
+  --radius-4xl: 24px;
+  --radius-full: 9999px;
+
+  /* ===================================================== SHADOWS          */
+  --shadow-xs:  0px 1px 2px 0px rgba(16,24,40,0.05);
+  --shadow-sm:  0px 1px 3px 0px rgba(16,24,40,0.10), 0px 1px 2px 0px rgba(16,24,40,0.06);
+  --shadow-md:  0px 4px 8px -2px rgba(16,24,40,0.10), 0px 2px 4px -2px rgba(16,24,40,0.06);
+  --shadow-lg:  0px 12px 16px -4px rgba(16,24,40,0.08), 0px 4px 6px -2px rgba(16,24,40,0.03);
+  --shadow-xl:  0px 20px 24px -4px rgba(16,24,40,0.08), 0px 8px 8px -4px rgba(16,24,40,0.03);
+  --shadow-2xl: 0px 24px 48px -12px rgba(16,24,40,0.18);
+  --shadow-3xl: 0px 32px 64px -12px rgba(16,24,40,0.14);
+}
+
+/* ============================================================================
+   READY-MADE TYPE CLASSES  (apply directly to elements)
+   ============================================================================ */
+.display-2xl { font: var(--display-2xl); letter-spacing: var(--tracking-display); color: var(--text-primary); }
+.display-xl  { font: var(--display-xl);  letter-spacing: var(--tracking-display); color: var(--text-primary); }
+.display-lg  { font: var(--display-lg);  letter-spacing: var(--tracking-display); color: var(--text-primary); }
+.display-md  { font: var(--display-md);  letter-spacing: var(--tracking-display); color: var(--text-primary); }
+.display-sm  { font: var(--display-sm);  color: var(--text-primary); }
+.display-xs  { font: var(--display-xs);  color: var(--text-primary); }
+
+.text-xl { font-size: 20px; line-height: 30px; }
+.text-lg { font-size: 18px; line-height: 28px; }
+.text-md { font-size: 16px; line-height: 24px; }
+.text-sm { font-size: 14px; line-height: 20px; }
+.text-xs { font-size: 12px; line-height: 18px; }
+
+.fw-regular  { font-weight: var(--fw-regular); }
+.fw-medium   { font-weight: var(--fw-medium); }
+.fw-semibold { font-weight: var(--fw-semibold); }
+.fw-bold     { font-weight: var(--fw-bold); }

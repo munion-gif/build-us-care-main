@@ -6,6 +6,7 @@ import {
   resolveDefaultSlotCap,
   type SlotPeriod
 } from "@/lib/slot-capacity";
+import { isBeforeMinReservationDate, isClosedReservationDate } from "@/lib/reservation-policy";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 
 export const revalidate = 30;
@@ -94,16 +95,6 @@ function monthRange(year: number, month: number) {
   };
 }
 
-function minReservationDateText() {
-  const minDate = new Date();
-  minDate.setDate(minDate.getDate() + 3);
-  return kstDateOnly(minDate);
-}
-
-function isBeforeMinReservationDate(dateText: string) {
-  return dateText < minReservationDateText();
-}
-
 function mockSlotPayload(year: number, month: number) {
   const defaultCap = maxSlotsPerPeriod();
   const range = monthRange(year, month);
@@ -124,13 +115,14 @@ function mockSlotPayload(year: number, month: number) {
 
   for (const day of range.days) {
     const beforeMinDate = isBeforeMinReservationDate(day);
+    const blocked = isClosedReservationDate(day);
     usage[day] = {
       morning: { used: 0, cap: defaultCap },
       afternoon: { used: 0, cap: defaultCap }
     };
     days[day] = {
       date: day,
-      blocked: false,
+      blocked,
       hasReservation: false,
       beforeMinDate,
       allFull: false,
@@ -141,7 +133,7 @@ function mockSlotPayload(year: number, month: number) {
           usedCount: 0,
           maxCount: defaultCap,
           isFull: false,
-          available: !beforeMinDate
+          available: !beforeMinDate && !blocked
         },
         afternoon: {
           used: 0,
@@ -149,12 +141,12 @@ function mockSlotPayload(year: number, month: number) {
           usedCount: 0,
           maxCount: defaultCap,
           isFull: false,
-          available: !beforeMinDate
+          available: !beforeMinDate && !blocked
         }
       }
     };
-    slots[day] = beforeMinDate ? [] : ["morning", "afternoon"];
-    closed[day] = beforeMinDate ? ["morning", "afternoon"] : [];
+    slots[day] = beforeMinDate || blocked ? [] : ["morning", "afternoon"];
+    closed[day] = beforeMinDate || blocked ? ["morning", "afternoon"] : [];
   }
 
   return {
@@ -272,7 +264,7 @@ export async function GET(request: Request) {
       afternoon: { used: dayCounts.afternoon, cap: caps.afternoon }
     };
     const beforeMinDate = isBeforeMinReservationDate(day);
-    const blocked = Boolean(config?.blocked);
+    const blocked = Boolean(config?.blocked) || isClosedReservationDate(day);
     const hasReservation = dayCounts.morning > 0 || dayCounts.afternoon > 0;
     days[day] = {
       date: day,

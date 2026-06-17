@@ -25,21 +25,33 @@ function startOfWeek() {
 export async function GET(request: Request) {
   const authError = requireAdmin(request);
   if (authError) return authError;
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) {
+    return ok({
+      todayOrders: 0,
+      todayPaid: 0,
+      pendingDiagnoses: 0,
+      weekCompletedJobs: 0,
+      avgNps: null,
+      weekRevenue: 0,
+      pendingQuotes: 0,
+      issueJobs: 0,
+      localMode: true
+    });
+  }
 
   const supabase = getSupabaseAdmin();
   const today = startOfToday();
   const tomorrow = startOfTomorrow();
   const week = startOfWeek();
   const [todayOrders, todayPaid, pendingDiagnoses, weekCompletedJobs, weekPayments, feedbacks, pendingQuotes, issueJobs] = await Promise.all([
-    supabase.from("orders").select("id", { count: "exact", head: true }).eq("is_test", false).is("deleted_at", null).gte("created_at", today).lt("created_at", tomorrow),
+    supabase.from("orders").select("id", { count: "exact", head: true }).or("is_test.is.null,is_test.eq.false").is("deleted_at", null).gte("created_at", today).lt("created_at", tomorrow),
     supabase.from("payments").select("id", { count: "exact", head: true }).eq("status", "done").gte("paid_at", today).lt("paid_at", tomorrow),
-    supabase.from("diagnoses").select("id", { count: "exact", head: true }).eq("is_test", false).is("result", null),
+    supabase.from("diagnoses").select("id", { count: "exact", head: true }).or("is_test.is.null,is_test.eq.false").is("result", null),
     supabase.from("jobs").select("id", { count: "exact", head: true }).eq("status", "inspected").gte("ended_at", week),
     supabase.from("payments").select("amount").eq("status", "done").gte("paid_at", week),
     supabase.from("feedbacks").select("nps").not("nps", "is", null),
     supabase.from("quotes").select("id", { count: "exact", head: true }).is("accepted_at", null),
-    supabase.from("orders").select("id", { count: "exact", head: true }).eq("is_test", false).is("deleted_at", null).eq("status", "issue")
+    supabase.from("orders").select("id", { count: "exact", head: true }).or("is_test.is.null,is_test.eq.false").is("deleted_at", null).eq("status", "issue")
   ]);
 
   const npsRows = feedbacks.data ?? [];
@@ -55,6 +67,7 @@ export async function GET(request: Request) {
     avgNps,
     weekRevenue: (weekPayments.data ?? []).reduce((sum, row: any) => sum + Number(row.amount ?? 0), 0),
     pendingQuotes: pendingQuotes.count ?? 0,
-    issueJobs: issueJobs.count ?? 0
+    issueJobs: issueJobs.count ?? 0,
+    localMode: false
   });
 }

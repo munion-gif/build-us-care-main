@@ -11,6 +11,7 @@ import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit
 import { isLifecycleSchemaError } from "@/lib/schema-compat";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { createOrderSchema } from "@/lib/validation";
+import { findLocalBuildusOrdersByPhone, localBuildusOrderSummary } from "@/lib/builduscare-local-order-server";
 
 type SupabaseAdmin = ReturnType<typeof getSupabaseAdmin>;
 
@@ -56,7 +57,7 @@ async function createSequentialOrderNumber(supabase: SupabaseAdmin) {
 
 export async function POST(request: Request) {
   if (!hasSupabaseEnv()) {
-    return fail("supabase_not_configured", "Supabase is required to create orders.", 500);
+    return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 일반 주문 생성 API를 사용하지 않습니다.", 409, { localMode: true });
   }
 
   const body = await readJson(request);
@@ -389,11 +390,17 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
-
   const { searchParams } = new URL(request.url);
   const phone = searchParams.get("phone")?.replace(/\D/g, "");
   if (!phone || phone.length < 8) return fail("BAD_REQUEST", "phone is required.", 400);
+
+  if (!hasSupabaseEnv()) {
+    const localOrders = findLocalBuildusOrdersByPhone(request, phone)
+      .map(localBuildusOrderSummary)
+      .sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))
+      .slice(0, 5);
+    return ok({ orders: localOrders, localMode: true });
+  }
 
   const rateLimit = checkRateLimit(`orders-phone-lookup:${getClientIp(request.headers)}:${phone}`, {
     limit: ORDER_PHONE_LOOKUP_LIMIT,
@@ -430,5 +437,5 @@ export async function GET(request: Request) {
   }
 
   if (error) return fail("internal_error", error.message, 500);
-  return ok({ orders: data ?? [] });
+  return ok({ orders: data ?? [], localMode: false });
 }

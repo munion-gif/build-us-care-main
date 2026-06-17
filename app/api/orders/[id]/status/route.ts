@@ -8,6 +8,7 @@ import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { accessTokenSchema, uuidSchema } from "@/lib/validation";
 import { validationError } from "@/lib/errors";
 import { isSchemaCompatibilityError } from "@/lib/schema-compat";
+import { localBuildusOrderCookieToStatusOrder, matchLocalBuildusOrderFromRequest } from "@/lib/builduscare-local-order-server";
 
 type Context = {
   params: Promise<{ id: string }>;
@@ -176,11 +177,19 @@ function orderStatusQuery(supabase: ReturnType<typeof getSupabaseAdmin>, select:
 }
 
 export async function GET(request: Request, context: Context) {
+  const { id } = await context.params;
+  const authorization = request.headers.get("authorization");
+  const bearerToken = authorization?.toLowerCase().startsWith("bearer ") ? authorization.slice(7).trim() : null;
+  const accessToken = bearerToken || new URL(request.url).searchParams.get("accessToken");
+
   if (!hasSupabaseEnv()) {
-    return fail("supabase_not_configured", "Supabase is required to read order status.", 500);
+    const localOrder = matchLocalBuildusOrderFromRequest(request, { orderId: id, accessToken });
+    if (localOrder) {
+      return ok({ order: localBuildusOrderCookieToStatusOrder(localOrder), localMode: true });
+    }
+    return fail("not_found", "로컬 확인 모드에서 일치하는 주문을 찾을 수 없어요.", 404, { localMode: true });
   }
 
-  const { id } = await context.params;
   const orderId = uuidSchema.safeParse(id);
 
   if (!orderId.success) {
@@ -189,9 +198,6 @@ export async function GET(request: Request, context: Context) {
 
   const supabase = getSupabaseAdmin();
   const isAdmin = hasValidAdminKey(request);
-  const authorization = request.headers.get("authorization");
-  const bearerToken = authorization?.toLowerCase().startsWith("bearer ") ? authorization.slice(7).trim() : null;
-  const accessToken = bearerToken || new URL(request.url).searchParams.get("accessToken");
 
   if (!isAdmin) {
     const query = accessTokenSchema.safeParse(accessToken);

@@ -14,10 +14,6 @@ export async function GET(request: Request) {
     return authError;
   }
 
-  if (!hasSupabaseEnv()) {
-    return fail("supabase_not_configured", "Supabase is required to list orders.", 500);
-  }
-
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
   const serviceCode = searchParams.get("service_code");
@@ -33,6 +29,12 @@ export async function GET(request: Request) {
   const page = Math.max(Number(searchParams.get("page") ?? 1), 1);
   const limit = Math.min(Number(searchParams.get("limit") ?? 20), 100);
   const from = searchParams.has("offset") ? offset : (page - 1) * limit;
+
+  if (!hasSupabaseEnv()) {
+    logOperation({ requestId, endpoint: "/api/admin/orders", method: "GET", adminKeyId, success: true });
+    return ok({ orders: [], pagination: { page, limit, offset: from, count: 0 }, localMode: true });
+  }
+
   const supabase = getSupabaseAdmin();
 
   let query = supabase
@@ -99,5 +101,5 @@ export async function GET(request: Request) {
   }
 
   logOperation({ requestId, endpoint: "/api/admin/orders", method: "GET", adminKeyId, success: true });
-  return ok({ orders: data, pagination: { page, limit, offset: from, count: count ?? 0 } });
+  return ok({ orders: data, pagination: { page, limit, offset: from, count: count ?? 0 }, localMode: false });
 }

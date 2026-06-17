@@ -25,7 +25,7 @@ async function readOrderId(context: Context) {
 export async function POST(request: Request, context: Context) {
   const authError = requireAdmin(request);
   if (authError) return authError;
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 주문을 휴지통으로 이동하지 않습니다.", 409, { localMode: true });
 
   const orderId = await readOrderId(context);
   if (!orderId.success) return validationError(orderId.error, "Invalid order id.");
@@ -54,7 +54,7 @@ export async function POST(request: Request, context: Context) {
 export async function PATCH(request: Request, context: Context) {
   const authError = requireAdmin(request);
   if (authError) return authError;
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 주문 복구를 처리하지 않습니다.", 409, { localMode: true });
 
   const orderId = await readOrderId(context);
   if (!orderId.success) return validationError(orderId.error, "Invalid order id.");
@@ -80,7 +80,7 @@ export async function PATCH(request: Request, context: Context) {
 export async function DELETE(request: Request, context: Context) {
   const authError = requireAdmin(request);
   if (authError) return authError;
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 주문 영구 삭제를 처리하지 않습니다.", 409, { localMode: true });
 
   const orderId = await readOrderId(context);
   if (!orderId.success) return validationError(orderId.error, "Invalid order id.");

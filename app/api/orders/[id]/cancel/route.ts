@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { fail, ok } from "@/lib/api-response";
+import { matchLocalBuildusOrderFromRequest } from "@/lib/builduscare-local-order-server";
 import { readJson, validationError } from "@/lib/errors";
 import { cancelTossPayment } from "@/lib/toss";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
@@ -39,13 +40,22 @@ function readPolicy(settings: Record<string, string>) {
 }
 
 export async function POST(request: Request, context: Context) {
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
-
   const { id } = await context.params;
+  const rawBody = await readJson(request);
+  const localAccessToken = typeof rawBody?.accessToken === "string" ? rawBody.accessToken : undefined;
+
+  if (!hasSupabaseEnv()) {
+    const localOrder = matchLocalBuildusOrderFromRequest(request, { orderId: id, accessToken: localAccessToken });
+    if (localOrder) {
+      return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 취소 요청을 저장하지 않습니다.", 409, { localMode: true });
+    }
+    return fail("not_found", "로컬 확인 모드에서 일치하는 주문을 찾을 수 없어요.", 404, { localMode: true });
+  }
+
   const orderId = uuidSchema.safeParse(id);
   if (!orderId.success) return validationError(orderId.error, "Invalid order id.");
 
-  const parsed = cancelSchema.safeParse(await readJson(request));
+  const parsed = cancelSchema.safeParse(rawBody);
   if (!parsed.success) return validationError(parsed.error, "Invalid cancel request.");
 
   const supabase = getSupabaseAdmin();

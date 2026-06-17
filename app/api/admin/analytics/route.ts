@@ -46,7 +46,37 @@ async function getWarrantyWindow(supabase: ReturnType<typeof getSupabaseAdmin>) 
 export async function GET(request: Request) {
   const authError = requireAdmin(request);
   if (authError) return authError;
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) {
+    return ok({
+      period: "week",
+      orders: { total: 0, paid: 0, conversionRate: "0%" },
+      diagnoses: {
+        total: 0,
+        byResult: {
+          교체추천: 0,
+          교체불필요: 0,
+          보류: 0,
+          현장확인필요: 0
+        }
+      },
+      funnel: {
+        steps: buildAdminFunnelReport([]).steps,
+        channels: buildAdminFunnelReport([]).channels,
+        diagnosisRequested: 0,
+        quoteStarted: 0,
+        quoteSubmitted: 0,
+        paymentCompleted: 0,
+        quoteStartRate: "0%",
+        quoteSubmitRate: "0%",
+        paymentCompletionRate: "0%"
+      },
+      warrantyExpiringSoon: {
+        count: 0,
+        orders: []
+      },
+      localMode: true
+    });
+  }
 
   const { searchParams } = new URL(request.url);
   const period = searchParams.get("period") ?? "week";
@@ -56,9 +86,9 @@ export async function GET(request: Request) {
   const warrantyWindow = await measure("api.admin.analytics.getWarrantyWindow", () => getWarrantyWindow(supabase));
 
   const [orders, paidOrders, diagnoses, events, warrantyJobs] = await Promise.all([
-    measure("api.admin.analytics.countOrders", () => supabase.from("orders").select("id", { count: "exact", head: true }).eq("is_test", false).is("deleted_at", null).gte("created_at", since)),
-    measure("api.admin.analytics.countPaidOrders", () => supabase.from("orders").select("id", { count: "exact", head: true }).eq("is_test", false).is("deleted_at", null).in("status", ["paid", "product_paid"]).gte("created_at", since)),
-    measure("api.admin.analytics.fetchDiagnoses", () => supabase.from("diagnoses").select("result").eq("is_test", false).gte("created_at", since)),
+    measure("api.admin.analytics.countOrders", () => supabase.from("orders").select("id", { count: "exact", head: true }).or("is_test.is.null,is_test.eq.false").is("deleted_at", null).gte("created_at", since)),
+    measure("api.admin.analytics.countPaidOrders", () => supabase.from("orders").select("id", { count: "exact", head: true }).or("is_test.is.null,is_test.eq.false").is("deleted_at", null).in("status", ["paid", "product_paid"]).gte("created_at", since)),
+    measure("api.admin.analytics.fetchDiagnoses", () => supabase.from("diagnoses").select("result").or("is_test.is.null,is_test.eq.false").gte("created_at", since)),
     measure("api.admin.analytics.fetchEvents", () => supabase
       .from("events")
       .select("id,event_type,session_id,source,properties")
@@ -131,6 +161,7 @@ export async function GET(request: Request) {
         phone: job.orders?.customers?.phone ?? "-",
         completedAt: job.completed_at
       }))
-    }
+    },
+    localMode: false
   });
 }

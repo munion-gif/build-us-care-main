@@ -15,7 +15,7 @@ export async function DELETE(request: Request, context: Context) {
     logOperation({ requestId, endpoint: "/api/admin/slot-configs/[date]", method: "DELETE", adminKeyId, success: false, errorCode: "UNAUTHORIZED" });
     return authError;
   }
-  if (!hasSupabaseEnv()) return fail("supabase_not_configured", "Supabase is required.", 500);
+  if (!hasSupabaseEnv()) return fail("LOCAL_READ_ONLY", "로컬 확인 모드에서는 날짜 차단 해제를 저장하지 않습니다.", 409, { localMode: true });
 
   const { date } = await context.params;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return fail("BAD_REQUEST", "Invalid date.", 400);
