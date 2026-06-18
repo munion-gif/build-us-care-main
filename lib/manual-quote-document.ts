@@ -27,7 +27,7 @@ export function buildManualQuoteDocumentInput(quote: any): QuoteDocumentInput {
     address: quote?.address_text ?? "주소 확인 중",
     visitText: "방문일 확인 중",
     productTotal: Number(quote?.total_material ?? 0),
-    laborTotal: Number(quote?.total_labor ?? 0) + Number(quote?.visit_fee ?? 0),
+    laborTotal: Number(quote?.total_labor ?? 0),
     finalTotal: Number(quote?.total_final ?? 0),
     transferAmount: Number(quote?.total_material ?? 0),
     onsiteAmount: Math.max(0, Number(quote?.total_labor ?? 0) + Number(quote?.visit_fee ?? 0) - Number(quote?.discount ?? 0)),

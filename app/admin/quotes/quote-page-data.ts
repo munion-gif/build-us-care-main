@@ -207,6 +207,7 @@ export async function getManualQuotes() {
       visit_fee,
       discount,
       total_final,
+      public_access_token,
       converted_order_id,
       converted_at,
       created_at,
@@ -236,6 +237,7 @@ export async function getManualQuote(id: string | undefined) {
       visit_fee,
       discount,
       total_final,
+      public_access_token,
       converted_order_id,
       converted_at,
       created_at,
@@ -273,6 +275,7 @@ export async function getQuoteOrders() {
     .select(`
       id,
       order_number,
+      access_token,
       status,
       service_type_code,
       reason,

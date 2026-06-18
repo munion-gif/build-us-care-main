@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { formatKRDateTime, formatKRW, formatOrderStatus, formatServiceName } from "@/lib/format";
 import { LocalQuoteDraftsClient } from "./local-quote-drafts-client";
-import { ManualQuoteAlimtalkButton, ManualQuoteConvertButton, ManualQuoteDeleteButton, OrderQuoteAlimtalkButton } from "./manual-quote-convert-button";
+import { ManualQuoteAlimtalkButton, ManualQuoteConvertButton, ManualQuoteDeleteButton } from "./manual-quote-convert-button";
 import {
   customerName,
   customerPhone,
@@ -22,12 +22,22 @@ function QuoteListRow({ order, selected }: { order: any; selected?: boolean }) {
   const quote = latestQuote(order);
   const amount = Number(quote?.total_final ?? order?.total_amount ?? 0);
   const mode = quoteNeeded(order) ? "작성" : "수정";
+  const quoteViewHref = quote && order?.access_token
+    ? `/quotes/${encodeURIComponent(order.id)}?accessToken=${encodeURIComponent(order.access_token)}`
+    : null;
 
   return (
     <article className={`adm-order-queue-card ${selected ? "adm-order-queue-card-selected" : ""}`}>
       <div className="adm-order-queue-main">
         <div className="adm-order-queue-title">
-          <strong>{order.order_number}</strong>
+          {quoteViewHref ? (
+            <Link className="adm-link" href={quoteViewHref} target="_blank" rel="noreferrer">
+              {order.order_number}
+            </Link>
+          ) : (
+            <strong>{order.order_number}</strong>
+          )}
+          <span className="adm-badge adm-badge-gray">제품 주문</span>
           <span className={`adm-badge ${quoteNeeded(order) ? "adm-badge-orange" : "adm-badge-blue"}`}>
             {quoteNeeded(order) ? "견적 필요" : "견적 작성됨"}
           </span>
@@ -60,7 +70,11 @@ function QuoteListRow({ order, selected }: { order: any; selected?: boolean }) {
         <Link className="adm-btn adm-btn-secondary" href={`/admin/orders/${order.id}`}>
           주문 상세
         </Link>
-        {quote ? <OrderQuoteAlimtalkButton orderId={order.id} /> : null}
+        {quoteViewHref ? (
+          <Link className="adm-btn adm-btn-secondary" href={quoteViewHref} target="_blank" rel="noreferrer">
+            견적서 보기
+          </Link>
+        ) : null}
       </div>
     </article>
   );
@@ -77,12 +91,23 @@ function manualQuoteSummary(quote: any) {
 }
 
 function ManualQuoteListRow({ quote }: { quote: any }) {
+  const quoteViewHref = quote?.public_access_token
+    ? `/quotes/${encodeURIComponent(quote.id)}?accessToken=${encodeURIComponent(quote.public_access_token)}`
+    : null;
+  const canSendAlimtalk = !quote.converted_order_id;
+
   return (
     <article className="adm-order-queue-card">
       <div className="adm-order-queue-main">
         <div className="adm-order-queue-title">
-          <strong>{quote.quote_number}</strong>
-          <span className="adm-badge adm-badge-blue">수동 견적</span>
+          {quoteViewHref ? (
+            <Link className="adm-link" href={quoteViewHref} target="_blank" rel="noreferrer">
+              {quote.quote_number}
+            </Link>
+          ) : (
+            <strong>{quote.quote_number}</strong>
+          )}
+          <span className="adm-badge adm-badge-blue">사진접수 견적</span>
           {quote.converted_order_id ? <span className="adm-badge adm-badge-green">제품 주문 전환됨</span> : null}
         </div>
         <strong>{manualQuoteSummary(quote)}</strong>
@@ -110,6 +135,11 @@ function ManualQuoteListRow({ quote }: { quote: any }) {
         <Link className="adm-btn adm-btn-primary" href={`/admin/quotes?manualQuoteId=${encodeURIComponent(quote.id)}`}>
           수정
         </Link>
+        {quoteViewHref ? (
+          <Link className="adm-btn adm-btn-secondary" href={quoteViewHref} target="_blank" rel="noreferrer">
+            견적서 보기
+          </Link>
+        ) : null}
         {quote.converted_order_id ? (
           <Link className="adm-btn adm-btn-secondary" href={`/admin/orders/${quote.converted_order_id}`}>
             제품 주문 보기
@@ -117,7 +147,7 @@ function ManualQuoteListRow({ quote }: { quote: any }) {
         ) : (
           <ManualQuoteConvertButton quoteId={quote.id} />
         )}
-        <ManualQuoteAlimtalkButton quoteId={quote.id} />
+        {canSendAlimtalk ? <ManualQuoteAlimtalkButton quoteId={quote.id} /> : null}
         <ManualQuoteDeleteButton quoteId={quote.id} quoteNumber={quote.quote_number} />
       </div>
     </article>

@@ -511,7 +511,12 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
   const selectedItems = quoteItems(order);
   const acceptedQuote = latestQuote(order);
   const quoteMaterialAmount = Number(acceptedQuote?.total_material ?? money.productAmount ?? 0);
-  const quoteLaborAmount = Number(acceptedQuote ? Number(acceptedQuote.total_labor ?? 0) + Number(acceptedQuote.visit_fee ?? 0) : money.onsiteAmount);
+  const quoteLaborAmount = Number(acceptedQuote?.total_labor ?? money.onsiteAmount ?? 0);
+  const quoteDisposalAmount = Number(
+    acceptedQuote
+      ? acceptedQuote.visit_fee ?? Math.max(0, Number(acceptedQuote.total_final ?? 0) + Number(acceptedQuote.discount ?? 0) - quoteMaterialAmount - quoteLaborAmount)
+      : 0
+  );
   const quoteDiscountAmount = Number(acceptedQuote?.discount ?? 0);
   const quoteFinalAmount = Number(acceptedQuote?.total_final ?? money.total ?? 0);
   const lookupParams = new URLSearchParams({ orderNumber: order.order_number });
@@ -590,7 +595,12 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
             <span>
               <b>시공비</b>
               <strong>{formatKRW(quoteLaborAmount)}</strong>
-              <small>방문 시 현장 결제 예정</small>
+              <small>카테고리별 시공비 합계</small>
+            </span>
+            <span>
+              <b>폐기물 처리비</b>
+              <strong>{formatKRW(quoteDisposalAmount)}</strong>
+              <small>{quoteDisposalAmount > 0 ? "견적서에 별도 반영" : "고객 직접 처리 또는 없음"}</small>
             </span>
             {quoteDiscountAmount > 0 ? (
               <span>
