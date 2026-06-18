@@ -16,7 +16,6 @@ import { isLifecycleSchemaError } from "@/lib/schema-compat";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { OPERATIONAL_ORDER_STATUSES } from "@/lib/types";
 import { CancellationActions } from "./cancellation-actions-client";
-import { OrderAssignmentButton } from "./order-assignment-client";
 import { OrderBankTransferConfirmButton } from "./order-payment-actions-client";
 import { OrderTrashActions } from "./order-trash-actions-client";
 
@@ -45,7 +44,7 @@ const orderListRelations = `
       payments(id,status,amount,paid_at,approved_at,requested_at,method,provider,provider_status,online_payment_amount,onsite_payment_amount,onsite_payment_status),
       quotes(id,version,items,total_material,total_labor,total_final,accepted_at,created_at),
       media(id,type,file_path,created_at),
-      jobs(id,technician_id,assigned_technician_name,scheduled_at,status,technicians(id,name)),
+      jobs(id,scheduled_at,status),
       cancellations(id,status,refund_amount,refund_rate,reason,requested_at)
     `;
 
@@ -176,16 +175,6 @@ async function getOrders(params: Record<string, string | undefined>) {
     trashMode,
     testMode
   };
-}
-
-async function getActiveTechnicians() {
-  if (!hasSupabaseEnv()) return [];
-  const { data } = await getSupabaseAdmin()
-    .from("technicians")
-    .select("id,name,region,is_active")
-    .eq("is_active", true)
-    .order("name", { ascending: true });
-  return data ?? [];
 }
 
 function firstServiceCode(order: any) {
@@ -424,12 +413,6 @@ function bankTransferNeedsConfirmation(order: any) {
   return isBankTransfer(payment) && isPendingPayment(payment) && ["payment_pending", "pending_product_payment"].includes(status) ? payment : null;
 }
 
-function assignedTechnician(order: any) {
-  const jobs = Array.isArray(order.jobs) ? order.jobs : [];
-  const job = jobs.find((item: any) => item.technicians?.name || item.assigned_technician_name || item.technician_id);
-  return job?.technicians?.name ?? job?.assigned_technician_name ?? "미배정";
-}
-
 function addressPreview(order: any) {
   const road = order.homes?.address_full ?? order.customers?.address_full;
   const detail = order.homes?.address_apt ?? order.customers?.address_apt;
@@ -439,7 +422,6 @@ function addressPreview(order: any) {
 function queueNextAction(order: any) {
   const status = String(order.status ?? "");
   const payment = paymentState(order);
-  const hasAssigned = assignedTechnician(order) !== "미배정";
   const photos = photoCount(order);
 
   if (payment.needsConfirmation) {
@@ -447,30 +429,23 @@ function queueNextAction(order: any) {
       badge: "입금",
       className: "adm-badge-orange",
       label: "계좌이체 입금 확인",
-      help: `${formatKRW(payment.amount)} 입금 내역 확인 후 기사 배정으로 진행`
+      help: `${formatKRW(payment.amount)} 입금 내역 확인 후 방문 일정 확인으로 진행`
     };
   }
   if (["paid", "product_paid"].includes(status)) {
-    return hasAssigned
-      ? {
-          badge: "확정",
-          className: "adm-badge-sky",
-          label: "방문 확정 필요",
-          help: `${visitScheduleLabel(order)} · 고객에게 방문 확정 상태로 안내`
-        }
-      : {
-          badge: "배정",
-          className: "adm-badge-blue",
-          label: "기사 배정 필요",
-          help: "담당 기사와 방문 시간대를 먼저 지정"
-        };
+    return {
+      badge: "방문",
+      className: "adm-badge-sky",
+      label: "방문 일정 확인 필요",
+      help: `${visitScheduleLabel(order)} · 고객에게 방문 확정 상태로 안내`
+    };
   }
   if (["scheduled", "in_progress"].includes(status)) {
     return {
       badge: "방문",
       className: "adm-badge-sky",
       label: status === "scheduled" ? "방문 준비" : "현장 진행 중",
-      help: `${visitScheduleLabel(order)} · 담당 ${assignedTechnician(order)}`
+      help: visitScheduleLabel(order)
     };
   }
   if (["completed", "done"].includes(status)) {
@@ -507,15 +482,14 @@ function queueNextAction(order: any) {
 
 export default async function AdminOrdersPage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const [{ orders, count, error, schemaWarning, localMode, page, limit, trashMode, testMode }, services, technicians] = await Promise.all([
+  const [{ orders, count, error, schemaWarning, localMode, page, limit, trashMode, testMode }, services] = await Promise.all([
     measure("admin.orders.fetchOrders", () => getOrders(params)),
-    measure("admin.orders.fetchServices", () => getAllServiceItems()),
-    measure("admin.orders.fetchTechnicians", () => getActiveTechnicians())
+    measure("admin.orders.fetchServices", () => getAllServiceItems())
   ]);
   const totalPages = Math.max(Math.ceil(count / limit), 1);
   const visibleSummary = {
     needsPayment: orders.filter((order: any) => paymentState(order).needsConfirmation).length,
-    needsAssign: orders.filter((order: any) => ["paid", "product_paid"].includes(String(order.status)) && assignedTechnician(order) === "미배정").length,
+    needsVisit: orders.filter((order: any) => ["paid", "product_paid"].includes(String(order.status))).length,
     visits: orders.filter((order: any) => ["scheduled", "in_progress"].includes(String(order.status))).length,
     issues: orders.filter((order: any) => ["cancel_requested", "issue", "warranty"].includes(String(order.status))).length
   };
@@ -529,11 +503,11 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
       label: "입금 확인 필요"
     },
     {
-      count: trashMode || testMode ? 0 : visibleSummary.needsAssign,
-      helper: "입금 완료 후 기사 배정이 필요한 주문입니다.",
+      count: trashMode || testMode ? 0 : visibleSummary.needsVisit,
+      helper: "입금 완료 후 방문 일정 확인이 필요한 주문입니다.",
       href: "/admin/orders?flow=paid",
       key: "paid",
-      label: "배정 필요"
+      label: "방문 확인"
     },
     {
       count: trashMode || testMode ? 0 : visibleSummary.visits,
@@ -569,7 +543,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
             <div>
               <span className="adm-ops-eyebrow">현재 조건 기준</span>
               <h2 id="order-priority-heading">먼저 처리할 주문</h2>
-              <p>입금 확인, 배정, 방문, 예외 처리를 한 화면에서 바로 확인합니다.</p>
+              <p>입금 확인, 방문 일정, 예외 처리를 한 화면에서 바로 확인합니다.</p>
             </div>
             <div className="adm-ops-actions">
               <Link className="adm-btn adm-btn-secondary adm-btn-sm" href={`/admin/orders?date_from=${todayKST()}&flow=intake`}>오늘 접수</Link>
@@ -685,9 +659,9 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
                     <small>{photos > 0 ? "고객 첨부" : "첨부 없음"}</small>
                   </span>
                   <span>
-                    <b>담당</b>
-                    <strong>{assignedTechnician(order)}</strong>
-                    <small>{visitScheduleLabel(order)}</small>
+                    <b>방문 일정</b>
+                    <strong>{visitScheduleLabel(order)}</strong>
+                    <small>고객 안내 기준</small>
                   </span>
                 </div>
                 <div className="adm-order-queue-actions">
@@ -713,9 +687,6 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
                             localMode={localMode}
                           />
                         ) : null}
-                        {["paid", "product_paid"].includes(String(order.status)) && (
-                          <OrderAssignmentButton compact orderId={order.id} orderNumber={order.order_number} orderStatus={order.status} jobs={Array.isArray(order.jobs) ? order.jobs : []} technicians={technicians} localMode={localMode} />
-                        )}
                         <Link className="adm-btn adm-btn-secondary adm-btn-sm" href={`/admin/orders/${order.id}`}>수정</Link>
                         <OrderTrashActions compact orderId={order.id} orderNumber={order.order_number} localMode={localMode} />
                       </>

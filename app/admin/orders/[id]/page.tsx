@@ -19,7 +19,7 @@ import {
   formatOrderStatus,
   formatServiceName
 } from "@/lib/format";
-import { OrderAssignmentButton, OrderScheduleConfirmButton } from "../order-assignment-client";
+import { OrderScheduleConfirmButton } from "../order-assignment-client";
 import { OrderCustomerLinkCopy } from "../order-customer-link-client";
 import { OrderEditPanel } from "../order-edit-panel-client";
 import { OrderBankTransferConfirmButton } from "../order-payment-actions-client";
@@ -102,12 +102,9 @@ async function getOrder(id: string) {
       ),
       jobs(
         id,
-        technician_id,
-        assigned_technician_name,
         scheduled_at,
         status,
-        created_at,
-        technicians(id, name)
+        created_at
       ),
       media(
         id,
@@ -168,16 +165,6 @@ async function getOrderDiagnoses(orderId: string) {
     .select("id,image_urls,photos,created_at")
     .eq("order_id", orderId)
     .order("created_at", { ascending: false });
-  return data ?? [];
-}
-
-async function getActiveTechnicians() {
-  if (!hasSupabaseEnv()) return [];
-  const { data } = await getSupabaseAdmin()
-    .from("technicians")
-    .select("id,name,region,is_active")
-    .eq("is_active", true)
-    .order("name", { ascending: true });
   return data ?? [];
 }
 
@@ -346,7 +333,7 @@ function paymentOperationLabel(order: any, payment: any) {
 function paymentOperationHelp(order: any, payment: any) {
   const onsiteAmount = Number(payment?.onsite_payment_amount ?? order?.onsite_payment_amount ?? 0);
   if (payment?.status === "done" || order?.status === "paid" || order?.status === "product_paid") {
-    return onsiteAmount > 0 ? `현장결제 ${formatKRW(onsiteAmount)} 예정` : "기사 배정 또는 방문 확정으로 진행합니다.";
+    return onsiteAmount > 0 ? `현장결제 ${formatKRW(onsiteAmount)} 예정` : "방문 일정 확인으로 진행합니다.";
   }
   if (isBankTransfer(payment) && ["pending", "ready"].includes(String(payment?.status ?? ""))) {
     return "입금 내역 확인 후 입금 확인을 누르면 다음 단계로 이동합니다.";
@@ -363,14 +350,9 @@ function canConfirmBankTransfer(order: any, payment: any) {
   );
 }
 
-function assignedTechnician(order: any) {
-  const job = asArray(order.jobs).find((item: any) => item.technicians?.name || item.assigned_technician_name || item.technician_id);
-  return job?.technicians?.name ?? job?.assigned_technician_name ?? "미배정";
-}
-
-function activeAssignedJob(order: any) {
+function activeVisitJob(order: any) {
   return asArray(order.jobs)
-    .filter((item: any) => item.status !== "cancelled" && (item.technicians?.name || item.assigned_technician_name || item.technician_id))
+    .filter((item: any) => item.status !== "cancelled")
     .sort((a: any, b: any) => String(b.scheduled_at ?? b.created_at ?? "").localeCompare(String(a.scheduled_at ?? a.created_at ?? "")))[0] ?? null;
 }
 
@@ -424,7 +406,7 @@ function currentAction(order: any) {
   const payments = asArray(order.payments);
   const money = paymentBreakdown(order);
   const photos = photoCount(order);
-  const hasAssignedJob = jobs.some((job: any) => Boolean(job.technician_id || job.assigned_technician_name));
+  const hasScheduledJob = jobs.some((job: any) => Boolean(job.scheduled_at));
   const hasAcceptedQuote = quotes.some((quote: any) => Boolean(quote.accepted_at));
   const hasDonePayment = payments.some((payment: any) => payment.status === "done");
   const status = String(order.status ?? "inquiry");
@@ -453,15 +435,15 @@ function currentAction(order: any) {
   if (status === "payment_pending" || status === "pending_product_payment") {
     return {
       title: "사진 확인 및 제품값 입금 확인",
-      summary: `접수 사진 ${photos}장과 선택 제품을 확인하고, 제품값 ${formatKRW(money.productAmount)} 입금 내역을 확인한 뒤 기사 배정 단계로 넘깁니다.`,
+      summary: `접수 사진 ${photos}장과 선택 제품을 확인하고, 제품값 ${formatKRW(money.productAmount)} 입금 내역을 확인합니다.`,
       badge: "입금"
     };
   }
   if (status === "paid" || status === "product_paid" || hasDonePayment) {
     return {
-      title: hasAssignedJob ? "방문 확정 필요" : "기사 배정 필요",
-      summary: hasAssignedJob ? `기사는 배정되었습니다. 현장 시공비 ${formatKRW(money.onsiteAmount)} 예정 금액과 방문 시간을 확인한 뒤 방문 확정을 눌러주세요.` : `제품값 입금 완료 주문입니다. 현장 시공비 ${formatKRW(money.onsiteAmount)} 예정 금액을 확인하고 기사를 배정해야 합니다.`,
-      badge: "배정"
+      title: hasScheduledJob ? "방문 확정 필요" : "방문 일정 확인 필요",
+      summary: hasScheduledJob ? `현장 시공비 ${formatKRW(money.onsiteAmount)} 예정 금액과 방문 시간을 확인한 뒤 방문 확정을 눌러주세요.` : `제품값 입금 완료 주문입니다. 현장 시공비 ${formatKRW(money.onsiteAmount)} 예정 금액과 방문 일정을 확인해야 합니다.`,
+      badge: "방문"
     };
   }
   if (status === "scheduled" || status === "in_progress") {
@@ -502,7 +484,7 @@ function currentAction(order: any) {
 export default async function AdminOrderDetailPage({ params }: PageProps) {
   const { id } = await params;
   const localMode = !hasSupabaseEnv();
-  const [order, technicians, diagnoses] = await Promise.all([getOrder(id), getActiveTechnicians(), getOrderDiagnoses(id)]);
+  const [order, diagnoses] = await Promise.all([getOrder(id), getOrderDiagnoses(id)]);
   if (!order) return <div className="adm-empty"><div className="adm-empty-title">주문을 찾을 수 없어요.</div></div>;
   const media = asArray(order.media);
   const skus = Array.isArray(order.skus) ? order.skus : [];
@@ -512,7 +494,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
   const customer = customerRecord(order);
   const home = homeRecord(order);
   const orderForEdit = { ...order, customers: customer, homes: home };
-  const activeJob = activeAssignedJob(order);
+  const activeJob = activeVisitJob(order);
   const payment = latestPayment(order);
   const showBankTransferConfirm = canConfirmBankTransfer(order, payment);
   const photoInputs = [
@@ -528,6 +510,10 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
   const money = paymentBreakdown(order);
   const selectedItems = quoteItems(order);
   const acceptedQuote = latestQuote(order);
+  const quoteMaterialAmount = Number(acceptedQuote?.total_material ?? money.productAmount ?? 0);
+  const quoteLaborAmount = Number(acceptedQuote ? Number(acceptedQuote.total_labor ?? 0) + Number(acceptedQuote.visit_fee ?? 0) : money.onsiteAmount);
+  const quoteDiscountAmount = Number(acceptedQuote?.discount ?? 0);
+  const quoteFinalAmount = Number(acceptedQuote?.total_final ?? money.total ?? 0);
   const lookupParams = new URLSearchParams({ orderNumber: order.order_number });
   if (customer?.name) lookupParams.set("name", customer.name);
   const customerLookupUrl = `${siteUrl()}/order-lookup?${lookupParams.toString()}`;
@@ -568,17 +554,21 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
             <small>제품값 {formatKRW(money.productAmount)} · {paymentOperationHelp(order, payment)}</small>
             <small>현금영수증 {cashReceiptTextFromOrder(order)}</small>
           </article>
-          <article className="adm-card adm-brief-card">
-            <span>담당</span>
-            <strong>{assignedTechnician(order)}</strong>
-            <small>{formatOrderStatus(asArray(order.jobs)[0]?.status ?? order.status)}</small>
-          </article>
         </section>
 
         <section className="adm-card adm-buildus-summary">
           <div className="adm-section-head">
             <div>
               <h2 className="adm-card-title">Build us Care 접수 요약</h2>
+              <p className="adm-muted">고객 접수 내용과 현재 적용된 견적 금액을 한 번에 확인합니다.</p>
+            </div>
+            <div className="adm-inline-actions">
+              <Link className="adm-btn adm-btn-secondary adm-btn-sm" href="/admin/quotes/list">
+                견적서 목록
+              </Link>
+              <Link className="adm-btn adm-btn-primary adm-btn-sm" href={`/admin/quotes?orderId=${encodeURIComponent(order.id)}`}>
+                견적서에서 수정
+              </Link>
             </div>
           </div>
           <div className="adm-buildus-metrics">
@@ -593,14 +583,26 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
               <small>{customerPhotos.length > 0 ? "사진 확인 가능" : "등록된 사진 없음"}</small>
             </span>
             <span>
-              <b>계좌이체 확인</b>
-              <strong>{formatKRW(money.productAmount)}</strong>
-              <small>{paymentOperationLabel(order, payment)}</small>
+              <b>제품값</b>
+              <strong>{formatKRW(quoteMaterialAmount)}</strong>
+              <small>계좌이체 기준</small>
             </span>
             <span>
-              <b>현장 시공비</b>
-              <strong>{formatKRW(money.onsiteAmount)}</strong>
+              <b>시공비</b>
+              <strong>{formatKRW(quoteLaborAmount)}</strong>
               <small>방문 시 현장 결제 예정</small>
+            </span>
+            {quoteDiscountAmount > 0 ? (
+              <span>
+                <b>할인</b>
+                <strong>{formatKRW(quoteDiscountAmount)}</strong>
+                <small>견적서 반영</small>
+              </span>
+            ) : null}
+            <span>
+              <b>최종 견적</b>
+              <strong>{formatKRW(quoteFinalAmount)}</strong>
+              <small>{acceptedQuote ? "견적서 기준" : "주문 금액 기준"}</small>
             </span>
             <span>
               <b>현금영수증</b>
@@ -613,60 +615,9 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
         {localMode ? (
           <section className="adm-card adm-admin-warning" role="status">
             <strong>로컬 확인 모드입니다.</strong>
-            <p>Supabase 연결 전에는 주문 상세를 읽기 전용으로 확인합니다. 상태 변경, 입금 확인, 기사 배정, 주문 수정, 테스트 전환, 삭제는 비활성입니다.</p>
+            <p>Supabase 연결 전에는 주문 상세를 읽기 전용으로 확인합니다. 상태 변경, 입금 확인, 주문 수정, 테스트 전환, 삭제는 비활성입니다.</p>
           </section>
         ) : null}
-
-        <section className="adm-card adm-buildus-summary">
-          <div className="adm-section-head">
-            <div>
-              <h2 className="adm-card-title">적용 견적</h2>
-              <p className="adm-muted">제품 주문 화면에서는 확정된 견적과 결제 기준만 확인합니다. 견적 작성과 수정은 견적서 메뉴에서 처리합니다.</p>
-            </div>
-            <div className="adm-inline-actions">
-              <Link className="adm-btn adm-btn-secondary adm-btn-sm" href="/admin/quotes/list">
-                견적서 목록
-              </Link>
-              <Link className="adm-btn adm-btn-primary adm-btn-sm" href={`/admin/quotes?orderId=${encodeURIComponent(order.id)}`}>
-                견적서에서 수정
-              </Link>
-            </div>
-          </div>
-          {acceptedQuote ? (
-            <div className="adm-buildus-metrics">
-              <span>
-                <b>견적 버전</b>
-                <strong>{acceptedQuote.version ? `${acceptedQuote.version}차` : "최신"}</strong>
-                <small>{acceptedQuote.accepted_at ? formatKRDateTime(acceptedQuote.accepted_at) : "확정 전"}</small>
-              </span>
-              <span>
-                <b>제품값</b>
-                <strong>{formatKRW(Number(acceptedQuote.total_material ?? money.productAmount))}</strong>
-                <small>계좌이체 기준</small>
-              </span>
-              <span>
-                <b>시공비</b>
-                <strong>{formatKRW(Number(acceptedQuote.total_labor ?? 0) + Number(acceptedQuote.visit_fee ?? 0))}</strong>
-                <small>현장 결제 기준</small>
-              </span>
-              <span>
-                <b>할인</b>
-                <strong>{formatKRW(Number(acceptedQuote.discount ?? 0))}</strong>
-                <small>견적서 반영</small>
-              </span>
-              <span>
-                <b>최종 견적</b>
-                <strong>{formatKRW(Number(acceptedQuote.total_final ?? money.total))}</strong>
-                <small>{selectedItems.length ? `${selectedItems.length}개 품목` : "품목 없음"}</small>
-              </span>
-            </div>
-          ) : (
-            <div className="adm-empty adm-empty-line">
-              <div className="adm-empty-title">적용된 견적이 없습니다.</div>
-              <p className="adm-muted">견적서 메뉴에서 이 주문 기준으로 견적을 작성하세요.</p>
-            </div>
-          )}
-        </section>
 
         {!isDeleted && (
           <section className="adm-detail-ops-grid">
@@ -675,7 +626,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
               <article className="adm-card adm-quick-panel">
                 <div>
                   <h2 className="adm-card-title">빠른 처리</h2>
-                  <p className="adm-muted">입금 확인, 기사 배정, 방문 확정처럼 운영자가 바로 처리할 항목만 모았습니다.</p>
+                  <p className="adm-muted">입금 확인과 방문 확정처럼 운영자가 바로 처리할 항목만 모았습니다.</p>
                 </div>
                 <div className="adm-quick-actions">
                   {showBankTransferConfirm ? (
@@ -686,26 +637,18 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
                       localMode={localMode}
                     />
                   ) : null}
-                  <OrderAssignmentButton
-                    orderId={order.id}
-                    orderNumber={order.order_number}
-                    orderStatus={order.status}
-                    jobs={asArray(order.jobs)}
-                    technicians={technicians}
-                    localMode={localMode}
-                  />
                   {String(order.status) !== "scheduled" && (
                     <OrderScheduleConfirmButton
                       orderId={order.id}
                       disabled={!activeJob || !activeJob?.scheduled_at}
-                      reason={!activeJob ? "방문 확정 전 담당 기사를 먼저 배정해주세요." : "방문 확정 전 방문 날짜와 시간대를 먼저 저장해주세요."}
+                      reason="방문 확정 전 방문 날짜와 시간대를 먼저 저장해주세요."
                       localMode={localMode}
                     />
                   )}
                 </div>
               </article>
             </div>
-            <OrderEditPanel order={orderForEdit} technicians={technicians} localMode={localMode} />
+            <OrderEditPanel order={orderForEdit} localMode={localMode} />
           </section>
         )}
 
@@ -741,7 +684,6 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
           </div>
           <div className="adm-admin-info-grid" style={{ marginTop: 12 }}>
             <span><b>현재 결제 상태</b><strong>{paymentOperationLabel(order, payment)}</strong></span>
-            {acceptedQuote ? <span><b>적용 견적</b><strong>{acceptedQuote.version ? `${acceptedQuote.version}차` : "최신"} · {acceptedQuote.accepted_at ? formatKRDateTime(acceptedQuote.accepted_at) : "확정 전"}</strong></span> : null}
             {cashReceiptTextFromOrder(order) !== "신청 안 함" ? <span><b>현금영수증</b><strong>{cashReceiptTextFromOrder(order)}</strong></span> : null}
           </div>
         </details>
