@@ -120,14 +120,14 @@ export async function GET(request: Request, context: Context) {
   }
 
   try {
-    const manualQuote = await fetchManualQuote(parsedId.data, accessToken);
-    if (manualQuote) {
-      return htmlResponse(buildQuoteDocumentHtml(buildManualQuoteDocumentInput(manualQuote)));
-    }
-
     const order = await fetchOrderQuote(parsedId.data, accessToken);
     if (order) {
       return htmlResponse(buildQuoteDocumentHtml(buildQuoteDocumentInputFromOrderStatus(order)));
+    }
+
+    const manualQuote = await fetchManualQuote(parsedId.data, accessToken);
+    if (manualQuote) {
+      return htmlResponse(buildQuoteDocumentHtml(buildManualQuoteDocumentInput(manualQuote)));
     }
 
     return htmlResponse(errorHtml("견적서를 찾을 수 없습니다", "링크가 만료되었거나 접근 정보가 올바르지 않습니다."), 404);
