@@ -519,6 +519,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
   );
   const quoteDiscountAmount = Number(acceptedQuote?.discount ?? 0);
   const quoteFinalAmount = Number(acceptedQuote?.total_final ?? money.total ?? 0);
+  const quoteDisposalPolicy = quoteDisposalAmount > 0 ? "기존 제품 수거/폐기 포함" : "고객 직접 처리 또는 폐기 비용 없음";
   const lookupParams = new URLSearchParams({ orderNumber: order.order_number });
   if (customer?.name) lookupParams.set("name", customer.name);
   const customerLookupUrl = `${siteUrl()}/order-lookup?${lookupParams.toString()}`;
@@ -600,7 +601,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
             <span>
               <b>폐기물 처리비</b>
               <strong>{formatKRW(quoteDisposalAmount)}</strong>
-              <small>{quoteDisposalAmount > 0 ? "견적서에 별도 반영" : "고객 직접 처리 또는 없음"}</small>
+              <small>{quoteDisposalPolicy}</small>
             </span>
             {quoteDiscountAmount > 0 ? (
               <span>
@@ -662,97 +663,121 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
           </section>
         )}
 
-        <details className="adm-card adm-details-card">
-          <summary>고객/방문</summary>
-          <div className="adm-admin-info-grid">
-            <span><b>고객 성함</b><strong>{customer?.name ?? "-"}</strong></span>
-            <span><b>연락처</b><strong>{customer?.phone ?? "-"}</strong></span>
-            <span><b>주소</b><strong>{[home?.address_full ?? customer?.address_full, home?.address_apt ?? customer?.address_apt].filter(Boolean).join(" ") || "-"}</strong></span>
-            <span><b>방문 일정</b><strong>{activeJob?.scheduled_at ? `${visitDateLabel(activeJob)} ${visitSlotLabel(activeJob)}` : "미정"}</strong></span>
-          </div>
-        </details>
-
-        <details className="adm-card adm-details-card">
-          <summary>제품/입금</summary>
-          {selectedItems.length ? (
-            <div className="adm-product-lines">
-              {selectedItems.map((item: any, index: number) => (
-                <article className="adm-product-line" key={`${item.sku ?? item.item_name ?? index}`}>
-                  <strong>{productLabel(item)}</strong>
-                  <small>{productSubLabel(item) || formatServiceName(item.sku ?? firstServiceCode(order))}</small>
-                  <em>{Number(item.qty ?? 1)}개 · 제품값 {formatKRW(Number(item.line_material ?? 0))} · 시공비 {formatKRW(Number(item.line_labor ?? 0) + Number(item.option_total ?? 0))}</em>
-                </article>
-              ))}
+        <section className="adm-detail-sections">
+          <article className="adm-card adm-detail-section-card">
+            <div className="adm-section-head">
+              <div>
+                <h2 className="adm-card-title">고객/방문</h2>
+                <p className="adm-muted">고객 연락처와 방문 일정 기준 정보입니다.</p>
+              </div>
             </div>
-          ) : skus.length ? skus.map((item: any, index: number) => (
-            <p key={`${item.sku ?? item.service_type ?? index}`}>{formatServiceName(item.service_type_code ?? item.sku ?? item.service_type ?? order.service_type_code)} × {item.qty ?? 1}</p>
-          )) : <p>{formatServiceName(firstServiceCode(order))} × 1</p>}
-          <div className="adm-money-split">
-            <span>제품값 계좌이체 <strong>{formatKRW(money.productAmount)}</strong></span>
-            <span>현장 시공비 <strong>{formatKRW(money.onsiteAmount)}</strong></span>
-            <span>총 예상 금액 <strong>{formatKRW(money.total)}</strong></span>
-          </div>
-          <div className="adm-admin-info-grid" style={{ marginTop: 12 }}>
-            <span><b>현재 결제 상태</b><strong>{paymentOperationLabel(order, payment)}</strong></span>
-            {cashReceiptTextFromOrder(order) !== "신청 안 함" ? <span><b>현금영수증</b><strong>{cashReceiptTextFromOrder(order)}</strong></span> : null}
-          </div>
-        </details>
+            <div className="adm-admin-info-grid">
+              <span><b>고객 성함</b><strong>{customer?.name ?? "-"}</strong></span>
+              <span><b>연락처</b><strong>{customer?.phone ?? "-"}</strong></span>
+              <span><b>주소</b><strong>{[home?.address_full ?? customer?.address_full, home?.address_apt ?? customer?.address_apt].filter(Boolean).join(" ") || "-"}</strong></span>
+              <span><b>방문 일정</b><strong>{activeJob?.scheduled_at ? `${visitDateLabel(activeJob)} ${visitSlotLabel(activeJob)}` : "미정"}</strong></span>
+            </div>
+          </article>
 
-        <details className="adm-card adm-details-card">
-          <summary>사진</summary>
-          <div className="adm-photo-grid">
-            {customerPhotos.length ? customerPhotos.map((photo) => (
-              isRenderablePhotoSrc(photo.src) ? (
-                <a className="adm-photo-item" href={photo.src ?? "#"} target="_blank" rel="noreferrer" key={photo.label}>
-                  <img src={photo.src ?? ""} alt="고객 접수 사진" />
-                </a>
-              ) : (
-                <div className="adm-photo-item adm-photo-placeholder" key={photo.label}>
-                  {photo.label}
-                </div>
-              )
-            )) : <p className="adm-photo-empty">등록 사진 없음</p>}
-          </div>
-        </details>
-
-        <details className="adm-card adm-details-card">
-          <summary>관리</summary>
-          <div className="adm-stack">
-            <section className="adm-card adm-quick-panel">
+          <article className="adm-card adm-detail-section-card adm-detail-section-wide">
+            <div className="adm-section-head">
               <div>
-                <h2 className="adm-card-title">고객 조회 링크</h2>
-                <p className="adm-muted">고객에게 전달한 주문조회 링크를 다시 복사합니다.</p>
+                <h2 className="adm-card-title">제품/입금</h2>
+                <p className="adm-muted">견적서 기준 제품, 시공비, 폐기물 처리비와 결제 상태입니다.</p>
               </div>
-              <OrderCustomerLinkCopy
-                orderNumber={order.order_number}
-                lookupUrl={customerLookupUrl}
-                customerName={customer?.name}
-              />
-            </section>
-            {isTest ? (
-              <section className="adm-card adm-test-panel is-test">
+            </div>
+            {selectedItems.length ? (
+              <div className="adm-product-lines">
+                {selectedItems.map((item: any, index: number) => (
+                  <article className="adm-product-line" key={`${item.sku ?? item.item_name ?? index}`}>
+                    <strong>{productLabel(item)}</strong>
+                    <small>{productSubLabel(item) || formatServiceName(item.sku ?? firstServiceCode(order))}</small>
+                    <em>{Number(item.qty ?? 1)}개 · 제품값 {formatKRW(Number(item.line_material ?? 0))} · 시공비 {formatKRW(Number(item.line_labor ?? 0) + Number(item.option_total ?? 0))}</em>
+                  </article>
+                ))}
+              </div>
+            ) : skus.length ? skus.map((item: any, index: number) => (
+              <p key={`${item.sku ?? item.service_type ?? index}`}>{formatServiceName(item.service_type_code ?? item.sku ?? item.service_type ?? order.service_type_code)} × {item.qty ?? 1}</p>
+            )) : <p>{formatServiceName(firstServiceCode(order))} × 1</p>}
+            <div className="adm-money-split adm-money-split-4">
+              <span>제품값 계좌이체 <strong>{formatKRW(quoteMaterialAmount)}</strong></span>
+              <span>시공비 <strong>{formatKRW(quoteLaborAmount)}</strong></span>
+              <span>폐기물 처리비 <strong>{formatKRW(quoteDisposalAmount)}</strong><small>{quoteDisposalPolicy}</small></span>
+              <span>최종 견적 <strong>{formatKRW(quoteFinalAmount)}</strong></span>
+            </div>
+            <div className="adm-admin-info-grid" style={{ marginTop: 12 }}>
+              <span><b>현재 결제 상태</b><strong>{paymentOperationLabel(order, payment)}</strong></span>
+              <span><b>입금/결제 안내</b><strong>{paymentOperationHelp(order, payment)}</strong></span>
+              {cashReceiptTextFromOrder(order) !== "신청 안 함" ? <span><b>현금영수증</b><strong>{cashReceiptTextFromOrder(order)}</strong></span> : null}
+            </div>
+          </article>
+
+          <article className="adm-card adm-detail-section-card">
+            <div className="adm-section-head">
+              <div>
+                <h2 className="adm-card-title">사진</h2>
+                <p className="adm-muted">고객이 첨부한 접수 사진입니다.</p>
+              </div>
+            </div>
+            <div className="adm-photo-grid">
+              {customerPhotos.length ? customerPhotos.map((photo) => (
+                isRenderablePhotoSrc(photo.src) ? (
+                  <a className="adm-photo-item" href={photo.src ?? "#"} target="_blank" rel="noreferrer" key={photo.label}>
+                    <img src={photo.src ?? ""} alt="고객 접수 사진" />
+                  </a>
+                ) : (
+                  <div className="adm-photo-item adm-photo-placeholder" key={photo.label}>
+                    {photo.label}
+                  </div>
+                )
+              )) : <p className="adm-photo-empty">등록 사진 없음</p>}
+            </div>
+          </article>
+
+          <article className="adm-card adm-detail-section-card">
+            <div className="adm-section-head">
+              <div>
+                <h2 className="adm-card-title">관리</h2>
+                <p className="adm-muted">고객 조회 링크와 주문 관리 작업입니다.</p>
+              </div>
+            </div>
+            <div className="adm-stack">
+              <section className="adm-quick-panel adm-inline-panel">
                 <div>
-                  <h2 className="adm-card-title">테스트 주문</h2>
-                  <p className="adm-muted">운영 통계에서 제외되는 테스트 데이터입니다.</p>
-                  {order.test_note ? <p className="adm-trash-meta">테스트 메모: {order.test_note}</p> : null}
+                  <h3 className="adm-sub-card-title">고객 조회 링크</h3>
+                  <p className="adm-muted">고객에게 전달한 주문조회 링크를 다시 복사합니다.</p>
                 </div>
-                <OrderTestActions isTest={isTest} orderId={order.id} orderNumber={order.order_number} localMode={localMode} />
+                <OrderCustomerLinkCopy
+                  orderNumber={order.order_number}
+                  lookupUrl={customerLookupUrl}
+                  customerName={customer?.name}
+                />
               </section>
-            ) : null}
-            <section className={isDeleted ? "adm-card adm-trash-panel is-deleted" : "adm-card adm-trash-panel"}>
-              <div>
-                <h2 className="adm-card-title">{isDeleted ? "휴지통 주문" : "주문 삭제 관리"}</h2>
-                <p className="adm-muted">
-                  {isDeleted
-                    ? `이 주문은 ${formatKRDateTime(order.deleted_at)}에 휴지통으로 이동했습니다.`
-                    : "중복 또는 잘못 접수된 주문일 때만 휴지통으로 이동하세요."}
-                </p>
-                {order.deleted_reason ? <p className="adm-trash-meta">삭제 메모: {order.deleted_reason}</p> : null}
-              </div>
-              <OrderTrashActions mode={isDeleted ? "trash" : "active"} orderId={order.id} orderNumber={order.order_number} localMode={localMode} />
-            </section>
-          </div>
-        </details>
+              {isTest ? (
+                <section className="adm-test-panel is-test adm-inline-panel">
+                  <div>
+                    <h3 className="adm-sub-card-title">테스트 주문</h3>
+                    <p className="adm-muted">운영 통계에서 제외되는 테스트 데이터입니다.</p>
+                    {order.test_note ? <p className="adm-trash-meta">테스트 메모: {order.test_note}</p> : null}
+                  </div>
+                  <OrderTestActions isTest={isTest} orderId={order.id} orderNumber={order.order_number} localMode={localMode} />
+                </section>
+              ) : null}
+              <section className={isDeleted ? "adm-trash-panel is-deleted adm-inline-panel" : "adm-trash-panel adm-inline-panel"}>
+                <div>
+                  <h3 className="adm-sub-card-title">{isDeleted ? "휴지통 주문" : "주문 삭제 관리"}</h3>
+                  <p className="adm-muted">
+                    {isDeleted
+                      ? `이 주문은 ${formatKRDateTime(order.deleted_at)}에 휴지통으로 이동했습니다.`
+                      : "중복 또는 잘못 접수된 주문일 때만 휴지통으로 이동하세요."}
+                  </p>
+                  {order.deleted_reason ? <p className="adm-trash-meta">삭제 메모: {order.deleted_reason}</p> : null}
+                </div>
+                <OrderTrashActions mode={isDeleted ? "trash" : "active"} orderId={order.id} orderNumber={order.order_number} localMode={localMode} />
+              </section>
+            </div>
+          </article>
+        </section>
       </div>
     </>
   );
