@@ -7,9 +7,60 @@ type Props = {
   quoteId: string;
 };
 
+type OrderAlimtalkProps = {
+  orderId: string;
+};
+
 type DeleteProps = Props & {
   quoteNumber?: string | null;
 };
+
+function AlimtalkSendButton({ endpoint, disabledReason }: { endpoint: string; disabledReason?: string | null }) {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function sendAlimtalk() {
+    if (disabledReason) {
+      setMessage(disabledReason);
+      return;
+    }
+
+    setLoading(true);
+    setMessage("");
+    try {
+      const response = await fetch(endpoint, { method: "POST" });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error?.message ?? "카카오 알림톡 발송에 실패했습니다.");
+      }
+
+      setMessage("카카오 알림톡을 발송했습니다.");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "카카오 알림톡 발송에 실패했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <span className="adm-inline-action-stack">
+      <button className="adm-btn adm-btn-secondary" type="button" onClick={sendAlimtalk} disabled={loading}>
+        {loading ? "발송 중..." : "카톡 발송"}
+      </button>
+      {message ? <small className="adm-action-message">{message}</small> : null}
+    </span>
+  );
+}
+
+export function OrderQuoteAlimtalkButton({ orderId }: OrderAlimtalkProps) {
+  return <AlimtalkSendButton endpoint={`/api/admin/orders/${encodeURIComponent(orderId)}/quote-alimtalk`} />;
+}
+
+export function ManualQuoteAlimtalkButton({ quoteId }: Props) {
+  return <AlimtalkSendButton endpoint={`/api/admin/manual-quotes/${encodeURIComponent(quoteId)}/quote-alimtalk`} />;
+}
 
 export function ManualQuoteConvertButton({ quoteId }: Props) {
   const router = useRouter();

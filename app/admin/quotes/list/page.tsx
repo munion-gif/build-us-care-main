@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { formatKRDateTime, formatKRW, formatOrderStatus, formatServiceName } from "@/lib/format";
 import { LocalQuoteDraftsClient } from "./local-quote-drafts-client";
-import { ManualQuoteConvertButton, ManualQuoteDeleteButton } from "./manual-quote-convert-button";
+import { ManualQuoteAlimtalkButton, ManualQuoteConvertButton, ManualQuoteDeleteButton, OrderQuoteAlimtalkButton } from "./manual-quote-convert-button";
 import {
   customerName,
   customerPhone,
@@ -60,6 +60,7 @@ function QuoteListRow({ order, selected }: { order: any; selected?: boolean }) {
         <Link className="adm-btn adm-btn-secondary" href={`/admin/orders/${order.id}`}>
           주문 상세
         </Link>
+        {quote ? <OrderQuoteAlimtalkButton orderId={order.id} /> : null}
       </div>
     </article>
   );
@@ -116,6 +117,7 @@ function ManualQuoteListRow({ quote }: { quote: any }) {
         ) : (
           <ManualQuoteConvertButton quoteId={quote.id} />
         )}
+        <ManualQuoteAlimtalkButton quoteId={quote.id} />
         <ManualQuoteDeleteButton quoteId={quote.id} quoteNumber={quote.quote_number} />
       </div>
     </article>
