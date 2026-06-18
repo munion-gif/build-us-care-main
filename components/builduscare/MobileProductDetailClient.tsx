@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, ChevronLeft, ChevronRight, Heart, Info, Menu, MessageCircle } from "lucide-react";
+import { ArrowRight, ChevronLeft, Heart, Info, Menu, MessageCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   buildImageAlt,
@@ -176,10 +176,6 @@ function displayColor(value: string) {
   return usefulColor(color) ? color : "기본";
 }
 
-function photoCheckHref(itemLabel: string) {
-  return `/photo-check?item=${encodeURIComponent(itemLabel)}`;
-}
-
 function infoKind(product: BuilduscarePublicProduct, category: BuilduscareCategory) {
   if (product.categoryName) {
     if (category.serviceCode === "basin_replace") return product.categoryName.replace(/\s*세면기$/u, "");
@@ -270,11 +266,10 @@ export function MobileProductDetailClient({ category, product, products }: Mobil
       </header>
       {menuOpen && (
         <nav className="mpd-menu" aria-label="모바일 메뉴">
-          <Link className="mpd-menu-link" href="/service"><span>서비스 소개</span><ChevronRight aria-hidden="true" /></Link>
-          <Link className="mpd-menu-link" href={photoCheckHref(category.itemLabel)}><span>사진으로 확인하기</span><ChevronRight aria-hidden="true" /></Link>
-          <Link className="mpd-menu-link" href="/products"><span>바꿀 수 있는 제품 보기</span><ChevronRight aria-hidden="true" /></Link>
-          <Link className="mpd-menu-link" href="/order-lookup"><span>내 주문 · 진행현황</span><ChevronRight aria-hidden="true" /></Link>
-          <Link className="mpd-menu-link" href="/as-request"><span>A/S 접수</span><ChevronRight aria-hidden="true" /></Link>
+          <Link className="mpd-menu-link" href="/service"><span>서비스</span></Link>
+          <Link className="mpd-menu-link" href="/products"><span>제품</span></Link>
+          <Link className="mpd-menu-link" href="/photo-check"><span>사진확인</span></Link>
+          <Link className="mpd-menu-link" href="/order-lookup"><span>주문조회</span></Link>
         </nav>
       )}
 

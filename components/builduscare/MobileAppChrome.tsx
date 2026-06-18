@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, ClipboardList, Home, Menu, MessageCircle, Search, UserRound } from "lucide-react";
+import { ChevronLeft, ClipboardList, Home, Menu, MessageCircle, Search, UserRound } from "lucide-react";
 import { useState } from "react";
 
 type MobileAppBarProps = {
@@ -17,15 +17,11 @@ type MobileBottomNavProps = {
   active?: "home" | "lookup" | "chat" | "account";
 };
 
-const primaryMenuLinks = [
-  ["서비스 소개", "/service"],
-  ["사진으로 확인하기", "/photo-check"],
-  ["바꿀 수 있는 제품 보기", "/products"]
-] as const;
-
-const supportMenuLinks = [
-  ["내 주문 · 진행현황", "/order-lookup"],
-  ["A/S 접수", "/as-request"]
+const mobileMenuLinks = [
+  ["서비스", "/service"],
+  ["제품", "/products"],
+  ["사진확인", "/photo-check"],
+  ["주문조회", "/order-lookup"]
 ] as const;
 
 export function MobileAppBar({ title, subtitle, backHref = "/", showBack = true, showChat = false, showSearch = false }: MobileAppBarProps) {
@@ -58,22 +54,11 @@ export function MobileAppBar({ title, subtitle, backHref = "/", showBack = true,
       </div>
       {open && (
         <nav className="mobile-app-menu" aria-label="모바일 메뉴">
-          {primaryMenuLinks.map(([label, href]) => (
+          {mobileMenuLinks.map(([label, href]) => (
             <Link key={href} className="mobile-menu-link" href={href} onClick={() => setOpen(false)}>
               <span>{label}</span>
-              <ChevronRight aria-hidden="true" />
             </Link>
           ))}
-          {supportMenuLinks.map(([label, href]) => (
-            <Link key={href} className="mobile-menu-link" href={href} onClick={() => setOpen(false)}>
-              <span>{label}</span>
-              <ChevronRight aria-hidden="true" />
-            </Link>
-          ))}
-          <a className="mobile-menu-kakao" href="https://pf.kakao.com/_PxkzsX" target="_blank" rel="noreferrer" onClick={() => setOpen(false)}>
-            <MessageCircle aria-hidden="true" />
-            카카오톡 상담
-          </a>
         </nav>
       )}
     </div>
