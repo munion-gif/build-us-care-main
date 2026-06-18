@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Heart, Info, Menu, MessageCircle } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, Heart, Info, Menu, MessageCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
   buildImageAlt,
@@ -24,7 +24,7 @@ import {
 import { featureSpec, primarySpec, skuSpec } from "@/components/builduscare/product-detail-utils";
 import type { ProductSelection } from "@/components/builduscare/product-types";
 import type { BuilduscarePublicProduct } from "@/lib/builduscare-public-products";
-import { BUILDUSCARE_CATEGORIES, type BuilduscareCategory } from "@/lib/builduscare-public-routes";
+import type { BuilduscareCategory } from "@/lib/builduscare-public-routes";
 
 type StoredSelection = {
   id?: string;
@@ -189,32 +189,6 @@ function infoKind(product: BuilduscarePublicProduct, category: BuilduscareCatego
   return category.title;
 }
 
-const mobileDetailProductGroups: Record<string, Array<{ label: string; value: string }>> = {
-  toilet: [
-    { label: "원피스", value: "원피스" },
-    { label: "투피스", value: "투피스" }
-  ],
-  washbasin: [
-    { label: "반다리", value: "반다리 세면기" },
-    { label: "긴다리", value: "긴다리 세면기" }
-  ],
-  faucet: [
-    { label: "세면수전", value: "세면수전" },
-    { label: "주방수전", value: "주방수전" },
-    { label: "샤워욕조", value: "샤워욕조 수전" },
-    { label: "레인샤워", value: "레인샤워수전" },
-    { label: "샤워수전", value: "샤워수전" }
-  ],
-  "bath-accessory": [
-    { label: "세트", value: "욕실 악세서리 세트" },
-    { label: "선반·수건걸이", value: "선반 및 수건걸이" }
-  ]
-};
-
-function productGroupHref(slug: string, value?: string) {
-  return value ? `/products/${slug}?group=${encodeURIComponent(value)}` : `/products/${slug}`;
-}
-
 export function MobileProductDetailClient({ category, product, products }: MobileProductDetailClientProps) {
   const router = useRouter();
   const [storedSelections, setStoredSelections] = useState<ProductSelection[]>([]);
@@ -222,7 +196,6 @@ export function MobileProductDetailClient({ category, product, products }: Mobil
   const [activeProduct, setActiveProduct] = useState(initialProduct);
   const [selectedColor, setSelectedColor] = useState(selectedColorFromState(initialProduct, storedSelections) ?? selectedColorOf(initialProduct));
   const [menuOpen, setMenuOpen] = useState(false);
-  const [productMenuOpen, setProductMenuOpen] = useState(false);
 
   useEffect(() => {
     setStoredSelections(restoreSelections(readStoredSelections(), products));
@@ -300,26 +273,6 @@ export function MobileProductDetailClient({ category, product, products }: Mobil
           <Link className="mpd-menu-link" href="/service"><span>서비스 소개</span><ChevronRight aria-hidden="true" /></Link>
           <Link className="mpd-menu-link" href={photoCheckHref(category.itemLabel)}><span>사진으로 확인하기</span><ChevronRight aria-hidden="true" /></Link>
           <Link className="mpd-menu-link" href="/products"><span>바꿀 수 있는 제품 보기</span><ChevronRight aria-hidden="true" /></Link>
-          <button className={`mpd-menu-toggle${productMenuOpen ? " open" : ""}`} type="button" aria-expanded={productMenuOpen} onClick={() => setProductMenuOpen((value) => !value)}>
-            <span>교체 품목</span><ChevronDown aria-hidden="true" />
-          </button>
-          {productMenuOpen && (
-            <div className="mpd-menu-products">
-              {BUILDUSCARE_CATEGORIES.map((item) => (
-                <div key={item.slug} className="mpd-menu-product-group">
-                  <Link className="mpd-menu-product-title" href={productGroupHref(item.slug)}>{item.title}</Link>
-                  {(mobileDetailProductGroups[item.slug] ?? []).length > 0 && (
-                    <div className="mpd-menu-subgroups">
-                      {(mobileDetailProductGroups[item.slug] ?? []).map((group) => (
-                        <Link key={group.value} href={productGroupHref(item.slug, group.value)}>{group.label}</Link>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-              <Link className="strong" href="/products">전체 제품 보기</Link>
-            </div>
-          )}
           <Link className="mpd-menu-link" href="/order-lookup"><span>내 주문 · 진행현황</span><ChevronRight aria-hidden="true" /></Link>
           <Link className="mpd-menu-link" href="/as-request"><span>A/S 접수</span><ChevronRight aria-hidden="true" /></Link>
         </nav>
