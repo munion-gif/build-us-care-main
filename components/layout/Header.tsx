@@ -35,12 +35,7 @@ export function Header({ kakaoUrl }: HeaderProps) {
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   const hasMenuItems = navItems.length > 0 && !isPaymentHeader;
   const showDesktopKakao = isPaymentHeader;
-  const isServiceHeader = pathname.startsWith("/service");
-  const isNarrowHeader =
-    pathname.startsWith("/photo-check") ||
-    pathname.startsWith("/order-lookup") ||
-    pathname.startsWith("/order-status");
-  const headerClassName = `global-header${isServiceHeader ? " header-service" : ""}${isNarrowHeader ? " header-narrow" : ""}${isPaymentHeader ? " header-payment" : ""}`;
+  const headerClassName = `global-header${isPaymentHeader ? " header-payment" : ""}`;
 
   useEffect(() => {
     setOpen(false);
@@ -108,12 +103,6 @@ const headerCss = `
     border-bottom: 1px solid rgba(120, 120, 140, 0.14);
     background: rgba(245, 245, 247, 0.82);
     backdrop-filter: blur(20px) saturate(1.7);
-  }
-  .global-header.header-service {
-    --header-content-max: 1320px;
-  }
-  .global-header.header-narrow {
-    --header-content-max: 760px;
   }
   .header-inner {
     width: min(var(--header-content-max), 100%);
