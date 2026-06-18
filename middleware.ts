@@ -59,13 +59,6 @@ const retiredPublicApiPrefixes = [
   "/api/reservations"
 ];
 
-const retiredStaticPublicPaths = new Set([
-  "/app-web.html",
-  "/app-mobile.html",
-  "/app-web.js",
-  "/app.js"
-]);
-
 const legacyPublicRedirects = new Map<string, string>([
   ["/services", "/"],
   ["/cases", "/"],
@@ -99,10 +92,6 @@ export async function middleware(req: NextRequest) {
   }
 
   if (req.nextUrl.pathname === "/builduscare" || req.nextUrl.pathname.startsWith("/builduscare/")) {
-    return new NextResponse("Not Found", { status: 404 });
-  }
-
-  if (retiredStaticPublicPaths.has(req.nextUrl.pathname)) {
     return new NextResponse("Not Found", { status: 404 });
   }
 
@@ -186,10 +175,6 @@ export const config = {
     "/order-status",
     "/builduscare/:path*",
     "/builduscare",
-    "/app-web.html",
-    "/app-mobile.html",
-    "/app-web.js",
-    "/app.js",
     "/api/cases/:path*",
     "/api/diagnoses/:path*",
     "/api/faqs/:path*",
