@@ -637,7 +637,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
               <article className="adm-card adm-quick-panel">
                 <div>
                   <h2 className="adm-card-title">빠른 처리</h2>
-                  <p className="adm-muted">입금 확인과 방문 확정처럼 운영자가 바로 처리할 항목만 모았습니다.</p>
+                  <p className="adm-muted">입금 확인, 방문 확정, 고객 안내 링크처럼 바로 처리할 항목만 모았습니다.</p>
                 </div>
                 <div className="adm-quick-actions">
                   {showBankTransferConfirm ? (
@@ -656,6 +656,12 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
                       localMode={localMode}
                     />
                   )}
+                  <OrderCustomerLinkCopy
+                    orderNumber={order.order_number}
+                    lookupUrl={customerLookupUrl}
+                    customerName={customer?.name}
+                    variant="compact"
+                  />
                 </div>
               </article>
             </div>
@@ -733,51 +739,35 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
               )) : <p className="adm-photo-empty">등록 사진 없음</p>}
             </div>
           </article>
-
-          <article className="adm-card adm-detail-section-card">
-            <div className="adm-section-head">
-              <div>
-                <h2 className="adm-card-title">관리</h2>
-                <p className="adm-muted">고객 조회 링크와 주문 관리 작업입니다.</p>
-              </div>
-            </div>
-            <div className="adm-stack">
-              <section className="adm-quick-panel adm-inline-panel">
-                <div>
-                  <h3 className="adm-sub-card-title">고객 조회 링크</h3>
-                  <p className="adm-muted">고객에게 전달한 주문조회 링크를 다시 복사합니다.</p>
-                </div>
-                <OrderCustomerLinkCopy
-                  orderNumber={order.order_number}
-                  lookupUrl={customerLookupUrl}
-                  customerName={customer?.name}
-                />
-              </section>
-              {isTest ? (
-                <section className="adm-test-panel is-test adm-inline-panel">
-                  <div>
-                    <h3 className="adm-sub-card-title">테스트 주문</h3>
-                    <p className="adm-muted">운영 통계에서 제외되는 테스트 데이터입니다.</p>
-                    {order.test_note ? <p className="adm-trash-meta">테스트 메모: {order.test_note}</p> : null}
-                  </div>
-                  <OrderTestActions isTest={isTest} orderId={order.id} orderNumber={order.order_number} localMode={localMode} />
-                </section>
-              ) : null}
-              <section className={isDeleted ? "adm-trash-panel is-deleted adm-inline-panel" : "adm-trash-panel adm-inline-panel"}>
-                <div>
-                  <h3 className="adm-sub-card-title">{isDeleted ? "휴지통 주문" : "주문 삭제 관리"}</h3>
-                  <p className="adm-muted">
-                    {isDeleted
-                      ? `이 주문은 ${formatKRDateTime(order.deleted_at)}에 휴지통으로 이동했습니다.`
-                      : "중복 또는 잘못 접수된 주문일 때만 휴지통으로 이동하세요."}
-                  </p>
-                  {order.deleted_reason ? <p className="adm-trash-meta">삭제 메모: {order.deleted_reason}</p> : null}
-                </div>
-                <OrderTrashActions mode={isDeleted ? "trash" : "active"} orderId={order.id} orderNumber={order.order_number} localMode={localMode} />
-              </section>
-            </div>
-          </article>
         </section>
+
+        <details className="adm-card adm-details-card adm-danger-details">
+          <summary>기타 관리</summary>
+          <div className="adm-stack">
+            {isTest ? (
+              <section className="adm-test-panel is-test adm-inline-panel">
+                <div>
+                  <h3 className="adm-sub-card-title">테스트 주문</h3>
+                  <p className="adm-muted">운영 통계에서 제외되는 테스트 데이터입니다.</p>
+                  {order.test_note ? <p className="adm-trash-meta">테스트 메모: {order.test_note}</p> : null}
+                </div>
+                <OrderTestActions isTest={isTest} orderId={order.id} orderNumber={order.order_number} localMode={localMode} />
+              </section>
+            ) : null}
+            <section className={isDeleted ? "adm-trash-panel is-deleted adm-inline-panel" : "adm-trash-panel adm-inline-panel"}>
+              <div>
+                <h3 className="adm-sub-card-title">{isDeleted ? "휴지통 주문" : "주문 삭제 관리"}</h3>
+                <p className="adm-muted">
+                  {isDeleted
+                    ? `이 주문은 ${formatKRDateTime(order.deleted_at)}에 휴지통으로 이동했습니다.`
+                    : "중복 또는 잘못 접수된 주문일 때만 휴지통으로 이동하세요."}
+                </p>
+                {order.deleted_reason ? <p className="adm-trash-meta">삭제 메모: {order.deleted_reason}</p> : null}
+              </div>
+              <OrderTrashActions mode={isDeleted ? "trash" : "active"} orderId={order.id} orderNumber={order.order_number} localMode={localMode} />
+            </section>
+          </div>
+        </details>
       </div>
     </>
   );

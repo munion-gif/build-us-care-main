@@ -6,9 +6,10 @@ type Props = {
   orderNumber: string;
   lookupUrl: string;
   customerName?: string | null;
+  variant?: "card" | "compact";
 };
 
-export function OrderCustomerLinkCopy({ orderNumber, lookupUrl, customerName }: Props) {
+export function OrderCustomerLinkCopy({ orderNumber, lookupUrl, customerName, variant = "card" }: Props) {
   const [message, setMessage] = useState("");
   const guideText = useMemo(() => {
     const nameLine = customerName ? `${customerName} 고객님, ` : "";
@@ -27,6 +28,20 @@ export function OrderCustomerLinkCopy({ orderNumber, lookupUrl, customerName }: 
     } catch {
       setMessage("복사에 실패했습니다. 링크를 직접 선택해서 복사해주세요.");
     }
+  }
+
+  if (variant === "compact") {
+    return (
+      <>
+        <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={() => copy(guideText, "카카오톡 안내문을 복사했습니다.")}>
+          카톡 안내문 복사
+        </button>
+        <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={() => copy(lookupUrl, "조회 링크를 복사했습니다.")}>
+          조회 링크 복사
+        </button>
+        {message ? <span className="adm-form-message adm-inline-copy-message">{message}</span> : null}
+      </>
+    );
   }
 
   return (

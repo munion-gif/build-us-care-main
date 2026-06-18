@@ -281,6 +281,8 @@ textarea.adm-input { min-height: 96px; resize: vertical; line-height: 1.5; }
 .adm-quick-panel { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: center; border-color: rgba(1,105,111,0.16); }
 .adm-quick-panel p { margin: 0; font-size: 0.8125rem; line-height: 1.5; }
 .adm-quick-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.adm-inline-copy-message { flex-basis: 100%; margin: 0; text-align: right; }
+.adm-danger-details { border-color: #e8e5e0; background: #fff; }
 .adm-status-current { display: block; margin-top: 4px; font-size: 1.125rem; color: #1c1b19; }
 .adm-status-summary { max-width: 720px; margin: 6px 0 0; color: #7a7974; font-size: 0.875rem; line-height: 1.55; }
 .adm-status-stage-strip { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; margin-top: 12px; }
