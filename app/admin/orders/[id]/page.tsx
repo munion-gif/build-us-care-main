@@ -670,7 +670,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
         )}
 
         <section className="adm-detail-sections">
-          <article className="adm-card adm-detail-section-card">
+          <article className="adm-card adm-detail-section-card adm-detail-section-customer">
             <div className="adm-section-head">
               <div>
                 <h2 className="adm-card-title">고객/방문</h2>
@@ -685,7 +685,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
             </div>
           </article>
 
-          <article className="adm-card adm-detail-section-card adm-detail-section-wide">
+          <article className="adm-card adm-detail-section-card adm-detail-section-product">
             <div className="adm-section-head">
               <div>
                 <h2 className="adm-card-title">제품/입금</h2>
@@ -718,7 +718,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
             </div>
           </article>
 
-          <article className="adm-card adm-detail-section-card">
+          <article className="adm-card adm-detail-section-card adm-detail-section-photos">
             <div className="adm-section-head">
               <div>
                 <h2 className="adm-card-title">사진</h2>
