@@ -15,7 +15,7 @@ import {
 } from "@/lib/builduscare-local-admin";
 import { findReplacementProduct, getProductLaborPrice, replacementProductSnapshot } from "@/lib/replacement-products";
 import { hasSupabaseEnv } from "@/lib/supabase";
-import { quoteSubtotalAmount, quoteVatIncludedAmount } from "@/lib/quote-totals";
+import { quoteSubtotalAmount, quoteVatIncludedAmount, quoteVatIncludedLaborAmount } from "@/lib/quote-totals";
 
 const localDraftItemSchema = z.object({
   service_type_code: z.string().min(1),
@@ -52,7 +52,7 @@ function buildLocalQuote(items: z.infer<typeof localDraftSchema>["items"], visit
 
     const qty = Math.max(1, Number(item.qty ?? 1));
     const unitMaterial = quoteVatIncludedAmount(Number(product.price ?? 0));
-    const unitLabor = quoteVatIncludedAmount(getProductLaborPrice(item.service_type_code, product));
+    const unitLabor = quoteVatIncludedLaborAmount(getProductLaborPrice(item.service_type_code, product));
     const lineMaterial = unitMaterial * qty;
     const lineLabor = unitLabor * qty;
 

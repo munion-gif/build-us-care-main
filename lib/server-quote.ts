@@ -8,7 +8,7 @@ import {
   replacementProductSnapshot,
   type ReplacementProduct
 } from "@/lib/replacement-products";
-import { quoteSubtotalAmount, quoteVatIncludedAmount } from "@/lib/quote-totals";
+import { quoteSubtotalAmount, quoteVatIncludedAmount, quoteVatIncludedLaborAmount } from "@/lib/quote-totals";
 
 type SupabaseAdmin = ReturnType<typeof getSupabaseAdmin>;
 
@@ -111,7 +111,7 @@ export async function calculateServerQuote(
       return sum + quoteVatIncludedAmount(material?.retail_price ?? 0);
     }, selectedProductPrice);
     const optionTotal = (item.options ?? []).reduce((sum, option) => sum + quoteVatIncludedAmount(option.price_delta), 0) * item.qty;
-    const unitLabor = isProductSelectionService(sku) ? quoteVatIncludedAmount(getProductLaborPrice(sku, selectedReplacementProduct)) : quoteVatIncludedAmount(service?.base_price ?? 0);
+    const unitLabor = isProductSelectionService(sku) ? quoteVatIncludedLaborAmount(getProductLaborPrice(sku, selectedReplacementProduct)) : quoteVatIncludedLaborAmount(service?.base_price ?? 0);
     const lineLabor = unitLabor * item.qty;
     const lineMaterial = materialUnitTotal * item.qty;
 

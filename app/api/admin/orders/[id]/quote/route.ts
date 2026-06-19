@@ -8,7 +8,7 @@ import { calculateServerQuote } from "@/lib/server-quote";
 import { periodCapFromConfig, resolveDefaultSlotCap, type SlotPeriod } from "@/lib/slot-capacity";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { buildQuoteDocumentInputFromOrderStatus } from "@/lib/quote-document";
-import { quoteSubtotalAmount, quoteVatIncludedAmount } from "@/lib/quote-totals";
+import { quoteSubtotalAmount, quoteVatIncludedAmount, quoteVatIncludedLaborAmount } from "@/lib/quote-totals";
 import { closedReservationReason, isClosedReservationDate, minReservationDateText } from "@/lib/reservation-policy";
 import {
   BUILDUSCARE_LOCAL_ADMIN_COOKIE_MAX_AGE,
@@ -177,7 +177,7 @@ function buildLocalQuote(items: z.infer<typeof adminQuoteSchema>["items"], visit
     if (!product) throw new Error("선택한 제품 정보를 찾을 수 없습니다.");
     const qty = Math.max(1, Number(item.qty ?? 1));
     const unitMaterial = quoteVatIncludedAmount(Number(product.price ?? 0));
-    const unitLabor = quoteVatIncludedAmount(Number(
+    const unitLabor = quoteVatIncludedLaborAmount(Number(
       item.service_type_code === "toilet_replace" ? 100000 :
       item.service_type_code === "basin_replace" ? 35000 :
       item.service_type_code === "faucet_replace" ? 40000 :

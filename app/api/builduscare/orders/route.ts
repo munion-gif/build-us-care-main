@@ -8,7 +8,7 @@ import {
 import { notifyNewOrder } from "@/lib/notify-admin";
 import { createOrderDateKey, createOrderNumber } from "@/lib/orders";
 import { createPaymentOrderId } from "@/lib/payment-amounts";
-import { quoteVatIncludedAmount } from "@/lib/quote-totals";
+import { quoteVatIncludedAmount, quoteVatIncludedLaborAmount } from "@/lib/quote-totals";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { closedReservationReason, isBeforeMinReservationDate, isClosedReservationDate } from "@/lib/reservation-policy";
 import {
@@ -232,7 +232,7 @@ function buildOrderItems(entries: Array<{ product: ReplacementProduct; qty: numb
 function buildQuoteLines(entries: Array<{ product: ReplacementProduct; qty: number; selectedColor: string }>, selfDisposal: boolean) {
   return entries.map(({ product, qty, selectedColor }) => {
     const unitMaterial = roundedProductPrice(product.price);
-    const unitLabor = quoteVatIncludedAmount(getProductLaborPrice(product.serviceCode, product));
+    const unitLabor = quoteVatIncludedLaborAmount(getProductLaborPrice(product.serviceCode, product));
     const disposalPerUnit = selfDisposal ? 0 : 10000;
     const lineLabor = (unitLabor + disposalPerUnit) * qty;
     const lineMaterial = unitMaterial * qty;

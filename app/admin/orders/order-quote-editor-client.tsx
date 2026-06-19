@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { formatKRW } from "@/lib/format";
 import { PRODUCT_DISPOSAL_FEE } from "@/components/builduscare/product-helpers";
 import { openQuoteDocumentPreviewWindow, type QuoteDocumentInput } from "@/lib/quote-document";
-import { quoteSubtotalAmount, quoteVatIncludedAmount } from "@/lib/quote-totals";
+import { quoteSubtotalAmount, quoteVatIncludedAmount, quoteVatIncludedLaborAmount } from "@/lib/quote-totals";
 
 type QuoteCatalogProduct = {
   id: string;
@@ -287,7 +287,7 @@ export function OrderQuoteEditor({
       .filter((entry) => entry.product);
 
     const productTotal = resolvedItems.reduce((sum, entry) => sum + quoteVatIncludedAmount(Number(entry.product?.price ?? 0)) * entry.item.qty, 0);
-    const laborTotal = resolvedItems.reduce((sum, entry) => sum + quoteVatIncludedAmount(Number(entry.product?.laborPrice ?? 0)) * entry.item.qty, 0);
+    const laborTotal = resolvedItems.reduce((sum, entry) => sum + quoteVatIncludedLaborAmount(Number(entry.product?.laborPrice ?? 0)) * entry.item.qty, 0);
     const subtotalTotal = quoteSubtotalAmount(productTotal, laborTotal, visitFee, discount);
     const finalTotal = subtotalTotal;
     return { productTotal, laborTotal, subtotalTotal, finalTotal, resolvedItems };
@@ -299,7 +299,7 @@ export function OrderQuoteEditor({
     const rows = totals.resolvedItems.map(({ item, product }, index) => {
       if (!product) throw new Error("선택한 제품 정보를 찾을 수 없습니다.");
       const lineMaterial = quoteVatIncludedAmount(product.price) * item.qty;
-      const lineLabor = quoteVatIncludedAmount(product.laborPrice) * item.qty;
+      const lineLabor = quoteVatIncludedLaborAmount(product.laborPrice) * item.qty;
       return {
         id: `${item.productId}-${index}`,
         image: product.image || null,
@@ -743,7 +743,7 @@ export function OrderQuoteEditor({
           <span><b>선택 정보</b><strong>{activeProduct ? activeProduct.label : "제품을 선택해 주세요."}</strong></span>
           <span><b>품번</b><strong>{activeProduct?.sku ?? "-"}</strong></span>
           <span><b>제품값</b><strong>{activeProduct ? formatKRW(activeProduct.price * builderQty) : "-"}</strong></span>
-          <span><b>시공비</b><strong>{activeProduct ? formatKRW(activeProduct.laborPrice * builderQty) : "-"}</strong></span>
+          <span><b>시공비</b><strong>{activeProduct ? formatKRW(quoteVatIncludedLaborAmount(activeProduct.laborPrice) * builderQty) : "-"}</strong></span>
         </div>
       </section>
 

@@ -1,4 +1,4 @@
-import { quoteVatIncludedAmount } from "@/lib/quote-totals";
+import { quoteVatIncludedAmount, quoteVatIncludedLaborAmount } from "@/lib/quote-totals";
 import {
   getProductLaborPrice,
   getReplacementProductCatalog,
@@ -77,7 +77,7 @@ export function toBuilduscarePublicProduct(product: ReplacementProduct): Buildus
     compactSizeLabel: replacementProductCompactSizeLabel(product),
     sizeLabel: replacementProductSizeLabel(product),
     roundedPrice: roundedPrice(product.price),
-    laborPrice: quoteVatIncludedAmount(getProductLaborPrice(product.serviceCode, product)),
+    laborPrice: quoteVatIncludedLaborAmount(getProductLaborPrice(product.serviceCode, product)),
     colorOptions,
     sizeOptions: sizeOption ? [sizeOption] : [],
     featureText: noteFeatureText(product)
