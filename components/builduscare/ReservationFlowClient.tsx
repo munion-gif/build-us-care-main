@@ -1069,7 +1069,7 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
               {completeDepositAmount > 0 && (
                 <div className="between" style={{ marginTop: 10, alignItems: "baseline" }}>
                   <div className="p-sm strong" style={{ color: "var(--gray-700)" }}>입금 금액</div>
-                  <div className="strong" style={{ color: "var(--gray-900)", fontSize: 18, lineHeight: 1.25, fontVariantNumeric: "tabular-nums" }}>
+                  <div className="strong" style={{ color: "var(--brand-600)", fontSize: 18, lineHeight: 1.25, fontVariantNumeric: "tabular-nums" }}>
                     {formatKRW(completeDepositAmount)}
                   </div>
                 </div>
