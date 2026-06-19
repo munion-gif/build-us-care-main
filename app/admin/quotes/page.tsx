@@ -96,8 +96,8 @@ export default async function AdminQuotesPage({ searchParams }: PageProps) {
             initialItems={quoteEditorItems as any}
             initialVisitFee={initialVisitFee}
             initialDiscount={initialDiscount}
-            initialScheduleDate={selectedOrder ? orderScheduleDate(selectedOrder) : null}
-            initialScheduleTime={selectedOrder ? orderScheduleTime(selectedOrder) as any : null}
+            initialScheduleDate={selectedOrder ? orderScheduleDate(selectedOrder) : manualQuote?.reserved_date ?? null}
+            initialScheduleTime={selectedOrder ? orderScheduleTime(selectedOrder) as any : manualQuote?.time_slot ?? null}
             initialServiceCode={initialServiceCode}
             currentQuoteVersion={currentQuote?.version ?? null}
             customerName={selectedOrder ? customerName(selectedOrder) : manualQuote?.customer_name ?? null}

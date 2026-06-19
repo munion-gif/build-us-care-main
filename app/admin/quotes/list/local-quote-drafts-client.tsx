@@ -19,6 +19,8 @@ type LocalQuoteDraft = {
   }>;
   visitFee?: number;
   discount?: number;
+  scheduleDate?: string;
+  scheduleTime?: "morning" | "afternoon" | "";
   productTotal?: number;
   laborTotal?: number;
   finalTotal?: number;

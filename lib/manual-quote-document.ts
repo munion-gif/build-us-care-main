@@ -1,6 +1,12 @@
 import { formatServiceName } from "@/lib/format";
 import type { QuoteDocumentInput } from "@/lib/quote-document";
 
+function visitTextFromManualQuote(quote: any) {
+  const date = typeof quote?.reserved_date === "string" ? quote.reserved_date.slice(0, 10) : "";
+  const slot = quote?.time_slot === "afternoon" ? "오후" : quote?.time_slot === "morning" ? "오전" : "";
+  return [date, slot].filter(Boolean).join(" ") || "방문일 확인 중";
+}
+
 export function buildManualQuoteDocumentInput(quote: any): QuoteDocumentInput {
   const rows = Array.isArray(quote?.items) ? quote.items : [];
   const firstServiceCode = String(rows[0]?.metadata?.service_type_code ?? rows[0]?.sku ?? "manual_quote");
@@ -25,7 +31,7 @@ export function buildManualQuoteDocumentInput(quote: any): QuoteDocumentInput {
       };
     }),
     address: quote?.address_text ?? "주소 확인 중",
-    visitText: "방문일 확인 중",
+    visitText: visitTextFromManualQuote(quote),
     productTotal: Number(quote?.total_material ?? 0),
     laborTotal: Number(quote?.total_labor ?? 0),
     subtotalTotal: Math.max(

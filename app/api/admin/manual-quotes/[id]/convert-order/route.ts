@@ -2,6 +2,8 @@ import { ok, fail } from "@/lib/api-response";
 import { requireAdmin } from "@/lib/admin-auth";
 import { createOrderDateKey, createOrderNumber } from "@/lib/orders";
 import { createPaymentOrderId } from "@/lib/payment-amounts";
+import { closedReservationReason, isClosedReservationDate, minReservationDateText } from "@/lib/reservation-policy";
+import { periodCapFromConfig, resolveDefaultSlotCap, type SlotPeriod } from "@/lib/slot-capacity";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { uuidSchema } from "@/lib/validation";
 
@@ -46,6 +48,104 @@ function orderNameFromQuote(quote: any) {
   return items.length > 1 ? `${label} 외 ${items.length - 1}건` : label;
 }
 
+function scheduledAtForSlot(dateText: string, slot: SlotPeriod) {
+  return `${dateText}T${slot === "afternoon" ? "13:00:00" : "09:00:00"}+09:00`;
+}
+
+function slotFromScheduledAt(value?: string | null): SlotPeriod | null {
+  if (!value) return null;
+  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", hour: "2-digit", hour12: false }).format(new Date(value)));
+  return hour < 13 ? "morning" : "afternoon";
+}
+
+function kstDayUtcRange(dateText: string) {
+  const start = new Date(`${dateText}T00:00:00+09:00`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+async function resolveRequestedSlotCap(params: {
+  supabase: ReturnType<typeof getSupabaseAdmin>;
+  reservedDate: string;
+  timeSlot: SlotPeriod;
+}) {
+  const { supabase, reservedDate, timeSlot } = params;
+  const [configResult, capResult] = await Promise.all([
+    supabase
+      .from("slot_configs")
+      .select("date,morning_cap,afternoon_cap,blocked,type,cap_value")
+      .eq("type", "date")
+      .eq("date", reservedDate)
+      .maybeSingle(),
+    resolveDefaultSlotCap(supabase)
+  ]);
+
+  if (configResult.error) throw new Error(configResult.error.message);
+  return {
+    blocked: Boolean(configResult.data?.blocked),
+    cap: periodCapFromConfig(configResult.data, timeSlot, capResult.cap),
+    capSource: capResult.capSource,
+    activeTechnicianCount: capResult.activeTechnicianCount
+  };
+}
+
+async function assertSlotAvailable(params: {
+  supabase: ReturnType<typeof getSupabaseAdmin>;
+  reservedDate: string;
+  timeSlot: SlotPeriod;
+  cap: number;
+}) {
+  const { supabase, reservedDate, timeSlot, cap } = params;
+  const range = kstDayUtcRange(reservedDate);
+  const { data, error } = await supabase
+    .from("jobs")
+    .select("id,order_id,scheduled_at,status")
+    .not("scheduled_at", "is", null)
+    .neq("status", "cancelled")
+    .gte("scheduled_at", range.start)
+    .lt("scheduled_at", range.end);
+
+  if (error) return fail("internal_error", error.message, 500);
+  const usedCount = (data ?? []).filter((job) => slotFromScheduledAt(job.scheduled_at) === timeSlot).length;
+  if (usedCount >= cap) {
+    return fail("SLOT_FULL", "선택한 시간대는 마감되었습니다. 다른 시간대를 선택해주세요.", 409);
+  }
+  return null;
+}
+
+async function validateManualQuoteSchedule(params: {
+  supabase: ReturnType<typeof getSupabaseAdmin>;
+  reservedDate: string;
+  timeSlot: SlotPeriod;
+}) {
+  const { supabase, reservedDate, timeSlot } = params;
+
+  if (reservedDate < minReservationDateText()) {
+    return fail("INVALID_DATE", "제품과 일정 준비 기간 때문에 방문 일정은 영업일 기준 4일 이후 날짜부터 가능합니다.", 400);
+  }
+  if (isClosedReservationDate(reservedDate)) {
+    return fail("SLOT_CLOSED", closedReservationReason(reservedDate), 409);
+  }
+
+  const slotCap = await resolveRequestedSlotCap({ supabase, reservedDate, timeSlot });
+  if (slotCap.blocked) {
+    return fail("SLOT_CLOSED", "선택한 날짜는 예약이 마감되었습니다.", 409);
+  }
+  if (slotCap.cap <= 0) {
+    return fail(
+      "SLOT_UNAVAILABLE",
+      slotCap.capSource === "no_active_technicians"
+        ? "현재 예약 가능한 기사 일정이 없습니다. 카톡 상담으로 가능 일정을 확인해주세요."
+        : "선택한 시간대는 마감되었습니다. 다른 시간대를 선택해주세요.",
+      409,
+      { activeTechnicianCount: slotCap.activeTechnicianCount }
+    );
+  }
+
+  return assertSlotAvailable({ supabase, reservedDate, timeSlot, cap: slotCap.cap });
+}
+
 export async function POST(request: Request, context: Context) {
   const authError = requireAdmin(request);
   if (authError) return authError;
@@ -81,6 +181,13 @@ export async function POST(request: Request, context: Context) {
       Number(manualQuote.total_labor ?? 0) + Number(manualQuote.visit_fee ?? 0) - Number(manualQuote.discount ?? 0)
     );
     const totalFinal = Number(manualQuote.total_final ?? 0);
+    const reservedDate = typeof manualQuote.reserved_date === "string" ? manualQuote.reserved_date.slice(0, 10) : null;
+    const timeSlot = manualQuote.time_slot === "morning" || manualQuote.time_slot === "afternoon" ? manualQuote.time_slot as SlotPeriod : null;
+
+    if (reservedDate && timeSlot) {
+      const scheduleError = await validateManualQuoteSchedule({ supabase, reservedDate, timeSlot });
+      if (scheduleError) return scheduleError;
+    }
 
     const [customerResult, orderNumber] = await Promise.all([
       supabase
@@ -186,6 +293,23 @@ export async function POST(request: Request, context: Context) {
       .single();
     if (paymentError) throw new Error(paymentError.message);
 
+    let job = null;
+    if (reservedDate && timeSlot) {
+      const { data: insertedJob, error: jobError } = await supabase
+        .from("jobs")
+        .insert({
+          order_id: order.id,
+          scheduled_at: scheduledAtForSlot(reservedDate, timeSlot),
+          scheduled_date: reservedDate,
+          status: "assigned",
+          expected_minutes: 0
+        })
+        .select("*")
+        .single();
+      if (jobError) throw new Error(jobError.message);
+      job = insertedJob;
+    }
+
     const { error: updateManualQuoteError } = await supabase
       .from("manual_quotes")
       .update({
@@ -195,7 +319,7 @@ export async function POST(request: Request, context: Context) {
       .eq("id", manualQuote.id);
     if (updateManualQuoteError) throw new Error(updateManualQuoteError.message);
 
-    return ok({ order, quote: insertedQuote, payment, alreadyConverted: false });
+    return ok({ order, quote: insertedQuote, payment, job, alreadyConverted: false });
   } catch (error) {
     return fail("internal_error", error instanceof Error ? error.message : "Failed to convert manual quote.", 500);
   }

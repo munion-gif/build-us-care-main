@@ -30,7 +30,9 @@ const localDraftSchema = z.object({
   addressText: z.string().trim().min(1),
   items: z.array(localDraftItemSchema).min(1),
   visitFee: z.coerce.number().int().min(0).default(0),
-  discount: z.coerce.number().int().min(0).default(0)
+  discount: z.coerce.number().int().min(0).default(0),
+  scheduleDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  scheduleTime: z.enum(["morning", "afternoon"]).optional().nullable()
 });
 
 function readCookieValue(cookieHeader: string | null, cookieName: string) {
@@ -131,7 +133,9 @@ export async function POST(request: Request) {
         };
       }),
       photoCount: 0,
-      reservation: null,
+      reservation: draft.scheduleDate && draft.scheduleTime
+        ? { date: draft.scheduleDate, time: draft.scheduleTime }
+        : null,
       totals: {
         productAmount: totalMaterial,
         laborAmount: totalLabor + draft.visitFee,

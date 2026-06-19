@@ -62,6 +62,8 @@ type SlotDayInfo = {
   slots: Record<SlotPeriod, { available: boolean; usedCount?: number; maxCount?: number; used?: number; cap?: number }>;
 };
 
+const DATE_WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
 type Props = {
   orderId?: string | null;
   manualQuoteId?: string | null;
@@ -94,6 +96,22 @@ function monthKey(date: Date) {
     year: date.getFullYear(),
     month: date.getMonth() + 1
   };
+}
+
+function datePad(value: number) {
+  return String(value).padStart(2, "0");
+}
+
+function localIsoDate(date: Date) {
+  return `${date.getFullYear()}-${datePad(date.getMonth() + 1)}-${datePad(date.getDate())}`;
+}
+
+function monthFromDateText(dateText?: string | null) {
+  if (dateText && /^\d{4}-\d{2}-\d{2}$/.test(dateText)) {
+    const [year, month] = dateText.split("-").map(Number);
+    return { year, month };
+  }
+  return monthKey(new Date());
 }
 
 function formatScheduleVisitText(dateText: string, slot: SlotPeriod | "") {
@@ -155,6 +173,7 @@ export function OrderQuoteEditor({
   const discount = 0;
   const [scheduleDate, setScheduleDate] = useState(initialScheduleDate ?? "");
   const [scheduleTime, setScheduleTime] = useState<SlotPeriod | "">(initialScheduleTime ?? "");
+  const [calendarMonth, setCalendarMonth] = useState(() => monthFromDateText(initialScheduleDate));
   const [slotDays, setSlotDays] = useState<Record<string, SlotDayInfo>>({});
   const [slotLoading, setSlotLoading] = useState(false);
   const [slotMessage, setSlotMessage] = useState("");
@@ -216,6 +235,7 @@ export function OrderQuoteEditor({
       setSelfDisposal(typeof draft.selfDisposal === "boolean" ? draft.selfDisposal : Number(draft.visitFee ?? 0) <= 0);
       setScheduleDate(String(draft.scheduleDate ?? ""));
       setScheduleTime(draft.scheduleTime === "morning" || draft.scheduleTime === "afternoon" ? draft.scheduleTime : "");
+      setCalendarMonth(monthFromDateText(String(draft.scheduleDate ?? "")));
       setItems(loadedItems);
       setMessage("임시 견적을 불러왔습니다. 수정 후 저장하면 목록에 반영됩니다.");
     } catch {
@@ -225,21 +245,14 @@ export function OrderQuoteEditor({
 
   useEffect(() => {
     let cancelled = false;
-    const now = new Date();
-    const months = [monthKey(now), monthKey(new Date(now.getFullYear(), now.getMonth() + 1, 1))];
     setSlotLoading(true);
     setSlotMessage("");
 
-    Promise.all(
-      months.map(({ year, month }) =>
-        fetch(`/api/slots?year=${year}&month=${month}&fresh=1`)
-          .then((response) => response.json())
-          .then((payload) => payload?.data?.days ?? {})
-      )
-    )
+    fetch(`/api/slots?year=${calendarMonth.year}&month=${calendarMonth.month}&fresh=1`)
+      .then((response) => response.json())
       .then((results) => {
         if (cancelled) return;
-        setSlotDays(Object.assign({}, ...results));
+        setSlotDays(results?.data?.days ?? {});
       })
       .catch(() => {
         if (cancelled) return;
@@ -252,7 +265,7 @@ export function OrderQuoteEditor({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [calendarMonth.month, calendarMonth.year]);
 
   const totalUnits = useMemo(() => items.reduce((sum, item) => sum + (item.productId ? normalizeQty(item.qty) : 0), 0), [items]);
   const visitFee = selfDisposal ? 0 : PRODUCT_DISPOSAL_FEE * totalUnits;
@@ -341,6 +354,72 @@ export function OrderQuoteEditor({
     });
     setBuilderQty(1);
     setMessage("");
+  }
+
+  function previousMonth() {
+    setCalendarMonth((current) => {
+      const date = new Date(current.year, current.month - 2, 1);
+      return { year: date.getFullYear(), month: date.getMonth() + 1 };
+    });
+  }
+
+  function nextMonth() {
+    setCalendarMonth((current) => {
+      const date = new Date(current.year, current.month, 1);
+      return { year: date.getFullYear(), month: date.getMonth() + 1 };
+    });
+  }
+
+  function selectScheduleDate(dateText: string) {
+    const dayInfo = slotDays[dateText];
+    if (!dayInfo || dayInfo.blocked || dayInfo.beforeMinDate || dayInfo.allFull) return;
+    setScheduleDate(dateText);
+    if (scheduleTime && !dayInfo.slots[scheduleTime]?.available) {
+      setScheduleTime("");
+    }
+  }
+
+  function renderScheduleCalendar() {
+    const firstDay = new Date(calendarMonth.year, calendarMonth.month - 1, 1).getDay();
+    const daysInMonth = new Date(calendarMonth.year, calendarMonth.month, 0).getDate();
+    const blanks = Array.from({ length: firstDay }, (_, index) => <span key={`blank-${index}`} className="adm-quote-calendar-blank" />);
+    const days = Array.from({ length: daysInMonth }, (_, index) => {
+      const date = new Date(calendarMonth.year, calendarMonth.month - 1, index + 1);
+      const iso = localIsoDate(date);
+      const dayInfo = slotDays[iso];
+      const morning = dayInfo?.slots?.morning;
+      const afternoon = dayInfo?.slots?.afternoon;
+      const unavailable = !dayInfo || dayInfo.blocked || dayInfo.beforeMinDate || dayInfo.allFull || (!morning?.available && !afternoon?.available);
+      const label = !dayInfo
+        ? "확인 중"
+        : dayInfo.beforeMinDate
+          ? "준비 기간"
+          : dayInfo.blocked
+            ? "휴무"
+            : dayInfo.allFull
+              ? "마감"
+              : `오전 ${morning?.usedCount ?? morning?.used ?? 0}/${morning?.maxCount ?? morning?.cap ?? 0} · 오후 ${afternoon?.usedCount ?? afternoon?.used ?? 0}/${afternoon?.maxCount ?? afternoon?.cap ?? 0}`;
+
+      return (
+        <button
+          key={iso}
+          type="button"
+          className={[
+            "adm-quote-calendar-day",
+            date.getDay() === 0 ? "sun" : "",
+            date.getDay() === 6 ? "sat" : "",
+            scheduleDate === iso ? "selected" : "",
+            unavailable ? "disabled" : ""
+          ].filter(Boolean).join(" ")}
+          onClick={() => selectScheduleDate(iso)}
+          disabled={Boolean(saving) || unavailable}
+        >
+          <strong>{index + 1}</strong>
+          <small>{label}</small>
+        </button>
+      );
+    });
+    return [...blanks, ...days];
   }
 
   function updateCommittedQty(index: number, qty: number) {
@@ -738,7 +817,7 @@ export function OrderQuoteEditor({
         <div className="adm-section-head">
           <div>
             <h3 className="adm-card-title">예약 일정 선택</h3>
-            <p className="adm-muted">일정관리 슬롯 기준으로 가능한 날짜와 오전/오후를 선택합니다. 저장하면 주문 일정에 바로 반영됩니다.</p>
+            <p className="adm-muted">고객 주문 예약과 같은 슬롯 기준으로 날짜와 오전/오후를 선택합니다. 저장하면 주문 일정에 바로 반영됩니다.</p>
           </div>
           <div className="adm-inline-actions">
             {slotLoading ? <span className="adm-badge adm-badge-gray">슬롯 확인 중</span> : null}
@@ -747,56 +826,45 @@ export function OrderQuoteEditor({
             </a>
           </div>
         </div>
-        <div className="adm-form-row adm-form-row-2">
-          <label>
-            <span className="adm-label">방문 날짜</span>
-            <select
-              className="adm-input"
-              value={scheduleDate}
-              onChange={(event) => {
-                setScheduleDate(event.target.value);
-                const nextInfo = slotDays[event.target.value];
-                if (scheduleTime && nextInfo && !nextInfo.slots[scheduleTime]?.available) {
-                  setScheduleTime("");
-                }
-              }}
-              disabled={Boolean(saving)}
-            >
-              <option value="">방문일 확인 전</option>
-              {Object.values(slotDays)
-                .filter((day) => !day.blocked && !day.beforeMinDate && !day.allFull && (day.slots.morning.available || day.slots.afternoon.available))
-                .sort((a, b) => a.date.localeCompare(b.date))
-                .slice(0, 45)
-                .map((day) => (
-                  <option key={day.date} value={day.date}>
-                    {day.date} · 오전 {day.slots.morning.usedCount ?? day.slots.morning.used ?? 0}/{day.slots.morning.maxCount ?? day.slots.morning.cap ?? 0}, 오후 {day.slots.afternoon.usedCount ?? day.slots.afternoon.used ?? 0}/{day.slots.afternoon.maxCount ?? day.slots.afternoon.cap ?? 0}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <div>
-            <span className="adm-label">시간대</span>
-            <div className="adm-quote-slot-actions">
-              {(["morning", "afternoon"] as const).map((period) => {
-                const dayInfo = scheduleDate ? slotDays[scheduleDate] : null;
-                const available = Boolean(scheduleDate && (!dayInfo || dayInfo.slots[period]?.available));
-                return (
-                  <button
-                    key={period}
-                    type="button"
-                    className={`adm-btn ${scheduleTime === period ? "adm-btn-primary" : "adm-btn-secondary"}`}
-                    onClick={() => setScheduleTime(period)}
-                    disabled={Boolean(saving) || !scheduleDate || !available}
-                  >
-                    {slotLabel(period)}
-                  </button>
-                );
-              })}
-            </div>
-            <small className="adm-field-help">
-              선택한 일정은 주문 견적 저장 시 일정관리의 방문 슬롯에 같이 반영됩니다.
-            </small>
+        <div className="adm-quote-calendar-head">
+          <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={previousMonth} disabled={Boolean(saving)}>
+            이전
+          </button>
+          <strong>{calendarMonth.year}년 {calendarMonth.month}월</strong>
+          <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={nextMonth} disabled={Boolean(saving)}>
+            다음
+          </button>
+        </div>
+        <div className={`adm-quote-calendar ${slotLoading ? "loading" : ""}`}>
+          {DATE_WEEKDAYS.map((weekday, index) => (
+            <span key={weekday} className={`adm-quote-calendar-weekday${index === 0 ? " sun" : index === 6 ? " sat" : ""}`}>
+              {weekday}
+            </span>
+          ))}
+          {renderScheduleCalendar()}
+        </div>
+        <div>
+          <span className="adm-label">시간대</span>
+          <div className="adm-quote-slot-actions">
+            {(["morning", "afternoon"] as const).map((period) => {
+              const dayInfo = scheduleDate ? slotDays[scheduleDate] : null;
+              const available = Boolean(scheduleDate && (!dayInfo || dayInfo.slots[period]?.available));
+              return (
+                <button
+                  key={period}
+                  type="button"
+                  className={`adm-btn ${scheduleTime === period ? "adm-btn-primary" : "adm-btn-secondary"}`}
+                  onClick={() => setScheduleTime(period)}
+                  disabled={Boolean(saving) || !scheduleDate || !available}
+                >
+                  {slotLabel(period)}{scheduleDate && !available ? " · 마감" : ""}
+                </button>
+              );
+            })}
           </div>
+          <small className="adm-field-help">
+            선택한 일정은 저장된 주문의 방문 슬롯으로 계산됩니다. 수동 견적은 제품 주문 전환 시 일정관리와 고객 예약 슬롯에 반영됩니다.
+          </small>
         </div>
         {slotMessage ? <p className="adm-form-message adm-form-message-error">{slotMessage}</p> : null}
       </section>

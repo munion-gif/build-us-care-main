@@ -233,6 +233,22 @@ textarea.adm-input { min-height: 96px; resize: vertical; line-height: 1.5; }
 .adm-quote-option-card,
 .adm-quote-schedule-card { display: grid; gap: 12px; border: 1px solid #e5e5ea; border-radius: 14px; background: #fff; padding: 16px; }
 .adm-quote-option-card .adm-section-head strong { color: #1d1d1f; font-size: 1rem; font-variant-numeric: tabular-nums; }
+.adm-quote-calendar-head { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; }
+.adm-quote-calendar-head strong { text-align: center; color: #1d1d1f; font-size: 1rem; }
+.adm-quote-calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 7px; }
+.adm-quote-calendar.loading { opacity: 0.7; }
+.adm-quote-calendar-weekday { padding: 4px 2px; color: #6e6e73; font-size: 0.72rem; font-weight: 800; text-align: center; }
+.adm-quote-calendar-weekday.sun { color: #d92d20; }
+.adm-quote-calendar-weekday.sat { color: #245fff; }
+.adm-quote-calendar-blank { min-height: 58px; }
+.adm-quote-calendar-day { min-height: 58px; display: grid; align-content: center; gap: 4px; border: 1px solid #e5e5ea; border-radius: 10px; background: #fff; color: #1d1d1f; cursor: pointer; padding: 7px 6px; text-align: left; }
+.adm-quote-calendar-day strong { font-size: 0.85rem; line-height: 1; }
+.adm-quote-calendar-day small { color: #6e6e73; font-size: 0.68rem; font-weight: 700; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adm-quote-calendar-day.sat:not(.disabled) { border-color: #bfdbfe; background: #eff6ff; }
+.adm-quote-calendar-day.sun,
+.adm-quote-calendar-day.disabled { background: #f5f5f7; color: #8e8e93; cursor: not-allowed; }
+.adm-quote-calendar-day.selected { border-color: #245fff; background: #245fff; color: #fff; }
+.adm-quote-calendar-day.selected small { color: rgba(255,255,255,0.86); }
 .adm-quote-slot-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 120px)); gap: 8px; align-items: center; }
 .adm-quote-slot-actions .adm-btn { min-height: 40px; }
 .adm-quote-qty-action { display: grid; grid-template-columns: minmax(90px, 1fr) auto; gap: 8px; align-items: center; }
