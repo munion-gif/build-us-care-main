@@ -230,7 +230,9 @@ textarea.adm-input { min-height: 96px; resize: vertical; line-height: 1.5; }
 .adm-quote-item-meta b { color: #6e6e73; font-size: 0.72rem; letter-spacing: 0; }
 .adm-quote-item-meta strong { color: #1d1d1f; font-size: 0.875rem; line-height: 1.35; }
 .adm-quote-builder-card { display: grid; gap: 12px; border: 1px solid #e5e5ea; border-radius: 14px; background: #f5f5f7; padding: 16px; }
+.adm-quote-option-card,
 .adm-quote-schedule-card { display: grid; gap: 12px; border: 1px solid #e5e5ea; border-radius: 14px; background: #fff; padding: 16px; }
+.adm-quote-option-card .adm-section-head strong { color: #1d1d1f; font-size: 1rem; font-variant-numeric: tabular-nums; }
 .adm-quote-slot-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 120px)); gap: 8px; align-items: center; }
 .adm-quote-slot-actions .adm-btn { min-height: 40px; }
 .adm-quote-qty-action { display: grid; grid-template-columns: minmax(90px, 1fr) auto; gap: 8px; align-items: center; }

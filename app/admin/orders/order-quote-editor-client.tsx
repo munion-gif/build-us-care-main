@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { formatKRW } from "@/lib/format";
+import { PRODUCT_DISPOSAL_FEE } from "@/components/builduscare/product-helpers";
 import { openQuoteDocumentPreviewWindow, type QuoteDocumentInput } from "@/lib/quote-document";
 import { quoteSubtotalAmount, quoteVatIncludedAmount } from "@/lib/quote-totals";
 
@@ -46,6 +47,7 @@ type LocalQuoteDraft = {
   }>;
   visitFee?: number;
   discount?: number;
+  selfDisposal?: boolean;
   scheduleDate?: string;
   scheduleTime?: SlotPeriod | "";
 };
@@ -149,7 +151,7 @@ export function OrderQuoteEditor({
   const [builderServiceCode, setBuilderServiceCode] = useState(defaultServiceCode);
   const [builderProductId, setBuilderProductId] = useState("");
   const [builderQty, setBuilderQty] = useState(1);
-  const [visitFee, setVisitFee] = useState(initialVisitFee);
+  const [selfDisposal, setSelfDisposal] = useState(false);
   const discount = 0;
   const [scheduleDate, setScheduleDate] = useState(initialScheduleDate ?? "");
   const [scheduleTime, setScheduleTime] = useState<SlotPeriod | "">(initialScheduleTime ?? "");
@@ -211,7 +213,7 @@ export function OrderQuoteEditor({
       setDraftCustomerName(String(draft.customerName ?? ""));
       setDraftCustomerPhone(String(draft.customerPhone ?? ""));
       setDraftAddressText(String(draft.addressText ?? ""));
-      setVisitFee(Number(draft.visitFee ?? 0));
+      setSelfDisposal(typeof draft.selfDisposal === "boolean" ? draft.selfDisposal : Number(draft.visitFee ?? 0) <= 0);
       setScheduleDate(String(draft.scheduleDate ?? ""));
       setScheduleTime(draft.scheduleTime === "morning" || draft.scheduleTime === "afternoon" ? draft.scheduleTime : "");
       setItems(loadedItems);
@@ -251,6 +253,9 @@ export function OrderQuoteEditor({
       cancelled = true;
     };
   }, []);
+
+  const totalUnits = useMemo(() => items.reduce((sum, item) => sum + (item.productId ? normalizeQty(item.qty) : 0), 0), [items]);
+  const visitFee = selfDisposal ? 0 : PRODUCT_DISPOSAL_FEE * totalUnits;
 
   const totals = useMemo(() => {
     const resolvedItems = items
@@ -393,6 +398,7 @@ export function OrderQuoteEditor({
       items: validItems,
       visitFee,
       discount,
+      selfDisposal,
       scheduleDate,
       scheduleTime,
       productTotal: totals.productTotal,
@@ -579,10 +585,10 @@ export function OrderQuoteEditor({
         <span><b>주문 기준</b><strong>{orderId ? "선택됨" : "미선택"}</strong></span>
         <span><b>제품값</b><strong>{formatKRW(totals.productTotal)}</strong></span>
         <span><b>시공비</b><strong>{formatKRW(totals.laborTotal)}</strong></span>
-        <span><b>폐기물 처리비</b><strong>{formatKRW(visitFee)}</strong><small>기존 제품 수거/처리</small></span>
+        <span><b>폐기물 처리비</b><strong>{formatKRW(visitFee)}</strong><small>{selfDisposal ? "직접 처리" : `제품 ${totalUnits}개 × 10,000원`}</small></span>
         <span><b>소계</b><strong>{formatKRW(totals.subtotalTotal)}</strong></span>
         <span><b>최종 합계</b><strong>{formatKRW(totals.finalTotal)}</strong><small>부가세 10% 포함</small></span>
-        <span><b>방문 일정</b><strong>{formatScheduleVisitText(scheduleDate, scheduleTime)}</strong><small>일정관리 슬롯 기준</small></span>
+        <span><b>예약 일정</b><strong>{formatScheduleVisitText(scheduleDate, scheduleTime)}</strong><small>일정관리 슬롯 기준</small></span>
       </div>
 
       <section className="adm-quote-builder-card">
@@ -706,29 +712,40 @@ export function OrderQuoteEditor({
         </div>
       </section>
 
-      <div className="adm-form-row adm-form-row-2">
-        <label>
-          <span className="adm-label">폐기물 처리비</span>
+      <section className="adm-quote-option-card">
+        <div className="adm-section-head">
+          <div>
+            <h3 className="adm-card-title">폐기물 처리</h3>
+            <p className="adm-muted">실제 제품 주문과 동일하게 제품 1개당 10,000원을 자동 반영합니다.</p>
+          </div>
+          <strong>{formatKRW(visitFee)}</strong>
+        </div>
+        <label className="adm-inline-check">
           <input
-            className="adm-input"
-            type="number"
-            min={0}
-            step={1000}
-            value={visitFee}
-            onChange={(event) => setVisitFee(Math.max(0, Number(event.target.value || 0)))}
+            type="checkbox"
+            checked={selfDisposal}
+            onChange={(event) => setSelfDisposal(event.target.checked)}
             disabled={Boolean(saving)}
           />
-          <small className="adm-field-help">기존 제품 수거/폐기 처리 비용입니다. 고객이 직접 처리하면 0원으로 둡니다.</small>
+          <span>폐기물은 고객이 직접 처리합니다</span>
         </label>
-      </div>
+        <small className="adm-field-help">
+          체크하지 않으면 폐기물 처리비가 제품 수량 {totalUnits}개 기준으로 {formatKRW(PRODUCT_DISPOSAL_FEE * totalUnits)} 반영됩니다.
+        </small>
+      </section>
 
       <section className="adm-quote-schedule-card">
         <div className="adm-section-head">
           <div>
-            <h3 className="adm-card-title">방문 일정</h3>
-            <p className="adm-muted">일정관리 슬롯 기준으로 가능한 날짜와 오전/오후를 선택합니다.</p>
+            <h3 className="adm-card-title">예약 일정 선택</h3>
+            <p className="adm-muted">일정관리 슬롯 기준으로 가능한 날짜와 오전/오후를 선택합니다. 저장하면 주문 일정에 바로 반영됩니다.</p>
           </div>
-          {slotLoading ? <span className="adm-badge adm-badge-gray">슬롯 확인 중</span> : null}
+          <div className="adm-inline-actions">
+            {slotLoading ? <span className="adm-badge adm-badge-gray">슬롯 확인 중</span> : null}
+            <a className="adm-btn adm-btn-secondary adm-btn-sm" href="/admin/slots" target="_blank" rel="noreferrer">
+              일정관리 열기
+            </a>
+          </div>
         </div>
         <div className="adm-form-row adm-form-row-2">
           <label>
