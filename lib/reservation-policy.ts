@@ -69,12 +69,13 @@ export function isKoreanPublicHoliday(dateText: string) {
 export function isClosedReservationDate(dateText: string) {
   const date = localDateFromText(dateText);
   if (!date) return true;
-  return date.getDay() === 0 || isKoreanPublicHoliday(dateText);
+  return date.getDay() === 0 || date.getDay() === 6 || isKoreanPublicHoliday(dateText);
 }
 
 export function closedReservationReason(dateText: string) {
   const date = localDateFromText(dateText);
   if (!date) return "예약할 수 없는 날짜입니다.";
+  if (date.getDay() === 6) return "토요일은 휴무입니다. 다른 날짜를 선택해주세요.";
   if (date.getDay() === 0) return "일요일은 휴무입니다. 다른 날짜를 선택해주세요.";
   if (isKoreanPublicHoliday(dateText)) return "공휴일은 휴무입니다. 다른 날짜를 선택해주세요.";
   return "";

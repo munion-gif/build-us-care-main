@@ -947,7 +947,7 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
         {!blockedByPreviousStep && step === "schedule" && (
           <>
             <h1 className="web-h2" style={{ margin: "14px 0 6px" }}>예약 일정 선택</h1>
-            <p className="web-lede" style={{ fontSize: 16 }}>제품 준비기간으로 <b style={{ color: "#1d1d1f" }}>영업일 기준 4일 이후부터</b> 예약할 수 있어요. 일요일과 공휴일은 휴무이고, 토요일은 예약 가능합니다.</p>
+            <p className="web-lede" style={{ fontSize: 16 }}>제품 준비기간으로 <b style={{ color: "#1d1d1f" }}>영업일 기준 4일 이후부터</b> 예약할 수 있어요. 토요일·일요일과 공휴일은 휴무입니다.</p>
             <section className="bcard pad" style={{ padding: 24, marginTop: 22 }}>
               <div className="between reservation-calendar-head" style={{ marginBottom: 12 }}>
                 <button className="web-btn sec month-nav-btn" type="button" onClick={previousMonth}><ChevronLeft aria-hidden="true" size={18} /> 이전</button>
@@ -958,7 +958,7 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
                 {DATE_WEEKDAYS.map((weekday, index) => <div key={weekday} className={`cal-hd${index === 0 ? " sun" : index === 6 ? " sat" : ""}`}>{weekday}</div>)}
                 {renderCalendar()}
               </div>
-              <div className="cal-legend"><span><i className="lg-dot work"></i> 토요일 영업</span><span><i className="lg-dot off"></i> 일요일·공휴일 휴무</span></div>
+              <div className="cal-legend"><span><i className="lg-dot off"></i> 토요일·일요일·공휴일 휴무</span><span><i className="lg-dot work"></i> 선택 가능한 평일</span></div>
               {slotLoading && <div className="note info" style={{ marginTop: 12 }}><Info aria-hidden="true" /><div>예약 가능 시간을 확인 중입니다.</div></div>}
               {slotError && <div className="note" style={{ marginTop: 12, background: "#FDECEC", color: "#B42318" }}><AlertCircle aria-hidden="true" /><div>{slotError}</div></div>}
             </section>

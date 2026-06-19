@@ -8,7 +8,7 @@ type SlotDay = {
   allFull: boolean;
   blocked: boolean;
   beforeMinDate: boolean;
-  slots: Record<SlotPeriod, { isFull: boolean; usedCount: number; maxCount: number }>;
+  slots: Record<SlotPeriod, { available?: boolean; isFull: boolean; usedCount: number; maxCount: number }>;
 };
 type AdminJob = {
   id: string;
@@ -69,6 +69,13 @@ function kstTime(value?: string | null) {
 
 function slotLabel(period: SlotPeriod) {
   return period === "morning" ? "오전" : "오후";
+}
+
+function slotUsageLabel(slot: SlotDay["slots"][SlotPeriod] | undefined, label: string, fallbackCap: number) {
+  if (!slot) return `${label} 확인 중`;
+  if (slot.available === false || slot.isFull) return `${label} 마감`;
+  const max = slot.maxCount ?? fallbackCap;
+  return `${label} ${Math.min(slot.usedCount ?? 0, max)}/${max}`;
 }
 
 function formatKRW(amount?: number | null) {
@@ -290,9 +297,9 @@ export function AdminSlotsClient({ localMode = false }: { localMode?: boolean })
                   <span className="adm-slot-skeleton" />
                 ) : day ? (
                   <>
-                    <span className={morning?.isFull ? "danger" : "ok"}>오전 {morning?.usedCount ?? 0}/{morning?.maxCount ?? cap}</span>
+                    <span className={morning?.isFull || morning?.available === false ? "danger" : "ok"}>{slotUsageLabel(morning, "오전", cap)}</span>
                     {morningNames && <small>{morningNames}</small>}
-                    <span className={afternoon?.isFull ? "danger" : "ok"}>오후 {afternoon?.usedCount ?? 0}/{afternoon?.maxCount ?? cap}</span>
+                    <span className={afternoon?.isFull || afternoon?.available === false ? "danger" : "ok"}>{slotUsageLabel(afternoon, "오후", cap)}</span>
                     {afternoonNames && <small>{afternoonNames}</small>}
                     {day.blocked && <em>차단</em>}
                   </>

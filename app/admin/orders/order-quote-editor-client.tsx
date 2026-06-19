@@ -59,7 +59,7 @@ type SlotDayInfo = {
   blocked: boolean;
   beforeMinDate: boolean;
   allFull: boolean;
-  slots: Record<SlotPeriod, { available: boolean; usedCount?: number; maxCount?: number; used?: number; cap?: number }>;
+  slots: Record<SlotPeriod, { available: boolean; isFull?: boolean; usedCount?: number; maxCount?: number; used?: number; cap?: number }>;
 };
 
 const DATE_WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -121,6 +121,14 @@ function formatScheduleVisitText(dateText: string, slot: SlotPeriod | "") {
 
 function slotLabel(slot: SlotPeriod) {
   return slot === "afternoon" ? "오후" : "오전";
+}
+
+function slotUsageLabel(slot: SlotDayInfo["slots"][SlotPeriod] | undefined, label: string) {
+  if (!slot) return `${label} 확인 중`;
+  if (slot.available === false || slot.isFull) return `${label} 마감`;
+  const used = slot.usedCount ?? slot.used ?? 0;
+  const max = slot.maxCount ?? slot.cap ?? 0;
+  return `${label} ${Math.min(used, max)}/${max}`;
 }
 
 export function OrderQuoteEditor({
@@ -398,7 +406,7 @@ export function OrderQuoteEditor({
             ? "휴무"
             : dayInfo.allFull
               ? "마감"
-              : `오전 ${morning?.usedCount ?? morning?.used ?? 0}/${morning?.maxCount ?? morning?.cap ?? 0} · 오후 ${afternoon?.usedCount ?? afternoon?.used ?? 0}/${afternoon?.maxCount ?? afternoon?.cap ?? 0}`;
+              : `${slotUsageLabel(morning, "오전")} · ${slotUsageLabel(afternoon, "오후")}`;
 
       return (
         <button
