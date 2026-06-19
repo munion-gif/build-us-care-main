@@ -145,27 +145,31 @@ export async function POST(request: Request, context: Context) {
     ?? diagnosis.service_code
     ?? "toilet_replace";
 
-  let order = null;
   const rawResponse = typeof diagnosis.raw_response === "object" && diagnosis.raw_response !== null
     ? diagnosis.raw_response as { customer?: { name?: string | null; phone?: string | null; address?: string | null }; address?: string | null }
     : null;
+  const convertedOrderId = typeof (rawResponse as any)?.converted_order_id === "string" ? (rawResponse as any).converted_order_id : null;
+  if (convertedOrderId) {
+    return ok({ order: { id: convertedOrderId }, alreadyConverted: true, adminUrl: `/admin/orders/${convertedOrderId}` });
+  }
   const rawCustomer = rawResponse?.customer ?? null;
   let customerPhone: string | null = diagnosis.customer_phone ?? rawCustomer?.phone ?? null;
-  const customerName = diagnosis.customer_name ?? rawCustomer?.name ?? null;
-  const customerAddress = rawCustomer?.address ?? rawResponse?.address ?? null;
+  let customerName = diagnosis.customer_name ?? rawCustomer?.name ?? null;
+  let customerAddress = rawCustomer?.address ?? rawResponse?.address ?? null;
   let customerId: string | null = null;
 
   try {
     if (diagnosis.order_id) {
       const { data: existingOrder, error: orderError } = await supabase
         .from("orders")
-        .select("*, customers(id,phone,name)")
+        .select("*, customers(id,phone,name,address_full,address_apt), homes(address_full,address_apt)")
         .eq("id", diagnosis.order_id)
         .single();
       if (orderError) throw new Error(orderError.message);
-      order = existingOrder;
       customerId = existingOrder.customer_id ?? existingOrder.customers?.id ?? null;
       customerPhone = customerPhone ?? existingOrder.customers?.phone ?? null;
+      customerName = customerName ?? existingOrder.customers?.name ?? null;
+      customerAddress = customerAddress ?? existingOrder.homes?.address_full ?? existingOrder.customers?.address_full ?? null;
       if (diagnosis.is_test && !existingOrder.is_test) {
         await supabase
           .from("orders")
@@ -177,96 +181,100 @@ export async function POST(request: Request, context: Context) {
           })
           .eq("id", existingOrder.id);
       }
-    } else {
-      if (!customerPhone) {
-        return fail("bad_request", "사진확인 접수에 고객 연락처가 없어 주문 전환을 할 수 없습니다.", 400);
-      }
-
-      const customer = await upsertCustomer(supabase, customerPhone, customerName);
-      customerId = customer.id;
-
-      const addressFull = customerAddress?.trim() || "사진확인 상담 - 주소 미확인";
-      const addressDong = customerAddress
-        ? parseAddressDong(addressFull) ?? parseAddressApt(addressFull) ?? addressFull.split(/\s+/).slice(0, 2).join(" ")
-        : "주소 미확인";
-      const { data: home, error: homeError } = await supabase
-        .from("homes")
-        .insert({
-          customer_id: customer.id,
-          address_full: addressFull,
-          address_dong: addressDong,
-          size_pyung: 0,
-          building_type: "unknown"
-        })
-        .select("*")
-        .single();
-      if (homeError) throw new Error(homeError.message);
-
-      const orderNumber = await createSequentialOrderNumber(supabase);
-      const skuSnapshot = [{
-        sku: serviceCode,
-        qty: 1,
-        service_type: "labor_service",
-        options: [],
-        material_skus: [],
-        source: "diagnosis",
-        diagnosis_id: diagnosis.id
-      }];
-
-      const { data: insertedOrder, error: orderError } = await supabase
-        .from("orders")
-        .insert({
-          order_number: orderNumber,
-          customer_id: customer.id,
-          home_id: home.id,
-          status: "inquiry",
-          service_type_code: serviceCode,
-          skus: skuSnapshot,
-          channel: "admin",
-          source: "photo_diagnosis",
-          reason: "photo_diagnosis",
-          urgency: "flexible",
-          self_diagnosis: parsed.data.reason ?? diagnosis.reason ?? diagnosis.recommendation ?? null,
-          inquiry_photos: diagnosis.image_urls ?? diagnosis.photos ?? [],
-          special_requests: diagnosis.details ?? null,
-          is_test: Boolean(diagnosis.is_test),
-          test_marked_at: diagnosis.is_test ? new Date().toISOString() : null,
-          test_marked_by: diagnosis.is_test ? getAdminKeyId(request) ?? "admin_session" : null,
-          test_note: diagnosis.is_test ? "테스트 사진확인에서 주문 전환" : null
-        })
-        .select("*")
-        .single();
-      if (orderError) throw new Error(orderError.message);
-      order = insertedOrder;
-
-      const { data: job, error: jobError } = await supabase
-        .from("jobs")
-        .insert({
-          order_id: order.id,
-          status: "received",
-          expected_minutes: 0
-        })
-        .select("id")
-        .single();
-      if (jobError) throw new Error(jobError.message);
-
-      await supabase.from("job_status_logs").insert({
-        job_id: job.id,
-        from_status: null,
-        to_status: "received",
-        memo: "사진확인에서 주문 전환"
-      });
     }
+
+    if (!customerPhone) {
+      return fail("bad_request", "사진확인 접수에 고객 연락처가 없어 주문 전환을 할 수 없습니다.", 400);
+    }
+
+    const customer = await upsertCustomer(supabase, customerPhone, customerName);
+    customerId = customer.id;
+
+    const addressFull = customerAddress?.trim() || "사진확인 상담 - 주소 미확인";
+    const addressDong = customerAddress
+      ? parseAddressDong(addressFull) ?? parseAddressApt(addressFull) ?? addressFull.split(/\s+/).slice(0, 2).join(" ")
+      : "주소 미확인";
+    const { data: home, error: homeError } = await supabase
+      .from("homes")
+      .insert({
+        customer_id: customer.id,
+        address_full: addressFull,
+        address_dong: addressDong,
+        size_pyung: 0,
+        building_type: "unknown"
+      })
+      .select("*")
+      .single();
+    if (homeError) throw new Error(homeError.message);
+
+    const orderNumber = await createSequentialOrderNumber(supabase);
+    const skuSnapshot = [{
+      sku: serviceCode,
+      qty: 1,
+      service_type: "labor_service",
+      options: [],
+      material_skus: [],
+      source: "diagnosis",
+      diagnosis_id: diagnosis.id
+    }];
+
+    const { data: order, error: orderError } = await supabase
+      .from("orders")
+      .insert({
+        order_number: orderNumber,
+        customer_id: customer.id,
+        home_id: home.id,
+        status: "inquiry",
+        service_type_code: serviceCode,
+        skus: skuSnapshot,
+        channel: "admin",
+        source: "photo_diagnosis_conversion",
+        reason: "product_order_request",
+        urgency: "flexible",
+        self_diagnosis: parsed.data.reason ?? diagnosis.reason ?? diagnosis.recommendation ?? null,
+        inquiry_photos: diagnosis.image_urls ?? diagnosis.photos ?? [],
+        special_requests: diagnosis.details ?? null,
+        is_test: Boolean(diagnosis.is_test),
+        test_marked_at: diagnosis.is_test ? new Date().toISOString() : null,
+        test_marked_by: diagnosis.is_test ? getAdminKeyId(request) ?? "admin_session" : null,
+        test_note: diagnosis.is_test ? "테스트 사진확인에서 제품 주문 전환" : null
+      })
+      .select("*")
+      .single();
+    if (orderError) throw new Error(orderError.message);
+
+    const { data: job, error: jobError } = await supabase
+      .from("jobs")
+      .insert({
+        order_id: order.id,
+        status: "received",
+        expected_minutes: 0
+      })
+      .select("id")
+      .single();
+    if (jobError) throw new Error(jobError.message);
+
+    await supabase.from("job_status_logs").insert({
+      job_id: job.id,
+      from_status: null,
+      to_status: "received",
+      memo: "사진확인에서 제품 주문 전환"
+    });
 
     const { quote, pricing } = await createQuoteForOrder(supabase, order.id, serviceCode, diagnosis.id);
 
     await supabase
       .from("diagnoses")
       .update({
-        order_id: order.id,
         suggested_service_code: serviceCode,
         reviewed_by: "admin",
-        reviewed_at: new Date().toISOString()
+        reviewed_at: new Date().toISOString(),
+        raw_response: {
+          ...(typeof diagnosis.raw_response === "object" && diagnosis.raw_response !== null ? diagnosis.raw_response : {}),
+          converted_order_id: order.id,
+          converted_order_number: order.order_number,
+          converted_at: new Date().toISOString()
+        }
       })
       .eq("id", diagnosis.id);
 

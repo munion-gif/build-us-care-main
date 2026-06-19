@@ -24,6 +24,10 @@ function relatedOrder(diagnosis: any) {
   return Array.isArray(diagnosis.orders) ? diagnosis.orders[0] : diagnosis.orders;
 }
 
+function convertedOrderId(diagnosis: any) {
+  return typeof diagnosis.raw_response?.converted_order_id === "string" ? diagnosis.raw_response.converted_order_id : null;
+}
+
 function customerName(diagnosis: any) {
   return diagnosis.customer_name ?? diagnosis.raw_response?.customer?.name ?? relatedOrder(diagnosis)?.customers?.name ?? "이름 미입력";
 }
@@ -135,7 +139,12 @@ export function DiagnosisPanel({ diagnosis, localMode = false }: { diagnosis: an
           </span>
           {relatedOrder(diagnosis)?.id ? (
             <a className="adm-btn adm-btn-secondary adm-btn-sm" href={`/admin/orders/${relatedOrder(diagnosis).id}`}>
-              주문 보기
+              접수 주문 보기
+            </a>
+          ) : null}
+          {convertedOrderId(diagnosis) ? (
+            <a className="adm-btn adm-btn-primary adm-btn-sm" href={`/admin/orders/${convertedOrderId(diagnosis)}`}>
+              제품 주문 보기
             </a>
           ) : null}
         </div>
@@ -194,7 +203,7 @@ export function DiagnosisPanel({ diagnosis, localMode = false }: { diagnosis: an
           <div className="adm-action-row-buttons">
             <button className="adm-btn adm-btn-primary" onClick={save} disabled={saving || localMode}>{saving ? "저장 중" : localMode ? "로컬에서 저장 불가" : "확인 저장"}</button>
             <button className="adm-btn adm-btn-secondary" type="button" onClick={convertToQuote} disabled={converting || localMode}>
-              {converting ? "전환 중" : localMode ? "로컬에서 전환 불가" : "주문·견적 생성"}
+              {converting ? "전환 중" : localMode ? "로컬에서 전환 불가" : convertedOrderId(diagnosis) ? "제품 주문 보기" : "제품 주문 생성"}
             </button>
             <a className="adm-btn adm-btn-secondary" href="/admin/orders?flow=intake">상담 주문 확인</a>
           </div>

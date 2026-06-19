@@ -102,15 +102,26 @@ export async function DELETE(request: Request, context: Context) {
   const supabase = getSupabaseAdmin();
   const { data: diagnosis, error: lookupError } = await supabase
     .from("diagnoses")
-    .select("id,order_id,is_test")
+    .select("id,order_id,is_test,orders(id,source,reason,service_type_code,skus)")
     .eq("id", parsedId.data)
     .single();
 
   if (lookupError) return fail("internal_error", lookupError.message, 500);
   if (!diagnosis) return fail("not_found", "Diagnosis not found.", 404);
 
-  if (diagnosis.order_id) {
-    return fail("linked_order_exists", "주문에 연결된 사진확인 접수는 삭제할 수 없습니다. 주문관리에서 먼저 정리해 주세요.", 409);
+  const linkedOrder = Array.isArray(diagnosis.orders) ? diagnosis.orders[0] : diagnosis.orders;
+  const orderSkus = Array.isArray(linkedOrder?.skus) ? linkedOrder.skus : [];
+  const isPhotoInquiryOrder = Boolean(linkedOrder) && (
+    linkedOrder.source === "builduscare_photo_check" ||
+    linkedOrder.source === "photo_diagnosis" ||
+    linkedOrder.reason === "photo_check_request" ||
+    linkedOrder.reason === "photo_diagnosis" ||
+    linkedOrder.service_type_code === "photo_inquiry" ||
+    orderSkus.some((sku: any) => sku?.metadata?.request_type === "photo_check" || sku?.metadata?.inquiry_only === true)
+  );
+
+  if (diagnosis.order_id && !isPhotoInquiryOrder) {
+    return fail("linked_order_exists", "제품 주문에 연결된 사진확인 접수는 주문관리에서 먼저 정리해 주세요.", 409);
   }
 
   const { error: deleteError } = await supabase
@@ -119,5 +130,18 @@ export async function DELETE(request: Request, context: Context) {
     .eq("id", parsedId.data);
 
   if (deleteError) return fail("internal_error", deleteError.message, 500);
+
+  if (diagnosis.order_id && isPhotoInquiryOrder) {
+    await supabase
+      .from("orders")
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: "admin_session",
+        deleted_reason: "사진확인 접수 삭제"
+      })
+      .eq("id", diagnosis.order_id)
+      .is("deleted_at", null);
+  }
+
   return ok({ id: parsedId.data, deleted: true });
 }

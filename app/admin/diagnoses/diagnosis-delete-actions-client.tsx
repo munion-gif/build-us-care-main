@@ -6,7 +6,6 @@ import { useState } from "react";
 type Props = {
   diagnosisId: string;
   receiptNumber?: string | null;
-  hasLinkedOrder?: boolean;
   localMode?: boolean;
 };
 
@@ -19,7 +18,7 @@ async function readError(response: Response) {
   }
 }
 
-export function DiagnosisDeleteActions({ diagnosisId, receiptNumber, hasLinkedOrder = false, localMode = false }: Props) {
+export function DiagnosisDeleteActions({ diagnosisId, receiptNumber, localMode = false }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -28,10 +27,6 @@ export function DiagnosisDeleteActions({ diagnosisId, receiptNumber, hasLinkedOr
   async function remove() {
     if (localMode) {
       setMessage("로컬 확인 모드에서는 삭제할 수 없어요.");
-      return;
-    }
-    if (hasLinkedOrder) {
-      setMessage("주문에 연결된 사진확인 접수는 주문관리에서 먼저 정리해 주세요.");
       return;
     }
     if (!window.confirm(`${label}을(를) 삭제할까요?\n삭제 후에는 복구할 수 없습니다.`)) return;

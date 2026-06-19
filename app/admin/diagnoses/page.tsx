@@ -337,7 +337,7 @@ export default async function AdminDiagnosesPage({ searchParams }: PageProps) {
               </div>
               <div className="adm-action-row-buttons">
                 <DiagnosisTestActions diagnosisId={selected.id} isTest={Boolean(selected.is_test)} receiptNumber={orderNumber(selected)} localMode={localMode} />
-                <DiagnosisDeleteActions diagnosisId={selected.id} receiptNumber={orderNumber(selected)} hasLinkedOrder={Boolean(relatedOrder(selected)?.id)} localMode={localMode} />
+                <DiagnosisDeleteActions diagnosisId={selected.id} receiptNumber={orderNumber(selected)} localMode={localMode} />
                 <a className="adm-btn adm-btn-secondary" href={diagnosesHref({ result, orderSearch, testMode })}>목록만 보기</a>
               </div>
             </div>
