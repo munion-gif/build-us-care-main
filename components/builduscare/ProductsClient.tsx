@@ -667,7 +667,7 @@ export function ProductsClient({
       return a.localeCompare(b, "ko-KR");
     });
   }, [activeCategory.serviceCode, groupNames]);
-  const pageSize = isMobileList ? PRODUCT_MOBILE_PAGE_SIZE : PRODUCT_PAGE_SIZE;
+  const pageSize = activeCategory.serviceCode === "bath_accessory" ? Math.max(displayProducts.length, 1) : isMobileList ? PRODUCT_MOBILE_PAGE_SIZE : PRODUCT_PAGE_SIZE;
   const totalPages = Math.max(1, Math.ceil(displayProducts.length / pageSize));
   const pageProducts = useMemo(
     () => displayProducts.slice((page - 1) * pageSize, page * pageSize),

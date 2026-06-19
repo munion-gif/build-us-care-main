@@ -101,6 +101,7 @@ function colorPartsOf(product: BuilduscarePublicProduct) {
 
 export function productGroupKey(product: BuilduscarePublicProduct) {
   if (product.serviceCode === "sash_handle") return `${product.serviceCode}|${product.brand}|${sashBaseOf(product) || product.id}`;
+  if (product.serviceCode === "bath_accessory") return `${product.serviceCode}|${product.brand}|${product.sku || product.id}|${product.color || ""}`;
   return [
     product.serviceCode,
     product.categoryName,
