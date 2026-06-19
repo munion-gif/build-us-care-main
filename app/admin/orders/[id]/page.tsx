@@ -512,9 +512,12 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
   const acceptedQuote = latestQuote(order);
   const quoteMaterialAmount = Number(acceptedQuote?.total_material ?? money.productAmount ?? 0);
   const quoteLaborAmount = Number(acceptedQuote?.total_labor ?? money.onsiteAmount ?? 0);
+  const quoteSubtotalAmount = acceptedQuote
+    ? Math.max(0, quoteMaterialAmount + quoteLaborAmount + Number(acceptedQuote.visit_fee ?? 0) - Number(acceptedQuote.discount ?? 0))
+    : Number(money.total ?? 0);
   const quoteDisposalAmount = Number(
     acceptedQuote
-      ? acceptedQuote.visit_fee ?? Math.max(0, Number(acceptedQuote.total_final ?? 0) + Number(acceptedQuote.discount ?? 0) - quoteMaterialAmount - quoteLaborAmount)
+      ? acceptedQuote.visit_fee ?? Math.max(0, quoteSubtotalAmount + Number(acceptedQuote.discount ?? 0) - quoteMaterialAmount - quoteLaborAmount)
       : 0
   );
   const quoteDiscountAmount = Number(acceptedQuote?.discount ?? 0);
@@ -613,7 +616,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
             <span>
               <b>최종 견적</b>
               <strong>{formatKRW(quoteFinalAmount)}</strong>
-              <small>{acceptedQuote ? "견적서 기준" : "주문 금액 기준"}</small>
+              <small>{acceptedQuote ? "부가세 10% 포함" : "주문 금액 기준"}</small>
             </span>
             <span>
               <b>현금영수증</b>
@@ -709,7 +712,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
               <span>제품값 계좌이체 <strong>{formatKRW(quoteMaterialAmount)}</strong></span>
               <span>시공비 <strong>{formatKRW(quoteLaborAmount)}</strong></span>
               <span>폐기물 처리비 <strong>{formatKRW(quoteDisposalAmount)}</strong><small>{quoteDisposalPolicy}</small></span>
-              <span>최종 견적 <strong>{formatKRW(quoteFinalAmount)}</strong></span>
+              <span>최종 견적 <strong>{formatKRW(quoteFinalAmount)}</strong><small>{acceptedQuote ? "부가세 10% 포함" : "주문 금액 기준"}</small></span>
             </div>
             <div className="adm-admin-info-grid" style={{ marginTop: 12 }}>
               <span><b>현재 결제 상태</b><strong>{paymentOperationLabel(order, payment)}</strong></span>

@@ -15,10 +15,6 @@ function numberParam(value: string | null) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function vatIncludedAmount(value: number) {
-  return Math.round((value * 110) / 100);
-}
-
 export function TransferPaymentClient() {
   const searchParams = useSearchParams();
   const [downloadLoading, setDownloadLoading] = useState(false);
@@ -30,7 +26,8 @@ export function TransferPaymentClient() {
   const serviceFeeAmount = numberParam(searchParams.get("serviceFeeAmount"));
   const onsiteAmount = numberParam(searchParams.get("onsiteAmount"));
   const totalAmount = numberParam(searchParams.get("totalAmount")) || productAmount + serviceFeeAmount;
-  const finalAmount = vatIncludedAmount(totalAmount);
+  const subtotalAmount = productAmount + serviceFeeAmount;
+  const finalAmount = totalAmount;
   const bankName = process.env.NEXT_PUBLIC_BANK_TRANSFER_BANK ?? "농협";
   const bankAccount = process.env.NEXT_PUBLIC_BANK_TRANSFER_ACCOUNT ?? "355-0094-9209-33";
   const accountHolder = process.env.NEXT_PUBLIC_BANK_TRANSFER_HOLDER ?? "주식회사 무니온";
@@ -152,7 +149,7 @@ export function TransferPaymentClient() {
           </div>
           <div>
             <dt>합계</dt>
-            <dd>{won(totalAmount)}</dd>
+            <dd>{won(subtotalAmount)}</dd>
           </div>
           <div>
             <dt>최종합계 · 부가세 10% 포함</dt>

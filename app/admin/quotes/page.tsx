@@ -9,7 +9,9 @@ import {
   getQuoteOrders,
   initialQuoteItems,
   latestQuote,
-  manualQuoteItems
+  manualQuoteItems,
+  orderScheduleDate,
+  orderScheduleTime
 } from "./quote-page-data";
 
 export const dynamic = "force-dynamic";
@@ -49,12 +51,7 @@ export default async function AdminQuotesPage({ searchParams }: PageProps) {
       : [];
   const currentQuote = selectedOrder ? latestQuote(selectedOrder) : null;
   const initialVisitFee = Number(manualQuote?.visit_fee ?? (selectedOrder as any)?.visit_fee ?? (currentQuote as any)?.visit_fee ?? (selectedOrder as any)?.visitFee ?? 0);
-  const initialDiscount = selectedOrder
-    ? Math.max(
-        0,
-        Number(currentQuote?.total_material ?? 0) + Number(currentQuote?.total_labor ?? 0) + initialVisitFee - Number(currentQuote?.total_final ?? selectedOrder?.total_amount ?? 0)
-      )
-    : Number(manualQuote?.discount ?? 0);
+  const initialDiscount = selectedOrder ? Number(currentQuote?.discount ?? 0) : Number(manualQuote?.discount ?? 0);
 
   return (
     <>
@@ -99,6 +96,8 @@ export default async function AdminQuotesPage({ searchParams }: PageProps) {
             initialItems={quoteEditorItems as any}
             initialVisitFee={initialVisitFee}
             initialDiscount={initialDiscount}
+            initialScheduleDate={selectedOrder ? orderScheduleDate(selectedOrder) : null}
+            initialScheduleTime={selectedOrder ? orderScheduleTime(selectedOrder) as any : null}
             initialServiceCode={initialServiceCode}
             currentQuoteVersion={currentQuote?.version ?? null}
             customerName={selectedOrder ? customerName(selectedOrder) : manualQuote?.customer_name ?? null}

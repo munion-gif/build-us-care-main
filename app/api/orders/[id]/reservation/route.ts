@@ -157,7 +157,7 @@ export async function POST(request: Request, context: Context) {
   }
 
   if (parsed.data.reserved_date < minReservationDateText()) {
-    return fail("INVALID_DATE", "제품과 일정 준비 기간 때문에 방문 일정은 오늘 기준 3일 이후 날짜부터 가능합니다.", 400);
+    return fail("INVALID_DATE", "제품과 일정 준비 기간 때문에 방문 일정은 영업일 기준 4일 이후 날짜부터 가능합니다.", 400);
   }
   if (isClosedReservationDate(parsed.data.reserved_date)) {
     return fail("SLOT_CLOSED", closedReservationReason(parsed.data.reserved_date), 409);

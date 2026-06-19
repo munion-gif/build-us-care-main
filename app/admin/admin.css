@@ -194,6 +194,7 @@ textarea.adm-input:disabled {
 .adm-inline-help { display: flex; align-items: center; gap: 12px; border: 1px solid #ebe7dd; border-radius: 8px; padding: 12px; background: #fbfaf7; color: #6b675f; font-size: 0.8125rem; line-height: 1.45; }
 .adm-inline-help img { flex: 0 0 auto; border: 1px solid #ebe7dd; border-radius: 6px; background: #fff; }
 .adm-help { display: block; margin-top: 6px; font-size: 0.75rem; color: #7a7974; line-height: 1.45; }
+.adm-field-help { display: block; margin-top: 6px; color: #7a7974; font-size: 0.75rem; line-height: 1.45; }
 .adm-form-message { margin: 12px 0 0; color: #01696f; font-size: 0.875rem; font-weight: 700; }
 .adm-form-message-error { color: #991b1b; }
 textarea.adm-input { min-height: 96px; resize: vertical; line-height: 1.5; }
@@ -214,7 +215,7 @@ textarea.adm-input { min-height: 96px; resize: vertical; line-height: 1.5; }
 .adm-buildus-metrics small { color: #7a7974; font-size: 0.8125rem; line-height: 1.35; overflow-wrap: anywhere; }
 .adm-detail-ops-grid { display: grid; grid-template-columns: minmax(0, 0.92fr) minmax(360px, 1.08fr); gap: 16px; align-items: start; }
 .adm-quote-editor { display: grid; gap: 16px; border-color: #e5e5ea; background: #fff; }
-.adm-quote-summary-strip { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.adm-quote-summary-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 .adm-quote-summary-strip span { min-height: 78px; display: grid; align-content: start; gap: 5px; border: 1px solid #e5e5ea; border-radius: 10px; background: #fff; padding: 12px 14px; }
 .adm-quote-summary-strip b { color: #6e6e73; font-size: 0.75rem; font-weight: 800; letter-spacing: 0; }
 .adm-quote-summary-strip strong { color: #1d1d1f; font-size: 0.95rem; line-height: 1.25; overflow-wrap: anywhere; }
@@ -229,6 +230,9 @@ textarea.adm-input { min-height: 96px; resize: vertical; line-height: 1.5; }
 .adm-quote-item-meta b { color: #6e6e73; font-size: 0.72rem; letter-spacing: 0; }
 .adm-quote-item-meta strong { color: #1d1d1f; font-size: 0.875rem; line-height: 1.35; }
 .adm-quote-builder-card { display: grid; gap: 12px; border: 1px solid #e5e5ea; border-radius: 14px; background: #f5f5f7; padding: 16px; }
+.adm-quote-schedule-card { display: grid; gap: 12px; border: 1px solid #e5e5ea; border-radius: 14px; background: #fff; padding: 16px; }
+.adm-quote-slot-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 120px)); gap: 8px; align-items: center; }
+.adm-quote-slot-actions .adm-btn { min-height: 40px; }
 .adm-quote-qty-action { display: grid; grid-template-columns: minmax(90px, 1fr) auto; gap: 8px; align-items: center; }
 .adm-quote-lines-preview { display: grid; gap: 10px; }
 .adm-quote-lines-table { border: 1px solid #e5e5ea; border-radius: 14px; overflow: hidden; background: #fff; }
@@ -553,6 +557,7 @@ textarea.adm-input { min-height: 96px; resize: vertical; line-height: 1.5; }
   .adm-details-card[open] summary { margin-bottom: 14px; }
   .adm-current-action { grid-template-columns: 1fr; }
   .adm-buildus-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .adm-quote-summary-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .adm-money-split { grid-template-columns: 1fr; }
   .adm-money-split-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .adm-detail-section-product .adm-admin-info-grid { grid-template-columns: 1fr; }

@@ -108,7 +108,7 @@ async function createQuoteForOrder(supabase: SupabaseAdmin, orderId: string, ser
       status: "quoted",
       service_type_code: serviceCode,
       visit_fee: pricing.visit_fee,
-      subtotal_amount: pricing.total_material + pricing.total_labor,
+      subtotal_amount: pricing.subtotal_total,
       total_amount: pricing.total_final
     })
     .eq("id", orderId);

@@ -27,6 +27,7 @@ export type QuoteDocumentInput = {
   visitText: string;
   productTotal: number;
   laborTotal: number;
+  subtotalTotal?: number;
   finalTotal: number;
   transferAmount: number;
   onsiteAmount: number;
@@ -161,7 +162,8 @@ export function buildQuoteDocumentInputFromOrderStatus(
   const rows = quoteRows(quote?.items);
   const productTotal = numberValue(quote?.total_material) || rows.reduce((sum, row) => sum + row.price, 0);
   const laborTotal = numberValue(quote?.total_labor) || rows.reduce((sum, row) => sum + row.labor, 0);
-  const finalTotal = numberValue(quote?.total_final) || numberValue(options.fallbackTotalAmount) || productTotal + laborTotal;
+  const subtotalTotal = numberValue(quote?.total_material) + numberValue(quote?.total_labor) + numberValue(quote?.visit_fee) - numberValue(quote?.discount);
+  const finalTotal = numberValue(quote?.total_final) || numberValue(options.fallbackTotalAmount) || subtotalTotal || productTotal + laborTotal;
   const transferAmount = numberValue(payment?.amount ?? payment?.online_payment_amount) || numberValue(options.fallbackTransferAmount) || productTotal || finalTotal;
   const onsiteAmount = numberValue(payment?.onsite_payment_amount ?? order?.onsite_payment_amount) || numberValue(options.fallbackOnsiteAmount) || Math.max(0, finalTotal - transferAmount);
 
@@ -175,6 +177,7 @@ export function buildQuoteDocumentInputFromOrderStatus(
     visitText: visitTextFromOrder(order),
     productTotal,
     laborTotal,
+    subtotalTotal: subtotalTotal > 0 ? subtotalTotal : undefined,
     finalTotal,
     transferAmount,
     onsiteAmount,
@@ -184,7 +187,8 @@ export function buildQuoteDocumentInputFromOrderStatus(
 }
 
 export function buildQuoteDocumentHtml(input: QuoteDocumentInput) {
-  const vatIncludedFinalTotal = Math.round((input.finalTotal * 110) / 100);
+  const subtotalTotal = numberValue(input.subtotalTotal) || Math.max(0, Math.round(input.finalTotal / 1.1));
+  const vatIncludedFinalTotal = numberValue(input.finalTotal);
   const laborGroups = input.rows.reduce<Map<string, { label: string; qty: number; amount: number }>>((map, row) => {
     const key = row.categoryLabel || "시공";
     const current = map.get(key) ?? { label: key, qty: 0, amount: 0 };
@@ -193,7 +197,7 @@ export function buildQuoteDocumentHtml(input: QuoteDocumentInput) {
     map.set(key, current);
     return map;
   }, new Map());
-  const disposalAmount = Math.max(0, input.finalTotal - input.productTotal - input.laborTotal);
+  const disposalAmount = Math.max(0, subtotalTotal - input.productTotal - input.laborTotal);
   const totalQty = input.rows.reduce((sum, row) => sum + row.qty, 0);
   const issuedAt = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "numeric", day: "numeric" });
   const summaryCategories = Array.from(new Set(input.rows.map((row) => row.categoryLabel || input.serviceName).filter(Boolean)));
@@ -225,7 +229,7 @@ export function buildQuoteDocumentHtml(input: QuoteDocumentInput) {
       <tr class="total-row">
         <td colspan="3" class="fee-label">합계</td>
         <td class="c"></td>
-        <td class="r">${wonNumber(input.finalTotal)}</td>
+        <td class="r">${wonNumber(subtotalTotal)}</td>
       </tr>
     `;
   const cashReceiptText = input.cashReceiptText ?? cashReceiptSummary(input.cashReceipt);

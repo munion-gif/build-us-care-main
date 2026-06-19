@@ -47,9 +47,9 @@ import {
   type BuilduscarePublicProduct
 } from "@/lib/builduscare-public-products";
 import {
-  RESERVATION_LEAD_DAYS,
   isClosedReservationDate,
-  isKoreanPublicHoliday
+  isKoreanPublicHoliday,
+  minReservationDateText
 } from "@/lib/reservation-policy";
 
 type ReservationStep = "info" | "schedule" | "confirm" | "complete";
@@ -197,7 +197,8 @@ function bookingToday() {
 }
 
 function bookingEarliestDate() {
-  return addLocalDays(bookingToday(), RESERVATION_LEAD_DAYS);
+  const [year, month, day] = minReservationDateText(bookingToday()).split("-").map(Number);
+  return new Date(year, month - 1, day);
 }
 
 function bookingMonthBase() {
@@ -946,7 +947,7 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
         {!blockedByPreviousStep && step === "schedule" && (
           <>
             <h1 className="web-h2" style={{ margin: "14px 0 6px" }}>예약 일정 선택</h1>
-            <p className="web-lede" style={{ fontSize: 16 }}>제품 준비기간으로 <b style={{ color: "#1d1d1f" }}>오늘 기준 3일 이후부터</b> 예약할 수 있어요. 일요일과 공휴일은 휴무이고, 토요일은 예약 가능합니다.</p>
+            <p className="web-lede" style={{ fontSize: 16 }}>제품 준비기간으로 <b style={{ color: "#1d1d1f" }}>영업일 기준 4일 이후부터</b> 예약할 수 있어요. 일요일과 공휴일은 휴무이고, 토요일은 예약 가능합니다.</p>
             <section className="bcard pad" style={{ padding: 24, marginTop: 22 }}>
               <div className="between reservation-calendar-head" style={{ marginBottom: 12 }}>
                 <button className="web-btn sec month-nav-btn" type="button" onClick={previousMonth}><ChevronLeft aria-hidden="true" size={18} /> 이전</button>

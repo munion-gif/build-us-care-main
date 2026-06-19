@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { formatKRW } from "@/lib/format";
 import { openQuoteDocumentPreviewWindow, type QuoteDocumentInput } from "@/lib/quote-document";
+import { quoteSubtotalAmount, quoteVatIncludedAmount } from "@/lib/quote-totals";
 
 type QuoteCatalogProduct = {
   id: string;
@@ -45,6 +46,18 @@ type LocalQuoteDraft = {
   }>;
   visitFee?: number;
   discount?: number;
+  scheduleDate?: string;
+  scheduleTime?: SlotPeriod | "";
+};
+
+type SlotPeriod = "morning" | "afternoon";
+
+type SlotDayInfo = {
+  date: string;
+  blocked: boolean;
+  beforeMinDate: boolean;
+  allFull: boolean;
+  slots: Record<SlotPeriod, { available: boolean; usedCount?: number; maxCount?: number; used?: number; cap?: number }>;
 };
 
 type Props = {
@@ -55,6 +68,8 @@ type Props = {
   initialItems: QuoteDraftItem[];
   initialVisitFee: number;
   initialDiscount: number;
+  initialScheduleDate?: string | null;
+  initialScheduleTime?: SlotPeriod | null;
   initialServiceCode: string;
   currentQuoteVersion?: number | null;
   customerName?: string | null;
@@ -72,6 +87,22 @@ function formatVisitTextForPreview() {
   return "방문일 확인 전";
 }
 
+function monthKey(date: Date) {
+  return {
+    year: date.getFullYear(),
+    month: date.getMonth() + 1
+  };
+}
+
+function formatScheduleVisitText(dateText: string, slot: SlotPeriod | "") {
+  if (!dateText || !slot) return formatVisitTextForPreview();
+  return `${dateText} ${slot === "afternoon" ? "오후" : "오전"}`;
+}
+
+function slotLabel(slot: SlotPeriod) {
+  return slot === "afternoon" ? "오후" : "오전";
+}
+
 export function OrderQuoteEditor({
   orderId,
   manualQuoteId,
@@ -80,6 +111,8 @@ export function OrderQuoteEditor({
   initialItems,
   initialVisitFee,
   initialDiscount,
+  initialScheduleDate,
+  initialScheduleTime,
   initialServiceCode,
   currentQuoteVersion,
   customerName,
@@ -117,7 +150,12 @@ export function OrderQuoteEditor({
   const [builderProductId, setBuilderProductId] = useState("");
   const [builderQty, setBuilderQty] = useState(1);
   const [visitFee, setVisitFee] = useState(initialVisitFee);
-  const [discount, setDiscount] = useState(initialDiscount);
+  const discount = 0;
+  const [scheduleDate, setScheduleDate] = useState(initialScheduleDate ?? "");
+  const [scheduleTime, setScheduleTime] = useState<SlotPeriod | "">(initialScheduleTime ?? "");
+  const [slotDays, setSlotDays] = useState<Record<string, SlotDayInfo>>({});
+  const [slotLoading, setSlotLoading] = useState(false);
+  const [slotMessage, setSlotMessage] = useState("");
   const [draftCustomerName, setDraftCustomerName] = useState(customerName ?? "");
   const [draftCustomerPhone, setDraftCustomerPhone] = useState(customerPhone ?? "");
   const [draftAddressText, setDraftAddressText] = useState(addressText ?? "");
@@ -174,13 +212,45 @@ export function OrderQuoteEditor({
       setDraftCustomerPhone(String(draft.customerPhone ?? ""));
       setDraftAddressText(String(draft.addressText ?? ""));
       setVisitFee(Number(draft.visitFee ?? 0));
-      setDiscount(Number(draft.discount ?? 0));
+      setScheduleDate(String(draft.scheduleDate ?? ""));
+      setScheduleTime(draft.scheduleTime === "morning" || draft.scheduleTime === "afternoon" ? draft.scheduleTime : "");
       setItems(loadedItems);
       setMessage("임시 견적을 불러왔습니다. 수정 후 저장하면 목록에 반영됩니다.");
     } catch {
       setMessage("임시 견적을 불러오지 못했습니다.");
     }
   }, [catalogs, defaultServiceCode, editingDraftId, orderId, productMap]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const now = new Date();
+    const months = [monthKey(now), monthKey(new Date(now.getFullYear(), now.getMonth() + 1, 1))];
+    setSlotLoading(true);
+    setSlotMessage("");
+
+    Promise.all(
+      months.map(({ year, month }) =>
+        fetch(`/api/slots?year=${year}&month=${month}&fresh=1`)
+          .then((response) => response.json())
+          .then((payload) => payload?.data?.days ?? {})
+      )
+    )
+      .then((results) => {
+        if (cancelled) return;
+        setSlotDays(Object.assign({}, ...results));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSlotMessage("일정관리 슬롯을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+      })
+      .finally(() => {
+        if (!cancelled) setSlotLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const totals = useMemo(() => {
     const resolvedItems = items
@@ -192,8 +262,9 @@ export function OrderQuoteEditor({
 
     const productTotal = resolvedItems.reduce((sum, entry) => sum + Number(entry.product?.price ?? 0) * entry.item.qty, 0);
     const laborTotal = resolvedItems.reduce((sum, entry) => sum + Number(entry.product?.laborPrice ?? 0) * entry.item.qty, 0);
-    const finalTotal = Math.max(0, productTotal + laborTotal + visitFee - discount);
-    return { productTotal, laborTotal, finalTotal, resolvedItems };
+    const subtotalTotal = quoteSubtotalAmount(productTotal, laborTotal, visitFee, discount);
+    const finalTotal = quoteVatIncludedAmount(subtotalTotal);
+    return { productTotal, laborTotal, subtotalTotal, finalTotal, resolvedItems };
   }, [discount, items, productMap, visitFee]);
 
   function buildQuoteDocumentInput(): QuoteDocumentInput | null {
@@ -223,12 +294,13 @@ export function OrderQuoteEditor({
       serviceName: totals.resolvedItems[0]?.item.serviceTypeCode ?? defaultServiceCode,
       rows,
       address: draftAddressText.trim() || "주소 확인 중",
-      visitText: formatVisitTextForPreview(),
+      visitText: formatScheduleVisitText(scheduleDate, scheduleTime),
       productTotal: totals.productTotal,
       laborTotal: totals.laborTotal,
+      subtotalTotal: totals.subtotalTotal,
       finalTotal: totals.finalTotal,
       transferAmount: totals.productTotal,
-      onsiteAmount: Math.max(0, totals.laborTotal + visitFee - discount),
+      onsiteAmount: Math.max(0, totals.laborTotal + visitFee),
       productCatalogMode: true,
       cashReceiptText: "미정"
     };
@@ -321,8 +393,11 @@ export function OrderQuoteEditor({
       items: validItems,
       visitFee,
       discount,
+      scheduleDate,
+      scheduleTime,
       productTotal: totals.productTotal,
       laborTotal: totals.laborTotal,
+      subtotalTotal: totals.subtotalTotal,
       finalTotal: totals.finalTotal,
       createdAt: new Date().toISOString()
     };
@@ -364,6 +439,9 @@ export function OrderQuoteEditor({
         address_text: draftAddressText.trim(),
         visit_fee: visitFee,
         discount,
+        schedule: scheduleDate && scheduleTime
+          ? { reserved_date: scheduleDate, time_slot: scheduleTime }
+          : null,
         items: validItems
       })
     });
@@ -424,6 +502,9 @@ export function OrderQuoteEditor({
           address_text: draftAddressText.trim() || null,
           visit_fee: visitFee,
           discount,
+          schedule: scheduleDate && scheduleTime
+            ? { reserved_date: scheduleDate, time_slot: scheduleTime }
+            : null,
           items: validItems
         })
       });
@@ -497,9 +578,11 @@ export function OrderQuoteEditor({
       <div className="adm-quote-summary-strip">
         <span><b>주문 기준</b><strong>{orderId ? "선택됨" : "미선택"}</strong></span>
         <span><b>제품값</b><strong>{formatKRW(totals.productTotal)}</strong></span>
-        <span><b>시공비</b><strong>{formatKRW(totals.laborTotal + visitFee)}</strong></span>
-        <span><b>할인</b><strong>{formatKRW(discount)}</strong></span>
-        <span><b>최종 합계</b><strong>{formatKRW(totals.finalTotal)}</strong></span>
+        <span><b>시공비</b><strong>{formatKRW(totals.laborTotal)}</strong></span>
+        <span><b>폐기물 처리비</b><strong>{formatKRW(visitFee)}</strong><small>기존 제품 수거/처리</small></span>
+        <span><b>소계</b><strong>{formatKRW(totals.subtotalTotal)}</strong></span>
+        <span><b>최종 합계</b><strong>{formatKRW(totals.finalTotal)}</strong><small>부가세 10% 포함</small></span>
+        <span><b>방문 일정</b><strong>{formatScheduleVisitText(scheduleDate, scheduleTime)}</strong><small>일정관리 슬롯 기준</small></span>
       </div>
 
       <section className="adm-quote-builder-card">
@@ -625,7 +708,7 @@ export function OrderQuoteEditor({
 
       <div className="adm-form-row adm-form-row-2">
         <label>
-          <span className="adm-label">방문비</span>
+          <span className="adm-label">폐기물 처리비</span>
           <input
             className="adm-input"
             type="number"
@@ -635,20 +718,71 @@ export function OrderQuoteEditor({
             onChange={(event) => setVisitFee(Math.max(0, Number(event.target.value || 0)))}
             disabled={Boolean(saving)}
           />
-        </label>
-        <label>
-          <span className="adm-label">할인</span>
-          <input
-            className="adm-input"
-            type="number"
-            min={0}
-            step={1000}
-            value={discount}
-            onChange={(event) => setDiscount(Math.max(0, Number(event.target.value || 0)))}
-            disabled={Boolean(saving)}
-          />
+          <small className="adm-field-help">기존 제품 수거/폐기 처리 비용입니다. 고객이 직접 처리하면 0원으로 둡니다.</small>
         </label>
       </div>
+
+      <section className="adm-quote-schedule-card">
+        <div className="adm-section-head">
+          <div>
+            <h3 className="adm-card-title">방문 일정</h3>
+            <p className="adm-muted">일정관리 슬롯 기준으로 가능한 날짜와 오전/오후를 선택합니다.</p>
+          </div>
+          {slotLoading ? <span className="adm-badge adm-badge-gray">슬롯 확인 중</span> : null}
+        </div>
+        <div className="adm-form-row adm-form-row-2">
+          <label>
+            <span className="adm-label">방문 날짜</span>
+            <select
+              className="adm-input"
+              value={scheduleDate}
+              onChange={(event) => {
+                setScheduleDate(event.target.value);
+                const nextInfo = slotDays[event.target.value];
+                if (scheduleTime && nextInfo && !nextInfo.slots[scheduleTime]?.available) {
+                  setScheduleTime("");
+                }
+              }}
+              disabled={Boolean(saving)}
+            >
+              <option value="">방문일 확인 전</option>
+              {Object.values(slotDays)
+                .filter((day) => !day.blocked && !day.beforeMinDate && !day.allFull && (day.slots.morning.available || day.slots.afternoon.available))
+                .sort((a, b) => a.date.localeCompare(b.date))
+                .slice(0, 45)
+                .map((day) => (
+                  <option key={day.date} value={day.date}>
+                    {day.date} · 오전 {day.slots.morning.usedCount ?? day.slots.morning.used ?? 0}/{day.slots.morning.maxCount ?? day.slots.morning.cap ?? 0}, 오후 {day.slots.afternoon.usedCount ?? day.slots.afternoon.used ?? 0}/{day.slots.afternoon.maxCount ?? day.slots.afternoon.cap ?? 0}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <div>
+            <span className="adm-label">시간대</span>
+            <div className="adm-quote-slot-actions">
+              {(["morning", "afternoon"] as const).map((period) => {
+                const dayInfo = scheduleDate ? slotDays[scheduleDate] : null;
+                const available = Boolean(scheduleDate && (!dayInfo || dayInfo.slots[period]?.available));
+                return (
+                  <button
+                    key={period}
+                    type="button"
+                    className={`adm-btn ${scheduleTime === period ? "adm-btn-primary" : "adm-btn-secondary"}`}
+                    onClick={() => setScheduleTime(period)}
+                    disabled={Boolean(saving) || !scheduleDate || !available}
+                  >
+                    {slotLabel(period)}
+                  </button>
+                );
+              })}
+            </div>
+            <small className="adm-field-help">
+              선택한 일정은 주문 견적 저장 시 일정관리의 방문 슬롯에 같이 반영됩니다.
+            </small>
+          </div>
+        </div>
+        {slotMessage ? <p className="adm-form-message adm-form-message-error">{slotMessage}</p> : null}
+      </section>
 
       <div className="adm-inline-actions">
         <button className="adm-btn adm-btn-secondary" type="button" onClick={previewQuoteDocument} disabled={Boolean(saving) || totals.resolvedItems.length === 0}>
@@ -662,7 +796,7 @@ export function OrderQuoteEditor({
         </button>
       </div>
       <p className="adm-help">
-        주문에서 들어온 견적은 상세에서 계속 수정할 수 있고, 여기서는 수동 견적 작성도 가능합니다. 제품 금액은 견적 표 기준, 시공비와 방문비는 합계에 반영됩니다.
+        주문에서 들어온 견적은 상세에서 계속 수정할 수 있고, 여기서는 수동 견적 작성도 가능합니다. 제품 금액은 견적 표 기준, 시공비와 폐기물 처리비는 합계에 반영됩니다.
         {localMode ? " 로컬 확인 모드에서는 브라우저 세션 기준으로 임시 저장됩니다." : ""}
       </p>
       {message ? <p className="adm-form-message">{message}</p> : null}

@@ -5,8 +5,11 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { readJson, validationError } from "@/lib/errors";
 import { formatServiceName } from "@/lib/format";
 import { calculateServerQuote } from "@/lib/server-quote";
+import { periodCapFromConfig, resolveDefaultSlotCap, type SlotPeriod } from "@/lib/slot-capacity";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { buildQuoteDocumentInputFromOrderStatus } from "@/lib/quote-document";
+import { quoteSubtotalAmount, quoteVatIncludedAmount } from "@/lib/quote-totals";
+import { closedReservationReason, isClosedReservationDate, minReservationDateText } from "@/lib/reservation-policy";
 import {
   BUILDUSCARE_LOCAL_ADMIN_COOKIE_MAX_AGE,
   BUILDUSCARE_LOCAL_ADMIN_ORDER_COOKIE,
@@ -36,8 +39,104 @@ const adminQuoteSchema = z.object({
   address_text: z.string().trim().optional().nullable(),
   visit_fee: z.coerce.number().int().min(0).default(0),
   discount: z.coerce.number().int().min(0).default(0),
+  schedule: z.object({
+    reserved_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    time_slot: z.enum(["morning", "afternoon"])
+  }).nullable().optional(),
   items: z.array(adminQuoteItemSchema).min(1)
 });
+
+function scheduledAtForSlot(dateText: string, slot: SlotPeriod) {
+  return `${dateText}T${slot === "afternoon" ? "13:00:00" : "09:00:00"}+09:00`;
+}
+
+function kstDateOnly(value: string | Date) {
+  const date = typeof value === "string" ? new Date(value) : value;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  return `${year}-${month}-${day}`;
+}
+
+function slotFromScheduledAt(value?: string | null): SlotPeriod | null {
+  if (!value) return null;
+  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", hour: "2-digit", hour12: false }).format(new Date(value)));
+  return hour < 13 ? "morning" : "afternoon";
+}
+
+function kstDayUtcRange(dateText: string) {
+  const start = new Date(`${dateText}T00:00:00+09:00`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+function asArray(value: any) {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function activeVisitJob(jobs: any[]) {
+  return jobs
+    .filter((job) => job.status !== "cancelled")
+    .sort((a, b) => String(b.scheduled_at ?? b.created_at ?? "").localeCompare(String(a.scheduled_at ?? a.created_at ?? "")))[0] ?? null;
+}
+
+async function resolveRequestedSlotCap(params: {
+  supabase: ReturnType<typeof getSupabaseAdmin>;
+  reservedDate: string;
+  timeSlot: SlotPeriod;
+}) {
+  const { supabase, reservedDate, timeSlot } = params;
+  const [configResult, capResult] = await Promise.all([
+    supabase
+      .from("slot_configs")
+      .select("date,morning_cap,afternoon_cap,blocked,type,cap_value")
+      .eq("type", "date")
+      .eq("date", reservedDate)
+      .maybeSingle(),
+    resolveDefaultSlotCap(supabase)
+  ]);
+
+  if (configResult.error) throw new Error(configResult.error.message);
+  return {
+    blocked: Boolean(configResult.data?.blocked),
+    cap: periodCapFromConfig(configResult.data, timeSlot, capResult.cap),
+    capSource: capResult.capSource,
+    activeTechnicianCount: capResult.activeTechnicianCount
+  };
+}
+
+async function assertSlotAvailable(params: {
+  supabase: ReturnType<typeof getSupabaseAdmin>;
+  orderId: string;
+  reservedDate: string;
+  timeSlot: SlotPeriod;
+  cap: number;
+}) {
+  const { supabase, orderId, reservedDate, timeSlot, cap } = params;
+  const range = kstDayUtcRange(reservedDate);
+  const { data, error } = await supabase
+    .from("jobs")
+    .select("id,order_id,scheduled_at,status")
+    .not("scheduled_at", "is", null)
+    .neq("status", "cancelled")
+    .gte("scheduled_at", range.start)
+    .lt("scheduled_at", range.end);
+
+  if (error) return fail("internal_error", error.message, 500);
+  const usedCount = (data ?? []).filter((job) => job.order_id !== orderId && slotFromScheduledAt(job.scheduled_at) === timeSlot).length;
+  if (usedCount >= cap) {
+    return fail("SLOT_FULL", "선택한 시간대는 마감되었습니다. 다른 시간대를 선택해주세요.", 409);
+  }
+  return null;
+}
 
 function quoteDraftItemToInput(item: z.infer<typeof adminQuoteItemSchema>) {
   if (!isProductSelectionService(item.service_type_code)) {
@@ -114,7 +213,8 @@ function buildLocalQuote(items: z.infer<typeof adminQuoteSchema>["items"], visit
 
   const totalMaterial = quoteItems.reduce((sum, item) => sum + Number(item.line_material ?? 0), 0);
   const totalLabor = quoteItems.reduce((sum, item) => sum + Number(item.line_labor ?? 0) + Number(item.option_total ?? 0), 0);
-  const totalFinal = Math.max(0, totalMaterial + totalLabor + visitFee - discount);
+  const subtotalTotal = quoteSubtotalAmount(totalMaterial, totalLabor, visitFee, discount);
+  const totalFinal = quoteVatIncludedAmount(subtotalTotal);
 
   return {
     items: quoteItems,
@@ -122,12 +222,14 @@ function buildLocalQuote(items: z.infer<typeof adminQuoteSchema>["items"], visit
     total_labor: totalLabor,
     visit_fee: visitFee,
     discount,
+    subtotal_total: subtotalTotal,
     total_final: totalFinal
   };
 }
 
 function updateLocalAdminOrderQuote(stored: LocalAdminOrderCookie, parsed: z.infer<typeof adminQuoteSchema>) {
   const pricing = buildLocalQuote(parsed.items, parsed.visit_fee, parsed.discount);
+  const pricingOnsiteAmount = Math.max(0, pricing.total_labor + pricing.visit_fee - pricing.discount);
   const now = new Date().toISOString();
   const nextVersion = Number(stored.quote?.version ?? 0) + 1;
   const selected = parsed.items.map((item) => {
@@ -159,10 +261,10 @@ function updateLocalAdminOrderQuote(stored: LocalAdminOrderCookie, parsed: z.inf
     selected,
     totals: {
       productAmount: pricing.total_material,
-      laborAmount: pricing.total_labor,
+      laborAmount: pricingOnsiteAmount,
       totalAmount: pricing.total_final,
       onlinePaymentAmount: pricing.total_material,
-      onsitePaymentAmount: pricing.total_labor
+      onsitePaymentAmount: pricingOnsiteAmount
     },
     payment: {
       id: stored.payment?.id ?? `local-payment-${stored.id}`,
@@ -183,6 +285,12 @@ function updateLocalAdminOrderQuote(stored: LocalAdminOrderCookie, parsed: z.inf
     },
     visitFee: pricing.visit_fee,
     discount: pricing.discount,
+    reservation: parsed.schedule
+      ? {
+          date: parsed.schedule.reserved_date,
+          time: parsed.schedule.time_slot === "afternoon" ? "오후" : "오전"
+        }
+      : stored.reservation,
     localOnly: true
   };
 
@@ -212,9 +320,10 @@ function updateLocalAdminOrderQuote(stored: LocalAdminOrderCookie, parsed: z.inf
       visitText: stored.reservation?.date ? `${stored.reservation.date} ${stored.reservation.time === "afternoon" || stored.reservation.time === "오후" ? "오후" : "오전"}` : "방문일 확인 중",
       productTotal: pricing.total_material,
       laborTotal: pricing.total_labor,
+      subtotalTotal: pricing.subtotal_total,
       finalTotal: pricing.total_final,
       transferAmount: pricing.total_material,
-      onsiteAmount: pricing.total_labor,
+      onsiteAmount: pricingOnsiteAmount,
       productCatalogMode: pricing.total_labor > 0,
       cashReceiptText: stored.cashReceipt?.text ?? "신청 안 함"
     },
@@ -244,13 +353,17 @@ async function fetchOrderDetail(orderId: string) {
         items,
         total_material,
         total_labor,
+        visit_fee,
+        discount,
         total_final,
         accepted_at,
         created_at
       ),
       jobs(
         id,
+        status,
         scheduled_at,
+        scheduled_date,
         created_at
       ),
       reservations(
@@ -367,11 +480,56 @@ export async function POST(request: Request, context: Context) {
     const order = await fetchOrderDetail(parsedId.data);
     if (!order) return fail("not_found", "Order not found.", 404);
 
+    if (parsed.data.schedule) {
+      const reservedDate = parsed.data.schedule.reserved_date;
+      const timeSlot = parsed.data.schedule.time_slot;
+
+      if (reservedDate < minReservationDateText()) {
+        return fail("INVALID_DATE", "제품과 일정 준비 기간 때문에 방문 일정은 영업일 기준 4일 이후 날짜부터 가능합니다.", 400);
+      }
+      if (isClosedReservationDate(reservedDate)) {
+        return fail("SLOT_CLOSED", closedReservationReason(reservedDate), 409);
+      }
+
+      const activeJob = activeVisitJob(asArray(order.jobs));
+      if (activeJob && ["in_progress", "done", "completed", "inspected"].includes(String(activeJob.status))) {
+        return fail("JOB_ALREADY_STARTED", "시공이 시작된 주문은 견적 저장 화면에서 방문 일정을 변경할 수 없습니다.", 409);
+      }
+
+      const existingDate = activeJob?.scheduled_at ? kstDateOnly(activeJob.scheduled_at) : null;
+      const existingSlot = activeJob?.scheduled_at ? slotFromScheduledAt(activeJob.scheduled_at) : null;
+      if (existingDate !== reservedDate || existingSlot !== timeSlot) {
+        const slotCap = await resolveRequestedSlotCap({ supabase, reservedDate, timeSlot });
+        if (slotCap.blocked) {
+          return fail("SLOT_CLOSED", "선택한 날짜는 예약이 마감되었습니다.", 409);
+        }
+        if (slotCap.cap <= 0) {
+          return fail(
+            "SLOT_UNAVAILABLE",
+            slotCap.capSource === "no_active_technicians"
+              ? "현재 예약 가능한 기사 일정이 없습니다. 카톡 상담으로 가능 일정을 확인해주세요."
+              : "선택한 시간대는 마감되었습니다. 다른 시간대를 선택해주세요.",
+            409,
+            { activeTechnicianCount: slotCap.activeTechnicianCount }
+          );
+        }
+        const slotError = await assertSlotAvailable({
+          supabase,
+          orderId: parsedId.data,
+          reservedDate,
+          timeSlot,
+          cap: slotCap.cap
+        });
+        if (slotError) return slotError;
+      }
+    }
+
     const items = parsed.data.items.map(quoteDraftItemToInput);
     const pricing = await calculateServerQuote(supabase, items, {
       visitFee: parsed.data.visit_fee,
       discount: parsed.data.discount
     });
+    const pricingOnsiteAmount = Math.max(0, pricing.total_labor + pricing.visit_fee - pricing.discount);
 
     const { data: latestQuote, error: latestQuoteError } = await supabase
       .from("quotes")
@@ -415,14 +573,41 @@ export async function POST(request: Request, context: Context) {
         service_type_code: parsed.data.service_type_code,
         skus: skuSnapshot,
         visit_fee: pricing.visit_fee,
-        subtotal_amount: pricing.total_material + pricing.total_labor,
+        subtotal_amount: pricing.subtotal_total,
         total_amount: pricing.total_final,
         online_payment_amount: pricing.total_material,
-        onsite_payment_amount: pricing.total_labor
+        onsite_payment_amount: pricingOnsiteAmount
       })
       .eq("id", parsedId.data);
 
     if (updateError) throw new Error(updateError.message);
+
+    if (parsed.data.schedule) {
+      const activeJob = activeVisitJob(asArray(order.jobs));
+      const nextScheduledAt = scheduledAtForSlot(parsed.data.schedule.reserved_date, parsed.data.schedule.time_slot);
+      const nextJobStatus = activeJob?.status ?? "assigned";
+      const scheduleMutation = activeJob
+        ? supabase
+            .from("jobs")
+            .update({
+              scheduled_at: nextScheduledAt,
+              scheduled_date: parsed.data.schedule.reserved_date,
+              status: nextJobStatus
+            })
+            .eq("id", activeJob.id)
+        : supabase
+            .from("jobs")
+            .insert({
+              order_id: parsedId.data,
+              scheduled_at: nextScheduledAt,
+              scheduled_date: parsed.data.schedule.reserved_date,
+              status: "assigned",
+              expected_minutes: 0
+            });
+
+      const { error: scheduleError } = await scheduleMutation;
+      if (scheduleError) throw new Error(scheduleError.message);
+    }
 
     const refreshedOrder = await fetchOrderDetail(parsedId.data);
     if (!refreshedOrder) throw new Error("견적 저장 후 주문 정보를 다시 불러오지 못했습니다.");
@@ -434,7 +619,7 @@ export async function POST(request: Request, context: Context) {
       quoteDocumentInput: buildQuoteDocumentInputFromOrderStatus(refreshedOrder, {
         serviceName: undefined,
         fallbackTransferAmount: pricing.total_material,
-        fallbackOnsiteAmount: pricing.total_labor,
+        fallbackOnsiteAmount: pricingOnsiteAmount,
         fallbackTotalAmount: pricing.total_final
       })
     });

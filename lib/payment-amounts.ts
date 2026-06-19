@@ -36,7 +36,12 @@ export function calculatePreparedPaymentAmounts(quote: Record<string, any>): Pre
   const totalAmount = asPositiveInteger(quote?.total_final);
   const isProductSelection = isProductSelectionQuote(quote);
   const productAmount = isProductSelection ? asPositiveInteger(quote?.total_material) : totalAmount;
-  const serviceFeeAmount = isProductSelection ? Math.max(0, totalAmount - productAmount) : 0;
+  const serviceFeeAmount = isProductSelection
+    ? Math.max(
+        0,
+        asPositiveInteger(quote?.total_labor) + asPositiveInteger(quote?.visit_fee) - asPositiveInteger(quote?.discount)
+      )
+    : 0;
 
   return {
     productAmount,

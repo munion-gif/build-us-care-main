@@ -8,6 +8,7 @@ import {
   replacementProductSnapshot,
   type ReplacementProduct
 } from "@/lib/replacement-products";
+import { quoteSubtotalAmount, quoteVatIncludedAmount } from "@/lib/quote-totals";
 
 type SupabaseAdmin = ReturnType<typeof getSupabaseAdmin>;
 
@@ -32,6 +33,7 @@ export type ServerQuoteResult = {
   total_labor: number;
   visit_fee: number;
   discount: number;
+  subtotal_total: number;
   total_final: number;
 };
 
@@ -137,7 +139,8 @@ export async function calculateServerQuote(
 
   const totalMaterial = quoteItems.reduce((sum, item) => sum + item.line_material, 0);
   const totalLabor = quoteItems.reduce((sum, item) => sum + item.line_labor + item.option_total, 0);
-  const totalFinal = Math.max(0, totalMaterial + totalLabor + visitFee - discount);
+  const subtotalTotal = quoteSubtotalAmount(totalMaterial, totalLabor, visitFee, discount);
+  const totalFinal = quoteVatIncludedAmount(subtotalTotal);
 
   return {
     items: quoteItems,
@@ -145,6 +148,7 @@ export async function calculateServerQuote(
     total_labor: totalLabor,
     visit_fee: visitFee,
     discount,
+    subtotal_total: subtotalTotal,
     total_final: totalFinal
   };
 }

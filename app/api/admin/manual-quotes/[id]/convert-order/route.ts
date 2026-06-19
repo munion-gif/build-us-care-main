@@ -76,7 +76,10 @@ export async function POST(request: Request, context: Context) {
     const addressText = String(manualQuote.address_text ?? "").trim() || "주소 확인 중";
     const serviceTypeCode = serviceCodeFromQuote(manualQuote);
     const totalMaterial = Number(manualQuote.total_material ?? 0);
-    const totalLabor = Number(manualQuote.total_labor ?? 0) + Number(manualQuote.visit_fee ?? 0);
+    const totalLabor = Math.max(
+      0,
+      Number(manualQuote.total_labor ?? 0) + Number(manualQuote.visit_fee ?? 0) - Number(manualQuote.discount ?? 0)
+    );
     const totalFinal = Number(manualQuote.total_final ?? 0);
 
     const [customerResult, orderNumber] = await Promise.all([

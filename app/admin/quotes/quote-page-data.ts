@@ -33,6 +33,42 @@ export function asArray(value: any) {
   return Array.isArray(value) ? value : [value];
 }
 
+function kstDateOnly(value: string | Date) {
+  const date = typeof value === "string" ? new Date(value) : value;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  return `${year}-${month}-${day}`;
+}
+
+function slotFromScheduledAt(value?: string | null) {
+  if (!value) return null;
+  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", hour: "2-digit", hour12: false }).format(new Date(value)));
+  return hour < 13 ? "morning" : "afternoon";
+}
+
+function latestActiveJob(order: any) {
+  return asArray(order?.jobs)
+    .filter((job: any) => job?.status !== "cancelled")
+    .sort((a: any, b: any) => String(b?.scheduled_at ?? b?.created_at ?? "").localeCompare(String(a?.scheduled_at ?? a?.created_at ?? "")))[0] ?? null;
+}
+
+export function orderScheduleDate(order: any) {
+  const job = latestActiveJob(order);
+  return job?.scheduled_at ? kstDateOnly(job.scheduled_at) : null;
+}
+
+export function orderScheduleTime(order: any) {
+  const job = latestActiveJob(order);
+  return slotFromScheduledAt(job?.scheduled_at);
+}
+
 export function latestQuote(order: any) {
   return asArray(order?.quotes)
     .sort((a: any, b: any) => String(b?.accepted_at ?? b?.created_at ?? "").localeCompare(String(a?.accepted_at ?? a?.created_at ?? "")))[0] ?? null;
@@ -290,6 +326,8 @@ export async function getQuoteOrders() {
         items,
         total_material,
         total_labor,
+        visit_fee,
+        discount,
         total_final,
         accepted_at,
         created_at
@@ -302,6 +340,13 @@ export async function getQuoteOrders() {
         online_payment_amount,
         onsite_payment_amount,
         total_amount,
+        created_at
+      ),
+      jobs(
+        id,
+        status,
+        scheduled_at,
+        scheduled_date,
         created_at
       ),
       skus

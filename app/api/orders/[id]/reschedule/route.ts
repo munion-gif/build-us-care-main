@@ -82,7 +82,7 @@ async function assertSlotAvailable(params: {
 }) {
   const { supabase, orderId, reservedDate, timeSlot } = params;
   if (isBeforeMinReservationDate(reservedDate)) {
-    return fail("INVALID_DATE", "제품과 일정 준비 기간 때문에 예약 변경은 오늘 기준 3일 이후 날짜부터 가능합니다.", 400);
+    return fail("INVALID_DATE", "제품과 일정 준비 기간 때문에 예약 변경은 영업일 기준 4일 이후 날짜부터 가능합니다.", 400);
   }
   if (isClosedReservationDate(reservedDate)) {
     return fail("SLOT_CLOSED", closedReservationReason(reservedDate), 409);

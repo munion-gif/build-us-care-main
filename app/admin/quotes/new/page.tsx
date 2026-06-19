@@ -9,6 +9,8 @@ import {
   getQuoteOrders,
   initialQuoteItems,
   latestQuote,
+  orderScheduleDate,
+  orderScheduleTime,
   quoteNeeded,
   selectedProductSummary
 } from "../quote-page-data";
@@ -78,12 +80,7 @@ export default async function AdminQuoteNewPage({ searchParams }: PageProps) {
   const quoteEditorItems = selectedOrder ? initialQuoteItems(selectedOrder, initialServiceCode) : [];
   const currentQuote = selectedOrder ? latestQuote(selectedOrder) : null;
   const initialVisitFee = Number((selectedOrder as any)?.visit_fee ?? (currentQuote as any)?.visit_fee ?? (selectedOrder as any)?.visitFee ?? 0);
-  const initialDiscount = selectedOrder
-    ? Math.max(
-        0,
-        Number(currentQuote?.total_material ?? 0) + Number(currentQuote?.total_labor ?? 0) + initialVisitFee - Number(currentQuote?.total_final ?? selectedOrder?.total_amount ?? 0)
-      )
-    : 0;
+  const initialDiscount = selectedOrder ? Number(currentQuote?.discount ?? 0) : 0;
 
   const selectedOrderHome = selectedOrder ? ((Array.isArray((selectedOrder as any)?.homes) ? (selectedOrder as any).homes[0] : (selectedOrder as any)?.homes) ?? null) : null;
 
@@ -122,6 +119,8 @@ export default async function AdminQuoteNewPage({ searchParams }: PageProps) {
             initialItems={quoteEditorItems as any}
             initialVisitFee={initialVisitFee}
             initialDiscount={initialDiscount}
+            initialScheduleDate={selectedOrder ? orderScheduleDate(selectedOrder) : null}
+            initialScheduleTime={selectedOrder ? orderScheduleTime(selectedOrder) as any : null}
             initialServiceCode={initialServiceCode}
             currentQuoteVersion={currentQuote?.version ?? null}
             customerName={selectedOrder ? customerName(selectedOrder) : null}

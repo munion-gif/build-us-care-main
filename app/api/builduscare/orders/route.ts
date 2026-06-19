@@ -8,6 +8,7 @@ import {
 import { notifyNewOrder } from "@/lib/notify-admin";
 import { createOrderDateKey, createOrderNumber } from "@/lib/orders";
 import { createPaymentOrderId } from "@/lib/payment-amounts";
+import { quoteVatIncludedAmount } from "@/lib/quote-totals";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { closedReservationReason, isBeforeMinReservationDate, isClosedReservationDate } from "@/lib/reservation-policy";
 import {
@@ -576,7 +577,8 @@ async function createBuildusOrderBase(params: {
   const addressFull = [roadAddress, detailAddress].filter(Boolean).join(" ");
   const channel = deviceType === "mobile" ? "mobile_web" : "web";
   const orderStatus = productAmount > 0 ? "pending_product_payment" : "inquiry";
-  const totalAmount = productAmount + laborAmount;
+  const subtotalAmount = productAmount + laborAmount;
+  const totalAmount = quoteVatIncludedAmount(subtotalAmount);
 
   const [customerResult, orderNumber] = await Promise.all([
     supabase
@@ -634,7 +636,7 @@ async function createBuildusOrderBase(params: {
       self_diagnosis: selfDiagnosis,
       service_type_code: primaryServiceCode,
       visit_fee: 0,
-      subtotal_amount: totalAmount,
+      subtotal_amount: subtotalAmount,
       total_amount: totalAmount,
       online_payment_amount: productAmount,
       onsite_payment_amount: laborAmount,
@@ -707,11 +709,12 @@ export async function POST(request: Request) {
   const quoteLines = entries.length > 0 ? buildQuoteLines(entries, Boolean(payload.selfDisposal)) : [];
   const totalMaterial = quoteLines.reduce((sum, line) => sum + line.line_material, 0);
   const totalLabor = quoteLines.reduce((sum, line) => sum + line.line_labor + line.option_total, 0);
-  const totalFinal = totalMaterial + totalLabor;
+  const subtotalFinal = totalMaterial + totalLabor;
+  const totalFinal = quoteVatIncludedAmount(subtotalFinal);
   const reserved = reservedDate(payload.reservation?.date);
   const slot = timeSlot(payload.reservation?.time);
   if (reserved && isBeforeMinReservationDate(reserved)) {
-    return fail("INVALID_DATE", "제품과 일정 준비 기간 때문에 방문 일정은 오늘 기준 3일 이후 날짜부터 가능합니다.", 400);
+    return fail("INVALID_DATE", "제품과 일정 준비 기간 때문에 방문 일정은 영업일 기준 4일 이후 날짜부터 가능합니다.", 400);
   }
   if (reserved && isClosedReservationDate(reserved)) {
     return fail("SLOT_CLOSED", closedReservationReason(reserved), 409);

@@ -1,4 +1,5 @@
-export const RESERVATION_LEAD_DAYS = 3;
+export const RESERVATION_LEAD_BUSINESS_DAYS = 4;
+export const RESERVATION_LEAD_DAYS = RESERVATION_LEAD_BUSINESS_DAYS;
 
 export const KR_PUBLIC_HOLIDAYS = new Set([
   "2026-01-01",
@@ -37,8 +38,15 @@ export function kstDateText(value: Date) {
 }
 
 export function minReservationDateText(today = new Date()) {
-  const minDate = new Date(today);
-  minDate.setDate(minDate.getDate() + RESERVATION_LEAD_DAYS);
+  const minDate = localDateFromText(kstDateText(today)) ?? new Date(today);
+  let businessDays = 0;
+  while (businessDays < RESERVATION_LEAD_BUSINESS_DAYS) {
+    minDate.setDate(minDate.getDate() + 1);
+    const dateText = kstDateText(minDate);
+    const day = minDate.getDay();
+    if (day === 0 || day === 6 || isKoreanPublicHoliday(dateText)) continue;
+    businessDays += 1;
+  }
   return kstDateText(minDate);
 }
 
