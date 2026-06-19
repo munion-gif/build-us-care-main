@@ -968,7 +968,6 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
                 {renderCalendar()}
               </div>
               <div className="cal-legend"><span><i className="lg-dot off"></i> 토요일·일요일·공휴일 휴무</span><span><i className="lg-dot work"></i> 선택 가능한 평일</span></div>
-              {slotLoading && <div className="note info" style={{ marginTop: 12 }}><Info aria-hidden="true" /><div>예약 가능 시간을 확인 중입니다.</div></div>}
               {slotError && <div className="note" style={{ marginTop: 12, background: "#FDECEC", color: "#B42318" }}><AlertCircle aria-hidden="true" /><div>{slotError}</div></div>}
             </section>
 
