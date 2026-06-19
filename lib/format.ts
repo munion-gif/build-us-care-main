@@ -142,12 +142,18 @@ export function formatKRW(amount?: number | null): string {
 
 export function formatKRDate(iso?: string | null): string {
   if (!iso) return "확인 중";
-  return new Intl.DateTimeFormat("ko-KR", { year: "numeric", month: "long", day: "numeric" }).format(new Date(iso));
+  return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  }).format(new Date(iso));
 }
 
 export function formatKRDateTime(iso?: string | null): string {
   if (!iso) return "확인 중";
   return new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul",
     year: "numeric",
     month: "long",
     day: "numeric",
