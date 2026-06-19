@@ -500,6 +500,9 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
     draft.specConfirmed &&
     draft.privacyAccepted;
   const canGoConfirm = Boolean(draft.date && draft.time && slotAvailable(slotDays[draft.date], draft.time));
+  const canGoPreviousCalendarMonth =
+    calendarMonth.year > base.year ||
+    (calendarMonth.year === base.year && calendarMonth.month > base.month);
   const vatTotal = Math.round((totals.totalAmount * 110) / 100);
   const needsReservationInfo = draftReady && step !== "info" && step !== "complete" && !canGoSchedule;
   const needsReservationSchedule = draftReady && step === "confirm" && canGoSchedule && !canGoConfirm;
@@ -673,6 +676,7 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
   }
 
   function previousMonth() {
+    if (!canGoPreviousCalendarMonth) return;
     setCalendarMonth((current) => {
       const date = new Date(current.year, current.month - 1, 1);
       return { year: date.getFullYear(), month: date.getMonth() };
@@ -955,7 +959,7 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
             <p className="web-lede" style={{ fontSize: 16 }}>제품 준비기간으로 <b style={{ color: "#1d1d1f" }}>영업일 기준 4일 이후부터</b> 예약할 수 있어요. 토요일·일요일과 공휴일은 휴무입니다.</p>
             <section className="bcard pad" style={{ padding: 24, marginTop: 22 }}>
               <div className="between reservation-calendar-head" style={{ marginBottom: 12 }}>
-                <button className="web-btn sec month-nav-btn" type="button" onClick={previousMonth}><ChevronLeft aria-hidden="true" size={18} /> 이전</button>
+                <button className="web-btn sec month-nav-btn" type="button" onClick={previousMonth} disabled={!canGoPreviousCalendarMonth}><ChevronLeft aria-hidden="true" size={18} /> 이전</button>
                 <div className="h-md">{calendarMonth.year}년 {calendarMonth.month + 1}월</div>
                 <button className="web-btn sec month-nav-btn" type="button" onClick={nextMonth}>다음 <ChevronRight aria-hidden="true" size={18} /></button>
               </div>

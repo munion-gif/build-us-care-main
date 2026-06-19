@@ -1130,16 +1130,35 @@
   }
 
   .reservation-page .reservation-calendar-head {
-    justify-content: flex-start;
+    justify-content: space-between;
+    gap: 10px;
   }
 
   .reservation-page .reservation-calendar-head .h-md {
     font-size: 20px;
     line-height: 28px;
+    text-align: center;
+    white-space: nowrap;
   }
 
   .reservation-page .reservation-calendar-head .month-nav-btn {
-    display: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-width: 72px;
+    height: 36px;
+    padding: 0 10px;
+    border-radius: 999px;
+    font-size: 13px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .reservation-page .reservation-calendar-head .month-nav-btn:disabled {
+    opacity: .36;
+    cursor: default;
+    pointer-events: none;
   }
 
   .reservation-page .calendar button.cal-d:disabled {
