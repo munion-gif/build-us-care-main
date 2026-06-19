@@ -21,7 +21,7 @@ import {
   readLocalAdminOrderHistoryCookie,
   type LocalAdminOrderCookie
 } from "@/lib/builduscare-local-admin";
-import { isProductSelectionService, findReplacementProduct, replacementProductSnapshot } from "@/lib/replacement-products";
+import { isProductSelectionService, findReplacementProduct, getProductLaborPrice, replacementProductSnapshot } from "@/lib/replacement-products";
 import { uuidSchema } from "@/lib/validation";
 
 type Context = { params: Promise<{ id: string }> };
@@ -177,17 +177,7 @@ function buildLocalQuote(items: z.infer<typeof adminQuoteSchema>["items"], visit
     if (!product) throw new Error("선택한 제품 정보를 찾을 수 없습니다.");
     const qty = Math.max(1, Number(item.qty ?? 1));
     const unitMaterial = quoteVatIncludedAmount(Number(product.price ?? 0));
-    const unitLabor = quoteVatIncludedLaborAmount(Number(
-      item.service_type_code === "toilet_replace" ? 100000 :
-      item.service_type_code === "basin_replace" ? 35000 :
-      item.service_type_code === "faucet_replace" ? 40000 :
-      item.service_type_code === "bidet_install" ? 30000 :
-      item.service_type_code === "ventilator_replace" ? 98000 :
-      item.service_type_code === "sash_handle" ? 11000 :
-      item.service_type_code === "door_handle" ? 22000 :
-      item.service_type_code === "silicone_repair" ? 7000 :
-      item.service_type_code === "bath_accessory" ? 19000 : 0
-    ));
+    const unitLabor = quoteVatIncludedLaborAmount(getProductLaborPrice(item.service_type_code, product));
     const lineMaterial = unitMaterial * qty;
     const lineLabor = unitLabor * qty;
     return {

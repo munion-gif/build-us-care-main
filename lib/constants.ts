@@ -10,7 +10,7 @@ export const VENTILATOR_COMPLEX_REPLACE_LABOR_PRICE = 80000;
 export const BASIN_REPLACE_LABOR_PRICE = 80000;
 export const BIDET_INSTALL_LABOR_PRICE = 60000;
 export const SASH_HANDLE_REPLACE_LABOR_PRICE = 40000;
-export const DOOR_HANDLE_REPLACE_LABOR_PRICE = 40000;
+export const DOOR_HANDLE_REPLACE_LABOR_PRICE = 30000;
 export const SILICONE_REPAIR_LABOR_PRICE = 6000;
 export const BATH_ACCESSORY_SET_LABOR_PRICE = 50000;
 export const BATH_ACCESSORY_ITEM_LABOR_PRICE = 25000;
@@ -54,7 +54,7 @@ export const FALLBACK_SERVICE_ITEMS: ServiceItem[] = [
   {
     service_type_code: "door_handle",
     display_name: "도어 핸들 교체",
-    base_price: 40000,
+    base_price: 30000,
     estimated_minutes: 30,
     metadata: { category: "door" }
   },
