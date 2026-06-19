@@ -276,7 +276,7 @@ export function OrderQuoteEditor({
   }, [calendarMonth.month, calendarMonth.year]);
 
   const totalUnits = useMemo(() => items.reduce((sum, item) => sum + (item.productId ? normalizeQty(item.qty) : 0), 0), [items]);
-  const visitFee = selfDisposal ? 0 : quoteVatIncludedAmount(PRODUCT_DISPOSAL_FEE) * totalUnits;
+  const visitFee = selfDisposal ? 0 : PRODUCT_DISPOSAL_FEE * totalUnits;
 
   const totals = useMemo(() => {
     const resolvedItems = items
@@ -672,7 +672,7 @@ export function OrderQuoteEditor({
         <span><b>주문 기준</b><strong>{orderId ? "선택됨" : "미선택"}</strong></span>
         <span><b>제품값</b><strong>{formatKRW(totals.productTotal)}</strong></span>
         <span><b>시공비</b><strong>{formatKRW(totals.laborTotal)}</strong></span>
-        <span><b>폐기물 처리비</b><strong>{formatKRW(visitFee)}</strong><small>{selfDisposal ? "직접 처리" : `제품 ${totalUnits}개 × ${formatKRW(quoteVatIncludedAmount(PRODUCT_DISPOSAL_FEE))}`}</small></span>
+        <span><b>폐기물 처리비</b><strong>{formatKRW(visitFee)}</strong><small>{selfDisposal ? "직접 처리" : `제품 ${totalUnits}개 × ${formatKRW(PRODUCT_DISPOSAL_FEE)}`}</small></span>
         <span><b>최종 합계</b><strong>{formatKRW(totals.finalTotal)}</strong></span>
         <span><b>예약 일정</b><strong>{formatScheduleVisitText(scheduleDate, scheduleTime)}</strong><small>일정관리 슬롯 기준</small></span>
       </div>
@@ -802,7 +802,7 @@ export function OrderQuoteEditor({
         <div className="adm-section-head">
           <div>
             <h3 className="adm-card-title">폐기물 처리</h3>
-            <p className="adm-muted">실제 제품 주문과 동일하게 제품 1개당 {formatKRW(quoteVatIncludedAmount(PRODUCT_DISPOSAL_FEE))}을 자동 반영합니다.</p>
+            <p className="adm-muted">실제 제품 주문과 동일하게 제품 1개당 {formatKRW(PRODUCT_DISPOSAL_FEE)}을 자동 반영합니다.</p>
           </div>
           <strong>{formatKRW(visitFee)}</strong>
         </div>
@@ -816,7 +816,7 @@ export function OrderQuoteEditor({
           <span>폐기물은 고객이 직접 처리합니다</span>
         </label>
         <small className="adm-field-help">
-          체크하지 않으면 폐기물 처리비가 제품 수량 {totalUnits}개 기준으로 {formatKRW(quoteVatIncludedAmount(PRODUCT_DISPOSAL_FEE) * totalUnits)} 반영됩니다.
+          체크하지 않으면 폐기물 처리비가 제품 수량 {totalUnits}개 기준으로 {formatKRW(PRODUCT_DISPOSAL_FEE * totalUnits)} 반영됩니다.
         </small>
       </section>
 
