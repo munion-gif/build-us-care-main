@@ -31,7 +31,6 @@ import { MobileAppBar } from "@/components/builduscare/MobileAppChrome";
 import { appendOptimizedPhotos, optimizePhotoFile } from "@/components/builduscare/photo-upload-utils";
 import type { ProductSelection } from "@/components/builduscare/product-types";
 import {
-  PRODUCT_DISPOSAL_FEE,
   defaultColor,
   formatKRW,
   normalizeSelectedColor,

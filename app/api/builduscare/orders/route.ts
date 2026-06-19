@@ -8,6 +8,7 @@ import {
 import { notifyNewOrder } from "@/lib/notify-admin";
 import { createOrderDateKey, createOrderNumber } from "@/lib/orders";
 import { createPaymentOrderId } from "@/lib/payment-amounts";
+import { productDisposalFee } from "@/lib/builduscare-disposal";
 import { quoteVatIncludedAmount, quoteVatIncludedLaborAmount } from "@/lib/quote-totals";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { closedReservationReason, isBeforeMinReservationDate, isClosedReservationDate } from "@/lib/reservation-policy";
@@ -233,7 +234,7 @@ function buildQuoteLines(entries: Array<{ product: ReplacementProduct; qty: numb
   return entries.map(({ product, qty, selectedColor }) => {
     const unitMaterial = roundedProductPrice(product.price);
     const unitLabor = quoteVatIncludedLaborAmount(getProductLaborPrice(product.serviceCode, product));
-    const disposalPerUnit = selfDisposal ? 0 : 10000;
+    const disposalPerUnit = selfDisposal ? 0 : productDisposalFee(product.serviceCode);
     const lineLabor = (unitLabor + disposalPerUnit) * qty;
     const lineMaterial = unitMaterial * qty;
 

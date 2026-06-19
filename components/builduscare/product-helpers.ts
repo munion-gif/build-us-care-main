@@ -1,8 +1,9 @@
 import type { ProductSelection } from "@/components/builduscare/product-types";
 import type { BuilduscarePublicProduct } from "@/lib/builduscare-public-products";
+import { PRODUCT_DISPOSAL_FEE, productDisposalFee } from "@/lib/builduscare-disposal";
 
 export const PRODUCT_PAGE_SIZE = 15;
-export const PRODUCT_DISPOSAL_FEE = 10000;
+export { PRODUCT_DISPOSAL_FEE, productDisposalFee };
 const SASH_SIZE_ORDER = ["소", "중", "대", "그립"];
 const COLOR_VARIANT_SERVICE_CODES = new Set(["ventilator_replace"]);
 const COLOR_VARIANT_ORDER = ["실버", "화이트", "크롬", "니켈", "블랙", "그레이", "블루", "핑크", "엘로우"];
@@ -256,7 +257,7 @@ export function productTotals(selections: ProductSelection[], selfDisposal = fal
   const units = selections.reduce((sum, item) => sum + item.qty, 0);
   const productAmount = selections.reduce((sum, item) => sum + item.product.roundedPrice * item.qty, 0);
   const laborAmount = selections.reduce((sum, item) => sum + item.product.laborPrice * item.qty, 0);
-  const disposalAmount = selfDisposal ? 0 : PRODUCT_DISPOSAL_FEE * units;
+  const disposalAmount = selfDisposal ? 0 : selections.reduce((sum, item) => sum + productDisposalFee(item.product.serviceCode) * item.qty, 0);
   return {
     units,
     productAmount,
