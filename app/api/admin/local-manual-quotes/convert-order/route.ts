@@ -51,8 +51,8 @@ function buildLocalQuote(items: z.infer<typeof localDraftSchema>["items"], visit
     if (!product) throw new Error("선택한 제품 정보를 찾을 수 없습니다.");
 
     const qty = Math.max(1, Number(item.qty ?? 1));
-    const unitMaterial = Number(product.price ?? 0);
-    const unitLabor = getProductLaborPrice(item.service_type_code, product);
+    const unitMaterial = quoteVatIncludedAmount(Number(product.price ?? 0));
+    const unitLabor = quoteVatIncludedAmount(getProductLaborPrice(item.service_type_code, product));
     const lineMaterial = unitMaterial * qty;
     const lineLabor = unitLabor * qty;
 
@@ -81,7 +81,7 @@ function buildLocalQuote(items: z.infer<typeof localDraftSchema>["items"], visit
   const totalMaterial = quoteItems.reduce((sum, item) => sum + Number(item.line_material ?? 0), 0);
   const totalLabor = quoteItems.reduce((sum, item) => sum + Number(item.line_labor ?? 0), 0);
   const subtotalTotal = quoteSubtotalAmount(totalMaterial, totalLabor, visitFee, discount);
-  const totalFinal = quoteVatIncludedAmount(subtotalTotal);
+  const totalFinal = subtotalTotal;
 
   return { quoteItems, totalMaterial, totalLabor, subtotalTotal, totalFinal };
 }

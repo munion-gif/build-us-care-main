@@ -74,7 +74,6 @@ function summaryText(payload: EstimatePreviewPayload) {
 
 function buildEstimatePreviewHtml(payload: EstimatePreviewPayload) {
   const displayNumber = payload.orderNumber || `BC-EST-${Date.now().toString().slice(-6)}`;
-  const vatIncluded = Math.round((payload.totalAmount * 110) / 100);
   const rowsHtml = payload.selections.map((item) => {
     const productName = `${item.product.brand} ${selectionDisplayLabel(item.product, colorChoiceLabel(item.selectedColor), payload.allProducts ?? [])}`.trim();
     const categoryLabel = payload.categoryTitleByService[item.product.serviceCode] ?? payload.categoryTitle;
@@ -202,16 +201,11 @@ function buildEstimatePreviewHtml(payload: EstimatePreviewPayload) {
             ${rowsHtml}
             ${laborHtml}
             ${disposalHtml}
-            <tr class="total-row">
-              <td colspan="3" class="fee-label">합계</td>
-              <td class="c"></td>
-              <td class="r">${won(payload.totalAmount)}</td>
-            </tr>
           </tbody>
         </table>
         <div class="vat">
-          <div><strong>최종합계</strong><small>부가세 10% 포함</small></div>
-          <span>${won(vatIncluded)}원</span>
+          <div><strong>최종합계</strong></div>
+          <span>${won(payload.totalAmount)}원</span>
         </div>
       </section>
       <div class="actions">

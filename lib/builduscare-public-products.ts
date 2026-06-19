@@ -1,3 +1,4 @@
+import { quoteVatIncludedAmount } from "@/lib/quote-totals";
 import {
   getProductLaborPrice,
   getReplacementProductCatalog,
@@ -23,7 +24,7 @@ export type BuilduscarePublicProduct = ReplacementProduct & {
 
 function roundedPrice(value: number | null | undefined) {
   const amount = Number(value ?? 0);
-  return amount > 0 ? Math.ceil(amount / 1000) * 1000 : 0;
+  return quoteVatIncludedAmount(amount);
 }
 
 function splitSlashOptions(value?: string | null) {
@@ -76,7 +77,7 @@ export function toBuilduscarePublicProduct(product: ReplacementProduct): Buildus
     compactSizeLabel: replacementProductCompactSizeLabel(product),
     sizeLabel: replacementProductSizeLabel(product),
     roundedPrice: roundedPrice(product.price),
-    laborPrice: getProductLaborPrice(product.serviceCode, product),
+    laborPrice: quoteVatIncludedAmount(getProductLaborPrice(product.serviceCode, product)),
     colorOptions,
     sizeOptions: sizeOption ? [sizeOption] : [],
     featureText: noteFeatureText(product)

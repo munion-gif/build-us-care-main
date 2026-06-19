@@ -105,13 +105,13 @@ export async function calculateServerQuote(
     if (isProductSelectionService(sku) && (!selectedReplacementProduct || typeof selectedReplacementProduct.price !== "number")) {
       throw new Error("Selected replacement product is required.");
     }
-    const selectedProductPrice = selectedReplacementProduct?.price ?? 0;
+    const selectedProductPrice = selectedReplacementProduct ? quoteVatIncludedAmount(selectedReplacementProduct.price ?? 0) : 0;
     const materialUnitTotal = materialCodes.reduce((sum, materialSku) => {
       const material = materialMap.get(materialSku);
-      return sum + (material?.retail_price ?? 0);
+      return sum + quoteVatIncludedAmount(material?.retail_price ?? 0);
     }, selectedProductPrice);
-    const optionTotal = (item.options ?? []).reduce((sum, option) => sum + option.price_delta, 0) * item.qty;
-    const unitLabor = isProductSelectionService(sku) ? getProductLaborPrice(sku, selectedReplacementProduct) : service?.base_price ?? 0;
+    const optionTotal = (item.options ?? []).reduce((sum, option) => sum + quoteVatIncludedAmount(option.price_delta), 0) * item.qty;
+    const unitLabor = isProductSelectionService(sku) ? quoteVatIncludedAmount(getProductLaborPrice(sku, selectedReplacementProduct)) : quoteVatIncludedAmount(service?.base_price ?? 0);
     const lineLabor = unitLabor * item.qty;
     const lineMaterial = materialUnitTotal * item.qty;
 
@@ -140,7 +140,7 @@ export async function calculateServerQuote(
   const totalMaterial = quoteItems.reduce((sum, item) => sum + item.line_material, 0);
   const totalLabor = quoteItems.reduce((sum, item) => sum + item.line_labor + item.option_total, 0);
   const subtotalTotal = quoteSubtotalAmount(totalMaterial, totalLabor, visitFee, discount);
-  const totalFinal = quoteVatIncludedAmount(subtotalTotal);
+  const totalFinal = subtotalTotal;
 
   return {
     items: quoteItems,

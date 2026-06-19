@@ -519,9 +519,8 @@ export function OrderLookupClient() {
                   <div className="bc-total">
                     <div className="bc-total-row"><span><Package aria-hidden="true" style={{ width: 15, height: 15, verticalAlign: -2 }} /> 제품비</span><strong>{formatKRW(order.totals?.productAmount)}</strong></div>
                     <div className="bc-total-row"><span><Wrench aria-hidden="true" style={{ width: 15, height: 15, verticalAlign: -2 }} /> 시공비·폐기물 처리비</span><strong>{formatKRW(order.totals?.onsitePaymentAmount ?? order.totals?.laborAmount)}</strong></div>
-                    <div className="bc-total-row"><span>합계</span><strong>{formatKRW(Number(order.totals?.productAmount ?? 0) + Number(order.totals?.onsitePaymentAmount ?? order.totals?.laborAmount ?? 0))}</strong></div>
                     <div className="bc-total-row final">
-                      <span>최종합계 <small>부가세 10% 포함</small></span>
+                      <span>최종합계</span>
                       <strong>{formatKRW(order.totals?.totalAmount)}</strong>
                     </div>
                   </div>

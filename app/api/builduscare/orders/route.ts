@@ -146,7 +146,7 @@ function integer(value: unknown, fallback = 0) {
 
 function roundedProductPrice(value: unknown) {
   const amount = integer(value);
-  return amount > 0 ? Math.ceil(amount / 1000) * 1000 : 0;
+  return quoteVatIncludedAmount(amount);
 }
 
 function parsePayload(value: FormDataEntryValue | null): BuildusPayload | null {
@@ -232,8 +232,8 @@ function buildOrderItems(entries: Array<{ product: ReplacementProduct; qty: numb
 function buildQuoteLines(entries: Array<{ product: ReplacementProduct; qty: number; selectedColor: string }>, selfDisposal: boolean) {
   return entries.map(({ product, qty, selectedColor }) => {
     const unitMaterial = roundedProductPrice(product.price);
-    const unitLabor = getProductLaborPrice(product.serviceCode, product);
-    const disposalPerUnit = selfDisposal ? 0 : 10000;
+    const unitLabor = quoteVatIncludedAmount(getProductLaborPrice(product.serviceCode, product));
+    const disposalPerUnit = selfDisposal ? 0 : quoteVatIncludedAmount(10000);
     const lineLabor = (unitLabor + disposalPerUnit) * qty;
     const lineMaterial = unitMaterial * qty;
 
@@ -578,7 +578,7 @@ async function createBuildusOrderBase(params: {
   const channel = deviceType === "mobile" ? "mobile_web" : "web";
   const orderStatus = productAmount > 0 ? "pending_product_payment" : "inquiry";
   const subtotalAmount = productAmount + laborAmount;
-  const totalAmount = quoteVatIncludedAmount(subtotalAmount);
+  const totalAmount = subtotalAmount;
 
   const [customerResult, orderNumber] = await Promise.all([
     supabase
@@ -710,7 +710,7 @@ export async function POST(request: Request) {
   const totalMaterial = quoteLines.reduce((sum, line) => sum + line.line_material, 0);
   const totalLabor = quoteLines.reduce((sum, line) => sum + line.line_labor + line.option_total, 0);
   const subtotalFinal = totalMaterial + totalLabor;
-  const totalFinal = quoteVatIncludedAmount(subtotalFinal);
+  const totalFinal = subtotalFinal;
   const reserved = reservedDate(payload.reservation?.date);
   const slot = timeSlot(payload.reservation?.time);
   if (reserved && isBeforeMinReservationDate(reserved)) {

@@ -68,7 +68,6 @@ export function EstimatePreviewModal({
   onClose
 }: EstimatePreviewModalProps) {
   const units = selections.reduce((sum, item) => sum + item.qty, 0);
-  const vatIncluded = Math.round((totalAmount * 110) / 100);
   const estimateNumber = useMemo(() => `BC-EST-${Date.now().toString().slice(-6)}`, []);
   const serviceSummary = useMemo(() => {
     const uniqueTitles = Array.from(
@@ -170,19 +169,13 @@ export function EstimatePreviewModal({
                 <td className="c">×{units}</td>
                 <td className="r">{disposalAmount.toLocaleString("ko-KR")}</td>
               </tr>
-              <tr className="estimate-total-row">
-                <td colSpan={3} className="estimate-fee-label">합계</td>
-                <td className="c"></td>
-                <td className="r">{totalAmount.toLocaleString("ko-KR")}</td>
-              </tr>
             </tbody>
           </table>
           <div className="estimate-vat">
             <div>
               <strong>최종합계</strong>
-              <small>부가세 10% 포함</small>
             </div>
-            <span>{formatKRW(vatIncluded)}</span>
+            <span>{formatKRW(totalAmount)}</span>
           </div>
           {selfDisposal && (
             <div className="estimate-self-disposal">

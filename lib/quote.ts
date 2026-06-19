@@ -1,7 +1,6 @@
 import { DEFAULT_VISIT_FEE } from "@/lib/constants";
 import { isProductSelectionService } from "@/lib/replacement-products";
 import type { QuoteInputItem, QuoteResult } from "@/lib/types";
-import { quoteVatIncludedAmount } from "@/lib/quote-totals";
 
 function defaultVisitFeeForItems(items: QuoteInputItem[]) {
   const isProductOnly = items.length > 0 && items.every((item) => isProductSelectionService(item.service_type_code));
@@ -42,7 +41,7 @@ export function calculateQuote(items: QuoteInputItem[], visitFee?: number): Quot
     visit_fee: effectiveVisitFee,
     subtotal_amount: subtotalAmount,
     option_total: optionTotal,
-    total_amount: quoteVatIncludedAmount(subtotalAmount + effectiveVisitFee),
+    total_amount: subtotalAmount + effectiveVisitFee,
     items: lines
   };
 }

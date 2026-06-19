@@ -503,7 +503,6 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
   const canGoPreviousCalendarMonth =
     calendarMonth.year > base.year ||
     (calendarMonth.year === base.year && calendarMonth.month > base.month);
-  const vatTotal = Math.round((totals.totalAmount * 110) / 100);
   const needsReservationInfo = draftReady && step !== "info" && step !== "complete" && !canGoSchedule;
   const needsReservationSchedule = draftReady && step === "confirm" && canGoSchedule && !canGoConfirm;
   const blockedByPreviousStep = needsReservationInfo || needsReservationSchedule;
@@ -1014,14 +1013,13 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
               <div className="col gap10">
                 <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}><Package style={{ width: 15, height: 15, verticalAlign: "-2px" }} /> 제품비 <span style={{ color: "var(--gray-400)" }}>총 {totals.units}개</span></span><span className="strong">{formatKRW(totals.productAmount)}</span></div>
                 <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}><Wrench style={{ width: 15, height: 15, verticalAlign: "-2px" }} /> 시공비 <span style={{ color: "var(--gray-400)" }}>×{totals.units}</span></span><span className="strong">{formatKRW(totals.laborAmount)}</span></div>
-                <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}><Trash2 style={{ width: 15, height: 15, verticalAlign: "-2px" }} /> 폐기물처리비 <span style={{ color: "var(--gray-400)" }}>×{totals.units}</span></span><span className="strong">{formatKRW(draft.selfDisposal ? 0 : PRODUCT_DISPOSAL_FEE * totals.units)}</span></div>
+                <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}><Trash2 style={{ width: 15, height: 15, verticalAlign: "-2px" }} /> 폐기물처리비 <span style={{ color: "var(--gray-400)" }}>×{totals.units}</span></span><span className="strong">{formatKRW(totals.disposalAmount)}</span></div>
                 <label className="disp-opt" style={{ marginTop: 4 }}>
                   <input type="checkbox" checked={draft.selfDisposal} onChange={(event) => update("selfDisposal", event.target.checked)} />
                   <span className="disp-box"></span>
                   <span className="disp-txt">폐기물은 직접 처리할게요 <span className="disp-sub">직접 처리 시 폐기물 처리비 제외</span></span>
                 </label>
-                <div className="between" style={{ padding: "7px 0" }}><span className="p-sm" style={{ color: "var(--gray-600)" }}>합계</span><span className="strong">{formatKRW(totals.totalAmount)}</span></div>
-                <div className="prow tot" style={{ marginTop: 4 }}><span className="pk">최종 합계 <span className="sub" style={{ fontWeight: 600 }}>부가세 10% 포함</span></span><span className="pv">{formatKRW(vatTotal).replace(/원$/, "")}<span className="sub" style={{ fontWeight: 600 }}> 원</span></span></div>
+                <div className="prow tot" style={{ marginTop: 4 }}><span className="pk">최종 합계</span><span className="pv">{formatKRW(totals.totalAmount).replace(/원$/, "")}<span className="sub" style={{ fontWeight: 600 }}> 원</span></span></div>
               </div>
             </section>
 

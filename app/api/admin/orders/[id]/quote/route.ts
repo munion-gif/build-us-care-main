@@ -176,8 +176,8 @@ function buildLocalQuote(items: z.infer<typeof adminQuoteSchema>["items"], visit
     const product = findReplacementProduct(item.service_type_code, item.product_id);
     if (!product) throw new Error("선택한 제품 정보를 찾을 수 없습니다.");
     const qty = Math.max(1, Number(item.qty ?? 1));
-    const unitMaterial = Number(product.price ?? 0);
-    const unitLabor = Number(
+    const unitMaterial = quoteVatIncludedAmount(Number(product.price ?? 0));
+    const unitLabor = quoteVatIncludedAmount(Number(
       item.service_type_code === "toilet_replace" ? 100000 :
       item.service_type_code === "basin_replace" ? 35000 :
       item.service_type_code === "faucet_replace" ? 40000 :
@@ -187,7 +187,7 @@ function buildLocalQuote(items: z.infer<typeof adminQuoteSchema>["items"], visit
       item.service_type_code === "door_handle" ? 22000 :
       item.service_type_code === "silicone_repair" ? 7000 :
       item.service_type_code === "bath_accessory" ? 19000 : 0
-    );
+    ));
     const lineMaterial = unitMaterial * qty;
     const lineLabor = unitLabor * qty;
     return {
@@ -214,7 +214,7 @@ function buildLocalQuote(items: z.infer<typeof adminQuoteSchema>["items"], visit
   const totalMaterial = quoteItems.reduce((sum, item) => sum + Number(item.line_material ?? 0), 0);
   const totalLabor = quoteItems.reduce((sum, item) => sum + Number(item.line_labor ?? 0) + Number(item.option_total ?? 0), 0);
   const subtotalTotal = quoteSubtotalAmount(totalMaterial, totalLabor, visitFee, discount);
-  const totalFinal = quoteVatIncludedAmount(subtotalTotal);
+  const totalFinal = subtotalTotal;
 
   return {
     items: quoteItems,

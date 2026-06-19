@@ -187,8 +187,8 @@ export function buildQuoteDocumentInputFromOrderStatus(
 }
 
 export function buildQuoteDocumentHtml(input: QuoteDocumentInput) {
-  const subtotalTotal = numberValue(input.subtotalTotal) || Math.max(0, Math.round(input.finalTotal / 1.1));
-  const vatIncludedFinalTotal = numberValue(input.finalTotal);
+  const subtotalTotal = numberValue(input.subtotalTotal) || numberValue(input.finalTotal);
+  const finalTotal = numberValue(input.finalTotal);
   const laborGroups = input.rows.reduce<Map<string, { label: string; qty: number; amount: number }>>((map, row) => {
     const key = row.categoryLabel || "시공";
     const current = map.get(key) ?? { label: key, qty: 0, amount: 0 };
@@ -225,11 +225,6 @@ export function buildQuoteDocumentHtml(input: QuoteDocumentInput) {
         <td colspan="3" class="fee-label">폐기물 처리비</td>
         <td class="c">${disposalAmount > 0 ? `×${totalQty}` : "-"}</td>
         <td class="r">${wonNumber(disposalAmount)}</td>
-      </tr>
-      <tr class="total-row">
-        <td colspan="3" class="fee-label">합계</td>
-        <td class="c"></td>
-        <td class="r">${wonNumber(subtotalTotal)}</td>
       </tr>
     `;
   const cashReceiptText = input.cashReceiptText ?? cashReceiptSummary(input.cashReceipt);
@@ -333,8 +328,8 @@ export function buildQuoteDocumentHtml(input: QuoteDocumentInput) {
           <tbody>${rowsHtml}</tbody>
         </table>
         <div class="vat">
-          <div><strong>최종합계</strong><small>부가세 10% 포함</small></div>
-          <span>${won(vatIncludedFinalTotal)}</span>
+          <div><strong>최종합계</strong></div>
+          <span>${won(finalTotal)}</span>
         </div>
       </section>
       <div class="actions">

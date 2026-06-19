@@ -633,7 +633,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
             <span>
               <b>최종 견적</b>
               <strong>{formatKRW(quoteFinalAmount)}</strong>
-              <small>{acceptedQuote ? "부가세 10% 포함" : "주문 금액 기준"}</small>
+              <small>{acceptedQuote ? "견적 금액 기준" : "주문 금액 기준"}</small>
             </span>
             <span>
               <b>현금영수증</b>
@@ -729,7 +729,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
               <span>제품값 계좌이체 <strong>{formatKRW(quoteMaterialAmount)}</strong></span>
               <span>시공비 <strong>{formatKRW(quoteLaborAmount)}</strong></span>
               <span>폐기물 처리비 <strong>{formatKRW(quoteDisposalAmount)}</strong><small>{quoteDisposalPolicy}</small></span>
-              <span>최종 견적 <strong>{formatKRW(quoteFinalAmount)}</strong><small>{acceptedQuote ? "부가세 10% 포함" : "주문 금액 기준"}</small></span>
+              <span>최종 견적 <strong>{formatKRW(quoteFinalAmount)}</strong><small>{acceptedQuote ? "견적 금액 기준" : "주문 금액 기준"}</small></span>
             </div>
             <div className="adm-admin-info-grid" style={{ marginTop: 12 }}>
               <span><b>현재 결제 상태</b><strong>{paymentOperationLabel(order, payment)}</strong></span>

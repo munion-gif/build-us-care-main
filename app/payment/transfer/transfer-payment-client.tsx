@@ -26,7 +26,6 @@ export function TransferPaymentClient() {
   const serviceFeeAmount = numberParam(searchParams.get("serviceFeeAmount"));
   const onsiteAmount = numberParam(searchParams.get("onsiteAmount"));
   const totalAmount = numberParam(searchParams.get("totalAmount")) || productAmount + serviceFeeAmount;
-  const subtotalAmount = productAmount + serviceFeeAmount;
   const finalAmount = totalAmount;
   const bankName = process.env.NEXT_PUBLIC_BANK_TRANSFER_BANK ?? "농협";
   const bankAccount = process.env.NEXT_PUBLIC_BANK_TRANSFER_ACCOUNT ?? "355-0094-9209-33";
@@ -148,11 +147,7 @@ export function TransferPaymentClient() {
             <dd>{won(serviceFeeAmount)}</dd>
           </div>
           <div>
-            <dt>합계</dt>
-            <dd>{won(subtotalAmount)}</dd>
-          </div>
-          <div>
-            <dt>최종합계 · 부가세 10% 포함</dt>
+            <dt>최종합계</dt>
             <dd>{won(finalAmount)}</dd>
           </div>
           {onsiteAmount > 0 && (
