@@ -44,7 +44,8 @@ const orderListRelations = `
       payments(id,status,amount,paid_at,approved_at,requested_at,method,provider,provider_status,online_payment_amount,onsite_payment_amount,onsite_payment_status),
       quotes(id,version,items,total_material,total_labor,total_final,accepted_at,created_at),
       media(id,type,file_path,created_at),
-      jobs(id,scheduled_at,status),
+      jobs(id,scheduled_at,scheduled_date,status,created_at),
+      reservations(id,reserved_date,time_slot),
       cancellations(id,status,refund_amount,refund_rate,reason,requested_at)
     `;
 
@@ -201,6 +202,11 @@ function uniqueStrings(values: string[]) {
   return [...new Set(values.filter(Boolean))];
 }
 
+function asArray(value: any) {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
 function photoCount(order: any) {
   const orderPhotos = Array.isArray(order?.inquiry_photos) ? order.inquiry_photos : [];
   const mediaPhotos = Array.isArray(order?.media)
@@ -305,7 +311,12 @@ function activeVisitJob(order: any) {
   const jobs = Array.isArray(order.jobs) ? order.jobs : [];
   return jobs
     .filter((item: any) => item.status !== "cancelled")
-    .sort((a: any, b: any) => String(b.scheduled_at ?? b.created_at ?? "").localeCompare(String(a.scheduled_at ?? a.created_at ?? "")))[0];
+    .sort((a: any, b: any) => String(b.scheduled_at ?? b.scheduled_date ?? b.created_at ?? "").localeCompare(String(a.scheduled_at ?? a.scheduled_date ?? a.created_at ?? "")))[0];
+}
+
+function activeReservation(order: any) {
+  return asArray(order?.reservations)
+    .sort((a: any, b: any) => String(b.reserved_date ?? "").localeCompare(String(a.reserved_date ?? "")))[0] ?? null;
 }
 
 function slotLabel(slot?: string | null) {
@@ -333,8 +344,11 @@ function kstDateOnly(value?: string | null) {
 
 function visitScheduleLabel(order: any) {
   const job = activeVisitJob(order);
-  if (!job?.scheduled_at) return "방문 일정 없음";
-  return `${kstDateOnly(job.scheduled_at)} ${slotLabel(slotFromScheduledAt(job.scheduled_at))}`;
+  if (job?.scheduled_at) return `${kstDateOnly(job.scheduled_at)} ${slotLabel(slotFromScheduledAt(job.scheduled_at))}`;
+  if (job?.scheduled_date) return `${String(job.scheduled_date).slice(0, 10)} 시간 미정`;
+  const reservation = activeReservation(order);
+  if (reservation?.reserved_date) return `${String(reservation.reserved_date).slice(0, 10)} ${slotLabel(reservation.time_slot)}`;
+  return "방문 일정 없음";
 }
 
 function paymentState(order: any) {

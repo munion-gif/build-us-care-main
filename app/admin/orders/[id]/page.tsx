@@ -103,8 +103,14 @@ async function getOrder(id: string) {
       jobs(
         id,
         scheduled_at,
+        scheduled_date,
         status,
         created_at
+      ),
+      reservations(
+        id,
+        reserved_date,
+        time_slot
       ),
       media(
         id,
@@ -259,12 +265,17 @@ function kstDateOnly(value?: string | null) {
   }).format(new Date(value));
 }
 
-function visitDateLabel(job: any) {
-  return job?.scheduled_at ? kstDateOnly(job.scheduled_at) : "방문 일정 없음";
+function visitDateLabel(job: any, reservation?: any) {
+  if (job?.scheduled_at) return kstDateOnly(job.scheduled_at);
+  if (job?.scheduled_date) return String(job.scheduled_date).slice(0, 10);
+  if (reservation?.reserved_date) return String(reservation.reserved_date).slice(0, 10);
+  return "방문 일정 없음";
 }
 
-function visitSlotLabel(job: any) {
-  return job?.scheduled_at ? slotLabel(slotFromScheduledAt(job.scheduled_at)) : "일정 확인 필요";
+function visitSlotLabel(job: any, reservation?: any) {
+  if (job?.scheduled_at) return slotLabel(slotFromScheduledAt(job.scheduled_at));
+  if (reservation?.time_slot) return slotLabel(reservation.time_slot);
+  return "일정 확인 필요";
 }
 
 function latestPayment(order: any) {
@@ -353,7 +364,12 @@ function canConfirmBankTransfer(order: any, payment: any) {
 function activeVisitJob(order: any) {
   return asArray(order.jobs)
     .filter((item: any) => item.status !== "cancelled")
-    .sort((a: any, b: any) => String(b.scheduled_at ?? b.created_at ?? "").localeCompare(String(a.scheduled_at ?? a.created_at ?? "")))[0] ?? null;
+    .sort((a: any, b: any) => String(b.scheduled_at ?? b.scheduled_date ?? b.created_at ?? "").localeCompare(String(a.scheduled_at ?? a.scheduled_date ?? a.created_at ?? "")))[0] ?? null;
+}
+
+function activeReservation(order: any) {
+  return asArray(order?.reservations)
+    .sort((a: any, b: any) => String(b.reserved_date ?? "").localeCompare(String(a.reserved_date ?? "")))[0] ?? null;
 }
 
 function isPhotoIntake(order: any) {
@@ -406,7 +422,7 @@ function currentAction(order: any) {
   const payments = asArray(order.payments);
   const money = paymentBreakdown(order);
   const photos = photoCount(order);
-  const hasScheduledJob = jobs.some((job: any) => Boolean(job.scheduled_at));
+  const hasScheduledJob = jobs.some((job: any) => Boolean(job.scheduled_at || job.scheduled_date)) || asArray(order?.reservations).some((reservation: any) => Boolean(reservation?.reserved_date));
   const hasAcceptedQuote = quotes.some((quote: any) => Boolean(quote.accepted_at));
   const hasDonePayment = payments.some((payment: any) => payment.status === "done");
   const status = String(order.status ?? "inquiry");
@@ -495,6 +511,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
   const home = homeRecord(order);
   const orderForEdit = { ...order, customers: customer, homes: home };
   const activeJob = activeVisitJob(order);
+  const reservation = activeReservation(order);
   const payment = latestPayment(order);
   const showBankTransferConfirm = canConfirmBankTransfer(order, payment);
   const photoInputs = [
@@ -554,8 +571,8 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
           </article>
           <article className="adm-card adm-brief-card">
             <span>방문 일정</span>
-            <strong>{visitDateLabel(activeJob)}</strong>
-            <small>{visitSlotLabel(activeJob)}</small>
+            <strong>{visitDateLabel(activeJob, reservation)}</strong>
+            <small>{visitSlotLabel(activeJob, reservation)}</small>
           </article>
           <article className="adm-card adm-brief-card">
             <span>결제</span>
@@ -684,7 +701,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
               <span><b>고객 성함</b><strong>{customer?.name ?? "-"}</strong></span>
               <span><b>연락처</b><strong>{customer?.phone ?? "-"}</strong></span>
               <span><b>주소</b><strong>{[home?.address_full ?? customer?.address_full, home?.address_apt ?? customer?.address_apt].filter(Boolean).join(" ") || "-"}</strong></span>
-              <span><b>방문 일정</b><strong>{activeJob?.scheduled_at ? `${visitDateLabel(activeJob)} ${visitSlotLabel(activeJob)}` : "미정"}</strong></span>
+              <span><b>방문 일정</b><strong>{visitDateLabel(activeJob, reservation) !== "방문 일정 없음" ? `${visitDateLabel(activeJob, reservation)} ${visitSlotLabel(activeJob, reservation)}` : "미정"}</strong></span>
             </div>
           </article>
 
