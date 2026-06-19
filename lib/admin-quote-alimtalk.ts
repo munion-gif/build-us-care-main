@@ -97,6 +97,8 @@ export async function fetchManualQuoteForQuoteAlimtalk(quoteId: string) {
       visit_fee,
       discount,
       total_final,
+      reserved_date,
+      time_slot,
       public_access_token,
       created_at,
       updated_at
