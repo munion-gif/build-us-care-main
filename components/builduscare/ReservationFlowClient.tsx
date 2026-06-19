@@ -520,6 +520,11 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
     Number(orderResult?.totals?.onlinePaymentAmount ?? 0) === 0 &&
     Number(orderResult?.totals?.productAmount ?? 0) === 0 &&
     Boolean(orderResult?.item || orderResult?.itemLabel || orderResult?.photoCount !== undefined);
+  const completeDepositAmount = Number(
+    orderResult?.totals?.totalAmount ??
+    orderResult?.totals?.onlinePaymentAmount ??
+    0
+  );
   const completeOrderNumber =
     orderResult?.orderNumber ||
     draft.orderNumber ||
@@ -1053,16 +1058,21 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
               {standaloneCompleteFallback
                 ? "영업시간 기준 2시간 내 견적을 카카오톡으로 안내해 드릴게요."
                 : photoCheckComplete
-                  ? "영업시간 기준 2시간 내 견적을 카카오톡으로 안내해 드릴게요."
+                ? "영업시간 기준 2시간 내 견적을 카카오톡으로 안내해 드릴게요."
                 : orderResult?.transferUrl
-                  ? "제품 금액 입금 확인 후 기사 배정과 방문 일정을 안내해 드릴게요."
+                  ? "입금 확인 후 기사 배정과 방문 일정을 안내해 드릴게요."
                   : "주문 내용을 확인하고 방문 일정을 순차적으로 안내해 드릴게요."}
             </p>
             <div className="bcard pad" style={{ padding: 22, textAlign: "left", maxWidth: 440, margin: "22px auto 0" }}>
               <div className="between"><div className="p-sm strong" style={{ color: "var(--gray-700)" }}>접수번호</div><div className="p-sm strong">{completeOrderNumber}</div></div>
               <div className="between" style={{ marginTop: 8 }}><div className="p-sm strong" style={{ color: "var(--gray-700)" }}>현재 상태</div><span className="badge badge-warning dot">{statusLabel(orderResult)}</span></div>
-              {Number(orderResult?.totals?.onlinePaymentAmount ?? 0) > 0 && (
-                <div className="between" style={{ marginTop: 8 }}><div className="p-sm strong" style={{ color: "var(--gray-700)" }}>입금 금액</div><div className="p-sm strong">{formatKRW(orderResult?.totals?.onlinePaymentAmount)}</div></div>
+              {completeDepositAmount > 0 && (
+                <div className="between" style={{ marginTop: 10, alignItems: "baseline" }}>
+                  <div className="p-sm strong" style={{ color: "var(--gray-700)" }}>입금 금액</div>
+                  <div className="strong" style={{ color: "var(--gray-900)", fontSize: 18, lineHeight: 1.25, fontVariantNumeric: "tabular-nums" }}>
+                    {formatKRW(completeDepositAmount)}
+                  </div>
+                </div>
               )}
               <div className="divline" style={{ margin: "12px 0" }}></div>
               <div className="row gap10">
@@ -1079,7 +1089,7 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
                   <div className="divline" style={{ margin: "14px 0" }}></div>
                   <div className="row gap10">
                     <span className="tile" style={{ width: 38, height: 38, background: "var(--brand-50)", color: "var(--brand-600)" }}><Wallet aria-hidden="true" style={{ width: 20, height: 20 }} /></span>
-                    <div className="grow"><div className="p-sm strong" style={{ color: "var(--gray-900)" }}>계좌이체 안내</div><div className="p-sm">제품 금액 입금 확인 후 주문이 진행돼요.</div></div>
+                    <div className="grow"><div className="p-sm strong" style={{ color: "var(--gray-900)" }}>계좌이체 안내</div><div className="p-sm">입금 확인 후 주문이 진행돼요.</div></div>
                   </div>
                   <div className="col gap8" style={{ marginTop: 12 }}>
                     <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}>예금주</span><span className="p-sm strong" style={{ color: "var(--gray-900)" }}>주식회사 무니온</span></div>

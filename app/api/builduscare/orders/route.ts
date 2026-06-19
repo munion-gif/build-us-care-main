@@ -323,10 +323,10 @@ function createLocalBuildusOrderResponse(params: {
     ? `/payment/transfer?${new URLSearchParams({
         orderId,
         accessToken,
-        amount: String(params.totalMaterial),
+        amount: String(params.totalFinal),
         productAmount: String(params.totalMaterial),
         serviceFeeAmount: String(params.totalLabor),
-        onsiteAmount: String(params.totalLabor),
+        onsiteAmount: "0",
         totalAmount: String(params.totalFinal)
       }).toString()}`
     : null;
@@ -366,20 +366,20 @@ function createLocalBuildusOrderResponse(params: {
           date: params.reserved,
           time: params.payload.reservation?.time ?? null
         },
-        totals: {
-          productAmount: params.totalMaterial,
-          laborAmount: params.totalLabor,
-          totalAmount: params.totalFinal,
-          onlinePaymentAmount: params.totalMaterial,
-          onsitePaymentAmount: params.totalLabor
-        },
-        payment: isProductOrder
-          ? {
-              id: `local-payment-${Date.now().toString(36)}`,
-              status: params.totalMaterial > 0 ? "pending" : "done",
-              amount: params.totalMaterial,
-              provider: "bank_transfer"
-            }
+          totals: {
+            productAmount: params.totalMaterial,
+            laborAmount: params.totalLabor,
+            totalAmount: params.totalFinal,
+            onlinePaymentAmount: params.totalFinal,
+            onsitePaymentAmount: 0
+          },
+          payment: isProductOrder
+            ? {
+                id: `local-payment-${Date.now().toString(36)}`,
+                status: params.totalMaterial > 0 ? "pending" : "done",
+                amount: params.totalFinal,
+                provider: "bank_transfer"
+              }
           : null,
         cashReceipt: isProductOrder
           ? {
@@ -435,14 +435,14 @@ function createLocalBuildusOrderResponse(params: {
       productAmount: params.totalMaterial,
       laborAmount: params.totalLabor,
       totalAmount: params.totalFinal,
-      onlinePaymentAmount: params.totalMaterial,
-      onsitePaymentAmount: params.totalLabor
+      onlinePaymentAmount: params.totalFinal,
+      onsitePaymentAmount: 0
     },
     payment: isProductOrder
       ? {
           id: `local-payment-${Date.now().toString(36)}`,
           status: params.totalMaterial > 0 ? "pending" : "done",
-          amount: params.totalMaterial,
+          amount: params.totalFinal,
           provider: "bank_transfer"
         }
       : null,
@@ -638,9 +638,9 @@ async function createBuildusOrderBase(params: {
       visit_fee: 0,
       subtotal_amount: subtotalAmount,
       total_amount: totalAmount,
-      online_payment_amount: productAmount,
-      onsite_payment_amount: laborAmount,
-      onsite_payment_status: laborAmount > 0 ? "PENDING" : "DONE",
+      online_payment_amount: totalAmount,
+      onsite_payment_amount: 0,
+      onsite_payment_status: "DONE",
       special_requests: specialRequests,
       inquiry_photos: [],
       is_test: false
@@ -808,16 +808,16 @@ export async function POST(request: Request) {
               provider_order_id: providerOrderId,
               method: "transfer",
               order_name: orderName(quoteLines, item),
-              amount: totalMaterial,
+              amount: totalFinal,
               status: totalMaterial > 0 ? "pending" : "done",
               provider_status: totalMaterial > 0 ? "WAITING_DEPOSIT" : "DONE",
               requested_at: now,
               product_amount: totalMaterial,
               service_fee_amount: totalLabor,
               total_amount: totalFinal,
-              online_payment_amount: totalMaterial,
-              onsite_payment_amount: totalLabor,
-              onsite_payment_status: totalLabor > 0 ? "PENDING" : "DONE",
+              online_payment_amount: totalFinal,
+              onsite_payment_amount: 0,
+              onsite_payment_status: "DONE",
               quote_status: "pending_product_payment"
             })
             .select("*")
@@ -836,10 +836,10 @@ export async function POST(request: Request) {
       const transferParams = new URLSearchParams({
         orderId: order.id,
         accessToken: order.access_token,
-        amount: String(totalMaterial),
+        amount: String(totalFinal),
         productAmount: String(totalMaterial),
         serviceFeeAmount: String(totalLabor),
-        onsiteAmount: String(totalLabor),
+        onsiteAmount: "0",
         totalAmount: String(totalFinal)
       });
       transferUrl = `/payment/transfer?${transferParams.toString()}`;
