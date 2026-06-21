@@ -1,6 +1,6 @@
 import { ok, fail } from "@/lib/api-response";
 import { requireAdmin } from "@/lib/admin-auth";
-import { createOrderDateKey, createOrderNumber } from "@/lib/orders";
+import { createOrderNumber } from "@/lib/orders";
 import { createPaymentOrderId } from "@/lib/payment-amounts";
 import { closedReservationReason, isClosedReservationDate, minReservationDateText } from "@/lib/reservation-policy";
 import { periodCapFromConfig, resolveDefaultSlotCap, type SlotPeriod } from "@/lib/slot-capacity";
@@ -10,18 +10,6 @@ import { uuidSchema } from "@/lib/validation";
 type Context = { params: Promise<{ id: string }> };
 
 const BUILDUSCARE_SOURCE = "builduscare_admin_manual_quote";
-
-async function createSequentialOrderNumber(supabase: ReturnType<typeof getSupabaseAdmin>) {
-  const dateKey = createOrderDateKey();
-  const prefix = `BO-${dateKey}-`;
-  const { count, error } = await supabase
-    .from("orders")
-    .select("id", { count: "exact", head: true })
-    .like("order_number", `${prefix}%`);
-
-  if (error) throw new Error(error.message);
-  return createOrderNumber(new Date(), (count ?? 0) + 1);
-}
 
 function serviceCodeFromQuote(quote: any) {
   const items = Array.isArray(quote?.items) ? quote.items : [];
@@ -203,7 +191,7 @@ export async function POST(request: Request, context: Context) {
         }, { onConflict: "phone" })
         .select("*")
         .single(),
-      createSequentialOrderNumber(supabase)
+      Promise.resolve(createOrderNumber())
     ]);
     if (customerResult.error) throw new Error(customerResult.error.message);
     const customer = customerResult.data;

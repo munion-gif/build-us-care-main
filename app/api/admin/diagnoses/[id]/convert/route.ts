@@ -3,7 +3,7 @@ import { fail, ok } from "@/lib/api-response";
 import { parseAddressApt, parseAddressDong } from "@/lib/address-parse";
 import { getAdminKeyId, requireAdmin } from "@/lib/admin-auth";
 import { readJson, validationError } from "@/lib/errors";
-import { createOrderDateKey, createOrderNumber } from "@/lib/orders";
+import { createOrderNumber } from "@/lib/orders";
 import { calculateServerQuote } from "@/lib/server-quote";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { uuidSchema } from "@/lib/validation";
@@ -15,18 +15,6 @@ const convertSchema = z.object({
   service_type_code: z.string().min(1).optional(),
   reason: z.string().optional()
 });
-
-async function createSequentialOrderNumber(supabase: SupabaseAdmin) {
-  const dateKey = createOrderDateKey();
-  const prefix = `BO-${dateKey}-`;
-  const { count, error } = await supabase
-    .from("orders")
-    .select("id", { count: "exact", head: true })
-    .like("order_number", `${prefix}%`);
-
-  if (error) throw new Error(error.message);
-  return createOrderNumber(new Date(), (count ?? 0) + 1);
-}
 
 async function upsertCustomer(supabase: SupabaseAdmin, phone: string, name?: string | null) {
   const { data: existing, error: lookupError } = await supabase
@@ -207,7 +195,7 @@ export async function POST(request: Request, context: Context) {
       .single();
     if (homeError) throw new Error(homeError.message);
 
-    const orderNumber = await createSequentialOrderNumber(supabase);
+    const orderNumber = createOrderNumber();
     const skuSnapshot = [{
       sku: serviceCode,
       qty: 1,

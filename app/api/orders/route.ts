@@ -5,15 +5,13 @@ import { inferDeviceType, normalizeCampaign, normalizeSource } from "@/lib/data-
 import { EVENT_TYPES } from "@/lib/event-types";
 import { readJson, validationError } from "@/lib/errors";
 import { notifyNewOrder } from "@/lib/notify-admin";
-import { createOrderDateKey, createOrderNumber } from "@/lib/orders";
+import { createOrderNumber } from "@/lib/orders";
 import { calculateQuote } from "@/lib/quote";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { isLifecycleSchemaError } from "@/lib/schema-compat";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { createOrderSchema } from "@/lib/validation";
 import { findLocalBuildusOrdersByPhone, localBuildusOrderSummary } from "@/lib/builduscare-local-order-server";
-
-type SupabaseAdmin = ReturnType<typeof getSupabaseAdmin>;
 
 const ORDER_CREATE_LIMIT = 4;
 const ORDER_CREATE_WINDOW_MS = 15 * 60 * 1000;
@@ -37,22 +35,6 @@ function buildSkuSnapshot(items: Array<{ service_type_code?: string; qty: number
     options: item.options ?? [],
     material_skus: []
   }));
-}
-
-async function createSequentialOrderNumber(supabase: SupabaseAdmin) {
-  const dateKey = createOrderDateKey();
-  const prefix = `BO-${dateKey}-`;
-
-  const { count, error } = await supabase
-    .from("orders")
-    .select("id", { count: "exact", head: true })
-    .like("order_number", `${prefix}%`);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return createOrderNumber(new Date(), (count ?? 0) + 1);
 }
 
 export async function POST(request: Request) {
@@ -223,7 +205,7 @@ export async function POST(request: Request) {
 
   let orderNumber: string;
   try {
-    orderNumber = await createSequentialOrderNumber(supabase);
+    orderNumber = createOrderNumber();
   } catch (error) {
     return fail("internal_error", error instanceof Error ? error.message : "Failed to create order number.", 500);
   }

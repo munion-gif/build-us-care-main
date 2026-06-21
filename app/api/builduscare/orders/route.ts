@@ -6,7 +6,7 @@ import {
   upsertBuilduscarePhotoDiagnosis
 } from "@/lib/builduscare-photo-processing";
 import { notifyNewOrder } from "@/lib/notify-admin";
-import { createOrderDateKey, createOrderNumber } from "@/lib/orders";
+import { createOrderNumber } from "@/lib/orders";
 import { createPaymentOrderId } from "@/lib/payment-amounts";
 import { productDisposalFee } from "@/lib/builduscare-disposal";
 import { quoteVatIncludedAmount, quoteVatIncludedLaborAmount } from "@/lib/quote-totals";
@@ -531,18 +531,6 @@ function createLocalBuildusOrderResponse(params: {
   return response;
 }
 
-async function createSequentialBuildusOrderNumber(supabase: ReturnType<typeof getSupabaseAdmin>) {
-  const dateKey = createOrderDateKey();
-  const prefix = `BO-${dateKey}-`;
-  const { count, error } = await supabase
-    .from("orders")
-    .select("id", { count: "exact", head: true })
-    .like("order_number", `${prefix}%`);
-
-  if (error) throw new Error(error.message);
-  return createOrderNumber(new Date(), (count ?? 0) + 1);
-}
-
 async function createBuildusOrderBase(params: {
   supabase: ReturnType<typeof getSupabaseAdmin>;
   name: string;
@@ -595,7 +583,7 @@ async function createBuildusOrderBase(params: {
       }, { onConflict: "phone" })
       .select("*")
       .single(),
-    createSequentialBuildusOrderNumber(supabase)
+    Promise.resolve(createOrderNumber())
   ]);
   if (customerResult.error) throw new Error(customerResult.error.message);
   const customer = customerResult.data;
