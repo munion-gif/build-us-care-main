@@ -178,11 +178,12 @@ export async function GET(request: Request) {
   const supabase = getSupabaseAdmin();
 
   let jobsResult: any;
+  let manualQuotesResult: any;
   let configsResult: any;
   let capResult: Awaited<ReturnType<typeof resolveDefaultSlotCap>>;
 
   try {
-    [jobsResult, configsResult, capResult] = await Promise.all([
+    [jobsResult, manualQuotesResult, configsResult, capResult] = await Promise.all([
       supabase
         .from("jobs")
         .select("id,order_id,scheduled_at,status")
@@ -190,6 +191,14 @@ export async function GET(request: Request) {
         .neq("status", "cancelled")
         .gte("scheduled_at", range.queryStart)
         .lt("scheduled_at", range.queryEnd),
+      supabase
+        .from("manual_quotes")
+        .select("id,reserved_date,time_slot,converted_order_id")
+        .not("reserved_date", "is", null)
+        .not("time_slot", "is", null)
+        .is("converted_order_id", null)
+        .gte("reserved_date", range.startDate)
+        .lte("reserved_date", range.endDate),
       supabase
         .from("slot_configs")
         .select("date,morning_cap,afternoon_cap,blocked,type,cap_value,reason")
@@ -202,7 +211,7 @@ export async function GET(request: Request) {
     return fail("internal_error", error instanceof Error ? error.message : "Failed to resolve slot capacity.", 500);
   }
 
-  const firstError = jobsResult.error ?? configsResult.error;
+  const firstError = jobsResult.error ?? manualQuotesResult.error ?? configsResult.error;
   if (firstError) return fail("internal_error", firstError.message, 500);
 
   let testOrderIds = new Set<string>();
@@ -229,6 +238,18 @@ export async function GET(request: Request) {
     const period = slotFromScheduledAt(job.scheduled_at);
     if (!period) continue;
     const day = kstDateOnly(job.scheduled_at);
+    if (day >= range.startDate && day <= range.endDate) addCount(day, period);
+  }
+
+  const manualQuoteRows = (manualQuotesResult.data ?? []) as Array<{
+    reserved_date: string | null;
+    time_slot: SlotPeriod | null;
+  }>;
+
+  for (const quote of manualQuoteRows) {
+    const day = quote.reserved_date ? String(quote.reserved_date).slice(0, 10) : null;
+    const period = quote.time_slot;
+    if (!day || (period !== "morning" && period !== "afternoon")) continue;
     if (day >= range.startDate && day <= range.endDate) addCount(day, period);
   }
 

@@ -80,22 +80,39 @@ async function resolveRequestedSlotCap(params: {
 
 async function assertSlotAvailable(params: {
   supabase: ReturnType<typeof getSupabaseAdmin>;
+  manualQuoteId: string;
   reservedDate: string;
   timeSlot: SlotPeriod;
   cap: number;
 }) {
-  const { supabase, reservedDate, timeSlot, cap } = params;
+  const { supabase, manualQuoteId, reservedDate, timeSlot, cap } = params;
   const range = kstDayUtcRange(reservedDate);
-  const { data, error } = await supabase
-    .from("jobs")
-    .select("id,order_id,scheduled_at,status")
-    .not("scheduled_at", "is", null)
-    .neq("status", "cancelled")
-    .gte("scheduled_at", range.start)
-    .lt("scheduled_at", range.end);
+  const [jobsResult, manualQuotesResult] = await Promise.all([
+    supabase
+      .from("jobs")
+      .select("id,order_id,scheduled_at,status")
+      .not("scheduled_at", "is", null)
+      .neq("status", "cancelled")
+      .gte("scheduled_at", range.start)
+      .lt("scheduled_at", range.end),
+    supabase
+      .from("manual_quotes")
+      .select("id,reserved_date,time_slot,converted_order_id")
+      .not("reserved_date", "is", null)
+      .not("time_slot", "is", null)
+      .is("converted_order_id", null)
+      .eq("reserved_date", reservedDate)
+  ]);
 
-  if (error) return fail("internal_error", error.message, 500);
-  const usedCount = (data ?? []).filter((job) => slotFromScheduledAt(job.scheduled_at) === timeSlot).length;
+  const firstError = jobsResult.error ?? manualQuotesResult.error;
+  if (firstError) return fail("internal_error", firstError.message, 500);
+
+  const jobCount = (jobsResult.data ?? []).filter((job) => slotFromScheduledAt(job.scheduled_at) === timeSlot).length;
+  const manualQuoteCount = (manualQuotesResult.data ?? []).filter((quote) => {
+    if (quote.id === manualQuoteId) return false;
+    return quote.time_slot === timeSlot;
+  }).length;
+  const usedCount = jobCount + manualQuoteCount;
   if (usedCount >= cap) {
     return fail("SLOT_FULL", "선택한 시간대는 마감되었습니다. 다른 시간대를 선택해주세요.", 409);
   }
@@ -104,10 +121,11 @@ async function assertSlotAvailable(params: {
 
 async function validateManualQuoteSchedule(params: {
   supabase: ReturnType<typeof getSupabaseAdmin>;
+  manualQuoteId: string;
   reservedDate: string;
   timeSlot: SlotPeriod;
 }) {
-  const { supabase, reservedDate, timeSlot } = params;
+  const { supabase, manualQuoteId, reservedDate, timeSlot } = params;
 
   if (reservedDate < minReservationDateText()) {
     return fail("INVALID_DATE", "제품과 일정 준비 기간 때문에 방문 일정은 영업일 기준 4일 이후 날짜부터 가능합니다.", 400);
@@ -131,7 +149,7 @@ async function validateManualQuoteSchedule(params: {
     );
   }
 
-  return assertSlotAvailable({ supabase, reservedDate, timeSlot, cap: slotCap.cap });
+  return assertSlotAvailable({ supabase, manualQuoteId, reservedDate, timeSlot, cap: slotCap.cap });
 }
 
 export async function POST(request: Request, context: Context) {
@@ -173,7 +191,7 @@ export async function POST(request: Request, context: Context) {
     const timeSlot = manualQuote.time_slot === "morning" || manualQuote.time_slot === "afternoon" ? manualQuote.time_slot as SlotPeriod : null;
 
     if (reservedDate && timeSlot) {
-      const scheduleError = await validateManualQuoteSchedule({ supabase, reservedDate, timeSlot });
+      const scheduleError = await validateManualQuoteSchedule({ supabase, manualQuoteId: parsedId.data, reservedDate, timeSlot });
       if (scheduleError) return scheduleError;
     }
 
