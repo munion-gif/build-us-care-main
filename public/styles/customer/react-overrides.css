@@ -1778,6 +1778,7 @@
 
     .estimate-product-copy strong {
       color: #111;
+      display: block;
       font-size: 13px;
       line-height: 19px;
       font-weight: 800;
@@ -1813,6 +1814,160 @@
   .estimate-fee-label {
     color: #1d1d1f;
     font-weight: 800;
+  }
+
+  @media (max-width: 520px) {
+    .estimate-page {
+      padding: 0;
+    }
+
+    .estimate-card,
+    .estimate-standalone-card {
+      width: 100%;
+      min-height: 100vh;
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    .estimate-head {
+      padding: 22px 20px 18px;
+      gap: 14px;
+    }
+
+    .estimate-head img {
+      width: 108px;
+    }
+
+    .estimate-head p {
+      font-size: 10px;
+      line-height: 15px;
+    }
+
+    .estimate-doc {
+      padding: 20px 20px 14px;
+    }
+
+    .estimate-doc h1 {
+      font-size: 20px;
+      line-height: 27px;
+    }
+
+    .estimate-summary {
+      margin-bottom: 14px;
+    }
+
+    .estimate-meta-card {
+      border-radius: 14px;
+      margin-bottom: 18px;
+    }
+
+    .estimate-meta-card > div {
+      padding: 11px 13px;
+    }
+
+    .estimate-meta-card strong {
+      font-size: 12px;
+      line-height: 18px;
+    }
+
+    .estimate-col-photo {
+      width: 42px !important;
+    }
+
+    .estimate-col-sku {
+      width: 48px !important;
+    }
+
+    .estimate-col-qty {
+      width: 38px !important;
+    }
+
+    .estimate-col-amount {
+      width: 76px !important;
+    }
+
+    .estimate-doc th {
+      padding: 8px 0;
+      font-size: 9px;
+    }
+
+    .estimate-doc td {
+      padding: 9px 0;
+      font-size: 11px;
+      line-height: 16px;
+    }
+
+    .estimate-photo-cell {
+      width: 42px;
+    }
+
+    .estimate-photo-cell img,
+    .estimate-photo-empty {
+      width: 34px;
+      height: 34px;
+      border-radius: 6px;
+    }
+
+    .estimate-sku-cell {
+      font-size: 9px;
+      line-height: 13px;
+      white-space: normal;
+      word-break: break-all;
+    }
+
+    .bc-page .estimate-product-copy strong,
+    .estimate-product-copy strong {
+      display: -webkit-box;
+      max-height: 32px;
+      overflow: hidden;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      font-size: 11px;
+      line-height: 16px;
+      letter-spacing: 0;
+      overflow-wrap: anywhere;
+      word-break: keep-all;
+    }
+
+    .bc-page .estimate-product-copy small,
+    .estimate-product-copy small {
+      font-size: 10px;
+      line-height: 14px;
+    }
+
+    .estimate-doc .c,
+    .estimate-doc .r,
+    .estimate-fee-label {
+      font-size: 11px;
+      line-height: 16px;
+    }
+
+    .estimate-vat {
+      margin-top: 18px;
+      gap: 12px;
+    }
+
+    .estimate-vat strong {
+      font-size: 14px;
+      line-height: 20px;
+    }
+
+    .estimate-vat span {
+      font-size: 24px;
+      line-height: 30px;
+    }
+
+    .estimate-actions {
+      padding: 0 20px 18px;
+      gap: 8px;
+    }
+
+    .estimate-actions .web-btn {
+      min-width: 0;
+      flex: 1;
+      min-height: 44px;
+      font-size: 14px;
+    }
   }
 
   .estimate-total-row td {

@@ -84,7 +84,7 @@ function buildEstimatePreviewHtml(payload: EstimatePreviewPayload) {
         <td class="sku-cell">${escapeHtml(item.product.sku || "-")}</td>
         <td>
           <div class="product-copy">
-            <strong>${escapeHtml(productName)}</strong>
+            <strong title="${escapeHtml(productName)}">${escapeHtml(productName)}</strong>
             <small>${escapeHtml(categoryLabel)}</small>
           </div>
         </td>
@@ -157,6 +157,45 @@ function buildEstimatePreviewHtml(payload: EstimatePreviewPayload) {
     .btn { min-width: 138px; min-height: 48px; border-radius: 999px; font-size: 16px; font-weight: 800; cursor: pointer; }
     .btn-sec { border: 1px solid #d2d2d7; background: #fff; color: #1d1d1f; }
     .btn-pri { border: 0; background: #245fff; color: #fff; }
+    @media (max-width: 520px) {
+      main { padding: 0; }
+      .sheet { width: 100%; min-height: 100vh; border-radius: 0; box-shadow: none; }
+      .head { padding: 22px 20px 18px; gap: 14px; }
+      .head img { width: 108px; }
+      .head p { font-size: 10px; line-height: 15px; }
+      .doc { padding: 20px 20px 14px; }
+      h1 { font-size: 20px; line-height: 27px; }
+      .summary { margin-bottom: 14px; }
+      .meta-card { border-radius: 14px; margin-bottom: 18px; }
+      .meta-card > div { padding: 11px 13px; }
+      .meta-card strong { font-size: 12px; line-height: 18px; }
+      col.photo { width: 42px; }
+      col.sku { width: 48px; }
+      col.qty { width: 38px; }
+      col.amount { width: 76px; }
+      th { padding: 8px 0; font-size: 9px; }
+      td { padding: 9px 0; font-size: 11px; line-height: 16px; }
+      .photo-cell img { width: 34px; height: 34px; border-radius: 6px; }
+      .sku-cell { font-size: 9px; line-height: 13px; word-break: break-all; }
+      .product-copy strong {
+        display: -webkit-box;
+        max-height: 32px;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        font-size: 11px;
+        line-height: 16px;
+        letter-spacing: 0;
+      }
+      .product-copy small { font-size: 10px; line-height: 14px; }
+      .c, .r { font-size: 11px; line-height: 16px; }
+      .fee-label { font-size: 11px; line-height: 16px; }
+      .vat { margin-top: 18px; gap: 12px; }
+      .vat strong { font-size: 14px; line-height: 20px; }
+      .vat span { font-size: 24px; line-height: 30px; }
+      .actions { padding: 0 20px 18px; gap: 8px; }
+      .btn { min-width: 0; flex: 1; min-height: 44px; font-size: 14px; }
+    }
   </style>
 </head>
 <body>

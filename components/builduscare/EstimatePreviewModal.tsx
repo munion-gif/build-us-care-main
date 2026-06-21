@@ -125,11 +125,11 @@ export function EstimatePreviewModal({
           ) : null}
           <table>
             <colgroup>
-              <col style={{ width: "52px" }} />
-              <col style={{ width: "88px" }} />
+              <col className="estimate-col-photo" style={{ width: "52px" }} />
+              <col className="estimate-col-sku" style={{ width: "64px" }} />
               <col />
-              <col style={{ width: "72px" }} />
-              <col style={{ width: "96px" }} />
+              <col className="estimate-col-qty" style={{ width: "72px" }} />
+              <col className="estimate-col-amount" style={{ width: "96px" }} />
             </colgroup>
             <thead>
               <tr>
@@ -149,7 +149,7 @@ export function EstimatePreviewModal({
                   <td className="estimate-sku-cell">{item.product.sku || "-"}</td>
                   <td>
                     <div className="estimate-product-copy">
-                      <strong>{item.product.brand} {selectionDisplayLabel(item.product, item.selectedColor, allProducts)}</strong>
+                      <strong title={`${item.product.brand} ${selectionDisplayLabel(item.product, item.selectedColor, allProducts)}`}>{item.product.brand} {selectionDisplayLabel(item.product, item.selectedColor, allProducts)}</strong>
                       <small>{categoryTitleByService[item.product.serviceCode] ?? categoryTitle}</small>
                     </div>
                   </td>
