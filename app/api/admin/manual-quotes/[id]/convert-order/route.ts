@@ -246,9 +246,9 @@ export async function POST(request: Request, context: Context) {
         visit_fee: Number(manualQuote.visit_fee ?? 0),
         subtotal_amount: totalMaterial + totalLabor,
         total_amount: totalFinal,
-        online_payment_amount: totalMaterial,
-        onsite_payment_amount: totalLabor,
-        onsite_payment_status: totalLabor > 0 ? "PENDING" : "DONE",
+        online_payment_amount: totalFinal,
+        onsite_payment_amount: 0,
+        onsite_payment_status: "DONE",
         special_requests: `수동 견적 ${manualQuote.quote_number}에서 전환`,
         inquiry_photos: [],
         is_test: false
@@ -283,17 +283,17 @@ export async function POST(request: Request, context: Context) {
         provider_order_id: createPaymentOrderId(),
         method: "transfer",
         order_name: orderNameFromQuote(manualQuote),
-        amount: totalMaterial,
-        status: totalMaterial > 0 ? "pending" : "done",
-        provider_status: totalMaterial > 0 ? "WAITING_DEPOSIT" : "DONE",
+        amount: totalFinal,
+        status: totalFinal > 0 ? "pending" : "done",
+        provider_status: totalFinal > 0 ? "WAITING_DEPOSIT" : "DONE",
         requested_at: now,
         product_amount: totalMaterial,
         service_fee_amount: totalLabor,
         total_amount: totalFinal,
-        online_payment_amount: totalMaterial,
-        onsite_payment_amount: totalLabor,
-        onsite_payment_status: totalLabor > 0 ? "PENDING" : "DONE",
-        quote_status: totalMaterial > 0 ? "pending_product_payment" : "quoted"
+        online_payment_amount: totalFinal,
+        onsite_payment_amount: 0,
+        onsite_payment_status: "DONE",
+        quote_status: totalFinal > 0 ? "pending_product_payment" : "quoted"
       })
       .select("*")
       .single();

@@ -420,7 +420,8 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
       setSlotDays({});
       try {
         const { year, month } = monthParts(rescheduleMonth);
-        const response = await fetch(`/api/slots?year=${year}&month=${month}`, {
+        const response = await fetch(`/api/slots?year=${year}&month=${month}&fresh=1`, {
+          cache: "no-store",
           signal: controller.signal
         });
         const json = await response.json();
