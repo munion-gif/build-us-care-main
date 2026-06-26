@@ -53,6 +53,20 @@ function cashReceiptTextFromOrder(diagnosis: any) {
   return line?.replace(/^.*?현금영수증:\s*/, "").trim() || "신청 안 함";
 }
 
+function inquiryMemo(diagnosis: any) {
+  const rawMemo = diagnosis.raw_response?.memo;
+  if (typeof rawMemo === "string" && rawMemo.trim()) return rawMemo.trim();
+
+  const details = String(diagnosis.details ?? "").trim();
+  if (details && details !== "Build us Care 사진 확인 접수") {
+    return details.replace(/^문의내용:\s*/, "").trim();
+  }
+
+  const text = String(relatedOrder(diagnosis)?.special_requests ?? "");
+  const line = text.split(/\r?\n/).find((entry) => entry.includes("문의내용:"));
+  return line?.replace(/^.*?문의내용:\s*/, "").trim() || "";
+}
+
 function isPhotoSrc(value?: string | null) {
   const src = String(value ?? "").trim();
   return /^(https?:)?\/\//i.test(src) || src.startsWith("/") || src.startsWith("data:") || src.startsWith("blob:");
@@ -67,6 +81,7 @@ export function DiagnosisPanel({ diagnosis, localMode = false }: { diagnosis: an
   const [message, setMessage] = useState("");
   const photoInputs = (diagnosis.signedPhotos ?? diagnosis.image_urls ?? diagnosis.photos ?? [])
     .filter((value: unknown): value is string => typeof value === "string" && value.length > 0);
+  const customerInquiryMemo = inquiryMemo(diagnosis);
 
   useEffect(() => {
     setResult(normalizeResult(diagnosis.result));
@@ -155,6 +170,9 @@ export function DiagnosisPanel({ diagnosis, localMode = false }: { diagnosis: an
         <span><b>연락처</b><strong>{customerPhone(diagnosis)}</strong></span>
         <span><b>주소</b><strong>{addressLine(diagnosis)}</strong></span>
         <span><b>현금영수증</b><strong>{cashReceiptTextFromOrder(diagnosis)}</strong></span>
+        {customerInquiryMemo ? (
+          <span style={{ gridColumn: "1 / -1" }}><b>문의내용</b><strong>{customerInquiryMemo}</strong></span>
+        ) : null}
       </div>
       <div className="adm-diagnosis-panel-grid">
         <section className="adm-diagnosis-info">

@@ -78,6 +78,7 @@ type BuildusPayload = {
   };
   selected?: Array<{ id?: string; qty?: number; selectedColor?: string; color?: string }>;
   selfDisposal?: boolean;
+  memo?: string;
   totals?: {
     productAmount?: number;
     laborAmount?: number;
@@ -662,6 +663,7 @@ export async function POST(request: Request) {
   const detailAddress = normalizeText(payload.address?.detailAddress);
   const postalCode = normalizeText(payload.address?.postalCode);
   const item = submissionType === "photo_check" ? normalizeText(payload.item) || "사진 확인" : normalizeText(payload.item);
+  const customerMemo = normalizeText(payload.memo);
 
   if (!name) return fail("BAD_REQUEST", "성함을 입력해주세요.", 400);
   if (phone.length < 8) return fail("BAD_REQUEST", "연락처를 다시 확인해주세요.", 400);
@@ -683,14 +685,15 @@ export async function POST(request: Request) {
   const orderItems = buildOrderItems(entries, item, submissionType);
   const primaryServiceCode = entries[0]?.product.serviceCode ?? SERVICE_BY_ITEM[item] ?? orderItems[0]?.service_type_code;
   const orderReason = submissionType === "photo_check" ? "photo_check_request" : "product_order_request";
+  const photoMemoLine = customerMemo ? `문의내용: ${customerMemo}` : "";
   const selfDiagnosis =
     submissionType === "photo_check"
-      ? "Build us Care 사진 확인 접수"
+      ? ["Build us Care 사진 확인 접수", photoMemoLine].filter(Boolean).join("\n")
       : "Build us Care 제품 주문 접수";
   const cashReceipt = cashReceiptSummary(payload.cashReceipt);
   const specialRequests =
     submissionType === "photo_check"
-      ? "Build us Care 사진 확인 신청"
+      ? ["Build us Care 사진 확인 신청", photoMemoLine].filter(Boolean).join("\n")
       : [
           `Build us Care 제품 주문 신청${payload.selfDisposal ? " / 폐기물 직접 처리" : ""}`,
           `현금영수증: ${cashReceipt.text}`
@@ -846,7 +849,8 @@ export async function POST(request: Request) {
           roadAddress,
           detailAddress,
           postalCode,
-          item
+          item,
+          memo: customerMemo
         });
         diagnosisId = diagnosis?.id ?? null;
       } catch (error) {
@@ -871,7 +875,8 @@ export async function POST(request: Request) {
               roadAddress,
               detailAddress,
               postalCode,
-              item
+              item,
+              memo: customerMemo
             });
           } catch (error) {
             console.error("Build us Care photo processing failed", error);

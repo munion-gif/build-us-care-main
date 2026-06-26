@@ -96,8 +96,10 @@ export async function upsertBuilduscarePhotoDiagnosis(params: {
   detailAddress: string;
   postalCode: string;
   item: string;
+  memo?: string;
 }) {
   const supabase = getSupabaseAdmin();
+  const memo = String(params.memo ?? "").trim();
   const rawResponse = {
     source: "builduscare_photo_check",
     receipt_number: params.orderNumber,
@@ -115,6 +117,7 @@ export async function upsertBuilduscarePhotoDiagnosis(params: {
       postalCode: params.postalCode,
       full: [params.roadAddress, params.detailAddress].filter(Boolean).join(" ")
     },
+    memo: memo || null,
     photo_count: params.photoPaths.length
   };
 
@@ -134,8 +137,8 @@ export async function upsertBuilduscarePhotoDiagnosis(params: {
     photos: params.photoPaths,
     result: null,
     confidence: null,
-    reason: null,
-    details: "Build us Care 사진 확인 접수",
+    reason: memo || null,
+    details: memo ? `문의내용: ${memo}` : "Build us Care 사진 확인 접수",
     recommendation: null,
     customer_name: params.name,
     customer_phone: params.phone,
