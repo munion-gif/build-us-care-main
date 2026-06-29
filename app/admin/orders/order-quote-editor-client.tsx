@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { formatKRW } from "@/lib/format";
 import { PRODUCT_DISPOSAL_FEE, HEAVY_PRODUCT_DISPOSAL_FEE, productDisposalFee } from "@/lib/builduscare-disposal";
 import { productShippingEntriesTotal, productShippingLineAmount, productShippingPolicyLabel } from "@/lib/builduscare-shipping";
+import { isSiliconeLaborService, laborQtyText, laborUnitHelpText, laborUnitLabel } from "@/lib/builduscare-labor";
 import { openQuoteDocumentPreviewWindow, type QuoteDocumentInput } from "@/lib/quote-document";
 import { quoteSubtotalAmount, quoteVatIncludedAmount, quoteVatIncludedLaborAmount } from "@/lib/quote-totals";
 
@@ -210,6 +211,7 @@ export function OrderQuoteEditor({
 
   const activeCatalog = catalogMap.get(builderServiceCode) ?? catalogs[0] ?? null;
   const activeProduct = builderProductId ? productMap.get(`${builderServiceCode}:${builderProductId}`) ?? null : null;
+  const builderIsSilicone = isSiliconeLaborService(builderServiceCode);
 
   useEffect(() => {
     if (!editingDraftId || orderId) return;
@@ -329,6 +331,7 @@ export function OrderQuoteEditor({
         image: product.image || null,
         productName: product.label,
         sku: product.sku,
+        serviceCode: item.serviceTypeCode,
         categoryLabel: product.categoryName,
         qty: item.qty,
         price: lineMaterial,
@@ -750,7 +753,7 @@ export function OrderQuoteEditor({
             </select>
           </label>
           <label>
-            <span className="adm-label">수량</span>
+            <span className="adm-label">{builderIsSilicone ? "시공 길이" : "수량"}</span>
             <div className="adm-quote-qty-action">
               <input
                 className="adm-input"
@@ -765,13 +768,18 @@ export function OrderQuoteEditor({
                 추가
               </button>
             </div>
+            {builderIsSilicone ? <small className="adm-help">m 단위로 입력합니다. {laborUnitHelpText(builderServiceCode)}</small> : null}
           </label>
         </div>
         <div className="adm-quote-item-meta">
           <span><b>선택 정보</b><strong>{activeProduct ? activeProduct.label : "제품을 선택해 주세요."}</strong></span>
           <span><b>품번</b><strong>{activeProduct?.sku ?? "-"}</strong></span>
           <span><b>제품값</b><strong>{activeProduct ? formatKRW(activeProduct.price * builderQty) : "-"}</strong></span>
-          <span><b>시공비</b><strong>{activeProduct ? formatKRW(quoteVatIncludedLaborAmount(activeProduct.laborPrice) * builderQty) : "-"}</strong></span>
+          <span>
+            <b>시공비</b>
+            <strong>{activeProduct ? formatKRW(quoteVatIncludedLaborAmount(activeProduct.laborPrice) * builderQty) : "-"}</strong>
+            <small>{activeProduct ? laborUnitHelpText(builderServiceCode) : ""}</small>
+          </span>
           <span><b>배송비</b><strong>{activeProduct ? formatKRW(productShippingLineAmount(builderServiceCode, builderQty, activeProduct)) : "-"}</strong><small>{activeProduct ? productShippingPolicyLabel(builderServiceCode, activeProduct) : ""}</small></span>
         </div>
       </section>
@@ -788,7 +796,7 @@ export function OrderQuoteEditor({
             <span>사진</span>
             <span>품번</span>
             <span>제품명</span>
-            <span>수량</span>
+                <span>수량</span>
             <span>금액(원)</span>
           </div>
           {totals.resolvedItems.length > 0 ? (
@@ -811,9 +819,11 @@ export function OrderQuoteEditor({
                     min={1}
                     step={1}
                     value={item.qty}
+                    aria-label={isSiliconeLaborService(item.serviceTypeCode) ? "시공 길이 m" : "수량"}
                     onChange={(event) => updateCommittedQty(index, Number(event.target.value || 1))}
                     disabled={Boolean(saving)}
                   />
+                  <small>{laborUnitLabel(item.serviceTypeCode)}</small>
                 </span>
                 <span className="adm-quote-line-amount">{formatKRW(Number(product?.price ?? 0) * item.qty)}</span>
               </div>

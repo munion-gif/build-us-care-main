@@ -5,6 +5,7 @@ import type { ProductSelection } from "@/components/builduscare/product-types";
 import { formatKRW, selectionDisplayLabel, selectionKey } from "@/components/builduscare/product-helpers";
 import type { BuilduscarePublicProduct } from "@/lib/builduscare-public-products";
 import type { BuilduscareCategory } from "@/lib/builduscare-public-routes";
+import { isSiliconeLaborService, laborQtyText, laborUnitHelpText } from "@/lib/builduscare-labor";
 
 type EstimatePanelProps = {
   category: BuilduscareCategory;
@@ -52,6 +53,9 @@ export function EstimatePanel({
   onOpenOrderForm
 }: EstimatePanelProps) {
   const hasSelections = selections.length > 0;
+  const hasSiliconeSelection = selections.some((item) => isSiliconeLaborService(item.product.serviceCode));
+  const onlySiliconeSelection = hasSelections && selections.every((item) => isSiliconeLaborService(item.product.serviceCode));
+  const laborUnitSummary = onlySiliconeSelection ? laborQtyText("silicone_repair", units) : hasSiliconeSelection ? "품목별" : `×${units}`;
 
   return (
     <aside className="sticky-side" style={{ position: "sticky", top: 92, alignSelf: "start", height: "max-content" }}>
@@ -74,7 +78,7 @@ export function EstimatePanel({
                       <button type="button" onClick={() => item.qty <= 1 ? onRemoveSelection(key) : onAdjustSelection(key, -1)} aria-label="감소">
                         −
                       </button>
-                      <span>{item.qty}</span>
+                      <span>{isSiliconeLaborService(item.product.serviceCode) ? `${item.qty}m` : item.qty}</span>
                       <button type="button" onClick={() => onAdjustSelection(key, 1)} aria-label="증가">
                         +
                       </button>
@@ -88,7 +92,10 @@ export function EstimatePanel({
                   <span className="pv">{formatKRW(productAmount).replace(/원$/, "")}</span>
                 </div>
                 <div className="prow">
-                  <span className="pk"><Wrench aria-hidden="true" /> 시공비 <span className="sub">×{units}</span></span>
+                  <span className="pk">
+                    <Wrench aria-hidden="true" /> 시공비 <span className="sub">{laborUnitSummary}</span>
+                    {hasSiliconeSelection ? <span className="sub"> · {laborUnitHelpText("silicone_repair")}</span> : null}
+                  </span>
                   <span className="pv">{formatKRW(laborAmount).replace(/원$/, "")}</span>
                 </div>
                 <div className="prow">

@@ -50,6 +50,7 @@ import {
   isKoreanPublicHoliday,
   minReservationDateText
 } from "@/lib/reservation-policy";
+import { isSiliconeLaborService, laborQtyText, laborUnitHelpText } from "@/lib/builduscare-labor";
 
 type ReservationStep = "info" | "schedule" | "confirm" | "complete";
 type SlotPeriod = "morning" | "afternoon";
@@ -484,6 +485,10 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
   const base = useMemo(() => bookingMonthBase(), []);
   const [calendarMonth, setCalendarMonth] = useState(() => ({ year: base.year, month: base.month }));
   const totals = useMemo(() => productTotals(selections, draft.selfDisposal), [draft.selfDisposal, selections]);
+  const onlySiliconeSelection = selections.length > 0 && selections.every((item) => isSiliconeLaborService(item.product.serviceCode));
+  const hasSiliconeSelection = selections.some((item) => isSiliconeLaborService(item.product.serviceCode));
+  const totalUnitText = onlySiliconeSelection ? `${totals.units}m` : `${totals.units}개`;
+  const laborUnitText = onlySiliconeSelection ? laborQtyText("silicone_repair", totals.units) : hasSiliconeSelection ? "품목별" : `×${totals.units}`;
   const categoryTitleByService = useMemo(() => Object.fromEntries(BUILDUSCARE_CATEGORIES.map((item) => [item.serviceCode, item.title])), []);
   const estimateCategory = useMemo(() => {
     const serviceCode = selections[0]?.product.serviceCode;
@@ -1007,14 +1012,14 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
               <div className="h-md">신청 내용</div>
               <div className="col gap10" style={{ marginTop: 12 }}>
                 <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}>품목</span><span className="strong">{Array.from(new Set(selections.map((item) => productCategoryTitle(item.product)))).join(" · ") || "제품"}</span></div>
-                <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}>제품</span><span className="strong">{selections.length}종 · 총 {totals.units}개</span></div>
+                <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}>제품</span><span className="strong">{selections.length}종 · 총 {totalUnitText}</span></div>
                 <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}>희망 일정</span><span className="strong">{dateLabel(draft.date)} · {slotLabel(draft.time)}</span></div>
                 <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}>사진</span><span className="strong">{photoLabel(photos.length)}</span></div>
               </div>
               <div className="divline" style={{ margin: "16px 0" }}></div>
               <div className="col gap10">
-                <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}><Package style={{ width: 15, height: 15, verticalAlign: "-2px" }} /> 제품비 <span style={{ color: "var(--gray-400)" }}>총 {totals.units}개</span></span><span className="strong">{formatKRW(totals.productAmount)}</span></div>
-                <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}><Wrench style={{ width: 15, height: 15, verticalAlign: "-2px" }} /> 시공비 <span style={{ color: "var(--gray-400)" }}>×{totals.units}</span></span><span className="strong">{formatKRW(totals.laborAmount)}</span></div>
+                <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}><Package style={{ width: 15, height: 15, verticalAlign: "-2px" }} /> 제품비 <span style={{ color: "var(--gray-400)" }}>총 {totalUnitText}</span></span><span className="strong">{formatKRW(totals.productAmount)}</span></div>
+                <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}><Wrench style={{ width: 15, height: 15, verticalAlign: "-2px" }} /> 시공비 <span style={{ color: "var(--gray-400)" }}>{laborUnitText}{hasSiliconeSelection ? ` · ${laborUnitHelpText("silicone_repair")}` : ""}</span></span><span className="strong">{formatKRW(totals.laborAmount)}</span></div>
                 <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}><Package style={{ width: 15, height: 15, verticalAlign: "-2px" }} /> 배송비</span><span className="strong">{formatKRW(totals.shippingAmount)}</span></div>
                 <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}><Trash2 style={{ width: 15, height: 15, verticalAlign: "-2px" }} /> 폐기물처리비 <span style={{ color: "var(--gray-400)" }}>×{totals.units}</span></span><span className="strong">{formatKRW(totals.disposalAmount)}</span></div>
                 <label className="disp-opt" style={{ marginTop: 4 }}>

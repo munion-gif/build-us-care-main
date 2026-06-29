@@ -3,6 +3,7 @@
 import type { ProductSelection } from "@/components/builduscare/product-types";
 import { colorChoiceLabel, selectionDisplayLabel } from "@/components/builduscare/product-helpers";
 import type { BuilduscarePublicProduct } from "@/lib/builduscare-public-products";
+import { isSiliconeLaborService, laborFeeLabel, laborQtyText } from "@/lib/builduscare-labor";
 
 export type EstimatePreviewPayload = {
   categoryTitle: string;
@@ -53,11 +54,11 @@ function todayText() {
 }
 
 function laborRows(payload: EstimatePreviewPayload) {
-  const grouped = new Map<string, { label: string; qty: number; amount: number }>();
+  const grouped = new Map<string, { serviceCode: string; label: string; qty: number; amount: number }>();
   for (const item of payload.selections) {
     const key = item.product.serviceCode || payload.categoryTitle;
     const label = payload.categoryTitleByService[item.product.serviceCode] ?? payload.categoryTitle;
-    const current = grouped.get(key) ?? { label, qty: 0, amount: 0 };
+    const current = grouped.get(key) ?? { serviceCode: item.product.serviceCode, label, qty: 0, amount: 0 };
     current.qty += item.qty;
     current.amount += item.product.laborPrice * item.qty;
     grouped.set(key, current);
@@ -70,7 +71,10 @@ function summaryText(payload: EstimatePreviewPayload) {
     new Set(payload.selections.map((item) => payload.categoryTitleByService[item.product.serviceCode] ?? payload.categoryTitle).filter(Boolean))
   );
   const units = payload.selections.reduce((sum, item) => sum + item.qty, 0);
-  return `${labels.join(" · ") || payload.categoryTitle} · 선택 제품 ${payload.selections.length}종 · 총 ${units}개`;
+  const unitSummary = payload.selections.length > 0 && payload.selections.every((item) => isSiliconeLaborService(item.product.serviceCode))
+    ? `${units}m`
+    : `${units}개`;
+  return `${labels.join(" · ") || payload.categoryTitle} · 선택 제품 ${payload.selections.length}종 · 총 ${unitSummary}`;
 }
 
 function buildEstimatePreviewHtml(payload: EstimatePreviewPayload) {
@@ -97,8 +101,8 @@ function buildEstimatePreviewHtml(payload: EstimatePreviewPayload) {
 
   const laborHtml = laborRows(payload).map((row) => `
       <tr class="fee-row">
-        <td colspan="3" class="fee-label">시공비 · ${escapeHtml(row.label)}</td>
-        <td class="c">×${row.qty}</td>
+        <td colspan="3" class="fee-label">${escapeHtml(laborFeeLabel(row.label, row.serviceCode))}</td>
+        <td class="c">${escapeHtml(laborQtyText(row.serviceCode, row.qty))}</td>
         <td class="r">${won(row.amount)}</td>
       </tr>
   `).join("");

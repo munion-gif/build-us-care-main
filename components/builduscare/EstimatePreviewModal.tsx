@@ -5,6 +5,7 @@ import { Printer, X } from "lucide-react";
 import type { ProductSelection } from "@/components/builduscare/product-types";
 import { formatKRW, selectionDisplayLabel } from "@/components/builduscare/product-helpers";
 import type { BuilduscarePublicProduct } from "@/lib/builduscare-public-products";
+import { isSiliconeLaborService, laborFeeLabel, laborQtyText } from "@/lib/builduscare-labor";
 
 type EstimatePreviewModalProps = {
   categoryTitle: string;
@@ -37,11 +38,11 @@ function laborRows(
   categoryTitleByService: Record<string, string>,
   fallbackCategoryTitle: string
 ) {
-  const grouped = new Map<string, { label: string; qty: number; amount: number }>();
+  const grouped = new Map<string, { serviceCode: string; label: string; qty: number; amount: number }>();
   for (const item of selections) {
     const key = item.product.serviceCode || fallbackCategoryTitle;
     const label = categoryTitleByService[item.product.serviceCode] ?? fallbackCategoryTitle;
-    const current = grouped.get(key) ?? { label, qty: 0, amount: 0 };
+    const current = grouped.get(key) ?? { serviceCode: item.product.serviceCode, label, qty: 0, amount: 0 };
     current.qty += item.qty;
     current.amount += item.product.laborPrice * item.qty;
     grouped.set(key, current);
@@ -70,6 +71,9 @@ export function EstimatePreviewModal({
   onClose
 }: EstimatePreviewModalProps) {
   const units = selections.reduce((sum, item) => sum + item.qty, 0);
+  const unitSummary = selections.length > 0 && selections.every((item) => isSiliconeLaborService(item.product.serviceCode))
+    ? `${units}m`
+    : `${units}개`;
   const estimateNumber = useMemo(() => `BC-EST-${Date.now().toString().slice(-6)}`, []);
   const serviceSummary = useMemo(() => {
     const uniqueTitles = Array.from(
@@ -100,7 +104,7 @@ export function EstimatePreviewModal({
         </header>
         <section className="estimate-doc">
           <h1>{title}</h1>
-          <p className="estimate-summary">{serviceSummary || categoryTitle} · 선택 제품 {selections.length}종 · 총 {units}개</p>
+          <p className="estimate-summary">{serviceSummary || categoryTitle} · 선택 제품 {selections.length}종 · 총 {unitSummary}</p>
           {(customerName || customerPhone || addressText || visitText || cashReceiptText) ? (
             <section className="estimate-meta-card">
               <div>
@@ -161,8 +165,8 @@ export function EstimatePreviewModal({
               ))}
               {laborSummaryRows.map((row) => (
                 <tr key={`labor-${row.label}`} className="estimate-fee-row">
-                  <td colSpan={3} className="estimate-fee-label">시공비 · {row.label}</td>
-                  <td className="c">×{row.qty}</td>
+                  <td colSpan={3} className="estimate-fee-label">{laborFeeLabel(row.label, row.serviceCode)}</td>
+                  <td className="c">{laborQtyText(row.serviceCode, row.qty)}</td>
                   <td className="r">{row.amount.toLocaleString("ko-KR")}</td>
                 </tr>
               ))}

@@ -1,11 +1,13 @@
 import { formatServiceName } from "@/lib/format";
 import { quoteItemsShippingAmount } from "@/lib/builduscare-shipping";
+import { isSiliconeLaborService, laborFeeLabel, laborQtyText } from "@/lib/builduscare-labor";
 
 export type QuoteDocumentRow = {
   id: string;
   image: string | null;
   productName: string;
   sku: string;
+  serviceCode?: string;
   categoryLabel?: string;
   qty: number;
   price: number;
@@ -115,6 +117,7 @@ function quoteRows(items: any[] | undefined): QuoteDocumentRow[] {
       image: product?.image ?? null,
       productName,
       sku: product?.sku ?? item?.sku ?? "-",
+      serviceCode: item?.service_type_code ?? item?.metadata?.service_type_code ?? product?.serviceCode ?? "",
       categoryLabel: formatServiceName(item?.service_type_code ?? item?.metadata?.service_type_code ?? product?.serviceCode ?? ""),
       qty,
       price,
@@ -197,9 +200,10 @@ export function buildQuoteDocumentHtml(input: QuoteDocumentInput) {
   const subtotalTotal = numberValue(input.subtotalTotal) || numberValue(input.finalTotal);
   const finalTotal = numberValue(input.finalTotal);
   const shippingTotal = numberValue(input.shippingTotal) || input.rows.reduce((sum, row) => sum + numberValue(row.shipping), 0);
-  const laborGroups = input.rows.reduce<Map<string, { label: string; qty: number; amount: number }>>((map, row) => {
-    const key = row.categoryLabel || "시공";
-    const current = map.get(key) ?? { label: key, qty: 0, amount: 0 };
+  const laborGroups = input.rows.reduce<Map<string, { serviceCode: string; label: string; qty: number; amount: number }>>((map, row) => {
+    const key = row.serviceCode || row.categoryLabel || "시공";
+    const label = row.categoryLabel || "시공";
+    const current = map.get(key) ?? { serviceCode: row.serviceCode || "", label, qty: 0, amount: 0 };
     current.qty += row.qty;
     current.amount += row.labor;
     map.set(key, current);
@@ -207,6 +211,9 @@ export function buildQuoteDocumentHtml(input: QuoteDocumentInput) {
   }, new Map());
   const disposalAmount = Math.max(0, subtotalTotal - input.productTotal - input.laborTotal - shippingTotal);
   const totalQty = input.rows.reduce((sum, row) => sum + row.qty, 0);
+  const totalQtyText = input.rows.length > 0 && input.rows.every((row) => isSiliconeLaborService(row.serviceCode))
+    ? `${totalQty}m`
+    : `${totalQty}개`;
   const issuedAt = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "numeric", day: "numeric" });
   const summaryCategories = Array.from(new Set(input.rows.map((row) => row.categoryLabel || input.serviceName).filter(Boolean)));
   const rowsHtml = input.rows.map((row) => `
@@ -224,8 +231,8 @@ export function buildQuoteDocumentHtml(input: QuoteDocumentInput) {
       </tr>
     `).join("") + [...laborGroups.values()].map((group) => `
       <tr class="fee-row">
-        <td colspan="3" class="fee-label">시공비 · ${escapeHtml(group.label)}</td>
-        <td class="c">×${group.qty}</td>
+        <td colspan="3" class="fee-label">${escapeHtml(laborFeeLabel(group.label, group.serviceCode))}</td>
+        <td class="c">${escapeHtml(laborQtyText(group.serviceCode, group.qty))}</td>
         <td class="r">${wonNumber(group.amount)}</td>
       </tr>
     `).join("") + `
@@ -353,7 +360,7 @@ export function buildQuoteDocumentHtml(input: QuoteDocumentInput) {
       </header>
       <section class="doc">
         <h1>최종 견적서</h1>
-        <p>${escapeHtml(summaryCategories.join(" · ") || input.serviceName)} · 선택 제품 ${input.rows.length}종 · 총 ${totalQty}개</p>
+        <p>${escapeHtml(summaryCategories.join(" · ") || input.serviceName)} · 선택 제품 ${input.rows.length}종 · 총 ${totalQtyText}</p>
         <section class="meta-card">
           <div><small>예약자</small><strong>${escapeHtml(input.customerName || "확인 중")}</strong></div>
           <div><small>연락처</small><strong>${escapeHtml(input.customerPhone || "확인 중")}</strong></div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { formatKRDate, formatKRW } from "@/lib/format";
+import { isSiliconeLaborService, laborUnitHelpText } from "@/lib/builduscare-labor";
 
 type QuoteSummaryProps = {
   quote?: {
@@ -27,7 +28,9 @@ type QuoteSummaryItem = {
   unit_material?: number | null;
   unit_labor?: number | null;
   line_total?: number | null;
+  service_type_code?: string | null;
   metadata?: {
+    service_type_code?: string | null;
     selected_replacement_product?: {
       brand?: string | null;
       model?: string | null;
@@ -51,6 +54,7 @@ function quoteItemRows(items: QuoteSummaryItem[] | undefined) {
     const unitPrice = Number(product?.price ?? item.unit_material ?? 0);
     const laborPrice = Number(item.unit_labor ?? 0) * Number(item.qty ?? 1);
     const finalPrice = Number(item.line_total ?? (unitPrice + Number(item.unit_labor ?? 0)) * Number(item.qty ?? 1));
+    const serviceCode = item.service_type_code ?? item.metadata?.service_type_code ?? "";
 
     return {
       id: `${product?.sku ?? item.sku ?? "quote"}-${index}`,
@@ -60,6 +64,7 @@ function quoteItemRows(items: QuoteSummaryItem[] | undefined) {
       unitPrice,
       laborPrice,
       finalPrice,
+      serviceCode,
       qty: Number(item.qty ?? 1)
     };
   });
@@ -88,7 +93,7 @@ export function QuoteSummary({ quote, payment, onDownloadQuote, downloadLoading 
                 <span className="quote-item-image-fallback" aria-hidden="true">사진</span>
               )}
               <div className="quote-item-body">
-                <strong>{item.productName}{item.qty > 1 ? ` · ${item.qty}개` : ""}</strong>
+                <strong>{item.productName}{item.qty > 1 ? ` · ${isSiliconeLaborService(item.serviceCode) ? `${item.qty}m` : `${item.qty}개`}` : ""}</strong>
                 <dl>
                   <div>
                     <dt>품번</dt>
@@ -102,6 +107,12 @@ export function QuoteSummary({ quote, payment, onDownloadQuote, downloadLoading 
                     <dt>시공비</dt>
                     <dd>{formatKRW(item.laborPrice)}</dd>
                   </div>
+                  {isSiliconeLaborService(item.serviceCode) ? (
+                    <div>
+                      <dt>기준</dt>
+                      <dd>{laborUnitHelpText(item.serviceCode)}</dd>
+                    </div>
+                  ) : null}
                   <div>
                     <dt>최종가격</dt>
                     <dd>{formatKRW(item.finalPrice)}</dd>

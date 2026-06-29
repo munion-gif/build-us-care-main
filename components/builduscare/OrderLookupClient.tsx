@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { MobileAppBar, MobileBottomNav } from "@/components/builduscare/MobileAppChrome";
 import { BUILDUSCARE_CATEGORIES } from "@/lib/builduscare-public-routes";
 import { getBuilduscarePublicCatalog } from "@/lib/builduscare-public-products";
+import { isSiliconeLaborService, laborUnitHelpText } from "@/lib/builduscare-labor";
 
 type LookupOrder = {
   orderNumber: string;
@@ -102,7 +103,17 @@ function paymentAmount(order: LookupOrder) {
 function selectedSummary(order: LookupOrder) {
   const count = order.selected?.length ?? 0;
   const units = order.selected?.reduce((sum, item) => sum + Number(item.qty || 1), 0) ?? 0;
-  return `${count}종 · 총 ${units}개`;
+  const onlySilicone = count > 0 && order.selected.every((item) => isSiliconeLaborService(item.serviceCode));
+  return `${count}종 · 총 ${onlySilicone ? `${units}m` : `${units}개`}`;
+}
+
+function itemQtyText(item: LookupOrder["selected"][number]) {
+  const qty = Number(item.qty || 1);
+  return isSiliconeLaborService(item.serviceCode) ? `${qty}m` : `${qty}개`;
+}
+
+function hasSiliconeItems(order: LookupOrder) {
+  return order.selected?.some((item) => isSiliconeLaborService(item.serviceCode)) ?? false;
 }
 
 function normalizeOrderNumber(value?: string | null) {
@@ -514,7 +525,7 @@ export function OrderLookupClient() {
                         />
                         <div>
                           <b>{item.name || item.id}</b>
-                          <small>{[item.categoryName ?? item.serviceCode, item.selectedColor, `${item.qty || 1}개`].filter(Boolean).join(" · ")}</small>
+                          <small>{[item.categoryName ?? item.serviceCode, item.selectedColor, itemQtyText(item)].filter(Boolean).join(" · ")}</small>
                         </div>
                         <strong>{formatKRW(item.price * (item.qty || 1))}</strong>
                       </li>
@@ -523,7 +534,7 @@ export function OrderLookupClient() {
                   <div className="divline" style={{ margin: "16px 0" }} />
                   <div className="bc-total">
                     <div className="bc-total-row"><span><Package aria-hidden="true" style={{ width: 15, height: 15, verticalAlign: -2 }} /> 제품비</span><strong>{formatKRW(order.totals?.productAmount)}</strong></div>
-                    <div className="bc-total-row"><span><Wrench aria-hidden="true" style={{ width: 15, height: 15, verticalAlign: -2 }} /> 시공비</span><strong>{formatKRW(order.totals?.laborAmount)}</strong></div>
+                    <div className="bc-total-row"><span><Wrench aria-hidden="true" style={{ width: 15, height: 15, verticalAlign: -2 }} /> 시공비{hasSiliconeItems(order) ? ` · ${laborUnitHelpText("silicone_repair")}` : ""}</span><strong>{formatKRW(order.totals?.laborAmount)}</strong></div>
                     <div className="bc-total-row"><span><Truck aria-hidden="true" style={{ width: 15, height: 15, verticalAlign: -2 }} /> 배송비</span><strong>{formatKRW(order.totals?.shippingAmount)}</strong></div>
                     <div className="bc-total-row"><span><Package aria-hidden="true" style={{ width: 15, height: 15, verticalAlign: -2 }} /> 폐기물 처리비</span><strong>{formatKRW(order.totals?.disposalAmount)}</strong></div>
                     <div className="bc-total-row final">
