@@ -466,6 +466,10 @@ textarea.adm-input { min-height: 96px; resize: vertical; line-height: 1.5; }
 .adm-diagnosis-form textarea.adm-input { min-height: 150px; }
 .adm-slot-controls { display: grid; grid-template-columns: minmax(0, 1fr) 180px auto; align-items: end; gap: 16px; }
 .adm-slot-cap { display: grid; gap: 6px; font-size: 0.8125rem; font-weight: 700; color: #28251d; }
+.adm-slot-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+.adm-slot-summary-grid article { display: grid; gap: 6px; border: 1px solid #e8e5e0; border-radius: 10px; background: #fbfaf7; padding: 14px 16px; }
+.adm-slot-summary-grid span { color: #7a7974; font-size: 0.75rem; font-weight: 800; line-height: 1.25; }
+.adm-slot-summary-grid strong { color: #01696f; font-size: 1.25rem; line-height: 1; font-variant-numeric: tabular-nums; }
 .adm-slot-header { display: grid; grid-template-columns: 110px minmax(0, 1fr) 110px; align-items: center; gap: 12px; margin-bottom: 16px; }
 .adm-brief-card strong,
 .adm-brief-card small,
@@ -514,6 +518,8 @@ textarea.adm-input { min-height: 96px; resize: vertical; line-height: 1.5; }
 .adm-slot-job-card strong a:hover { text-decoration: underline; }
 .adm-slot-job-card p { margin: 4px 0 0; color: #5c5a54; font-size: 0.8125rem; line-height: 1.45; overflow-wrap: anywhere; }
 .adm-slot-job-card > span { color: #1c1b19; font-size: 0.8125rem; font-weight: 700; white-space: nowrap; }
+.adm-slot-quote-card { background: #f7fbfa; border-color: rgba(1,105,111,0.18); }
+.adm-slot-quote-card > span { color: #01696f; }
 .adm-security-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 280px); gap: 18px; align-items: center; border-color: rgba(1,105,111,0.18); background: linear-gradient(135deg, #fff, #f7fbfa); }
 .adm-security-hero-main { display: grid; gap: 8px; justify-items: start; }
 .adm-security-hero-main h2 { margin: 0; color: #1c1b19; font-size: 1.35rem; line-height: 1.25; letter-spacing: 0; }
@@ -615,6 +621,7 @@ textarea.adm-input { min-height: 96px; resize: vertical; line-height: 1.5; }
   .adm-queue-thumbs { justify-content: flex-start; }
   .adm-diagnosis-panel-head .adm-action-row-buttons { width: 100%; justify-content: flex-start; }
   .adm-slot-controls { grid-template-columns: 1fr; }
+  .adm-slot-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .adm-slot-header { grid-template-columns: 1fr; }
   .adm-slot-job-card { flex-direction: column; }
   .adm-card:has(.adm-slot-calendar) { overflow-x: auto; }
