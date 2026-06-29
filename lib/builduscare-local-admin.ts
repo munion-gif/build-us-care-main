@@ -41,6 +41,8 @@ export type LocalAdminOrderCookie = {
   totals?: {
     productAmount?: number;
     laborAmount?: number;
+    shippingAmount?: number;
+    disposalAmount?: number;
     totalAmount?: number;
     onlinePaymentAmount?: number;
     onsitePaymentAmount?: number;

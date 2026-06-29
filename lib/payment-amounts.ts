@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { formatServiceName } from "@/lib/format";
 import { isProductSelectionService } from "@/lib/replacement-products";
+import { quoteItemsShippingAmount } from "@/lib/builduscare-shipping";
 
 export type PreparedPaymentAmounts = {
   productAmount: number;
@@ -35,7 +36,8 @@ export function isProductSelectionQuote(quote: Record<string, any>) {
 export function calculatePreparedPaymentAmounts(quote: Record<string, any>): PreparedPaymentAmounts {
   const totalAmount = asPositiveInteger(quote?.total_final);
   const isProductSelection = isProductSelectionQuote(quote);
-  const productAmount = isProductSelection ? asPositiveInteger(quote?.total_material) : totalAmount;
+  const shippingAmount = isProductSelection ? quoteItemsShippingAmount(quote?.items) : 0;
+  const productAmount = isProductSelection ? asPositiveInteger(quote?.total_material) + shippingAmount : totalAmount;
   const serviceFeeAmount = isProductSelection
     ? Math.max(
         0,

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { formatKRW } from "@/lib/format";
 import { PRODUCT_DISPOSAL_FEE, HEAVY_PRODUCT_DISPOSAL_FEE, productDisposalFee } from "@/lib/builduscare-disposal";
+import { productShippingEntriesTotal, productShippingLineAmount, productShippingPolicyLabel } from "@/lib/builduscare-shipping";
 import { openQuoteDocumentPreviewWindow, type QuoteDocumentInput } from "@/lib/quote-document";
 import { quoteSubtotalAmount, quoteVatIncludedAmount, quoteVatIncludedLaborAmount } from "@/lib/quote-totals";
 
@@ -302,9 +303,14 @@ export function OrderQuoteEditor({
   const totals = useMemo(() => {
     const productTotal = resolvedItems.reduce((sum, entry) => sum + quoteVatIncludedAmount(Number(entry.product?.price ?? 0)) * entry.item.qty, 0);
     const laborTotal = resolvedItems.reduce((sum, entry) => sum + quoteVatIncludedLaborAmount(Number(entry.product?.laborPrice ?? 0)) * entry.item.qty, 0);
-    const subtotalTotal = quoteSubtotalAmount(productTotal, laborTotal, visitFee, discount);
+    const shippingTotal = productShippingEntriesTotal(resolvedItems, {
+      serviceCode: (entry) => entry.item.serviceTypeCode,
+      qty: (entry) => entry.item.qty,
+      product: (entry) => entry.product
+    });
+    const subtotalTotal = quoteSubtotalAmount(productTotal, laborTotal + shippingTotal, visitFee, discount);
     const finalTotal = subtotalTotal;
-    return { productTotal, laborTotal, subtotalTotal, finalTotal, resolvedItems };
+    return { productTotal, laborTotal, shippingTotal, subtotalTotal, finalTotal, resolvedItems };
   }, [discount, resolvedItems, visitFee]);
 
   function buildQuoteDocumentInput(): QuoteDocumentInput | null {
@@ -314,6 +320,7 @@ export function OrderQuoteEditor({
       if (!product) throw new Error("선택한 제품 정보를 찾을 수 없습니다.");
       const lineMaterial = quoteVatIncludedAmount(product.price) * item.qty;
       const lineLabor = quoteVatIncludedLaborAmount(product.laborPrice) * item.qty;
+      const lineShipping = productShippingLineAmount(item.serviceTypeCode, item.qty, product);
       return {
         id: `${item.productId}-${index}`,
         image: product.image || null,
@@ -323,7 +330,8 @@ export function OrderQuoteEditor({
         qty: item.qty,
         price: lineMaterial,
         labor: lineLabor,
-        finalPrice: lineMaterial + lineLabor
+        shipping: lineShipping,
+        finalPrice: lineMaterial + lineLabor + lineShipping
       };
     });
 
@@ -337,9 +345,10 @@ export function OrderQuoteEditor({
       visitText: formatScheduleVisitText(scheduleDate, scheduleTime),
       productTotal: totals.productTotal,
       laborTotal: totals.laborTotal,
+      shippingTotal: totals.shippingTotal,
       subtotalTotal: totals.subtotalTotal,
       finalTotal: totals.finalTotal,
-      transferAmount: totals.productTotal,
+      transferAmount: totals.productTotal + totals.shippingTotal,
       onsiteAmount: Math.max(0, totals.laborTotal + visitFee),
       productCatalogMode: true,
       cashReceiptText: "미정"
@@ -504,6 +513,7 @@ export function OrderQuoteEditor({
       scheduleTime,
       productTotal: totals.productTotal,
       laborTotal: totals.laborTotal,
+      shippingTotal: totals.shippingTotal,
       subtotalTotal: totals.subtotalTotal,
       finalTotal: totals.finalTotal,
       createdAt: new Date().toISOString()
@@ -686,6 +696,7 @@ export function OrderQuoteEditor({
         <span><b>주문 기준</b><strong>{orderId ? "선택됨" : "미선택"}</strong></span>
         <span><b>제품값</b><strong>{formatKRW(totals.productTotal)}</strong></span>
         <span><b>시공비</b><strong>{formatKRW(totals.laborTotal)}</strong></span>
+        <span><b>배송비</b><strong>{formatKRW(totals.shippingTotal)}</strong></span>
         <span><b>폐기물 처리비</b><strong>{formatKRW(visitFee)}</strong><small>{disposalDescription}</small></span>
         <span><b>최종 합계</b><strong>{formatKRW(totals.finalTotal)}</strong></span>
         <span><b>예약 일정</b><strong>{formatScheduleVisitText(scheduleDate, scheduleTime)}</strong><small>일정관리 슬롯 기준</small></span>
@@ -758,6 +769,7 @@ export function OrderQuoteEditor({
           <span><b>품번</b><strong>{activeProduct?.sku ?? "-"}</strong></span>
           <span><b>제품값</b><strong>{activeProduct ? formatKRW(activeProduct.price * builderQty) : "-"}</strong></span>
           <span><b>시공비</b><strong>{activeProduct ? formatKRW(quoteVatIncludedLaborAmount(activeProduct.laborPrice) * builderQty) : "-"}</strong></span>
+          <span><b>배송비</b><strong>{activeProduct ? formatKRW(productShippingLineAmount(builderServiceCode, builderQty, activeProduct)) : "-"}</strong><small>{activeProduct ? productShippingPolicyLabel(builderServiceCode, activeProduct) : ""}</small></span>
         </div>
       </section>
 

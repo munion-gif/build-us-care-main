@@ -12,6 +12,7 @@ type EstimatePreviewModalProps = {
   selections: ProductSelection[];
   productAmount: number;
   laborAmount: number;
+  shippingAmount?: number;
   disposalAmount: number;
   totalAmount: number;
   selfDisposal: boolean;
@@ -52,6 +53,7 @@ export function EstimatePreviewModal({
   categoryTitle,
   allProducts = [],
   selections,
+  shippingAmount = 0,
   laborAmount,
   disposalAmount,
   totalAmount,
@@ -164,6 +166,11 @@ export function EstimatePreviewModal({
                   <td className="r">{row.amount.toLocaleString("ko-KR")}</td>
                 </tr>
               ))}
+              <tr className="estimate-fee-row">
+                <td colSpan={3} className="estimate-fee-label">배송비</td>
+                <td className="c">-</td>
+                <td className="r">{shippingAmount.toLocaleString("ko-KR")}</td>
+              </tr>
               <tr className="estimate-fee-row">
                 <td colSpan={3} className="estimate-fee-label">폐기물 처리비{selfDisposal ? " (직접 처리)" : ""}</td>
                 <td className="c">×{units}</td>

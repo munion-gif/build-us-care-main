@@ -9,6 +9,7 @@ import {
   type ReplacementProduct
 } from "@/lib/replacement-products";
 import { quoteSubtotalAmount, quoteVatIncludedAmount, quoteVatIncludedLaborAmount } from "@/lib/quote-totals";
+import { productShippingFeeApplication, productShippingLineAmount } from "@/lib/builduscare-shipping";
 
 type SupabaseAdmin = ReturnType<typeof getSupabaseAdmin>;
 
@@ -31,6 +32,7 @@ export type ServerQuoteResult = {
   items: ServerQuoteLine[];
   total_material: number;
   total_labor: number;
+  total_shipping: number;
   visit_fee: number;
   discount: number;
   subtotal_total: number;
@@ -97,6 +99,7 @@ export async function calculateServerQuote(
     }
   }
 
+  const chargedFlatShippingServices = new Set<string>();
   const quoteItems = items.map((item) => {
     const sku = item.service_type_code ?? "unknown";
     const service = item.service_type_code ? serviceMap.get(item.service_type_code) : undefined;
@@ -112,6 +115,14 @@ export async function calculateServerQuote(
     }, selectedProductPrice);
     const optionTotal = (item.options ?? []).reduce((sum, option) => sum + quoteVatIncludedAmount(option.price_delta), 0) * item.qty;
     const unitLabor = isProductSelectionService(sku) ? quoteVatIncludedLaborAmount(getProductLaborPrice(sku, selectedReplacementProduct)) : quoteVatIncludedLaborAmount(service?.base_price ?? 0);
+    let shippingTotal = selectedReplacementProduct ? productShippingLineAmount(sku, item.qty, selectedReplacementProduct) : 0;
+    if (shippingTotal > 0 && productShippingFeeApplication(sku) === "flat") {
+      if (chargedFlatShippingServices.has(sku)) {
+        shippingTotal = 0;
+      } else {
+        chargedFlatShippingServices.add(sku);
+      }
+    }
     const lineLabor = unitLabor * item.qty;
     const lineMaterial = materialUnitTotal * item.qty;
 
@@ -124,7 +135,7 @@ export async function calculateServerQuote(
       option_total: optionTotal,
       line_labor: lineLabor,
       line_material: lineMaterial,
-      line_total: lineLabor + lineMaterial + optionTotal,
+      line_total: lineLabor + lineMaterial + optionTotal + shippingTotal,
       options: item.options ?? [],
       material_skus: materialCodes,
       metadata: {
@@ -132,6 +143,7 @@ export async function calculateServerQuote(
         service_type_code: item.service_type_code ?? null,
         ...(selectedReplacementProduct ? { selected_replacement_product: replacementProductSnapshot(selectedReplacementProduct) } : {}),
         ...(selectedReplacementProduct?.serviceCode === "toilet_replace" ? { selected_toilet_product: replacementProductSnapshot(selectedReplacementProduct) } : {}),
+        shipping_fee_total: shippingTotal,
         client_unit_price_ignored: item.unit_price
       }
     };
@@ -139,13 +151,15 @@ export async function calculateServerQuote(
 
   const totalMaterial = quoteItems.reduce((sum, item) => sum + item.line_material, 0);
   const totalLabor = quoteItems.reduce((sum, item) => sum + item.line_labor + item.option_total, 0);
-  const subtotalTotal = quoteSubtotalAmount(totalMaterial, totalLabor, visitFee, discount);
+  const totalShipping = quoteItems.reduce((sum, item) => sum + Number(item.metadata.shipping_fee_total ?? 0), 0);
+  const subtotalTotal = quoteSubtotalAmount(totalMaterial, totalLabor + totalShipping, visitFee, discount);
   const totalFinal = subtotalTotal;
 
   return {
     items: quoteItems,
     total_material: totalMaterial,
     total_labor: totalLabor,
+    total_shipping: totalShipping,
     visit_fee: visitFee,
     discount,
     subtotal_total: subtotalTotal,

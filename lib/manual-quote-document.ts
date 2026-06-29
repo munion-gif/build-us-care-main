@@ -1,5 +1,6 @@
 import { formatServiceName } from "@/lib/format";
 import type { QuoteDocumentInput } from "@/lib/quote-document";
+import { quoteItemsShippingAmount } from "@/lib/builduscare-shipping";
 
 function visitTextFromManualQuote(quote: any) {
   const date = typeof quote?.reserved_date === "string" ? quote.reserved_date.slice(0, 10) : "";
@@ -10,6 +11,7 @@ function visitTextFromManualQuote(quote: any) {
 export function buildManualQuoteDocumentInput(quote: any): QuoteDocumentInput {
   const rows = Array.isArray(quote?.items) ? quote.items : [];
   const firstServiceCode = String(rows[0]?.metadata?.service_type_code ?? rows[0]?.sku ?? "manual_quote");
+  const shippingTotal = quoteItemsShippingAmount(rows);
 
   return {
     orderNumber: quote?.quote_number ?? "수동 견적서",
@@ -26,7 +28,8 @@ export function buildManualQuoteDocumentInput(quote: any): QuoteDocumentInput {
         categoryLabel: formatServiceName(String(item?.metadata?.service_type_code ?? item?.sku ?? "")),
         qty: Number(item?.qty ?? 1),
         price: Number(item?.line_material ?? 0),
-        labor: Number(item?.line_labor ?? 0) + Number(item?.option_total ?? 0),
+        labor: Number(item?.line_labor ?? 0),
+        shipping: Number(item?.metadata?.shipping_fee_total ?? item?.metadata?.shipping_fee_amount ?? item?.option_total ?? 0),
         finalPrice: Number(item?.line_total ?? 0)
       };
     }),
@@ -34,9 +37,10 @@ export function buildManualQuoteDocumentInput(quote: any): QuoteDocumentInput {
     visitText: visitTextFromManualQuote(quote),
     productTotal: Number(quote?.total_material ?? 0),
     laborTotal: Number(quote?.total_labor ?? 0),
+    shippingTotal,
     subtotalTotal: Math.max(
       0,
-      Number(quote?.total_material ?? 0) + Number(quote?.total_labor ?? 0) + Number(quote?.visit_fee ?? 0) - Number(quote?.discount ?? 0)
+      Number(quote?.total_material ?? 0) + Number(quote?.total_labor ?? 0) + shippingTotal + Number(quote?.visit_fee ?? 0) - Number(quote?.discount ?? 0)
     ),
     finalTotal: Number(quote?.total_final ?? 0),
     transferAmount: Number(quote?.total_material ?? 0),

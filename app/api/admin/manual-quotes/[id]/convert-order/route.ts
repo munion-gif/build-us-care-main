@@ -6,6 +6,7 @@ import { closedReservationReason, isClosedReservationDate, minReservationDateTex
 import { periodCapFromConfig, resolveDefaultSlotCap, type SlotPeriod } from "@/lib/slot-capacity";
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { uuidSchema } from "@/lib/validation";
+import { quoteItemsShippingAmount } from "@/lib/builduscare-shipping";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -182,6 +183,7 @@ export async function POST(request: Request, context: Context) {
     const addressText = String(manualQuote.address_text ?? "").trim() || "주소 확인 중";
     const serviceTypeCode = serviceCodeFromQuote(manualQuote);
     const totalMaterial = Number(manualQuote.total_material ?? 0);
+    const totalShipping = quoteItemsShippingAmount(manualQuote.items);
     const totalLabor = Math.max(
       0,
       Number(manualQuote.total_labor ?? 0) + Number(manualQuote.visit_fee ?? 0) - Number(manualQuote.discount ?? 0)
@@ -244,7 +246,7 @@ export async function POST(request: Request, context: Context) {
         self_diagnosis: "관리자 수동 견적에서 제품 주문으로 전환",
         service_type_code: serviceTypeCode,
         visit_fee: Number(manualQuote.visit_fee ?? 0),
-        subtotal_amount: totalMaterial + totalLabor,
+        subtotal_amount: totalMaterial + totalLabor + totalShipping,
         total_amount: totalFinal,
         online_payment_amount: totalFinal,
         onsite_payment_amount: 0,
@@ -287,7 +289,7 @@ export async function POST(request: Request, context: Context) {
         status: totalFinal > 0 ? "pending" : "done",
         provider_status: totalFinal > 0 ? "WAITING_DEPOSIT" : "DONE",
         requested_at: now,
-        product_amount: totalMaterial,
+        product_amount: totalMaterial + totalShipping,
         service_fee_amount: totalLabor,
         total_amount: totalFinal,
         online_payment_amount: totalFinal,

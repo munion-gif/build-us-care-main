@@ -1,4 +1,5 @@
 import { formatServiceName } from "@/lib/format";
+import { quoteItemsShippingAmount } from "@/lib/builduscare-shipping";
 
 export type QuoteDocumentRow = {
   id: string;
@@ -9,6 +10,7 @@ export type QuoteDocumentRow = {
   qty: number;
   price: number;
   labor: number;
+  shipping?: number;
   finalPrice: number;
 };
 
@@ -27,6 +29,7 @@ export type QuoteDocumentInput = {
   visitText: string;
   productTotal: number;
   laborTotal: number;
+  shippingTotal?: number;
   subtotalTotal?: number;
   finalTotal: number;
   transferAmount: number;
@@ -104,7 +107,8 @@ function quoteRows(items: any[] | undefined): QuoteDocumentRow[] {
     const unitPrice = numberValue(product?.price ?? item?.unit_material);
     const price = numberValue(item?.line_material) || unitPrice * qty;
     const labor = numberValue(item?.line_labor) || numberValue(item?.unit_labor) * qty;
-    const finalPrice = numberValue(item?.line_total) || price + labor;
+    const shipping = numberValue(item?.metadata?.shipping_fee_total ?? item?.metadata?.shipping_fee_amount ?? item?.option_total);
+    const finalPrice = numberValue(item?.line_total) || price + labor + shipping;
 
     return {
       id: `${product?.sku ?? item?.sku ?? "quote"}-${index}`,
@@ -115,6 +119,7 @@ function quoteRows(items: any[] | undefined): QuoteDocumentRow[] {
       qty,
       price,
       labor,
+      shipping,
       finalPrice
     };
   });
@@ -162,9 +167,10 @@ export function buildQuoteDocumentInputFromOrderStatus(
   const rows = quoteRows(quote?.items);
   const productTotal = numberValue(quote?.total_material) || rows.reduce((sum, row) => sum + row.price, 0);
   const laborTotal = numberValue(quote?.total_labor) || rows.reduce((sum, row) => sum + row.labor, 0);
-  const subtotalTotal = numberValue(quote?.total_material) + numberValue(quote?.total_labor) + numberValue(quote?.visit_fee) - numberValue(quote?.discount);
-  const finalTotal = numberValue(quote?.total_final) || numberValue(options.fallbackTotalAmount) || subtotalTotal || productTotal + laborTotal;
-  const transferAmount = numberValue(payment?.amount ?? payment?.online_payment_amount) || numberValue(options.fallbackTransferAmount) || productTotal || finalTotal;
+  const shippingTotal = quoteItemsShippingAmount(quote?.items) || rows.reduce((sum, row) => sum + numberValue(row.shipping), 0);
+  const subtotalTotal = numberValue(quote?.total_material) + numberValue(quote?.total_labor) + shippingTotal + numberValue(quote?.visit_fee) - numberValue(quote?.discount);
+  const finalTotal = numberValue(quote?.total_final) || numberValue(options.fallbackTotalAmount) || subtotalTotal || productTotal + laborTotal + shippingTotal;
+  const transferAmount = numberValue(payment?.amount ?? payment?.online_payment_amount) || numberValue(options.fallbackTransferAmount) || productTotal + shippingTotal || finalTotal;
   const onsiteAmount = numberValue(payment?.onsite_payment_amount ?? order?.onsite_payment_amount) || numberValue(options.fallbackOnsiteAmount) || Math.max(0, finalTotal - transferAmount);
 
   return {
@@ -177,6 +183,7 @@ export function buildQuoteDocumentInputFromOrderStatus(
     visitText: visitTextFromOrder(order),
     productTotal,
     laborTotal,
+    shippingTotal,
     subtotalTotal: subtotalTotal > 0 ? subtotalTotal : undefined,
     finalTotal,
     transferAmount,
@@ -189,6 +196,7 @@ export function buildQuoteDocumentInputFromOrderStatus(
 export function buildQuoteDocumentHtml(input: QuoteDocumentInput) {
   const subtotalTotal = numberValue(input.subtotalTotal) || numberValue(input.finalTotal);
   const finalTotal = numberValue(input.finalTotal);
+  const shippingTotal = numberValue(input.shippingTotal) || input.rows.reduce((sum, row) => sum + numberValue(row.shipping), 0);
   const laborGroups = input.rows.reduce<Map<string, { label: string; qty: number; amount: number }>>((map, row) => {
     const key = row.categoryLabel || "시공";
     const current = map.get(key) ?? { label: key, qty: 0, amount: 0 };
@@ -197,7 +205,7 @@ export function buildQuoteDocumentHtml(input: QuoteDocumentInput) {
     map.set(key, current);
     return map;
   }, new Map());
-  const disposalAmount = Math.max(0, subtotalTotal - input.productTotal - input.laborTotal);
+  const disposalAmount = Math.max(0, subtotalTotal - input.productTotal - input.laborTotal - shippingTotal);
   const totalQty = input.rows.reduce((sum, row) => sum + row.qty, 0);
   const issuedAt = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "numeric", day: "numeric" });
   const summaryCategories = Array.from(new Set(input.rows.map((row) => row.categoryLabel || input.serviceName).filter(Boolean)));
@@ -221,6 +229,11 @@ export function buildQuoteDocumentHtml(input: QuoteDocumentInput) {
         <td class="r">${wonNumber(group.amount)}</td>
       </tr>
     `).join("") + `
+      <tr class="fee-row">
+        <td colspan="3" class="fee-label">배송비</td>
+        <td class="c">-</td>
+        <td class="r">${wonNumber(shippingTotal)}</td>
+      </tr>
       <tr class="fee-row">
         <td colspan="3" class="fee-label">폐기물 처리비</td>
         <td class="c">${disposalAmount > 0 ? `×${totalQty}` : "-"}</td>

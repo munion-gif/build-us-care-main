@@ -51,6 +51,7 @@ export function QuotePreviewClient() {
       selections={payload.selections}
       productAmount={payload.productAmount}
       laborAmount={payload.laborAmount}
+      shippingAmount={payload.shippingAmount}
       disposalAmount={payload.disposalAmount}
       totalAmount={payload.totalAmount}
       selfDisposal={payload.selfDisposal}

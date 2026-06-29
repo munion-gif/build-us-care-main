@@ -9,6 +9,7 @@ import { periodCapFromConfig, resolveDefaultSlotCap, type SlotPeriod } from "@/l
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { buildQuoteDocumentInputFromOrderStatus } from "@/lib/quote-document";
 import { quoteSubtotalAmount, quoteVatIncludedAmount, quoteVatIncludedLaborAmount } from "@/lib/quote-totals";
+import { productShippingFeeApplication, productShippingLineAmount } from "@/lib/builduscare-shipping";
 import { closedReservationReason, isClosedReservationDate, minReservationDateText } from "@/lib/reservation-policy";
 import {
   BUILDUSCARE_LOCAL_ADMIN_COOKIE_MAX_AGE,
@@ -172,12 +173,21 @@ function readCookieValue(cookieHeader: string | null, cookieName: string) {
 }
 
 function buildLocalQuote(items: z.infer<typeof adminQuoteSchema>["items"], visitFee: number, discount: number) {
+  const chargedFlatShippingServices = new Set<string>();
   const quoteItems = items.map((item) => {
     const product = findReplacementProduct(item.service_type_code, item.product_id);
     if (!product) throw new Error("선택한 제품 정보를 찾을 수 없습니다.");
     const qty = Math.max(1, Number(item.qty ?? 1));
     const unitMaterial = quoteVatIncludedAmount(Number(product.price ?? 0));
     const unitLabor = quoteVatIncludedLaborAmount(getProductLaborPrice(item.service_type_code, product));
+    let shippingTotal = productShippingLineAmount(item.service_type_code, qty, product);
+    if (shippingTotal > 0 && productShippingFeeApplication(item.service_type_code) === "flat") {
+      if (chargedFlatShippingServices.has(item.service_type_code)) {
+        shippingTotal = 0;
+      } else {
+        chargedFlatShippingServices.add(item.service_type_code);
+      }
+    }
     const lineMaterial = unitMaterial * qty;
     const lineLabor = unitLabor * qty;
     return {
@@ -189,13 +199,14 @@ function buildLocalQuote(items: z.infer<typeof adminQuoteSchema>["items"], visit
       option_total: 0,
       line_labor: lineLabor,
       line_material: lineMaterial,
-      line_total: lineMaterial + lineLabor,
+      line_total: lineMaterial + lineLabor + shippingTotal,
       options: [],
       material_skus: [],
       metadata: {
         service_type_code: item.service_type_code,
         selected_replacement_product_id: product.id,
         ...(product.serviceCode === "toilet_replace" ? { selected_toilet_product_id: product.id } : {}),
+        shipping_fee_total: shippingTotal,
         selected_replacement_product: replacementProductSnapshot(product)
       }
     };
@@ -203,13 +214,15 @@ function buildLocalQuote(items: z.infer<typeof adminQuoteSchema>["items"], visit
 
   const totalMaterial = quoteItems.reduce((sum, item) => sum + Number(item.line_material ?? 0), 0);
   const totalLabor = quoteItems.reduce((sum, item) => sum + Number(item.line_labor ?? 0) + Number(item.option_total ?? 0), 0);
-  const subtotalTotal = quoteSubtotalAmount(totalMaterial, totalLabor, visitFee, discount);
+  const totalShipping = quoteItems.reduce((sum, item) => sum + Number(item.metadata.shipping_fee_total ?? 0), 0);
+  const subtotalTotal = quoteSubtotalAmount(totalMaterial, totalLabor + totalShipping, visitFee, discount);
   const totalFinal = subtotalTotal;
 
   return {
     items: quoteItems,
     total_material: totalMaterial,
     total_labor: totalLabor,
+    total_shipping: totalShipping,
     visit_fee: visitFee,
     discount,
     subtotal_total: subtotalTotal,
@@ -220,6 +233,7 @@ function buildLocalQuote(items: z.infer<typeof adminQuoteSchema>["items"], visit
 function updateLocalAdminOrderQuote(stored: LocalAdminOrderCookie, parsed: z.infer<typeof adminQuoteSchema>) {
   const pricing = buildLocalQuote(parsed.items, parsed.visit_fee, parsed.discount);
   const pricingOnsiteAmount = Math.max(0, pricing.total_labor + pricing.visit_fee - pricing.discount);
+  const pricingOnlineAmount = pricing.total_material + pricing.total_shipping;
   const now = new Date().toISOString();
   const nextVersion = Number(stored.quote?.version ?? 0) + 1;
   const selected = parsed.items.map((item) => {
@@ -253,13 +267,13 @@ function updateLocalAdminOrderQuote(stored: LocalAdminOrderCookie, parsed: z.inf
       productAmount: pricing.total_material,
       laborAmount: pricingOnsiteAmount,
       totalAmount: pricing.total_final,
-      onlinePaymentAmount: pricing.total_material,
+      onlinePaymentAmount: pricingOnlineAmount,
       onsitePaymentAmount: pricingOnsiteAmount
     },
     payment: {
       id: stored.payment?.id ?? `local-payment-${stored.id}`,
-      status: pricing.total_material > 0 ? "pending" : "done",
-      amount: pricing.total_material,
+      status: pricingOnlineAmount > 0 ? "pending" : "done",
+      amount: pricingOnlineAmount,
       provider: stored.payment?.provider ?? "bank_transfer"
     },
     quote: {
@@ -302,7 +316,8 @@ function updateLocalAdminOrderQuote(stored: LocalAdminOrderCookie, parsed: z.inf
           categoryLabel: formatServiceName(String(item.metadata?.service_type_code ?? item.sku ?? "")),
           qty: Number(item.qty ?? 1),
           price: Number(item.line_material ?? 0),
-          labor: Number(item.line_labor ?? 0) + Number(item.option_total ?? 0),
+          labor: Number(item.line_labor ?? 0),
+          shipping: Number(item.metadata?.shipping_fee_total ?? 0),
           finalPrice: Number(item.line_total ?? 0)
         };
       }),
@@ -312,7 +327,7 @@ function updateLocalAdminOrderQuote(stored: LocalAdminOrderCookie, parsed: z.inf
       laborTotal: pricing.total_labor,
       subtotalTotal: pricing.subtotal_total,
       finalTotal: pricing.total_final,
-      transferAmount: pricing.total_material,
+      transferAmount: pricingOnlineAmount,
       onsiteAmount: pricingOnsiteAmount,
       productCatalogMode: pricing.total_labor > 0,
       cashReceiptText: stored.cashReceipt?.text ?? "신청 안 함"
@@ -520,6 +535,7 @@ export async function POST(request: Request, context: Context) {
       discount: parsed.data.discount
     });
     const pricingOnsiteAmount = Math.max(0, pricing.total_labor + pricing.visit_fee - pricing.discount);
+    const pricingOnlineAmount = pricing.total_material + pricing.total_shipping;
 
     const { data: latestQuote, error: latestQuoteError } = await supabase
       .from("quotes")
@@ -565,7 +581,7 @@ export async function POST(request: Request, context: Context) {
         visit_fee: pricing.visit_fee,
         subtotal_amount: pricing.subtotal_total,
         total_amount: pricing.total_final,
-        online_payment_amount: pricing.total_material,
+        online_payment_amount: pricingOnlineAmount,
         onsite_payment_amount: pricingOnsiteAmount
       })
       .eq("id", parsedId.data);
@@ -608,7 +624,7 @@ export async function POST(request: Request, context: Context) {
       order: refreshedOrder,
       quoteDocumentInput: buildQuoteDocumentInputFromOrderStatus(refreshedOrder, {
         serviceName: undefined,
-        fallbackTransferAmount: pricing.total_material,
+        fallbackTransferAmount: pricingOnlineAmount,
         fallbackOnsiteAmount: pricingOnsiteAmount,
         fallbackTotalAmount: pricing.total_final
       })

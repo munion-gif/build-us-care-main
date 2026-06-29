@@ -29,6 +29,7 @@ import { OrderTestActions } from "../order-test-actions-client";
 import { OrderTrashActions } from "../order-trash-actions-client";
 import { getOrderStatusUx } from "@/lib/order-status-ux";
 import { ORDER_PHOTO_VIEW_EXPIRES_IN, ORDER_PHOTOS_BUCKET } from "@/lib/storage";
+import { quoteItemsShippingAmount } from "@/lib/builduscare-shipping";
 import type { OrderStatus } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -530,12 +531,13 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
   const acceptedQuote = latestQuote(order);
   const quoteMaterialAmount = Number(acceptedQuote?.total_material ?? money.productAmount ?? 0);
   const quoteLaborAmount = Number(acceptedQuote?.total_labor ?? money.onsiteAmount ?? 0);
+  const quoteShippingAmount = quoteItemsShippingAmount(acceptedQuote?.items);
   const quoteSubtotalAmount = acceptedQuote
-    ? Math.max(0, quoteMaterialAmount + quoteLaborAmount + Number(acceptedQuote.visit_fee ?? 0) - Number(acceptedQuote.discount ?? 0))
+    ? Math.max(0, quoteMaterialAmount + quoteLaborAmount + quoteShippingAmount + Number(acceptedQuote.visit_fee ?? 0) - Number(acceptedQuote.discount ?? 0))
     : Number(money.total ?? 0);
   const quoteDisposalAmount = Number(
     acceptedQuote
-      ? acceptedQuote.visit_fee ?? Math.max(0, quoteSubtotalAmount + Number(acceptedQuote.discount ?? 0) - quoteMaterialAmount - quoteLaborAmount)
+      ? acceptedQuote.visit_fee ?? Math.max(0, quoteSubtotalAmount + Number(acceptedQuote.discount ?? 0) - quoteMaterialAmount - quoteLaborAmount - quoteShippingAmount)
       : 0
   );
   const quoteDiscountAmount = Number(acceptedQuote?.discount ?? 0);
@@ -618,6 +620,11 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
               <b>시공비</b>
               <strong>{formatKRW(quoteLaborAmount)}</strong>
               <small>카테고리별 시공비 합계</small>
+            </span>
+            <span>
+              <b>배송비</b>
+              <strong>{formatKRW(quoteShippingAmount)}</strong>
+              <small>제품 배송비 합계</small>
             </span>
             <span>
               <b>폐기물 처리비</b>
@@ -728,7 +735,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
                   <article className="adm-product-line" key={`${item.sku ?? item.item_name ?? index}`}>
                     <strong>{productLabel(item)}</strong>
                     <small>{productSubLabel(item) || formatServiceName(item.sku ?? firstServiceCode(order))}</small>
-                    <em>{Number(item.qty ?? 1)}개 · 제품값 {formatKRW(Number(item.line_material ?? 0))} · 시공비 {formatKRW(Number(item.line_labor ?? 0) + Number(item.option_total ?? 0))}</em>
+                    <em>{Number(item.qty ?? 1)}개 · 제품값 {formatKRW(Number(item.line_material ?? 0))} · 시공비 {formatKRW(Number(item.line_labor ?? 0))} · 배송비 {formatKRW(Number(item.metadata?.shipping_fee_total ?? item.option_total ?? 0))}</em>
                   </article>
                 ))}
               </div>
@@ -738,6 +745,7 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
             <div className="adm-money-split adm-money-split-4">
               <span>제품값 계좌이체 <strong>{formatKRW(quoteMaterialAmount)}</strong></span>
               <span>시공비 <strong>{formatKRW(quoteLaborAmount)}</strong></span>
+              <span>배송비 <strong>{formatKRW(quoteShippingAmount)}</strong></span>
               <span>폐기물 처리비 <strong>{formatKRW(quoteDisposalAmount)}</strong><small>{quoteDisposalPolicy}</small></span>
               <span>최종 견적 <strong>{formatKRW(quoteFinalAmount)}</strong><small>{acceptedQuote ? "견적 금액 기준" : "주문 금액 기준"}</small></span>
             </div>

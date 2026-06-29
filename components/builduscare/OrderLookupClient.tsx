@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Calendar, Check, ChevronLeft, Headphones, Info, MessageCircle, Package, Wallet, Wrench } from "lucide-react";
+import { Calendar, Check, ChevronLeft, Headphones, Info, MessageCircle, Package, Truck, Wallet, Wrench } from "lucide-react";
 import { useEffect, useState } from "react";
 import { MobileAppBar, MobileBottomNav } from "@/components/builduscare/MobileAppChrome";
 import { BUILDUSCARE_CATEGORIES } from "@/lib/builduscare-public-routes";
@@ -34,6 +34,8 @@ type LookupOrder = {
   totals: {
     productAmount: number;
     laborAmount: number;
+    shippingAmount?: number;
+    disposalAmount?: number;
     totalAmount: number;
     onsitePaymentAmount?: number;
     onlinePaymentAmount?: number;
@@ -156,6 +158,7 @@ function readStoredLookupOrder(orderNumber: string, name: string): LookupOrder |
           ? `${cashReceiptType === "business" ? "사업자 지출증빙" : "개인 소득공제"}${cashReceiptIdentity ? ` / ${cashReceiptIdentity}` : ""}`
           : undefined);
     const laborAmount = Number(storedTotals.laborAmount ?? stored.totalLabor ?? 0);
+    const shippingAmount = Number(storedTotals.shippingAmount ?? stored.shippingAmount ?? 0);
     const disposalAmount = Number(storedTotals.disposalAmount ?? storedTotals.wasteAmount ?? stored.disposalAmount ?? 0);
     const onsitePaymentAmount = Number(
       storedTotals.onsitePaymentAmount ??
@@ -188,6 +191,8 @@ function readStoredLookupOrder(orderNumber: string, name: string): LookupOrder |
       totals: {
         productAmount: Number(storedTotals.productAmount ?? stored.totalMaterial ?? 0),
         laborAmount,
+        shippingAmount,
+        disposalAmount,
         totalAmount: Number(storedTotals.totalAmount ?? stored.totalFinal ?? 0),
         onsitePaymentAmount,
         onlinePaymentAmount: Number(storedTotals.onlinePaymentAmount ?? storedTotals.productAmount ?? stored.totalMaterial ?? 0)
@@ -518,7 +523,9 @@ export function OrderLookupClient() {
                   <div className="divline" style={{ margin: "16px 0" }} />
                   <div className="bc-total">
                     <div className="bc-total-row"><span><Package aria-hidden="true" style={{ width: 15, height: 15, verticalAlign: -2 }} /> 제품비</span><strong>{formatKRW(order.totals?.productAmount)}</strong></div>
-                    <div className="bc-total-row"><span><Wrench aria-hidden="true" style={{ width: 15, height: 15, verticalAlign: -2 }} /> 시공비·폐기물 처리비</span><strong>{formatKRW(order.totals?.onsitePaymentAmount ?? order.totals?.laborAmount)}</strong></div>
+                    <div className="bc-total-row"><span><Wrench aria-hidden="true" style={{ width: 15, height: 15, verticalAlign: -2 }} /> 시공비</span><strong>{formatKRW(order.totals?.laborAmount)}</strong></div>
+                    <div className="bc-total-row"><span><Truck aria-hidden="true" style={{ width: 15, height: 15, verticalAlign: -2 }} /> 배송비</span><strong>{formatKRW(order.totals?.shippingAmount)}</strong></div>
+                    <div className="bc-total-row"><span><Package aria-hidden="true" style={{ width: 15, height: 15, verticalAlign: -2 }} /> 폐기물 처리비</span><strong>{formatKRW(order.totals?.disposalAmount)}</strong></div>
                     <div className="bc-total-row final">
                       <span>최종합계</span>
                       <strong>{formatKRW(order.totals?.totalAmount)}</strong>

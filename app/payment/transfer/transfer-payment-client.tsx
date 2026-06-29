@@ -24,8 +24,10 @@ export function TransferPaymentClient() {
   const amount = numberParam(searchParams.get("amount"));
   const productAmount = numberParam(searchParams.get("productAmount")) || amount;
   const serviceFeeAmount = numberParam(searchParams.get("serviceFeeAmount"));
+  const shippingAmount = numberParam(searchParams.get("shippingAmount"));
+  const disposalAmount = numberParam(searchParams.get("disposalAmount"));
   const onsiteAmount = numberParam(searchParams.get("onsiteAmount"));
-  const totalAmount = numberParam(searchParams.get("totalAmount")) || productAmount + serviceFeeAmount;
+  const totalAmount = numberParam(searchParams.get("totalAmount")) || productAmount + serviceFeeAmount + shippingAmount + disposalAmount;
   const finalAmount = totalAmount;
   const bankName = process.env.NEXT_PUBLIC_BANK_TRANSFER_BANK ?? "농협";
   const bankAccount = process.env.NEXT_PUBLIC_BANK_TRANSFER_ACCOUNT ?? "355-0094-9209-33";
@@ -145,6 +147,14 @@ export function TransferPaymentClient() {
           <div>
             <dt>시공비</dt>
             <dd>{won(serviceFeeAmount)}</dd>
+          </div>
+          <div>
+            <dt>배송비</dt>
+            <dd>{won(shippingAmount)}</dd>
+          </div>
+          <div>
+            <dt>폐기물 처리비</dt>
+            <dd>{won(disposalAmount)}</dd>
           </div>
           <div>
             <dt>최종합계</dt>

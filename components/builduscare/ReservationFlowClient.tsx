@@ -726,6 +726,7 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
         totals: {
           productAmount: totals.productAmount,
           laborAmount: totals.laborAmount,
+          shippingAmount: totals.shippingAmount,
           disposalAmount: totals.disposalAmount,
           totalAmount: totals.totalAmount
         },
@@ -764,6 +765,7 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
       selections,
       productAmount: totals.productAmount,
       laborAmount: totals.laborAmount,
+      shippingAmount: totals.shippingAmount,
       disposalAmount: totals.disposalAmount,
       totalAmount: totals.totalAmount,
       selfDisposal: draft.selfDisposal,
@@ -1012,6 +1014,7 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
               <div className="col gap10">
                 <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}><Package style={{ width: 15, height: 15, verticalAlign: "-2px" }} /> 제품비 <span style={{ color: "var(--gray-400)" }}>총 {totals.units}개</span></span><span className="strong">{formatKRW(totals.productAmount)}</span></div>
                 <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}><Wrench style={{ width: 15, height: 15, verticalAlign: "-2px" }} /> 시공비 <span style={{ color: "var(--gray-400)" }}>×{totals.units}</span></span><span className="strong">{formatKRW(totals.laborAmount)}</span></div>
+                <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}><Package style={{ width: 15, height: 15, verticalAlign: "-2px" }} /> 배송비</span><span className="strong">{formatKRW(totals.shippingAmount)}</span></div>
                 <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}><Trash2 style={{ width: 15, height: 15, verticalAlign: "-2px" }} /> 폐기물처리비 <span style={{ color: "var(--gray-400)" }}>×{totals.units}</span></span><span className="strong">{formatKRW(totals.disposalAmount)}</span></div>
                 <label className="disp-opt" style={{ marginTop: 4 }}>
                   <input type="checkbox" checked={draft.selfDisposal} onChange={(event) => update("selfDisposal", event.target.checked)} />

@@ -841,6 +841,7 @@ export function ProductsClient({
       selections: currentSelections,
       productAmount: totals.productAmount,
       laborAmount: totals.laborAmount,
+      shippingAmount: totals.shippingAmount,
       disposalAmount: totals.disposalAmount,
       totalAmount: totals.totalAmount,
       selfDisposal,
@@ -936,6 +937,7 @@ export function ProductsClient({
               units={totals.units}
               productAmount={totals.productAmount}
               laborAmount={totals.laborAmount}
+              shippingAmount={totals.shippingAmount}
               disposalAmount={totals.disposalAmount}
               totalAmount={totals.totalAmount}
               selfDisposal={selfDisposal}

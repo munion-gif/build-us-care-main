@@ -10,6 +10,7 @@ export type EstimatePreviewPayload = {
   selections: ProductSelection[];
   productAmount: number;
   laborAmount: number;
+  shippingAmount?: number;
   disposalAmount: number;
   totalAmount: number;
   selfDisposal: boolean;
@@ -103,6 +104,11 @@ function buildEstimatePreviewHtml(payload: EstimatePreviewPayload) {
   `).join("");
 
   const disposalHtml = `
+      <tr class="fee-row">
+        <td colspan="3" class="fee-label">배송비</td>
+        <td class="c">-</td>
+        <td class="r">${won(payload.shippingAmount ?? 0)}</td>
+      </tr>
       <tr class="fee-row">
         <td colspan="3" class="fee-label">폐기물 처리비${payload.selfDisposal ? " (직접 처리)" : ""}</td>
         <td class="c">×${payload.selections.reduce((sum, item) => sum + item.qty, 0)}</td>

@@ -1,6 +1,7 @@
 import type { ProductSelection } from "@/components/builduscare/product-types";
 import type { BuilduscarePublicProduct } from "@/lib/builduscare-public-products";
 import { PRODUCT_DISPOSAL_FEE, productDisposalFee } from "@/lib/builduscare-disposal";
+import { productShippingEntriesTotal } from "@/lib/builduscare-shipping";
 
 export const PRODUCT_PAGE_SIZE = 15;
 export { PRODUCT_DISPOSAL_FEE, productDisposalFee };
@@ -257,12 +258,18 @@ export function productTotals(selections: ProductSelection[], selfDisposal = fal
   const units = selections.reduce((sum, item) => sum + item.qty, 0);
   const productAmount = selections.reduce((sum, item) => sum + item.product.roundedPrice * item.qty, 0);
   const laborAmount = selections.reduce((sum, item) => sum + item.product.laborPrice * item.qty, 0);
+  const shippingAmount = productShippingEntriesTotal(selections, {
+    serviceCode: (item) => item.product.serviceCode,
+    qty: (item) => item.qty,
+    product: (item) => item.product
+  });
   const disposalAmount = selfDisposal ? 0 : selections.reduce((sum, item) => sum + productDisposalFee(item.product.serviceCode) * item.qty, 0);
   return {
     units,
     productAmount,
     laborAmount,
+    shippingAmount,
     disposalAmount,
-    totalAmount: productAmount + laborAmount + disposalAmount
+    totalAmount: productAmount + laborAmount + shippingAmount + disposalAmount
   };
 }

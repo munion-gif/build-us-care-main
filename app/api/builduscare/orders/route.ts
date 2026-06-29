@@ -9,6 +9,7 @@ import { notifyNewOrder } from "@/lib/notify-admin";
 import { createOrderNumber } from "@/lib/orders";
 import { createPaymentOrderId } from "@/lib/payment-amounts";
 import { productDisposalFee } from "@/lib/builduscare-disposal";
+import { productShippingFeeApplication, productShippingLineAmount } from "@/lib/builduscare-shipping";
 import { quoteVatIncludedAmount, quoteVatIncludedLaborAmount } from "@/lib/quote-totals";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { closedReservationReason, isBeforeMinReservationDate, isClosedReservationDate } from "@/lib/reservation-policy";
@@ -232,23 +233,32 @@ function buildOrderItems(entries: Array<{ product: ReplacementProduct; qty: numb
 }
 
 function buildQuoteLines(entries: Array<{ product: ReplacementProduct; qty: number; selectedColor: string }>, selfDisposal: boolean) {
+  const chargedFlatShippingServices = new Set<string>();
   return entries.map(({ product, qty, selectedColor }) => {
     const unitMaterial = roundedProductPrice(product.price);
     const unitLabor = quoteVatIncludedLaborAmount(getProductLaborPrice(product.serviceCode, product));
     const disposalPerUnit = selfDisposal ? 0 : productDisposalFee(product.serviceCode);
-    const lineLabor = (unitLabor + disposalPerUnit) * qty;
+    let shippingTotal = productShippingLineAmount(product.serviceCode, qty, product);
+    if (shippingTotal > 0 && productShippingFeeApplication(product.serviceCode) === "flat") {
+      if (chargedFlatShippingServices.has(product.serviceCode)) {
+        shippingTotal = 0;
+      } else {
+        chargedFlatShippingServices.add(product.serviceCode);
+      }
+    }
+    const lineLabor = unitLabor * qty;
     const lineMaterial = unitMaterial * qty;
 
     return {
       sku: product.serviceCode,
       item_name: product.categoryName || displayProductName(product, selectedColor),
       qty,
-      unit_labor: unitLabor + disposalPerUnit,
+      unit_labor: unitLabor,
       unit_material: unitMaterial,
-      option_total: 0,
+      option_total: shippingTotal,
       line_labor: lineLabor,
       line_material: lineMaterial,
-      line_total: lineMaterial + lineLabor,
+      line_total: lineMaterial + lineLabor + shippingTotal,
       options: selectedColor ? [{ label: "색상", value: selectedColor }] : [],
       material_skus: [],
       metadata: {
@@ -258,6 +268,7 @@ function buildQuoteLines(entries: Array<{ product: ReplacementProduct; qty: numb
         selected_replacement_product_snapshot: replacementProductSnapshot(product),
         selected_color: selectedColor || null,
         disposal_fee_per_unit: disposalPerUnit,
+        shipping_fee_total: shippingTotal,
         source: BUILDUSCARE_SOURCE
       }
     } satisfies QuoteLine;
@@ -311,6 +322,8 @@ function createLocalBuildusOrderResponse(params: {
   quoteLines: QuoteLine[];
   totalMaterial: number;
   totalLabor: number;
+  totalShipping: number;
+  totalDisposal: number;
   totalFinal: number;
   reserved: string | null;
   cashReceipt: ReturnType<typeof cashReceiptSummary>;
@@ -328,6 +341,8 @@ function createLocalBuildusOrderResponse(params: {
         amount: String(params.totalFinal),
         productAmount: String(params.totalMaterial),
         serviceFeeAmount: String(params.totalLabor),
+        shippingAmount: String(params.totalShipping),
+        disposalAmount: String(params.totalDisposal),
         onsiteAmount: "0",
         totalAmount: String(params.totalFinal)
       }).toString()}`
@@ -371,6 +386,8 @@ function createLocalBuildusOrderResponse(params: {
           totals: {
             productAmount: params.totalMaterial,
             laborAmount: params.totalLabor,
+            shippingAmount: params.totalShipping,
+            disposalAmount: params.totalDisposal,
             totalAmount: params.totalFinal,
             onlinePaymentAmount: params.totalFinal,
             onsitePaymentAmount: 0
@@ -396,6 +413,7 @@ function createLocalBuildusOrderResponse(params: {
               items: params.quoteLines,
               total_material: params.totalMaterial,
               total_labor: params.totalLabor,
+              visit_fee: params.totalDisposal,
               total_final: params.totalFinal
             }
           : null,
@@ -436,6 +454,8 @@ function createLocalBuildusOrderResponse(params: {
     totals: {
       productAmount: params.totalMaterial,
       laborAmount: params.totalLabor,
+      shippingAmount: params.totalShipping,
+      disposalAmount: params.totalDisposal,
       totalAmount: params.totalFinal,
       onlinePaymentAmount: params.totalFinal,
       onsitePaymentAmount: 0
@@ -454,6 +474,7 @@ function createLocalBuildusOrderResponse(params: {
           id: `local-quote-${Date.now().toString(36)}`,
           total_material: params.totalMaterial,
           total_labor: params.totalLabor,
+          visit_fee: params.totalDisposal,
           total_final: params.totalFinal
         }
       : null,
@@ -700,8 +721,10 @@ export async function POST(request: Request) {
         ].join("\n");
   const quoteLines = entries.length > 0 ? buildQuoteLines(entries, Boolean(payload.selfDisposal)) : [];
   const totalMaterial = quoteLines.reduce((sum, line) => sum + line.line_material, 0);
-  const totalLabor = quoteLines.reduce((sum, line) => sum + line.line_labor + line.option_total, 0);
-  const subtotalFinal = totalMaterial + totalLabor;
+  const totalLabor = quoteLines.reduce((sum, line) => sum + line.line_labor, 0);
+  const totalShipping = quoteLines.reduce((sum, line) => sum + line.option_total, 0);
+  const totalDisposal = quoteLines.reduce((sum, line) => sum + Number(line.metadata?.disposal_fee_per_unit ?? 0) * line.qty, 0);
+  const subtotalFinal = totalMaterial + totalLabor + totalShipping + totalDisposal;
   const totalFinal = subtotalFinal;
   const reserved = reservedDate(payload.reservation?.date);
   const slot = timeSlot(payload.reservation?.time);
@@ -733,6 +756,8 @@ export async function POST(request: Request) {
       quoteLines,
       totalMaterial,
       totalLabor,
+      totalShipping,
+      totalDisposal,
       totalFinal,
       reserved,
       cashReceipt,
@@ -757,7 +782,7 @@ export async function POST(request: Request) {
       primaryServiceCode,
       specialRequests,
       productAmount: totalMaterial,
-      laborAmount: totalLabor
+      laborAmount: totalLabor + totalShipping + totalDisposal
     });
     const jobPromise = supabase
       .from("jobs")
@@ -781,7 +806,7 @@ export async function POST(request: Request) {
               items: quoteLines,
               total_material: totalMaterial,
               total_labor: totalLabor,
-              visit_fee: 0,
+              visit_fee: totalDisposal,
               discount: 0,
               total_final: totalFinal,
               accepted_at: now
@@ -805,7 +830,7 @@ export async function POST(request: Request) {
               provider_status: totalMaterial > 0 ? "WAITING_DEPOSIT" : "DONE",
               requested_at: now,
               product_amount: totalMaterial,
-              service_fee_amount: totalLabor,
+              service_fee_amount: totalLabor + totalShipping + totalDisposal,
               total_amount: totalFinal,
               online_payment_amount: totalFinal,
               onsite_payment_amount: 0,
@@ -831,6 +856,8 @@ export async function POST(request: Request) {
         amount: String(totalFinal),
         productAmount: String(totalMaterial),
         serviceFeeAmount: String(totalLabor),
+        shippingAmount: String(totalShipping),
+        disposalAmount: String(totalDisposal),
         onsiteAmount: "0",
         totalAmount: String(totalFinal)
       });
@@ -913,7 +940,7 @@ export async function POST(request: Request) {
                 payment_id: payment.id,
                 quote_id: quote?.id,
                 product_amount: totalMaterial,
-                service_fee_amount: totalLabor,
+                service_fee_amount: totalLabor + totalShipping + totalDisposal,
                 total_amount: totalFinal
               }
             })
@@ -973,7 +1000,9 @@ export async function POST(request: Request) {
           },
           totals: {
             productAmount: payment ? Number(payment.product_amount ?? payment.amount ?? 0) : 0,
-            laborAmount: payment ? Number(payment.service_fee_amount ?? 0) : 0,
+            laborAmount: totalLabor,
+            shippingAmount: totalShipping,
+            disposalAmount: totalDisposal,
             totalAmount: payment ? Number(payment.total_amount ?? 0) : 0,
             onlinePaymentAmount: payment ? Number(payment.online_payment_amount ?? payment.amount ?? 0) : 0,
             onsitePaymentAmount: payment ? Number(payment.onsite_payment_amount ?? 0) : 0

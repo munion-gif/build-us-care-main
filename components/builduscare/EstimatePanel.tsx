@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarCheck, Package, ShoppingBag, Trash2, Wrench } from "lucide-react";
+import { CalendarCheck, Package, ShoppingBag, Trash2, Truck, Wrench } from "lucide-react";
 import type { ProductSelection } from "@/components/builduscare/product-types";
 import { formatKRW, selectionDisplayLabel, selectionKey } from "@/components/builduscare/product-helpers";
 import type { BuilduscarePublicProduct } from "@/lib/builduscare-public-products";
@@ -13,6 +13,7 @@ type EstimatePanelProps = {
   units: number;
   productAmount: number;
   laborAmount: number;
+  shippingAmount: number;
   disposalAmount: number;
   totalAmount: number;
   selfDisposal: boolean;
@@ -39,6 +40,7 @@ export function EstimatePanel({
   units,
   productAmount,
   laborAmount,
+  shippingAmount,
   disposalAmount,
   totalAmount,
   selfDisposal,
@@ -88,6 +90,10 @@ export function EstimatePanel({
                 <div className="prow">
                   <span className="pk"><Wrench aria-hidden="true" /> 시공비 <span className="sub">×{units}</span></span>
                   <span className="pv">{formatKRW(laborAmount).replace(/원$/, "")}</span>
+                </div>
+                <div className="prow">
+                  <span className="pk"><Truck aria-hidden="true" /> 배송비</span>
+                  <span className="pv">{formatKRW(shippingAmount).replace(/원$/, "")}</span>
                 </div>
                 <div className="prow">
                   <span className="pk"><Trash2 aria-hidden="true" /> 폐기물 처리비 <span className="sub">×{units}</span></span>
