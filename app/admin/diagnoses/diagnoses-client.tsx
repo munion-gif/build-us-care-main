@@ -78,6 +78,7 @@ export function DiagnosisPanel({ diagnosis, localMode = false }: { diagnosis: an
   const [service, setService] = useState(canonicalServiceCode(diagnosis.suggested_service_code ?? diagnosis.service_type_code ?? diagnosis.service_code));
   const [saving, setSaving] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [sendingPhotoRequest, setSendingPhotoRequest] = useState(false);
   const [message, setMessage] = useState("");
   const photoInputs = (diagnosis.signedPhotos ?? diagnosis.image_urls ?? diagnosis.photos ?? [])
     .filter((value: unknown): value is string => typeof value === "string" && value.length > 0);
@@ -135,6 +136,36 @@ export function DiagnosisPanel({ diagnosis, localMode = false }: { diagnosis: an
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "견적 전환에 실패했습니다.");
       setConverting(false);
+    }
+  }
+
+  async function sendPhotoRequestAlimtalk() {
+    if (localMode) {
+      setMessage("로컬 확인 모드에서는 카카오 알림톡을 발송할 수 없어요.");
+      return;
+    }
+    if (!reason.trim()) {
+      setMessage("상담 메모를 입력한 뒤 발송해주세요.");
+      return;
+    }
+
+    setSendingPhotoRequest(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/admin/diagnoses/${encodeURIComponent(diagnosis.id)}/photo-request-alimtalk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memo: reason })
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error?.message ?? "추가 사진 요청 알림톡 발송에 실패했습니다.");
+      }
+      setMessage("추가 사진 요청 알림톡을 발송했습니다.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "추가 사진 요청 알림톡 발송에 실패했습니다.");
+    } finally {
+      setSendingPhotoRequest(false);
     }
   }
 
@@ -222,6 +253,9 @@ export function DiagnosisPanel({ diagnosis, localMode = false }: { diagnosis: an
             <button className="adm-btn adm-btn-primary" onClick={save} disabled={saving || localMode}>{saving ? "저장 중" : localMode ? "로컬에서 저장 불가" : "확인 저장"}</button>
             <button className="adm-btn adm-btn-secondary" type="button" onClick={convertToQuote} disabled={converting || localMode}>
               {converting ? "전환 중" : localMode ? "로컬에서 전환 불가" : convertedOrderId(diagnosis) ? "제품 주문 보기" : "제품 주문 생성"}
+            </button>
+            <button className="adm-btn adm-btn-secondary" type="button" onClick={sendPhotoRequestAlimtalk} disabled={sendingPhotoRequest || localMode}>
+              {sendingPhotoRequest ? "발송 중" : localMode ? "로컬에서 발송 불가" : "추가 사진 요청 발송"}
             </button>
             <a className="adm-btn adm-btn-secondary" href="/admin/orders?flow=intake">상담 주문 확인</a>
           </div>
