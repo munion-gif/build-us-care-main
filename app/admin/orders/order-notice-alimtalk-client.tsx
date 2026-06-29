@@ -21,10 +21,10 @@ export function OrderNoticeAlimtalkPanel({ orderId, orderNumber, customerName, p
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState("");
   const presets = useMemo(() => ({
-    payment: `안녕하세요! 빌드어스입니다.\n\n${name}님 주문이 정상 접수되었습니다.\n제품 금액 ${won(paymentAmount)} 입금 확인 후 기사 배정과 방문 일정 안내가 진행됩니다.\n\n감사합니다.`,
-    schedule: `안녕하세요! 빌드어스입니다.\n\n${name}님 주문의 방문 일정은 ${visitText || "확인 중"}입니다.\n방문 전 담당 기사 배정 후 다시 안내드리겠습니다.\n\n감사합니다.`,
-    confirm: `안녕하세요! 빌드어스입니다.\n\n${name}님 주문 진행을 위해 추가 확인이 필요합니다.\n카카오톡 답장으로 확인 가능한 내용을 남겨주시면 이어서 안내드리겠습니다.\n\n감사합니다.`,
-    status: `안녕하세요! 빌드어스입니다.\n\n${name}님 주문 현황 안내드립니다.\n접수번호는 ${orderNumber}이며, 아래 버튼에서 주문 진행 상태를 확인하실 수 있습니다.\n\n감사합니다.`
+    payment: `${name}님 주문이 정상 접수되었습니다. 제품 금액 ${won(paymentAmount)} 입금 확인 후 기사 배정과 방문 일정 안내가 진행됩니다.`,
+    schedule: `${name}님 주문의 방문 일정은 ${visitText || "확인 중"}입니다. 방문 전 담당 기사 배정 후 다시 안내드리겠습니다.`,
+    confirm: `${name}님 주문 진행을 위해 추가 확인이 필요합니다. 카카오톡 답장으로 확인 가능한 내용을 남겨주시면 이어서 안내드리겠습니다.`,
+    status: `${name}님 주문 접수번호는 ${orderNumber}입니다. 아래 버튼에서 주문 진행 상태를 확인하실 수 있습니다.`
   }), [name, orderNumber, paymentAmount, visitText]);
 
   async function send() {
@@ -72,9 +72,12 @@ export function OrderNoticeAlimtalkPanel({ orderId, orderNumber, customerName, p
         className="adm-input"
         value={memo}
         onChange={(event) => setMemo(event.target.value)}
-        placeholder="고객에게 보낼 안내 메모를 입력하세요."
+        placeholder="예: 입금 확인 후 기사 배정과 방문 일정 안내가 진행됩니다."
         rows={6}
       />
+      <p className="adm-help">
+        안내 메모에는 고객에게 보낼 상세 내용만 입력하세요. 인사말, 브랜드명, 주문 접수 안내 문구는 알림톡 템플릿에 자동 포함됩니다.
+      </p>
       <div className="adm-action-row-buttons">
         <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={() => setMemo(presets.payment)}>입금안내 문구 넣기</button>
         <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={() => setMemo(presets.schedule)}>방문일정 문구 넣기</button>

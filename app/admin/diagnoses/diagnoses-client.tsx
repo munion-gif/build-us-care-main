@@ -245,7 +245,16 @@ export function DiagnosisPanel({ diagnosis, localMode = false }: { diagnosis: an
           </label>
           <label>
             <span className="adm-label">상담 메모</span>
-            <textarea className="adm-input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="고객 메시지 및 내부 메모" disabled={localMode} />
+            <textarea
+              className="adm-input"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="예: 전체 사진, 문제 부위 근접 사진, 주변 환경 사진을 부탁드립니다."
+              disabled={localMode}
+            />
+            <span className="adm-help">
+              상담 메모에는 고객에게 보낼 상세 요청만 입력하세요. 인사말, 브랜드명, 사진확인 접수 안내 문구는 알림톡 템플릿에 자동 포함됩니다.
+            </span>
           </label>
           {message ? <p className="adm-form-message adm-form-message-error">{message}</p> : null}
           {localMode ? <p className="adm-help">로컬 확인 모드에서는 판정 저장, 주문·견적 생성이 비활성입니다.</p> : null}
@@ -260,8 +269,8 @@ export function DiagnosisPanel({ diagnosis, localMode = false }: { diagnosis: an
             <a className="adm-btn adm-btn-secondary" href="/admin/orders?flow=intake">상담 주문 보기</a>
           </div>
           <div className="adm-action-row-buttons">
-            <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={() => setReason("사진이 부족해 추가 사진이 필요합니다. 전체 사진, 문제 부위 근접 사진, 주변 환경 사진을 다시 요청해주세요.")} disabled={localMode}>추가사진 문구 넣기</button>
-            <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={() => setReason("사진 기준으로 교체가 필요하지 않아 보입니다. 현재는 사용 유지 안내 후 종료합니다.")} disabled={localMode}>종료안내 문구 넣기</button>
+            <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={() => setReason("전체 사진, 문제 부위 근접 사진, 주변 환경 사진을 부탁드립니다.")} disabled={localMode}>추가사진 문구 넣기</button>
+            <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={() => setReason("사진 기준으로 교체가 필요하지 않아 보입니다. 현재는 사용 유지로 안내드립니다.")} disabled={localMode}>종료안내 문구 넣기</button>
           </div>
         </section>
       </div>
