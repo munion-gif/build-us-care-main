@@ -50,7 +50,7 @@ import {
   isKoreanPublicHoliday,
   minReservationDateText
 } from "@/lib/reservation-policy";
-import { isSiliconeLaborService, laborQtyText, laborUnitHelpText } from "@/lib/builduscare-labor";
+import { isSiliconeLaborService, laborQtyText } from "@/lib/builduscare-labor";
 
 type ReservationStep = "info" | "schedule" | "confirm" | "complete";
 type SlotPeriod = "morning" | "afternoon";
@@ -1019,7 +1019,7 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
               <div className="divline" style={{ margin: "16px 0" }}></div>
               <div className="col gap10">
                 <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}><Package style={{ width: 15, height: 15, verticalAlign: "-2px" }} /> 제품비 <span style={{ color: "var(--gray-400)" }}>총 {totalUnitText}</span></span><span className="strong">{formatKRW(totals.productAmount)}</span></div>
-                <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}><Wrench style={{ width: 15, height: 15, verticalAlign: "-2px" }} /> 시공비 <span style={{ color: "var(--gray-400)" }}>{laborUnitText}{hasSiliconeSelection ? ` · ${laborUnitHelpText("silicone_repair")}` : ""}</span></span><span className="strong">{formatKRW(totals.laborAmount)}</span></div>
+                <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}><Wrench style={{ width: 15, height: 15, verticalAlign: "-2px" }} /> 시공비 <span style={{ color: "var(--gray-400)" }}>{laborUnitText}</span></span><span className="strong">{formatKRW(totals.laborAmount)}</span></div>
                 <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}><Package style={{ width: 15, height: 15, verticalAlign: "-2px" }} /> 배송비</span><span className="strong">{formatKRW(totals.shippingAmount)}</span></div>
                 <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}><Trash2 style={{ width: 15, height: 15, verticalAlign: "-2px" }} /> 폐기물처리비 <span style={{ color: "var(--gray-400)" }}>×{totals.units}</span></span><span className="strong">{formatKRW(totals.disposalAmount)}</span></div>
                 <label className="disp-opt" style={{ marginTop: 4 }}>

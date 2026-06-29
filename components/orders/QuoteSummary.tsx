@@ -1,7 +1,7 @@
 "use client";
 
 import { formatKRDate, formatKRW } from "@/lib/format";
-import { isSiliconeLaborService, laborUnitHelpText } from "@/lib/builduscare-labor";
+import { isSiliconeLaborService } from "@/lib/builduscare-labor";
 
 type QuoteSummaryProps = {
   quote?: {
@@ -107,12 +107,6 @@ export function QuoteSummary({ quote, payment, onDownloadQuote, downloadLoading 
                     <dt>시공비</dt>
                     <dd>{formatKRW(item.laborPrice)}</dd>
                   </div>
-                  {isSiliconeLaborService(item.serviceCode) ? (
-                    <div>
-                      <dt>기준</dt>
-                      <dd>{laborUnitHelpText(item.serviceCode)}</dd>
-                    </div>
-                  ) : null}
                   <div>
                     <dt>최종가격</dt>
                     <dd>{formatKRW(item.finalPrice)}</dd>

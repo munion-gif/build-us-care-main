@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { formatKRW } from "@/lib/format";
 import { PRODUCT_DISPOSAL_FEE, HEAVY_PRODUCT_DISPOSAL_FEE, productDisposalFee } from "@/lib/builduscare-disposal";
 import { productShippingEntriesTotal, productShippingLineAmount, productShippingPolicyLabel } from "@/lib/builduscare-shipping";
-import { isSiliconeLaborService, laborQtyText, laborUnitHelpText, laborUnitLabel } from "@/lib/builduscare-labor";
+import { isSiliconeLaborService, laborQtyText, laborUnitLabel } from "@/lib/builduscare-labor";
 import { openQuoteDocumentPreviewWindow, type QuoteDocumentInput } from "@/lib/quote-document";
 import { quoteSubtotalAmount, quoteVatIncludedAmount, quoteVatIncludedLaborAmount } from "@/lib/quote-totals";
 
@@ -768,7 +768,7 @@ export function OrderQuoteEditor({
                 추가
               </button>
             </div>
-            {builderIsSilicone ? <small className="adm-help">m 단위로 입력합니다. {laborUnitHelpText(builderServiceCode)}</small> : null}
+            {builderIsSilicone ? <small className="adm-help">m 단위로 입력합니다.</small> : null}
           </label>
         </div>
         <div className="adm-quote-item-meta">
@@ -778,7 +778,6 @@ export function OrderQuoteEditor({
           <span>
             <b>시공비</b>
             <strong>{activeProduct ? formatKRW(quoteVatIncludedLaborAmount(activeProduct.laborPrice) * builderQty) : "-"}</strong>
-            <small>{activeProduct ? laborUnitHelpText(builderServiceCode) : ""}</small>
           </span>
           <span><b>배송비</b><strong>{activeProduct ? formatKRW(productShippingLineAmount(builderServiceCode, builderQty, activeProduct)) : "-"}</strong><small>{activeProduct ? productShippingPolicyLabel(builderServiceCode, activeProduct) : ""}</small></span>
         </div>

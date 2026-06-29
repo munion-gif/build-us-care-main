@@ -5,7 +5,7 @@ import type { ProductSelection } from "@/components/builduscare/product-types";
 import { formatKRW, selectionDisplayLabel, selectionKey } from "@/components/builduscare/product-helpers";
 import type { BuilduscarePublicProduct } from "@/lib/builduscare-public-products";
 import type { BuilduscareCategory } from "@/lib/builduscare-public-routes";
-import { isSiliconeLaborService, laborQtyText, laborUnitHelpText } from "@/lib/builduscare-labor";
+import { isSiliconeLaborService, laborQtyText } from "@/lib/builduscare-labor";
 
 type EstimatePanelProps = {
   category: BuilduscareCategory;
@@ -94,7 +94,6 @@ export function EstimatePanel({
                 <div className="prow">
                   <span className="pk">
                     <Wrench aria-hidden="true" /> 시공비 <span className="sub">{laborUnitSummary}</span>
-                    {hasSiliconeSelection ? <span className="sub"> · {laborUnitHelpText("silicone_repair")}</span> : null}
                   </span>
                   <span className="pv">{formatKRW(laborAmount).replace(/원$/, "")}</span>
                 </div>

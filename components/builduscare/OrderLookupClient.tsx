@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { MobileAppBar, MobileBottomNav } from "@/components/builduscare/MobileAppChrome";
 import { BUILDUSCARE_CATEGORIES } from "@/lib/builduscare-public-routes";
 import { getBuilduscarePublicCatalog } from "@/lib/builduscare-public-products";
-import { isSiliconeLaborService, laborUnitHelpText } from "@/lib/builduscare-labor";
+import { isSiliconeLaborService } from "@/lib/builduscare-labor";
 
 type LookupOrder = {
   orderNumber: string;
@@ -534,7 +534,7 @@ export function OrderLookupClient() {
                   <div className="divline" style={{ margin: "16px 0" }} />
                   <div className="bc-total">
                     <div className="bc-total-row"><span><Package aria-hidden="true" style={{ width: 15, height: 15, verticalAlign: -2 }} /> 제품비</span><strong>{formatKRW(order.totals?.productAmount)}</strong></div>
-                    <div className="bc-total-row"><span><Wrench aria-hidden="true" style={{ width: 15, height: 15, verticalAlign: -2 }} /> 시공비{hasSiliconeItems(order) ? ` · ${laborUnitHelpText("silicone_repair")}` : ""}</span><strong>{formatKRW(order.totals?.laborAmount)}</strong></div>
+                    <div className="bc-total-row"><span><Wrench aria-hidden="true" style={{ width: 15, height: 15, verticalAlign: -2 }} /> 시공비</span><strong>{formatKRW(order.totals?.laborAmount)}</strong></div>
                     <div className="bc-total-row"><span><Truck aria-hidden="true" style={{ width: 15, height: 15, verticalAlign: -2 }} /> 배송비</span><strong>{formatKRW(order.totals?.shippingAmount)}</strong></div>
                     <div className="bc-total-row"><span><Package aria-hidden="true" style={{ width: 15, height: 15, verticalAlign: -2 }} /> 폐기물 처리비</span><strong>{formatKRW(order.totals?.disposalAmount)}</strong></div>
                     <div className="bc-total-row final">
