@@ -956,7 +956,7 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
         {!blockedByPreviousStep && step === "schedule" && (
           <>
             <h1 className="web-h2" style={{ margin: "14px 0 6px" }}>희망 일정 선택</h1>
-            <p className="web-lede" style={{ fontSize: 16 }}>제품 준비기간으로 <b style={{ color: "#1d1d1f" }}>영업일 기준 4일 이후부터</b> 희망 일정을 선택할 수 있어요. 토요일·일요일과 공휴일은 휴무입니다.</p>
+            <p className="web-lede" style={{ fontSize: 16 }}>제품 준비기간으로 <b style={{ color: "#1d1d1f" }}>영업일 기준 4일 이후부터</b> 예약할 수 있어요. 토요일·일요일과 공휴일은 휴무입니다.</p>
             <p className="p-sm" style={{ marginTop: 8, color: "var(--gray-600)" }}>희망 일정은 접수 후 기사 일정 확인 과정에서 조정될 수 있으며, 어려운 경우 고객님과 가능한 날짜로 다시 조율해 드립니다.</p>
             <section className="bcard pad" style={{ padding: 24, marginTop: 22 }}>
               <div className="between reservation-calendar-head" style={{ marginBottom: 12 }}>

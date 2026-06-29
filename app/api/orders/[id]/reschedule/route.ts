@@ -115,19 +115,30 @@ async function assertSlotAvailable(params: {
   }
 
   const range = kstDayUtcRange(reservedDate);
-  const { data: jobs, error } = await supabase
-    .from("jobs")
-    .select("id,order_id,scheduled_at,status")
-    .not("scheduled_at", "is", null)
-    .neq("status", "cancelled")
-    .gte("scheduled_at", range.start)
-    .lt("scheduled_at", range.end);
+  const [jobsResult, manualQuotesResult] = await Promise.all([
+    supabase
+      .from("jobs")
+      .select("id,order_id,scheduled_at,status")
+      .not("scheduled_at", "is", null)
+      .neq("status", "cancelled")
+      .gte("scheduled_at", range.start)
+      .lt("scheduled_at", range.end),
+    supabase
+      .from("manual_quotes")
+      .select("id,reserved_date,time_slot,converted_order_id")
+      .not("reserved_date", "is", null)
+      .not("time_slot", "is", null)
+      .is("converted_order_id", null)
+      .eq("reserved_date", reservedDate)
+  ]);
 
-  if (error) return fail("INTERNAL_ERROR", error.message, 500);
+  const firstError = jobsResult.error ?? manualQuotesResult.error;
+  if (firstError) return fail("INTERNAL_ERROR", firstError.message, 500);
 
-  const sameSlotJobCount = (jobs ?? []).filter((job) => job.order_id !== orderId && slotFromScheduledAt(job.scheduled_at) === timeSlot).length;
+  const sameSlotJobCount = (jobsResult.data ?? []).filter((job) => job.order_id !== orderId && slotFromScheduledAt(job.scheduled_at) === timeSlot).length;
+  const sameSlotManualQuoteCount = (manualQuotesResult.data ?? []).filter((quote) => quote.time_slot === timeSlot).length;
 
-  if (sameSlotJobCount >= cap) {
+  if (sameSlotJobCount + sameSlotManualQuoteCount >= cap) {
     return fail("SLOT_FULL", "선택한 시간대는 마감되었습니다. 다른 시간대를 선택해주세요.", 409);
   }
 
