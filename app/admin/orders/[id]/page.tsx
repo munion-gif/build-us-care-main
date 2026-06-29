@@ -22,6 +22,7 @@ import {
 import { OrderScheduleConfirmButton } from "../order-assignment-client";
 import { OrderCustomerLinkCopy } from "../order-customer-link-client";
 import { OrderEditPanel } from "../order-edit-panel-client";
+import { OrderNoticeAlimtalkPanel } from "../order-notice-alimtalk-client";
 import { OrderBankTransferConfirmButton } from "../order-payment-actions-client";
 import { OrderStatusTransitionPanel } from "../order-status-transition-panel-client";
 import { OrderTestActions } from "../order-test-actions-client";
@@ -642,6 +643,15 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
             </span>
           </div>
         </section>
+
+        <OrderNoticeAlimtalkPanel
+          orderId={order.id}
+          orderNumber={order.order_number}
+          customerName={customer?.name}
+          paymentAmount={quoteFinalAmount}
+          visitText={visitDateLabel(activeJob, reservation) !== "방문 일정 없음" ? `${visitDateLabel(activeJob, reservation)} ${visitSlotLabel(activeJob, reservation)}` : "방문 일정 확인 중"}
+          localMode={localMode}
+        />
 
         {localMode ? (
           <section className="adm-card adm-admin-warning" role="status">

@@ -20,6 +20,13 @@ export type PhotoRequestAlimtalkPayload = {
   accessToken: string;
 };
 
+export type OrderNoticeAlimtalkPayload = {
+  to: string;
+  noticeMemo: string;
+  orderId: string;
+  accessToken: string;
+};
+
 function digits(value: unknown) {
   return String(value ?? "").replace(/\D/g, "");
 }
@@ -52,6 +59,13 @@ function photoRequestConfig() {
   };
 }
 
+function orderNoticeConfig() {
+  return {
+    ...config(),
+    templateId: process.env.SOLAPI_ORDER_NOTICE_TEMPLATE_ID || ""
+  };
+}
+
 export function quoteAlimtalkConfigStatus() {
   const current = config();
   return {
@@ -75,6 +89,20 @@ export function photoRequestAlimtalkConfigStatus() {
       !current.apiSecret ? "SOLAPI_API_SECRET" : "",
       !current.pfId ? "SOLAPI_KAKAO_PFID" : "",
       !current.templateId ? "SOLAPI_PHOTO_REQUEST_TEMPLATE_ID" : "",
+      !current.from ? "SOLAPI_SENDER_PHONE" : ""
+    ].filter(Boolean)
+  };
+}
+
+export function orderNoticeAlimtalkConfigStatus() {
+  const current = orderNoticeConfig();
+  return {
+    configured: Boolean(current.apiKey && current.apiSecret && current.pfId && current.templateId && current.from),
+    missing: [
+      !current.apiKey ? "SOLAPI_API_KEY" : "",
+      !current.apiSecret ? "SOLAPI_API_SECRET" : "",
+      !current.pfId ? "SOLAPI_KAKAO_PFID" : "",
+      !current.templateId ? "SOLAPI_ORDER_NOTICE_TEMPLATE_ID" : "",
       !current.from ? "SOLAPI_SENDER_PHONE" : ""
     ].filter(Boolean)
   };
@@ -165,6 +193,60 @@ export async function sendPhotoRequestAlimtalk(payload: PhotoRequestAlimtalkPayl
           templateId: current.templateId,
           variables: {
             "#{상담메모}": consultationMemo,
+            "#{주문ID}": payload.orderId,
+            "#{접근토큰}": payload.accessToken
+          }
+        }
+      }
+    })
+  });
+
+  const raw = await response.json().catch(() => ({}));
+  if (response.ok) return { ok: true, providerResponse: raw };
+
+  const errorMessage =
+    text((raw as any).errorMessage) ||
+    text((raw as any).message) ||
+    text((raw as any).error?.message) ||
+    response.statusText;
+  return { ok: false, error: errorMessage, providerResponse: raw };
+}
+
+export async function sendOrderNoticeAlimtalk(payload: OrderNoticeAlimtalkPayload): Promise<SolapiAlimtalkResult> {
+  const current = orderNoticeConfig();
+  const recipient = digits(payload.to);
+  const noticeMemo = text(payload.noticeMemo);
+  const missing = orderNoticeAlimtalkConfigStatus().missing;
+
+  if (missing.length > 0) {
+    return { ok: false, error: `SOLAPI 설정이 없습니다: ${missing.join(", ")}` };
+  }
+  if (recipient.length < 8) {
+    return { ok: false, error: "고객 연락처가 올바르지 않습니다." };
+  }
+  if (!noticeMemo) {
+    return { ok: false, error: "발송할 안내 메모를 입력해주세요." };
+  }
+  if (!payload.orderId || !payload.accessToken) {
+    return { ok: false, error: "알림톡 버튼 링크에 필요한 주문ID 또는 접근토큰이 없습니다." };
+  }
+
+  const response = await fetch("https://api.solapi.com/messages/v4/send", {
+    method: "POST",
+    headers: {
+      Authorization: solapiAuthHeaders(current.apiKey, current.apiSecret),
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      message: {
+        to: recipient,
+        from: current.from,
+        text: `[Build us Care]\n\n${noticeMemo}`,
+        kakaoOptions: {
+          pfId: current.pfId,
+          templateId: current.templateId,
+          variables: {
+            "#{안내메모}": noticeMemo,
             "#{주문ID}": payload.orderId,
             "#{접근토큰}": payload.accessToken
           }
