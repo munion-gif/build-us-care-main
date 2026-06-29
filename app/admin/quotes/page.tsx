@@ -100,6 +100,7 @@ export default async function AdminQuotesPage({ searchParams }: PageProps) {
             initialScheduleTime={selectedOrder ? orderScheduleTime(selectedOrder) as any : manualQuote?.time_slot ?? null}
             initialServiceCode={initialServiceCode}
             currentQuoteVersion={currentQuote?.version ?? null}
+            convertedOrderId={manualQuote?.converted_order_id ?? null}
             customerName={selectedOrder ? customerName(selectedOrder) : manualQuote?.customer_name ?? null}
             customerPhone={selectedOrder ? customerPhone(selectedOrder) : manualQuote?.customer_phone ?? null}
             addressText={selectedOrder ? orderHomeAddress(selectedOrder) : manualQuote?.address_text ?? null}

@@ -77,6 +77,7 @@ type Props = {
   initialScheduleTime?: SlotPeriod | null;
   initialServiceCode: string;
   currentQuoteVersion?: number | null;
+  convertedOrderId?: string | null;
   customerName?: string | null;
   customerPhone?: string | null;
   addressText?: string | null;
@@ -144,6 +145,7 @@ export function OrderQuoteEditor({
   initialScheduleTime,
   initialServiceCode,
   currentQuoteVersion,
+  convertedOrderId,
   customerName,
   customerPhone,
   addressText,
@@ -191,6 +193,7 @@ export function OrderQuoteEditor({
   const [draftAddressText, setDraftAddressText] = useState(addressText ?? "");
   const [saving, setSaving] = useState<null | "save" | "download">(null);
   const [message, setMessage] = useState("");
+  const scheduleLockedToOrder = Boolean(convertedOrderId && !orderId);
 
   const catalogMap = useMemo(() => new Map(catalogs.map((catalog) => [catalog.serviceCode, catalog])), [catalogs]);
   const productMap = useMemo(() => {
@@ -443,7 +446,7 @@ export function OrderQuoteEditor({
             unavailable ? "disabled" : ""
           ].filter(Boolean).join(" ")}
           onClick={() => selectScheduleDate(iso)}
-          disabled={Boolean(saving) || unavailable}
+          disabled={Boolean(saving) || scheduleLockedToOrder || unavailable}
         >
           <strong>{index + 1}</strong>
           <small>{label}</small>
@@ -850,15 +853,30 @@ export function OrderQuoteEditor({
         <div className="adm-section-head">
           <div>
             <h3 className="adm-card-title">희망 일정 선택</h3>
-            <p className="adm-muted">고객 주문 희망 일정과 같은 슬롯 기준으로 날짜와 오전/오후를 선택합니다. 저장하면 주문 일정에 바로 반영됩니다.</p>
+            <p className="adm-muted">
+              {scheduleLockedToOrder
+                ? "제품 주문으로 전환된 견적입니다. 실제 방문 일정은 주문 상세에서 수정합니다."
+                : "고객 주문 희망 일정과 같은 슬롯 기준으로 날짜와 오전/오후를 선택합니다. 저장하면 주문 일정에 바로 반영됩니다."}
+            </p>
           </div>
           <div className="adm-inline-actions">
             {slotLoading ? <span className="adm-badge adm-badge-gray">슬롯 확인 중</span> : null}
+            {scheduleLockedToOrder ? (
+              <a className="adm-btn adm-btn-primary adm-btn-sm" href={`/admin/orders/${encodeURIComponent(convertedOrderId || "")}`}>
+                주문 상세에서 수정
+              </a>
+            ) : null}
             <a className="adm-btn adm-btn-secondary adm-btn-sm" href="/admin/slots" target="_blank" rel="noreferrer">
               일정관리 열기
             </a>
           </div>
         </div>
+        {scheduleLockedToOrder ? (
+          <div className="adm-next-action">
+            <strong>현재 견적 희망 일정</strong>
+            <p>{formatScheduleVisitText(scheduleDate, scheduleTime)} · 제품 주문 전환 이후에는 주문 상세의 방문 일정이 기준입니다.</p>
+          </div>
+        ) : null}
         <div className="adm-quote-calendar-head">
           <button className="adm-btn adm-btn-secondary adm-btn-sm" type="button" onClick={previousMonth} disabled={Boolean(saving)}>
             이전
@@ -888,7 +906,7 @@ export function OrderQuoteEditor({
                   type="button"
                   className={`adm-btn ${scheduleTime === period ? "adm-btn-primary" : "adm-btn-secondary"}`}
                   onClick={() => setScheduleTime(period)}
-                  disabled={Boolean(saving) || !scheduleDate || !available}
+                  disabled={Boolean(saving) || scheduleLockedToOrder || !scheduleDate || !available}
                 >
                   {slotLabel(period)}{scheduleDate && !available ? " · 마감" : ""}
                 </button>
@@ -896,7 +914,9 @@ export function OrderQuoteEditor({
             })}
           </div>
           <small className="adm-field-help">
-            선택한 일정은 저장된 주문의 방문 슬롯으로 계산됩니다. 수동 견적은 제품 주문 전환 시 일정관리와 고객 예약 슬롯에 반영됩니다.
+            {scheduleLockedToOrder
+              ? "전환된 주문의 방문 일정은 주문 상세에서 수정하세요."
+              : "선택한 일정은 저장된 주문의 방문 슬롯으로 계산됩니다. 수동 견적은 제품 주문 전환 시 일정관리와 고객 예약 슬롯에 반영됩니다."}
           </small>
         </div>
         {slotMessage ? <p className="adm-form-message adm-form-message-error">{slotMessage}</p> : null}

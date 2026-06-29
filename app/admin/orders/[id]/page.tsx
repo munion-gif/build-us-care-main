@@ -23,6 +23,7 @@ import { OrderScheduleConfirmButton } from "../order-assignment-client";
 import { OrderCustomerLinkCopy } from "../order-customer-link-client";
 import { OrderEditPanel } from "../order-edit-panel-client";
 import { OrderNoticeAlimtalkPanel } from "../order-notice-alimtalk-client";
+import { OrderReservationEditPanel } from "../order-reservation-edit-client";
 import { OrderBankTransferConfirmButton } from "../order-payment-actions-client";
 import { OrderStatusTransitionPanel } from "../order-status-transition-panel-client";
 import { OrderTestActions } from "../order-test-actions-client";
@@ -278,6 +279,12 @@ function visitSlotLabel(job: any, reservation?: any) {
   if (job?.scheduled_at) return slotLabel(slotFromScheduledAt(job.scheduled_at));
   if (reservation?.time_slot) return slotLabel(reservation.time_slot);
   return "일정 확인 필요";
+}
+
+function visitSlotValue(job: any, reservation?: any) {
+  if (job?.scheduled_at) return slotFromScheduledAt(job.scheduled_at);
+  if (reservation?.time_slot === "morning" || reservation?.time_slot === "afternoon") return reservation.time_slot;
+  return null;
 }
 
 function latestPayment(order: any) {
@@ -671,6 +678,13 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
           <section className="adm-detail-ops-grid">
             <div className="adm-stack">
               <OrderStatusTransitionPanel orderId={order.id} currentStatus={order.status as OrderStatus} localMode={localMode} />
+              <OrderReservationEditPanel
+                orderId={order.id}
+                currentDate={visitDateLabel(activeJob, reservation) !== "방문 일정 없음" ? visitDateLabel(activeJob, reservation) : null}
+                currentSlot={visitSlotValue(activeJob, reservation)}
+                hasActiveJob={Boolean(activeJob)}
+                localMode={localMode}
+              />
               <article className="adm-card adm-quick-panel">
                 <div>
                   <h2 className="adm-card-title">빠른 처리</h2>
