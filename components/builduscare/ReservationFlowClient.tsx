@@ -859,13 +859,13 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
                 <CalendarCheck aria-hidden="true" style={{ width: 22, height: 22 }} />
               </span>
               <div className="grow">
-                <h1 className="h-md" style={{ margin: 0 }}>예약 일정을 선택해 주세요</h1>
+                <h1 className="h-md" style={{ margin: 0 }}>희망 일정을 선택해 주세요</h1>
                 <p className="p-sm" style={{ marginTop: 6, color: "var(--gray-600)" }}>
-                  방문 날짜와 오전/오후 시간대를 선택하면 접수 확인으로 넘어갈 수 있어요.
+                  희망 날짜와 오전/오후 시간대를 선택하면 접수 확인으로 넘어갈 수 있어요.
                 </p>
               </div>
             </div>
-            <Link className="web-btn pri lg block" style={{ marginTop: 18 }} href="/reservation/schedule">예약 일정 선택</Link>
+            <Link className="web-btn pri lg block" style={{ marginTop: 18 }} href="/reservation/schedule">희망 일정 선택</Link>
           </section>
         )}
 
@@ -949,14 +949,15 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
                 <span className="disp-txt">개인정보 수집·이용에 동의합니다 <Link href="/privacy" style={{ color: "#245FFF", fontWeight: 600 }} target="_blank">(보기)</Link> <span className="disp-sub">예약·연락 목적으로 이름·연락처·주소를 수집하며, 목적 달성 후 파기합니다.</span></span>
               </label>
             </section>
-            <Link id="upNext" className={`web-btn pri lg block${canGoSchedule ? "" : " disabled"}`} style={{ marginTop: 20 }} href={canGoSchedule ? "/reservation/schedule" : "#"} aria-disabled={canGoSchedule ? "false" : "true"}>다음 · 예약 일정 선택</Link>
+            <Link id="upNext" className={`web-btn pri lg block${canGoSchedule ? "" : " disabled"}`} style={{ marginTop: 20 }} href={canGoSchedule ? "/reservation/schedule" : "#"} aria-disabled={canGoSchedule ? "false" : "true"}>다음 · 희망 일정 선택</Link>
           </>
         )}
 
         {!blockedByPreviousStep && step === "schedule" && (
           <>
-            <h1 className="web-h2" style={{ margin: "14px 0 6px" }}>예약 일정 선택</h1>
-            <p className="web-lede" style={{ fontSize: 16 }}>제품 준비기간으로 <b style={{ color: "#1d1d1f" }}>영업일 기준 4일 이후부터</b> 예약할 수 있어요. 토요일·일요일과 공휴일은 휴무입니다.</p>
+            <h1 className="web-h2" style={{ margin: "14px 0 6px" }}>희망 일정 선택</h1>
+            <p className="web-lede" style={{ fontSize: 16 }}>제품 준비기간으로 <b style={{ color: "#1d1d1f" }}>영업일 기준 4일 이후부터</b> 희망 일정을 선택할 수 있어요. 토요일·일요일과 공휴일은 휴무입니다.</p>
+            <p className="p-sm" style={{ marginTop: 8, color: "var(--gray-600)" }}>희망 일정은 접수 후 기사 일정 확인 과정에서 조정될 수 있으며, 어려운 경우 고객님과 가능한 날짜로 다시 조율해 드립니다.</p>
             <section className="bcard pad" style={{ padding: 24, marginTop: 22 }}>
               <div className="between reservation-calendar-head" style={{ marginBottom: 12 }}>
                 <button className="web-btn sec month-nav-btn" type="button" onClick={previousMonth} disabled={!canGoPreviousCalendarMonth}><ChevronLeft aria-hidden="true" size={18} /> 이전</button>
@@ -995,7 +996,7 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
               <div className="note" style={{ marginTop: 14 }}><Info aria-hidden="true" /><div>제품 교체 개수나 항목에 따라 시간이 더 걸릴 수 있습니다.</div></div>
             </section>
             {error && <div className="note" style={{ marginTop: 14, background: "#FDECEC", color: "#B42318", display: "flex", gap: 9, padding: "13px 15px", borderRadius: 14, fontSize: 13 }}><AlertCircle aria-hidden="true" style={{ width: 18, height: 18, flex: "none" }} /><div>{error}</div></div>}
-            <Link className={`web-btn pri lg block${canGoConfirm ? "" : " disabled"}`} style={{ marginTop: 20 }} href={canGoConfirm ? "/reservation/confirm" : "#"} aria-disabled={canGoConfirm ? "false" : "true"}>{canGoConfirm ? "다음 · 접수 확인" : "날짜·시간을 골라주세요"}</Link>
+            <Link className={`web-btn pri lg block${canGoConfirm ? "" : " disabled"}`} style={{ marginTop: 20 }} href={canGoConfirm ? "/reservation/confirm" : "#"} aria-disabled={canGoConfirm ? "false" : "true"}>{canGoConfirm ? "다음 · 접수 확인" : "희망 날짜·시간을 골라주세요"}</Link>
           </>
         )}
 
@@ -1007,7 +1008,7 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
               <div className="col gap10" style={{ marginTop: 12 }}>
                 <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}>품목</span><span className="strong">{Array.from(new Set(selections.map((item) => productCategoryTitle(item.product)))).join(" · ") || "제품"}</span></div>
                 <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}>제품</span><span className="strong">{selections.length}종 · 총 {totals.units}개</span></div>
-                <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}>희망 예약</span><span className="strong">{dateLabel(draft.date)} · {slotLabel(draft.time)}</span></div>
+                <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}>희망 일정</span><span className="strong">{dateLabel(draft.date)} · {slotLabel(draft.time)}</span></div>
                 <div className="between"><span className="p-sm" style={{ color: "var(--gray-600)" }}>사진</span><span className="strong">{photoLabel(photos.length)}</span></div>
               </div>
               <div className="divline" style={{ margin: "16px 0" }}></div>

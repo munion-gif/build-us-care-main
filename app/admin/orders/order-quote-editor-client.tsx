@@ -699,7 +699,7 @@ export function OrderQuoteEditor({
         <span><b>배송비</b><strong>{formatKRW(totals.shippingTotal)}</strong></span>
         <span><b>폐기물 처리비</b><strong>{formatKRW(visitFee)}</strong><small>{disposalDescription}</small></span>
         <span><b>최종 합계</b><strong>{formatKRW(totals.finalTotal)}</strong></span>
-        <span><b>예약 일정</b><strong>{formatScheduleVisitText(scheduleDate, scheduleTime)}</strong><small>일정관리 슬롯 기준</small></span>
+        <span><b>희망 일정</b><strong>{formatScheduleVisitText(scheduleDate, scheduleTime)}</strong><small>일정관리 슬롯 기준</small></span>
       </div>
 
       <section className="adm-quote-builder-card">
@@ -849,8 +849,8 @@ export function OrderQuoteEditor({
       <section className="adm-quote-schedule-card">
         <div className="adm-section-head">
           <div>
-            <h3 className="adm-card-title">예약 일정 선택</h3>
-            <p className="adm-muted">고객 주문 예약과 같은 슬롯 기준으로 날짜와 오전/오후를 선택합니다. 저장하면 주문 일정에 바로 반영됩니다.</p>
+            <h3 className="adm-card-title">희망 일정 선택</h3>
+            <p className="adm-muted">고객 주문 희망 일정과 같은 슬롯 기준으로 날짜와 오전/오후를 선택합니다. 저장하면 주문 일정에 바로 반영됩니다.</p>
           </div>
           <div className="adm-inline-actions">
             {slotLoading ? <span className="adm-badge adm-badge-gray">슬롯 확인 중</span> : null}
