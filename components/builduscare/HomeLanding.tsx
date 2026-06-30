@@ -78,7 +78,12 @@ export function HomeLanding() {
       <div className="home-mobile bc-mobile-only">
         <section className="hero-light-m" aria-label="Build us Care 소개">
           <div className="hl-logo">
-            <img src="/assets/bc-logo-hero.png" alt="Build us Care" decoding="async" />
+            <img
+              src="/assets/bc-logo-hero.png"
+              alt="Build us Care"
+              decoding="async"
+              style={{ width: "min(64%, 238px)", maxWidth: "238px", height: "auto", display: "block" }}
+            />
           </div>
           <p className="hl-sub">오래된 수전·변기·환풍기, 바꿀 수 있는 것부터.</p>
           <div className="hl-cta">
@@ -138,7 +143,12 @@ export function HomeLanding() {
       <div className="wrap home-wrap home-desktop bc-desktop-only">
         <section className="hero-light" aria-label="Build us Care 소개">
           <div className="hero-logo">
-            <img src="/assets/bc-logo-hero.png" alt="Build us Care" decoding="async" />
+            <img
+              src="/assets/bc-logo-hero.png"
+              alt="Build us Care"
+              decoding="async"
+              style={{ width: "min(58vw, 560px)", maxWidth: "560px", height: "auto", display: "block" }}
+            />
           </div>
           <p className="hero-sub">오래된 수전·변기·환풍기, 바꿀 수 있는 것부터.</p>
           <div className="hero-cta">

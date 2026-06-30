@@ -102,6 +102,7 @@ const headerCss = `
     height: 38px;
     border-bottom: 1px solid rgba(120, 120, 140, 0.14);
     background: rgba(245, 245, 247, 0.82);
+    -webkit-backdrop-filter: blur(20px) saturate(1.7);
     backdrop-filter: blur(20px) saturate(1.7);
   }
   .header-inner {
