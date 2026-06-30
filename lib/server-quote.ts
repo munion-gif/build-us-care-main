@@ -9,7 +9,7 @@ import {
   type ReplacementProduct
 } from "@/lib/replacement-products";
 import { quoteSubtotalAmount, quoteVatIncludedAmount, quoteVatIncludedLaborAmount } from "@/lib/quote-totals";
-import { productShippingFeeApplication, productShippingLineAmount } from "@/lib/builduscare-shipping";
+import { productShippingEntryAmounts } from "@/lib/builduscare-shipping";
 
 type SupabaseAdmin = ReturnType<typeof getSupabaseAdmin>;
 
@@ -99,8 +99,12 @@ export async function calculateServerQuote(
     }
   }
 
-  const chargedFlatShippingServices = new Set<string>();
-  const quoteItems = items.map((item) => {
+  const shippingAmounts = productShippingEntryAmounts(items, {
+    serviceCode: (item) => item.service_type_code,
+    qty: (item) => item.qty,
+    product: (item) => isProductSelectionService(item.service_type_code ?? "unknown") ? findSelectedReplacementProduct(item.service_type_code ?? "unknown", item.metadata) : null
+  });
+  const quoteItems = items.map((item, index) => {
     const sku = item.service_type_code ?? "unknown";
     const service = item.service_type_code ? serviceMap.get(item.service_type_code) : undefined;
     const materialCodes = asStringArray(item.metadata?.material_skus);
@@ -115,14 +119,7 @@ export async function calculateServerQuote(
     }, selectedProductPrice);
     const optionTotal = (item.options ?? []).reduce((sum, option) => sum + quoteVatIncludedAmount(option.price_delta), 0) * item.qty;
     const unitLabor = isProductSelectionService(sku) ? quoteVatIncludedLaborAmount(getProductLaborPrice(sku, selectedReplacementProduct)) : quoteVatIncludedLaborAmount(service?.base_price ?? 0);
-    let shippingTotal = selectedReplacementProduct ? productShippingLineAmount(sku, item.qty, selectedReplacementProduct) : 0;
-    if (shippingTotal > 0 && productShippingFeeApplication(sku) === "flat") {
-      if (chargedFlatShippingServices.has(sku)) {
-        shippingTotal = 0;
-      } else {
-        chargedFlatShippingServices.add(sku);
-      }
-    }
+    const shippingTotal = selectedReplacementProduct ? shippingAmounts[index] ?? 0 : 0;
     const lineLabor = unitLabor * item.qty;
     const lineMaterial = materialUnitTotal * item.qty;
 

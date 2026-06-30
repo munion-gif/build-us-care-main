@@ -9,7 +9,7 @@ import { notifyNewOrder } from "@/lib/notify-admin";
 import { createOrderNumber } from "@/lib/orders";
 import { createPaymentOrderId } from "@/lib/payment-amounts";
 import { productDisposalFee } from "@/lib/builduscare-disposal";
-import { productShippingFeeApplication, productShippingLineAmount } from "@/lib/builduscare-shipping";
+import { productShippingEntryAmounts } from "@/lib/builduscare-shipping";
 import { quoteVatIncludedAmount, quoteVatIncludedLaborAmount } from "@/lib/quote-totals";
 import { checkRateLimit, getClientIp, rateLimitResponse } from "@/lib/rate-limit";
 import { closedReservationReason, isBeforeMinReservationDate, isClosedReservationDate } from "@/lib/reservation-policy";
@@ -234,19 +234,16 @@ function buildOrderItems(entries: Array<{ product: ReplacementProduct; qty: numb
 }
 
 function buildQuoteLines(entries: Array<{ product: ReplacementProduct; qty: number; selectedColor: string }>, selfDisposal: boolean) {
-  const chargedFlatShippingServices = new Set<string>();
-  return entries.map(({ product, qty, selectedColor }) => {
+  const shippingAmounts = productShippingEntryAmounts(entries, {
+    serviceCode: (entry) => entry.product.serviceCode,
+    qty: (entry) => entry.qty,
+    product: (entry) => entry.product
+  });
+  return entries.map(({ product, qty, selectedColor }, index) => {
     const unitMaterial = roundedProductPrice(product.price);
     const unitLabor = quoteVatIncludedLaborAmount(getProductLaborPrice(product.serviceCode, product));
     const disposalPerUnit = selfDisposal ? 0 : productDisposalFee(product.serviceCode);
-    let shippingTotal = productShippingLineAmount(product.serviceCode, qty, product);
-    if (shippingTotal > 0 && productShippingFeeApplication(product.serviceCode) === "flat") {
-      if (chargedFlatShippingServices.has(product.serviceCode)) {
-        shippingTotal = 0;
-      } else {
-        chargedFlatShippingServices.add(product.serviceCode);
-      }
-    }
+    const shippingTotal = shippingAmounts[index] ?? 0;
     const lineLabor = unitLabor * qty;
     const lineMaterial = unitMaterial * qty;
 

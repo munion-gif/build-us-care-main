@@ -12,6 +12,12 @@ export type ShippingFeeApplication = "per_unit" | "flat";
 const HEAVY_PRODUCT_SERVICE_CODES = new Set<ReplacementProductServiceCode>(["toilet_replace", "basin_replace"]);
 const SMALL_HARDWARE_SERVICE_CODES = new Set<ReplacementProductServiceCode>(["faucet_replace", "door_handle", "sash_handle"]);
 const MEDIUM_PRODUCT_SERVICE_CODES = new Set<ReplacementProductServiceCode>(["bidet_install", "ventilator_replace"]);
+const PER_UNIT_SHIPPING_SERVICE_CODES = new Set<ReplacementProductServiceCode>([
+  "toilet_replace",
+  "basin_replace",
+  "ventilator_replace",
+  "bidet_install"
+]);
 
 type ShippingProductHint = {
   categoryName?: string | null;
@@ -47,8 +53,8 @@ export function productShippingFee(serviceCode?: string | null, product?: Shippi
 
 export function productShippingFeeApplication(serviceCode?: string | null): ShippingFeeApplication {
   const canonical = serviceCode ? productCatalogServiceCode(serviceCode) : null;
-  if (canonical && SMALL_HARDWARE_SERVICE_CODES.has(canonical)) return "flat";
-  return "per_unit";
+  if (canonical && PER_UNIT_SHIPPING_SERVICE_CODES.has(canonical)) return "per_unit";
+  return "flat";
 }
 
 export function productShippingLineAmount(serviceCode?: string | null, qty = 1, product?: ShippingProductHint | null) {
@@ -66,15 +72,25 @@ export function productShippingEntryAmounts<T>(
     product?: (entry: T) => ShippingProductHint | null | undefined;
   }
 ) {
-  const chargedFlatServices = new Set<string>();
-  return entries.map((entry) => {
+  const lineInputs = entries.map((entry) => {
     const serviceCode = selectors.serviceCode(entry);
     const canonical = serviceCode ? productCatalogServiceCode(serviceCode) : null;
-    if (canonical && productShippingFeeApplication(canonical) === "flat") {
-      if (chargedFlatServices.has(canonical)) return 0;
-      chargedFlatServices.add(canonical);
-    }
-    return productShippingLineAmount(canonical, Number(selectors.qty(entry) ?? 1), selectors.product?.(entry));
+    const qty = Number(selectors.qty(entry) ?? 1);
+    const product = selectors.product?.(entry);
+    const amount = productShippingLineAmount(canonical, qty, product);
+    return { canonical, amount, application: productShippingFeeApplication(canonical) };
+  });
+  const flatMaxByService = new Map<string, number>();
+  for (const input of lineInputs) {
+    if (!input.canonical || input.application !== "flat") continue;
+    flatMaxByService.set(input.canonical, Math.max(flatMaxByService.get(input.canonical) ?? 0, input.amount));
+  }
+  const chargedFlatServices = new Set<string>();
+  return lineInputs.map((input) => {
+    if (!input.canonical || input.application !== "flat") return input.amount;
+    if (chargedFlatServices.has(input.canonical)) return 0;
+    chargedFlatServices.add(input.canonical);
+    return flatMaxByService.get(input.canonical) ?? input.amount;
   });
 }
 
@@ -94,10 +110,10 @@ export function productShippingPolicyLabel(serviceCode?: string | null, product?
   if (!canonical) return "배송비 없음";
   if (HEAVY_PRODUCT_SERVICE_CODES.has(canonical)) return "양변기/세면대 개당 배송비";
   if (SMALL_HARDWARE_SERVICE_CODES.has(canonical)) return "수전/도어핸들/샷시손잡이 묶음 배송비";
-  if (MEDIUM_PRODUCT_SERVICE_CODES.has(canonical)) return "비데/환풍기 배송비";
-  if (canonical === "silicone_repair") return "실리콘 배송비";
+  if (MEDIUM_PRODUCT_SERVICE_CODES.has(canonical)) return "비데/환풍기 개당 배송비";
+  if (canonical === "silicone_repair") return "실리콘 묶음 배송비";
   if (canonical === "bath_accessory") {
-    return isBathAccessorySet(product) ? "욕실 악세서리 세트 배송비" : "욕실 악세서리 단품 배송비";
+    return isBathAccessorySet(product) ? "욕실 악세서리 세트 묶음 배송비" : "욕실 악세서리 단품 묶음 배송비";
   }
   return "배송비 없음";
 }

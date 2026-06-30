@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { formatKRW } from "@/lib/format";
 import { PRODUCT_DISPOSAL_FEE, HEAVY_PRODUCT_DISPOSAL_FEE, productDisposalFee } from "@/lib/builduscare-disposal";
-import { productShippingEntriesTotal, productShippingLineAmount, productShippingPolicyLabel } from "@/lib/builduscare-shipping";
+import { productShippingEntriesTotal, productShippingEntryAmounts, productShippingLineAmount, productShippingPolicyLabel } from "@/lib/builduscare-shipping";
 import { isSiliconeLaborService, laborQtyText, laborUnitLabel } from "@/lib/builduscare-labor";
 import { openQuoteDocumentPreviewWindow, type QuoteDocumentInput } from "@/lib/quote-document";
 import { quoteSubtotalAmount, quoteVatIncludedAmount, quoteVatIncludedLaborAmount } from "@/lib/quote-totals";
@@ -321,11 +321,16 @@ export function OrderQuoteEditor({
   function buildQuoteDocumentInput(): QuoteDocumentInput | null {
     if (totals.resolvedItems.length === 0) return null;
 
+    const shippingAmounts = productShippingEntryAmounts(totals.resolvedItems, {
+      serviceCode: (entry) => entry.item.serviceTypeCode,
+      qty: (entry) => entry.item.qty,
+      product: (entry) => entry.product
+    });
     const rows = totals.resolvedItems.map(({ item, product }, index) => {
       if (!product) throw new Error("선택한 제품 정보를 찾을 수 없습니다.");
       const lineMaterial = quoteVatIncludedAmount(product.price) * item.qty;
       const lineLabor = quoteVatIncludedLaborAmount(product.laborPrice) * item.qty;
-      const lineShipping = productShippingLineAmount(item.serviceTypeCode, item.qty, product);
+      const lineShipping = shippingAmounts[index] ?? 0;
       return {
         id: `${item.productId}-${index}`,
         image: product.image || null,

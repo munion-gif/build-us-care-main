@@ -9,7 +9,7 @@ import { periodCapFromConfig, resolveDefaultSlotCap, type SlotPeriod } from "@/l
 import { getSupabaseAdmin, hasSupabaseEnv } from "@/lib/supabase";
 import { buildQuoteDocumentInputFromOrderStatus } from "@/lib/quote-document";
 import { quoteSubtotalAmount, quoteVatIncludedAmount, quoteVatIncludedLaborAmount } from "@/lib/quote-totals";
-import { productShippingFeeApplication, productShippingLineAmount } from "@/lib/builduscare-shipping";
+import { productShippingEntryAmounts } from "@/lib/builduscare-shipping";
 import { closedReservationReason, isClosedReservationDate, minReservationDateText } from "@/lib/reservation-policy";
 import {
   BUILDUSCARE_LOCAL_ADMIN_COOKIE_MAX_AGE,
@@ -185,21 +185,18 @@ function readCookieValue(cookieHeader: string | null, cookieName: string) {
 }
 
 function buildLocalQuote(items: z.infer<typeof adminQuoteSchema>["items"], visitFee: number, discount: number) {
-  const chargedFlatShippingServices = new Set<string>();
-  const quoteItems = items.map((item) => {
+  const shippingAmounts = productShippingEntryAmounts(items, {
+    serviceCode: (item) => item.service_type_code,
+    qty: (item) => item.qty,
+    product: (item) => findReplacementProduct(item.service_type_code, item.product_id)
+  });
+  const quoteItems = items.map((item, index) => {
     const product = findReplacementProduct(item.service_type_code, item.product_id);
     if (!product) throw new Error("선택한 제품 정보를 찾을 수 없습니다.");
     const qty = Math.max(1, Number(item.qty ?? 1));
     const unitMaterial = quoteVatIncludedAmount(Number(product.price ?? 0));
     const unitLabor = quoteVatIncludedLaborAmount(getProductLaborPrice(item.service_type_code, product));
-    let shippingTotal = productShippingLineAmount(item.service_type_code, qty, product);
-    if (shippingTotal > 0 && productShippingFeeApplication(item.service_type_code) === "flat") {
-      if (chargedFlatShippingServices.has(item.service_type_code)) {
-        shippingTotal = 0;
-      } else {
-        chargedFlatShippingServices.add(item.service_type_code);
-      }
-    }
+    const shippingTotal = shippingAmounts[index] ?? 0;
     const lineMaterial = unitMaterial * qty;
     const lineLabor = unitLabor * qty;
     return {
