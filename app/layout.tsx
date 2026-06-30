@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { getPublicAppConfig } from "@/lib/app-config";
 import { PublicShell } from "@/components/layout/PublicShell";
-import { builduscareStylesheetHrefs } from "@/components/builduscare/customer-page-css";
+import { BuilduscareStyleLinks, builduscareStylesheetHrefs } from "@/components/builduscare/customer-page-css";
 import "./globals.css";
 
 const siteTitle = "Build us Care";
@@ -65,6 +65,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400..850&family=Quicksand:wght@300..700&display=swap" />
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
+        <BuilduscareStyleLinks />
         {builduscareStylesheetHrefs.map((href) => (
           <link key={href} rel="preload" href={href} as="style" />
         ))}
