@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Info } from "lucide-react";
 import { EstimatePanel } from "@/components/builduscare/EstimatePanel";
 import { openEstimatePreviewWindow } from "@/components/builduscare/estimate-preview-storage";
 import { ProductDetailModal } from "@/components/builduscare/ProductDetailModal";
@@ -880,6 +881,12 @@ export function ProductsClient({
         <div className="split products-split" style={{ marginTop: 32 }}>
           <section id="wpList">
             <h2 className="h-md" style={{ marginBottom: 12 }}>전체 제품 ({displayProducts.length})</h2>
+            {activeCategory.serviceCode === "silicone_repair" ? (
+              <div className="silicone-notice" role="note" aria-label="실리콘 시공 안내">
+                <Info size={18} aria-hidden="true" />
+                <p><strong>실리콘 시공비에는 실리콘 제거비용이 포함되어 있습니다.</strong></p>
+              </div>
+            ) : null}
             <ProductFilterBar
               group={group}
               sort={sort}
@@ -889,11 +896,6 @@ export function ProductsClient({
               groupLabels={GROUP_LABELS_BY_SERVICE[activeCategory.serviceCode]}
               brands={brands}
               colors={colors}
-              notice={activeCategory.serviceCode === "silicone_repair" ? (
-                <>
-                  <strong>실리콘 시공비에는 실리콘 제거비용이 포함되어 있습니다.</strong>
-                </>
-              ) : undefined}
               onGroupChange={(value) => resetPage(() => {
                 setGroup(value);
                 setBrand("전체");
