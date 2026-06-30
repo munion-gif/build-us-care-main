@@ -12,6 +12,7 @@ import {
   formatKRW,
   initialDetailProduct,
   normalizeSelectedColor,
+  productCapacityLabel,
   productColorText,
   productDisplayLabel,
   productGroupVariants,
@@ -282,7 +283,10 @@ export function MobileProductDetailClient({ category, product, products }: Mobil
 
       <section className="mpd-detail">
         <div className="mpd-brand">{activeProduct.brand}</div>
-        <h1>{productDisplayLabel(product)}</h1>
+        <h1>
+          {productDisplayLabel(product)}
+          {productCapacityLabel(product) ? <span className="product-capacity-label">{productCapacityLabel(product)}</span> : null}
+        </h1>
         <div className="mpd-price">
           <strong>{formatKRW(activeProduct.roundedPrice)}</strong>
           <span>제품가</span>

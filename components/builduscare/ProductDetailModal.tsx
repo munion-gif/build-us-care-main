@@ -11,6 +11,7 @@ import {
   initialDetailProduct,
   isProductGroupSelected,
   normalizeSelectedColor,
+  productCapacityLabel,
   productColorText,
   productDisplayLabel,
   selectionKey,
@@ -121,7 +122,10 @@ export function ProductDetailModal({
           </div>
           <div className="pm-detail-info">
             <span className="pm-brand">{product.brand}</span>
-            <h2 className="pm-title">{productDisplayLabel(product)}</h2>
+            <h2 className="pm-title">
+              {productDisplayLabel(product)}
+              {productCapacityLabel(product) ? <span className="product-capacity-label">{productCapacityLabel(product)}</span> : null}
+            </h2>
             <div className="pm-row">
               <strong className="pm-price">{price}<small>원</small></strong>
               <button className={`pm-buy${selected ? " added" : ""}`} type="button" onClick={buy}>

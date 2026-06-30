@@ -996,6 +996,41 @@
     white-space: nowrap;
   }
 
+  .product-capacity-label {
+    display: inline-block;
+    margin-left: 6px;
+    color: #aeaeb2;
+    font-size: 12px;
+    line-height: 1;
+    font-weight: 700;
+    letter-spacing: .02em;
+    vertical-align: baseline;
+    white-space: nowrap;
+  }
+
+  .pm-title .product-capacity-label,
+  .mpd-detail h1 .product-capacity-label {
+    margin-left: 8px;
+    font-size: 13px;
+    line-height: 1;
+    font-weight: 600;
+  }
+
+  @media (max-width: 760px) {
+    .products-category-page .pname .product-capacity-label {
+      margin-left: 5px;
+      font-size: 10.5px;
+      line-height: 15px;
+      font-weight: 600;
+    }
+
+    .mpd-detail h1 .product-capacity-label {
+      font-size: 12px;
+      line-height: 14px;
+      font-weight: 700;
+    }
+  }
+
   .pimg.imgph.has-img {
     min-height: 178px;
   }

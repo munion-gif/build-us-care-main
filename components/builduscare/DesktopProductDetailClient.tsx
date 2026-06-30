@@ -10,6 +10,7 @@ import {
   initialDetailProduct,
   isProductGroupSelected,
   normalizeSelectedColor,
+  productCapacityLabel,
   productColorText,
   productDisplayLabel,
   productGroupVariants,
@@ -248,7 +249,10 @@ export function DesktopProductDetailClient({ category, product, products }: Desk
             </div>
             <div className="pm-detail-info">
               <span className="pm-brand">{product.brand}</span>
-              <h1 className="pm-title">{productDisplayLabel(product)}</h1>
+              <h1 className="pm-title">
+                {productDisplayLabel(product)}
+                {productCapacityLabel(product) ? <span className="product-capacity-label">{productCapacityLabel(product)}</span> : null}
+              </h1>
               <div className="pm-row">
                 <strong className="pm-price">{price}<small>원</small></strong>
                 <button className={`pm-buy${selected ? " added" : ""}`} type="button" onClick={addToSelections}>

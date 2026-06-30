@@ -223,6 +223,10 @@ export function productDisplayLabel(product: BuilduscarePublicProduct) {
   return product.displayModel;
 }
 
+export function productCapacityLabel(product: BuilduscarePublicProduct) {
+  return product.serviceCode === "silicone_repair" ? "300ml" : "";
+}
+
 export function shouldDisplaySelectedColor(product: BuilduscarePublicProduct, selectedColor: string | null | undefined, products: BuilduscarePublicProduct[] = []) {
   const color = colorChoiceLabel(selectedColor);
   if (!usefulColor(color)) return false;

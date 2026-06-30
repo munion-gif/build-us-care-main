@@ -2,7 +2,7 @@
 
 import { Check } from "lucide-react";
 import type { ProductSelection } from "@/components/builduscare/product-types";
-import { buildImageAlt, formatKRW, isProductGroupSelected, productDisplayLabel } from "@/components/builduscare/product-helpers";
+import { buildImageAlt, formatKRW, isProductGroupSelected, productCapacityLabel, productDisplayLabel } from "@/components/builduscare/product-helpers";
 import type { BuilduscarePublicProduct } from "@/lib/builduscare-public-products";
 import type { BuilduscareCategory } from "@/lib/builduscare-public-routes";
 
@@ -54,7 +54,10 @@ export function ProductGrid({ category, products, allProducts, selections, onOpe
               </div>
               <div className="pinfo">
                 <div className="pbrand">{product.brand}</div>
-                <div className="pname">{renderCardName(productDisplayLabel(product))}</div>
+                <div className="pname">
+                  {renderCardName(productDisplayLabel(product))}
+                  {productCapacityLabel(product) ? <span className="product-capacity-label">{productCapacityLabel(product)}</span> : null}
+                </div>
                 <div className="pprice">
                   {price}<small> 원</small>
                 </div>
