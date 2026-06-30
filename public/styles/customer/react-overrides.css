@@ -1193,6 +1193,28 @@
     position: relative;
   }
 
+  .reservation-page .calendar {
+    gap: 6px;
+  }
+
+  .reservation-page .calendar .cal-hd {
+    padding: 4px 0 2px;
+    font-size: 11px;
+    line-height: 16px;
+  }
+
+  .reservation-page .calendar .cal-d {
+    min-height: 56px;
+    padding: 6px 2px 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    font-size: 16px;
+    line-height: 1;
+  }
+
   .reservation-page .reservation-calendar-head {
     justify-content: space-between;
     gap: 10px;
@@ -1243,16 +1265,15 @@
   }
 
   .reservation-page .calendar .cd-tag {
-    position: absolute;
-    left: 50%;
-    bottom: 7px;
-    transform: translateX(-50%);
+    position: static;
+    transform: none;
+    margin-top: 1px;
     white-space: nowrap;
     font-size: 10px;
-    line-height: 1;
+    line-height: 1.1;
     font-weight: 800;
     color: currentColor;
-    opacity: .72;
+    opacity: .76;
   }
 
   .reservation-page .cal-legend {
