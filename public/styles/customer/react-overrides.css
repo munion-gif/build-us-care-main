@@ -920,6 +920,18 @@
     margin-top: 8px;
   }
 
+  .products-category-page .filter-notice {
+    margin: -8px 0 18px;
+    color: #1c1c1e;
+    font-size: 13px;
+    line-height: 20px;
+    letter-spacing: 0;
+  }
+
+  .products-category-page .filter-notice strong {
+    font-weight: 800;
+  }
+
   .filter-select {
     min-width: 156px;
   }

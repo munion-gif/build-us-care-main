@@ -889,6 +889,11 @@ export function ProductsClient({
               groupLabels={GROUP_LABELS_BY_SERVICE[activeCategory.serviceCode]}
               brands={brands}
               colors={colors}
+              notice={activeCategory.serviceCode === "silicone_repair" ? (
+                <>
+                  <strong>실리콘 시공비에는 실리콘 제거비용이 포함되어 있습니다.</strong>
+                </>
+              ) : undefined}
               onGroupChange={(value) => resetPage(() => {
                 setGroup(value);
                 setBrand("전체");

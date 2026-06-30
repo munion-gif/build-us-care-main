@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Check } from "lucide-react";
 
 type ProductFilterBarProps = {
@@ -11,6 +12,7 @@ type ProductFilterBarProps = {
   groupLabels?: Record<string, string>;
   brands: string[];
   colors: string[];
+  notice?: ReactNode;
   onGroupChange: (value: string) => void;
   onSortChange: (value: string) => void;
   onBrandChange: (value: string) => void;
@@ -34,6 +36,7 @@ export function ProductFilterBar({
   groupLabels,
   brands,
   colors,
+  notice,
   onGroupChange,
   onSortChange,
   onBrandChange,
@@ -85,6 +88,7 @@ export function ProductFilterBar({
           </button>
         )}
       </div>
+      {notice ? <p className="filter-notice">{notice}</p> : null}
     </div>
   );
 }
