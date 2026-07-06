@@ -27,6 +27,66 @@ export type CaseItem = {
 
 export const CASES: CaseItem[] = [
   {
+    slug: "heungdeok-honorsville-kitchen-faucet",
+    title: "용인시 기흥구 흥덕마을 경남아너스빌 주방수전 교체",
+    category: "주방수전",
+    region: "경기 용인시 기흥구 흥덕마을 경남아너스빌 13단지",
+    costTotal: 109000,
+    costLabor: 44000,
+    costProduct: 65000,
+    durationMin: 30,
+    date: "2026-07-02",
+    cover: "/case-photos/heungdeok-honorsville/after-1.jpg",
+    summary: "높이가 낮고 물이 갈라져 나오던 주방수전을 높이 있는 신형으로 교체해, 허리 펴고 편하게 설거지하게 됐습니다.",
+    body: [
+      {
+        kind: "text",
+        heading: "한 부분만 바꿔도 이렇게 달라져요",
+        text: "주방수전이 낮으면 설거지·요리할 때 허리를 굽혀야 해서 불편하고, 물줄기가 갈라져 나오면 물이 튀어 번거롭습니다. 수전 하나만 바꿔도 사용감과 주방 분위기가 확 달라져요."
+      },
+      {
+        kind: "text",
+        heading: "시공 전 상태",
+        text: "흥덕마을 경남아너스빌. 싱크대와 수전 높이가 낮아 설거지·요리할 때 불편했고, 수전에서 물이 갈라져 나와 고객님이 교체를 원하셨습니다."
+      },
+      {
+        kind: "photos",
+        label: "시공 전",
+        urls: ["/case-photos/heungdeok-honorsville/before-1.jpg", "/case-photos/heungdeok-honorsville/before-2.jpg"]
+      },
+      {
+        kind: "text",
+        heading: "시공 과정",
+        text: "기존 낮은 주방수전을 철거하고, 대림바스 주방수전 DL-K2115SN으로 교체했습니다."
+      },
+      {
+        kind: "photos",
+        label: "시공 중",
+        urls: ["/case-photos/heungdeok-honorsville/during.jpg"]
+      },
+      {
+        kind: "text",
+        heading: "시공 후 모습",
+        text: "수전 높이가 높아져 허리를 펴고 편하게 설거지할 수 있게 됐고, 주방 분위기도 한결 산뜻해졌습니다. \"수전 하나로 이렇게 편해질 줄 몰랐다\"며 아주 만족하셨습니다."
+      },
+      {
+        kind: "photos",
+        label: "시공 완료",
+        urls: [
+          "/case-photos/heungdeok-honorsville/after-1.jpg",
+          "/case-photos/heungdeok-honorsville/after-2.jpg",
+          "/case-photos/heungdeok-honorsville/after-3.jpg"
+        ]
+      }
+    ],
+    highlights: [
+      "낮고 물 갈라지던 주방수전 → 대림바스 DL-K2115SN 교체",
+      "수전 높이가 높아져 허리 펴고 편하게 설거지",
+      "수전 하나로 주방 분위기 개선",
+      "약 30분 만에 당일 완료"
+    ]
+  },
+  {
     slug: "uiwang-sinan-shower-faucet",
     title: "의왕시 신안아파트 샤워수전 교체",
     category: "수전",
