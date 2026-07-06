@@ -18,7 +18,7 @@ export default function CasesListPage() {
   const cases = getAllCases();
 
   return (
-    <div className="cases-wrap">
+    <div className="cases-wrap cases-list-wrap">
       <div className="cases-head">
         <h1>시공사례</h1>
         <p>실제로 진행한 교체 시공을 전후 사진과 비용까지 그대로 보여드립니다.</p>

@@ -21,16 +21,18 @@
   line-height: 1.5;
 }
 
-/* 목록 카드 그리드 */
+/* 목록 페이지는 4열을 위해 조금 더 넓게 */
+.cases-list-wrap { max-width: 1160px; }
+
+/* 목록 카드 그리드 — 한 줄에 4개 */
 .cases-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   margin-top: 20px;
 }
-@media (max-width: 640px) {
-  .cases-grid { grid-template-columns: 1fr; }
-}
+@media (max-width: 900px) { .cases-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 520px) { .cases-grid { grid-template-columns: 1fr; } }
 .case-card {
   display: block;
   background: var(--color-surface);
@@ -49,12 +51,19 @@
   position: relative;
   aspect-ratio: 4 / 3;
   background: linear-gradient(135deg, #eef2f8, #dfe6f1);
+  overflow: hidden;
+}
+/* 세로/가로 사진 모두 4:3 틀에 맞춰 균일하게 잘라서 표시 */
+.case-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.case-thumb .ph-label {
+  position: absolute;
+  inset: 0;
   display: grid;
   place-items: center;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--color-text-faint);
 }
-.case-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.case-thumb .ph-label { font-size: 13px; font-weight: 600; }
 .case-cat {
   position: absolute;
   top: 12px;
@@ -66,18 +75,18 @@
   padding: 5px 11px;
   border-radius: 20px;
 }
-.case-card-body { padding: 16px 18px 18px; }
+.case-card-body { padding: 14px 15px 16px; }
 .case-card-body h3 {
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.01em;
   margin: 0 0 4px;
   line-height: 1.35;
 }
 .case-card-body .region {
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--color-text-muted);
-  margin: 0 0 10px;
+  margin: 0 0 9px;
 }
 .case-card-body .price {
   font-size: 18px;
