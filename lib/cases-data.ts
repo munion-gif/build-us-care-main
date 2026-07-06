@@ -28,9 +28,9 @@ export type CaseItem = {
 export const CASES: CaseItem[] = [
   {
     slug: "naedaeji-gwangmyeong-yangbyungi",
-    title: "광명시 내대지마을 광명샤인빌 양변기 교체",
+    title: "용인시 수지구 내대지마을 광명샤인빌 양변기 교체",
     category: "양변기",
-    region: "경기 광명시 내대지마을 광명샤인빌",
+    region: "경기 용인시 수지구 내대지마을 광명샤인빌",
     costTotal: 356000,
     costLabor: 110000,
     costProduct: 246000,
