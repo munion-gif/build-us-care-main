@@ -27,6 +27,62 @@ export type CaseItem = {
 
 export const CASES: CaseItem[] = [
   {
+    slug: "dongtan-kantabil-sedaedae",
+    title: "화성시 동탄역 시범대원칸타빌 세면대 교체",
+    category: "세면대",
+    region: "경기 화성시 동탄 시범대원칸타빌",
+    costTotal: 229000,
+    costLabor: 88000,
+    costProduct: 141000,
+    durationMin: 40,
+    date: "2026-06-30",
+    cover: "/case-photos/dongtan-kantabil/after-1.jpg",
+    summary: "청소가 힘들고 습기로 삭아 벌어진 하부장형 세면대를 발다리 일체형으로 교체해 화장실이 넓어 보이게 했습니다.",
+    body: [
+      {
+        kind: "text",
+        heading: "이런 경우, 방치하면 안 돼요",
+        text: "세면대 아래 하부장(PB 소재)은 습기에 약해 시간이 지나면 삭고 벌어집니다. 하부장이 있으면 청소도 어렵고, 아래를 막아 화장실이 답답하고 좁아 보여요."
+      },
+      {
+        kind: "text",
+        heading: "시공 전 상태",
+        text: "동탄역 시범대원칸타빌. 세면대 아래 PB 하부장이 습기로 삭아 벌어져 있었고, 그 때문에 청소가 힘든 상태였습니다. 하부장형 세면대라 화장실이 꽉 찬 느낌이라 답답해하셨어요."
+      },
+      {
+        kind: "photos",
+        label: "시공 전",
+        urls: ["/case-photos/dongtan-kantabil/before.jpg"]
+      },
+      {
+        kind: "text",
+        heading: "시공 과정",
+        text: "기존 하부장형 세면대를 철거하고, 대림바스 CL-370 발다리 일체형 세면대로 당일 바로 교체했습니다."
+      },
+      {
+        kind: "photos",
+        label: "시공 중",
+        urls: ["/case-photos/dongtan-kantabil/during.jpg"]
+      },
+      {
+        kind: "text",
+        heading: "시공 후 모습",
+        text: "막혀 있던 하부가 오픈되어 청소가 쉬워지고, 화장실이 한결 넓어 보이는 효과가 났습니다. 세면대 하나로 분위기가 바뀔지 반신반의하시던 고객님이 아주 만족하셨습니다."
+      },
+      {
+        kind: "photos",
+        label: "시공 완료",
+        urls: ["/case-photos/dongtan-kantabil/after-1.jpg", "/case-photos/dongtan-kantabil/after-2.jpg"]
+      }
+    ],
+    highlights: [
+      "PB 하부장형 세면대 → 대림바스 CL-370 발다리 일체형 세면대 교체",
+      "막혀 있던 하부가 오픈되어 청소가 쉬워짐",
+      "공간이 트여 화장실이 넓어 보이는 효과",
+      "약 40분 만에 당일 완료"
+    ]
+  },
+  {
     slug: "naedaeji-gwangmyeong-yangbyungi",
     title: "용인시 수지구 내대지마을 광명샤인빌 양변기 교체",
     category: "양변기",
