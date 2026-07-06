@@ -27,6 +27,62 @@ export type CaseItem = {
 
 export const CASES: CaseItem[] = [
   {
+    slug: "uiwang-sinan-shower-faucet",
+    title: "의왕시 신안아파트 샤워수전 교체",
+    category: "수전",
+    region: "경기 의왕시 신안아파트",
+    costTotal: 264000,
+    costLabor: 110000,
+    costProduct: 154000,
+    durationMin: 60,
+    date: "2026-07-01",
+    cover: "/case-photos/uiwang-sinan/after-1.jpg",
+    summary: "욕조도 없는데 안 어울리던 금색 슬라이드바 샤워수전을, 서서 편하게 쓰는 레인샤워(해바라기)수전으로 교체했습니다.",
+    body: [
+      {
+        kind: "text",
+        heading: "한 부분만 바꿔도 이렇게 달라져요",
+        text: "욕조가 없는 욕실에 욕조용 샤워수전(슬라이드바형)이 달려 있으면 서서 샤워하기 불편하고, 주변과 색이 안 맞으면 욕실 분위기도 어수선해 보입니다. 전체 공사 없이 수전 하나만 바꿔도 사용감과 분위기가 확 달라져요."
+      },
+      {
+        kind: "text",
+        heading: "시공 전 상태",
+        text: "의왕 신안아파트. 욕조가 없는 욕실인데 욕조용 샤워수전과 슬라이드바가 달려 있었고, 주변과 어울리지 않는 금색이라 고객님이 교체를 원하셨습니다."
+      },
+      {
+        kind: "photos",
+        label: "시공 전",
+        urls: ["/case-photos/uiwang-sinan/before.jpg"]
+      },
+      {
+        kind: "text",
+        heading: "시공 과정",
+        text: "기존 금색 슬라이드바와 욕조용 샤워수전을 철거하고, 대림바스 레인샤워수전 BFB-720(해바라기형)으로 교체했습니다."
+      },
+      {
+        kind: "photos",
+        label: "시공 중",
+        urls: ["/case-photos/uiwang-sinan/during.jpg"]
+      },
+      {
+        kind: "text",
+        heading: "시공 후 모습",
+        text: "서서 편하게 샤워할 수 있는 레인샤워수전으로 바뀌었고, 욕실 분위기도 한결 깔끔해졌습니다. 예전부터 해바라기형 수전을 원하셨던 고객님이, 한 부분만 교체로 이렇게 바꿀 수 있다는 것에 아주 만족하셨습니다."
+      },
+      {
+        kind: "photos",
+        label: "시공 완료",
+        urls: ["/case-photos/uiwang-sinan/after-1.jpg", "/case-photos/uiwang-sinan/after-2.jpg"]
+      }
+    ],
+    highlights: [
+      "안 어울리던 금색 슬라이드바 → 대림바스 레인샤워수전 BFB-720(해바라기형) 교체",
+      "욕조 없는 욕실에 맞춰 서서 편하게 샤워",
+      "수전 하나만 교체로 욕실 분위기 개선",
+      "약 60분 만에 당일 완료"
+    ]
+  },
+  {
     slug: "dongtan-kantabil-sedaedae",
     title: "화성시 동탄역 시범대원칸타빌 세면대 교체",
     category: "세면대",
