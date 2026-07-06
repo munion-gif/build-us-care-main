@@ -24,7 +24,6 @@ const legacyPublicPageRedirects = [
   ["/orders/lookup", "/order-lookup"],
   ["/orders/lookup/:path*", "/order-lookup"],
   ["/quote/:path*", "/products"],
-  ["/cases/:path*", "/"],
   ["/flow/:path*", "/"],
   ["/lab/:path*", "/"],
   ["/payment/success/:path*", "/order-lookup"],
