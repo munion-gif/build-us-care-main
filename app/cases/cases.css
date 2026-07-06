@@ -141,22 +141,29 @@
   display: grid;
   gap: 10px;
   grid-template-columns: repeat(2, 1fr);
+  align-items: start; /* 사진 높이가 달라도 위로 정렬 */
 }
 .cb-photos.count-1 .cb-photo-grid { grid-template-columns: 1fr; }
+/* 사진 1장일 땐 너무 커지지 않게 가운데 정렬 + 폭 제한 */
+.cb-photos.count-1 .cb-photo { max-width: 480px; margin-left: auto; margin-right: auto; }
 @media (max-width: 520px) { .cb-photo-grid { grid-template-columns: 1fr; } }
 .cb-photo {
-  aspect-ratio: 4 / 3;
   border-radius: 14px;
   overflow: hidden;
   border: 1px solid var(--color-border);
   background: linear-gradient(135deg, #f4f5f7, #e9ebef);
+}
+/* 사진은 원래 비율 그대로 (잘리지 않음) */
+.cb-photo img { display: block; width: 100%; height: auto; }
+/* 사진 없는 자리표시(회색칸) 전용 높이 */
+.cb-photo > span {
   display: grid;
   place-items: center;
+  aspect-ratio: 4 / 3;
   color: var(--color-text-faint);
   font-size: 14px;
   font-weight: 600;
 }
-.cb-photo img { width: 100%; height: 100%; object-fit: cover; }
 
 /* 본문 */
 .case-body { margin: 8px 0; }
