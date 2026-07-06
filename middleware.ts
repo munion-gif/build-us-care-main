@@ -61,7 +61,6 @@ const retiredPublicApiPrefixes = [
 
 const legacyPublicRedirects = new Map<string, string>([
   ["/services", "/"],
-  ["/cases", "/"],
   ["/products/toilets", "/products/toilet"],
   ["/products/basins", "/products/washbasin"],
   ["/products/window-handles", "/products/window-handle"],
