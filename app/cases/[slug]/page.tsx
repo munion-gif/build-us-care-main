@@ -90,30 +90,32 @@ export default async function CaseDetailPage({ params }: PageProps) {
         ) : null}
       </div>
 
-      {/* 전/후 사진 */}
-      <div className="case-photos">
-        <div className="case-photo before">
-          <span className="tag">시공 전</span>
-          <div className="frame">
-            {item.beforeImage ? <img src={item.beforeImage} alt="시공 전" /> : "시공 전 사진"}
-          </div>
-        </div>
-        <div className="case-photo after">
-          <span className="tag">시공 후</span>
-          <div className="frame">
-            {item.afterImage ? <img src={item.afterImage} alt="시공 후" /> : "시공 후 사진"}
-          </div>
-        </div>
-      </div>
-
-      {/* 본문 */}
+      {/* 본문 — 글과 사진이 섞여 흐릅니다 */}
       <div className="case-body">
-        {item.body.map((section, i) => (
-          <section key={i}>
-            <h2>{section.heading}</h2>
-            <p>{section.text}</p>
-          </section>
-        ))}
+        {item.body.map((block, i) => {
+          if (block.kind === "text") {
+            return (
+              <section key={i} className="cb-text">
+                {block.heading ? <h2>{block.heading}</h2> : null}
+                <p>{block.text}</p>
+              </section>
+            );
+          }
+          // photos 블록
+          const count = block.urls.length;
+          return (
+            <div key={i} className={`cb-photos count-${Math.min(count, 3)}`}>
+              {block.label ? <span className="cb-photo-label">{block.label}</span> : null}
+              <div className="cb-photo-grid">
+                {block.urls.map((url, j) => (
+                  <div className="cb-photo" key={j}>
+                    {url ? <img src={url} alt={`${item.title} 사진 ${j + 1}`} loading="lazy" /> : <span>시공 사진</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* 장점 체크리스트 */}

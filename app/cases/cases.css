@@ -125,41 +125,38 @@
 .case-meta .row .v { color: var(--color-text); font-weight: 600; }
 .case-meta .cost-break { color: var(--color-text-muted); font-weight: 500; font-size: 13px; }
 
-/* 전/후 사진 */
-.case-photos {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin: 22px 0;
+/* 본문 사진 블록 — 사진 개수만큼 자동 배치되는 갤러리 */
+.cb-photos { margin: 20px 0; }
+.cb-photo-label {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-primary);
+  background: var(--color-primary-highlight);
+  padding: 4px 12px;
+  border-radius: 16px;
+  margin-bottom: 10px;
 }
-@media (max-width: 560px) { .case-photos { grid-template-columns: 1fr; } }
-.case-photo { position: relative; }
-.case-photo .frame {
+.cb-photo-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, 1fr);
+}
+.cb-photos.count-1 .cb-photo-grid { grid-template-columns: 1fr; }
+@media (max-width: 520px) { .cb-photo-grid { grid-template-columns: 1fr; } }
+.cb-photo {
   aspect-ratio: 4 / 3;
   border-radius: 14px;
-  border: 1px solid var(--color-border);
   overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: linear-gradient(135deg, #f4f5f7, #e9ebef);
   display: grid;
   place-items: center;
   color: var(--color-text-faint);
   font-size: 14px;
   font-weight: 600;
 }
-.case-photo .frame img { width: 100%; height: 100%; object-fit: cover; }
-.case-photo.before .frame { background: linear-gradient(135deg, #f4f5f7, #e9ebef); }
-.case-photo.after .frame { background: linear-gradient(135deg, #ecfdf3, #dcfae6); }
-.case-photo .tag {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 16px;
-  color: #fff;
-}
-.case-photo.before .tag { background: var(--color-text-muted); }
-.case-photo.after .tag { background: var(--color-sage); }
+.cb-photo img { width: 100%; height: 100%; object-fit: cover; }
 
 /* 본문 */
 .case-body { margin: 8px 0; }
