@@ -162,8 +162,11 @@
   border: 1px solid var(--color-border);
   background: linear-gradient(135deg, #f4f5f7, #e9ebef);
 }
-/* 사진은 원래 비율 그대로 (잘리지 않음) */
+/* 사진 1장일 땐 원래 비율 그대로 (잘리지 않음) */
 .cb-photo img { display: block; width: 100%; height: auto; }
+/* 사진 2장 이상 갤러리 — 높이 맞춰 균일하게(정사각으로 잘라 정렬) */
+.cb-photos:not(.count-1) .cb-photo { position: relative; aspect-ratio: 1 / 1; }
+.cb-photos:not(.count-1) .cb-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 /* 사진 없는 자리표시(회색칸) 전용 높이 */
 .cb-photo > span {
   display: grid;
