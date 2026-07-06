@@ -17,6 +17,7 @@ export type CaseItem = {
   costTotal?: number;
   costLabor?: number;
   costProduct?: number;
+  costBreakdown?: { label: string; amount: number }[]; // 항목별 비용(제품 여러 개 등). 있으면 우선 표시
   durationMin?: number;
   date?: string; // YYYY-MM-DD
   cover?: string | null; // 목록 카드 대표 이미지 (없으면 본문 첫 사진 사용)
@@ -32,8 +33,11 @@ export const CASES: CaseItem[] = [
     category: "수전 2개",
     region: "경기 군포시 율곡주공아파트",
     costTotal: 264000,
-    costLabor: 88000,
-    costProduct: 176000,
+    costBreakdown: [
+      { label: "주방수전 제품가", amount: 120000 },
+      { label: "세면수전 제품가", amount: 56000 },
+      { label: "시공비 (수전 2개)", amount: 88000 }
+    ],
     durationMin: 30,
     date: "2026-07-03",
     cover: "/case-photos/gunpo-yulgok/kitchen-after.jpg",

@@ -74,7 +74,15 @@ export default async function CaseDetailPage({ params }: PageProps) {
             <span className="k">비용</span>
             <span className="v">
               {formatWon(item.costTotal)} <span className="cost-break">(VAT 포함)</span>
-              {item.costLabor || item.costProduct ? (
+              {item.costBreakdown && item.costBreakdown.length > 0 ? (
+                <div className="cost-break">
+                  {item.costBreakdown.map((b, i) => (
+                    <div key={i}>
+                      {b.label} {formatWon(b.amount)}
+                    </div>
+                  ))}
+                </div>
+              ) : item.costLabor || item.costProduct ? (
                 <div className="cost-break">
                   공임비 {formatWon(item.costLabor)} + 제품비 {formatWon(item.costProduct)}
                 </div>
