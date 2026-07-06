@@ -13,7 +13,7 @@ const whyItems = [
   {
     id: "cost",
     eyebrow: "정직한 비용",
-    title: <>추가비 견적비<br />0원.</>,
+    title: <>추가비 견적비<br />출장비 0원.</>,
     text: <>예상 밖 작업은 먼저 설명합니다.<br />고객 동의 없이 진행하지 않습니다.</>,
     image: "/assets/whycard-receipt.png"
   },
