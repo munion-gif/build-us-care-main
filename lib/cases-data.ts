@@ -28,6 +28,62 @@ export type CaseItem = {
 
 export const CASES: CaseItem[] = [
   {
+    slug: "dongtan-parkprugio-yangbyungi",
+    title: "화성시 동탄 파크푸르지오 양변기 교체",
+    category: "양변기",
+    region: "경기 화성시 동탄 파크푸르지오",
+    costTotal: 354000,
+    costLabor: 110000,
+    costProduct: 244000,
+    durationMin: 60,
+    date: "2026-07-04",
+    cover: "/case-photos/dongtan-parkprugio/after-1.jpg",
+    summary: "하부가 움푹 들어가 청소가 힘들고 커버가 황변된 낡은 변기를, 청소·관리 편한 치마형 변기로 교체했습니다.",
+    body: [
+      {
+        kind: "text",
+        heading: "이런 경우, 방치하면 안 돼요",
+        text: "변기 하부가 움푹 들어간 형태면 구석구석 청소가 어렵고 때가 끼기 쉽습니다. 변기커버가 누렇게 황변되면 아무리 닦아도 낡아 보여요."
+      },
+      {
+        kind: "text",
+        heading: "시공 전 상태",
+        text: "동탄 파크푸르지오. 기존 양변기는 하부가 움푹 들어간 형태라 청소가 힘들었고, 변기커버가 황변되어 오래되고 낡아 보였습니다."
+      },
+      {
+        kind: "photos",
+        label: "시공 전",
+        urls: ["/case-photos/dongtan-parkprugio/before-1.jpg", "/case-photos/dongtan-parkprugio/before-2.jpg"]
+      },
+      {
+        kind: "text",
+        heading: "시공 과정",
+        text: "고객님이 직접 아래쪽이 모두 막혀 청소·관리가 편한 심플한 치마형 변기(대림바스 CC-723 투피스)를 고르셔서, 바로 교체해 드렸습니다."
+      },
+      {
+        kind: "photos",
+        label: "시공 중",
+        urls: ["/case-photos/dongtan-parkprugio/during-1.jpg", "/case-photos/dongtan-parkprugio/during-2.jpg"]
+      },
+      {
+        kind: "text",
+        heading: "시공 후 모습",
+        text: "하부가 매끈하게 막힌 치마형이라 청소가 훨씬 쉬워졌습니다. 전보다 물 내려가는 속도가 빨라져 시원하게 내려가고, 조용한 댐퍼 시트에도 만족하셨습니다."
+      },
+      {
+        kind: "photos",
+        label: "시공 완료",
+        urls: ["/case-photos/dongtan-parkprugio/after-1.jpg", "/case-photos/dongtan-parkprugio/after-2.jpg"]
+      }
+    ],
+    highlights: [
+      "하부 움푹·커버 황변된 낡은 변기 → 대림바스 CC-723 치마형 투피스 교체",
+      "하부가 막힌 치마형이라 청소·관리가 쉬움",
+      "물 내려가는 속도가 빨라져 시원한 세척",
+      "천천히 닫히는 조용한 댐퍼 시트"
+    ]
+  },
+  {
     slug: "gunpo-yulgok-faucets",
     title: "군포시 율곡주공아파트 주방·세면 수전 교체",
     category: "수전 2개",
