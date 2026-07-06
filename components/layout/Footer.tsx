@@ -23,7 +23,7 @@ export function Footer() {
             <Link href="/service">서비스 소개</Link>
             <Link href="/photo-check">사진판정</Link>
             <Link href="/products">가격 안내</Link>
-            <Link href="/products">교체 사례</Link>
+            <Link href="/cases">교체 사례</Link>
           </div>
 
           <div>
