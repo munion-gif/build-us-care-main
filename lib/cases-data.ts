@@ -27,6 +27,62 @@ export type CaseItem = {
 
 export const CASES: CaseItem[] = [
   {
+    slug: "naedaeji-gwangmyeong-yangbyungi",
+    title: "광명시 내대지마을 광명샤인빌 양변기 교체",
+    category: "양변기",
+    region: "경기 광명시 내대지마을 광명샤인빌",
+    costTotal: 356000,
+    costLabor: 110000,
+    costProduct: 246000,
+    durationMin: 60,
+    date: "2026-06-30",
+    cover: "/case-photos/naedaeji-gwangmyeong/after.jpg",
+    summary: "하부 백시멘트가 탈락돼 흔들리고 냄새가 역류하던 노후 변기를 대림바스 CC-724로 교체했습니다.",
+    body: [
+      {
+        kind: "text",
+        heading: "이런 경우, 방치하면 안 돼요",
+        text: "양변기 하부를 고정하는 백시멘트가 삭아 탈락하면 변기가 흔들리고, 그 틈으로 하수 냄새가 역류합니다. 오래된 구축 아파트일수록 배수관까지 노후한 경우가 많아, 변기만 바꾸는 것으로는 냄새가 잡히지 않을 수 있어요."
+      },
+      {
+        kind: "text",
+        heading: "시공 전 상태",
+        text: "내대지마을 광명샤인빌, 오래된 구축 아파트였습니다. 양변기 하부 백시멘트가 거의 다 탈락되어 변기가 흔들렸고, 그 틈으로 냄새가 역류하는 상태였습니다."
+      },
+      {
+        kind: "photos",
+        label: "시공 전",
+        urls: ["/case-photos/naedaeji-gwangmyeong/before-1.jpg", "/case-photos/naedaeji-gwangmyeong/before-2.jpg"]
+      },
+      {
+        kind: "text",
+        heading: "시공 과정",
+        text: "낡은 변기를 철거하고, 노후한 PVC 배수관까지 새것으로 추가·교체했습니다. 바닥 접합부를 꼼꼼히 다시 시공해 흔들림과 냄새 역류의 원인을 근본적으로 잡았습니다."
+      },
+      {
+        kind: "photos",
+        label: "시공 중",
+        urls: ["/case-photos/naedaeji-gwangmyeong/during-1.jpg", "/case-photos/naedaeji-gwangmyeong/during-2.jpg"]
+      },
+      {
+        kind: "text",
+        heading: "시공 후 모습",
+        text: "대림바스 CC-724 투피스 변기로 교체를 완료했습니다. 흔들림 없이 단단히 고정되고, 냄새 역류도 사라졌습니다."
+      },
+      {
+        kind: "photos",
+        label: "시공 완료",
+        urls: ["/case-photos/naedaeji-gwangmyeong/after.jpg"]
+      }
+    ],
+    highlights: [
+      "노후 변기 → 대림바스 CC-724 투피스 교체",
+      "탈락된 하부 백시멘트 재시공으로 흔들림 제거",
+      "노후 PVC 배수관까지 교체해 냄새 역류 차단",
+      "약 60분 만에 당일 완료"
+    ]
+  },
+  {
     slug: "gangnam-yangbyungi-gyeoche",
     title: "강남구 대치동 아파트 양변기 교체",
     category: "양변기",
