@@ -76,11 +76,7 @@ export default async function CaseDetailPage({ params }: PageProps) {
               {formatWon(item.costTotal)} <span className="cost-break">(VAT 포함)</span>
               {item.costBreakdown && item.costBreakdown.length > 0 ? (
                 <div className="cost-break">
-                  {item.costBreakdown.map((b, i) => (
-                    <div key={i}>
-                      {b.label} {formatWon(b.amount)}
-                    </div>
-                  ))}
+                  {item.costBreakdown.map((b) => `${b.label} ${formatWon(b.amount)}`).join(" · ")}
                 </div>
               ) : item.costLabor || item.costProduct ? (
                 <div className="cost-break">
