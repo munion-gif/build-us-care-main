@@ -27,6 +27,85 @@ export type CaseItem = {
 
 export const CASES: CaseItem[] = [
   {
+    slug: "gunpo-yulgok-faucets",
+    title: "군포시 율곡주공아파트 주방·세면 수전 교체",
+    category: "수전 2개",
+    region: "경기 군포시 율곡주공아파트",
+    costTotal: 264000,
+    costLabor: 88000,
+    costProduct: 176000,
+    durationMin: 30,
+    date: "2026-07-03",
+    cover: "/case-photos/gunpo-yulgok/kitchen-after.jpg",
+    summary: "낡은 주방수전과 세면수전을 한 번에 교체했습니다. 구축 아파트도 작은 교체 하나로 크게 달라집니다.",
+    body: [
+      {
+        kind: "text",
+        heading: "한 번에 두 곳, 수전 두 개를 교체했어요",
+        text: "이 집은 주방수전과 세면수전을 한 번에 교체했습니다. 구축 아파트는 이렇게 작은 교체 하나로도 사용감과 분위기가 크게 달라져요."
+      },
+      {
+        kind: "text",
+        heading: "① 주방수전 · 시공 전",
+        text: "기존 주방수전은 코팅이 벗겨지고 벽 고정부가 부식돼 떨어졌으며, 크기가 싱크대 주변 환경·높이와 맞지 않아 물이 많이 튀고 불편했습니다. 현재 상황에 설치 가능한 제품을 추천드려, 원하시는 제품으로 교체했습니다."
+      },
+      {
+        kind: "photos",
+        label: "주방수전 · 시공 전",
+        urls: [
+          "/case-photos/gunpo-yulgok/kitchen-before-1.jpg",
+          "/case-photos/gunpo-yulgok/kitchen-before-2.jpg",
+          "/case-photos/gunpo-yulgok/kitchen-before-3.jpg"
+        ]
+      },
+      {
+        kind: "photos",
+        label: "시공 중",
+        urls: ["/case-photos/gunpo-yulgok/during.jpg"]
+      },
+      {
+        kind: "text",
+        heading: "주방수전 · 시공 후",
+        text: "낡은 수전이 사라지고 크기가 주변 환경과 맞아, 물 튀김 없이 편하게 쓸 수 있게 됐습니다."
+      },
+      {
+        kind: "photos",
+        label: "주방수전 · 시공 후",
+        urls: ["/case-photos/gunpo-yulgok/kitchen-after.jpg"]
+      },
+      {
+        kind: "text",
+        heading: "② 세면수전 · 시공 전",
+        text: "기존 세면수전도 코팅이 다 벗겨지고 안 지워지는 물때가 많았으며, 토수구가 짧아 부속품을 달아 쓰고 계셨습니다."
+      },
+      {
+        kind: "photos",
+        label: "세면수전 · 시공 전",
+        urls: [
+          "/case-photos/gunpo-yulgok/basin-before-1.jpg",
+          "/case-photos/gunpo-yulgok/basin-before-2.jpg",
+          "/case-photos/gunpo-yulgok/basin-before-3.jpg"
+        ]
+      },
+      {
+        kind: "text",
+        heading: "세면수전 · 시공 후",
+        text: "토수구가 길고 청소가 편한 심플한 디자인으로 교체했습니다. 구축 아파트도 작은 교체 하나로 이렇게 달라진다며 아주 만족하셨습니다."
+      },
+      {
+        kind: "photos",
+        label: "세면수전 · 시공 후",
+        urls: ["/case-photos/gunpo-yulgok/basin-after.jpg"]
+      }
+    ],
+    highlights: [
+      "낡은 주방수전·세면수전 한 번에 교체",
+      "주방: 주변 환경에 맞는 크기로 → 물 튀김 없이 편하게",
+      "세면: 토수구 길고 청소 편한 심플 디자인으로",
+      "구축 아파트도 작은 교체로 크게 개선"
+    ]
+  },
+  {
     slug: "heungdeok-honorsville-kitchen-faucet",
     title: "용인시 기흥구 흥덕마을 경남아너스빌 주방수전 교체",
     category: "주방수전",
