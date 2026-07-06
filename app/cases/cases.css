@@ -165,6 +165,13 @@
   font-weight: 600;
 }
 
+/* 시공 단계 구분: 사진 블록 다음에 오는 글은 새 단계의 시작 → 크게 벌리고 구분선 */
+.cb-photos + .cb-text {
+  margin-top: 52px;
+  padding-top: 40px;
+  border-top: 1px solid var(--color-border);
+}
+
 /* 본문 */
 .case-body { margin: 8px 0; }
 .case-body section { margin: 26px 0; }
