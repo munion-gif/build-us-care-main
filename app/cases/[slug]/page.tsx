@@ -22,7 +22,7 @@ export function generateStaticParams() {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
   const item = getCaseBySlug(slug);
-  if (!item) return { title: "시공사례 | Build us Care" };
+  if (!item) return { title: "교체사례 | Build us Care" };
   const priceText = item.costTotal ? ` · ${formatWon(item.costTotal)}` : "";
   return {
     title: `${item.title}${priceText} | Build us Care`,
@@ -46,7 +46,7 @@ export default async function CaseDetailPage({ params }: PageProps) {
   return (
     <div className="cases-wrap">
       <Link className="case-back" href="/cases">
-        ← 시공사례 목록
+        ← 교체사례 목록
       </Link>
 
       <h1 className="case-detail-title">

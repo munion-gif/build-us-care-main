@@ -14,9 +14,9 @@ type HeaderProps = {
 const navItems: ReadonlyArray<readonly [string, string]> = [
   ["서비스", "/service"],
   ["제품", "/products"],
-  ["시공사례", "/cases"],
   ["사진확인", "/photo-check"],
-  ["주문조회", "/order-lookup"]
+  ["주문조회", "/order-lookup"],
+  ["교체사례", "/cases"]
 ];
 
 function Logo() {
