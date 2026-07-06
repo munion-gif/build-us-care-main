@@ -72,20 +72,53 @@ function ShieldCheckIcon() {
   );
 }
 
+const heroItems = [
+  { slug: "faucet", label: "수전" },
+  { slug: "toilet", label: "양변기" },
+  { slug: "washbasin", label: "세면대" },
+  { slug: "ventilation", label: "환풍기" }
+];
+
+const heroBadges = ["사진 확인 후 교체 가능", "제품값 먼저 확인", "시공비 별도 안내"];
+
+const heroLabelText = "투명하고 숨김 없는 견적 · 추가금 없이 끝까지 그대로";
+
+const heroCss = `
+.hero2 { display: grid; grid-template-columns: 55% 45%; gap: clamp(24px, 4vw, 48px); align-items: center; padding: clamp(36px, 5vw, 64px) 0 clamp(28px, 4vw, 44px); }
+.hero2-left { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; }
+.hero2-label { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--color-primary); background: var(--color-primary-highlight); padding: 8px 14px; border-radius: 999px; line-height: 1.3; }
+.hero2-label svg { width: 15px; height: 15px; flex: none; }
+.hero2-title { margin: 0; font-size: clamp(30px, 3.6vw, 46px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.16; color: var(--color-text); }
+.hero2-desc { margin: 0; font-size: clamp(15px, 1.35vw, 18px); line-height: 1.6; color: var(--color-text-muted); }
+.hero2-cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+.hero2-right { min-width: 0; }
+.hero2-visual { background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: 24px; padding: 20px; }
+.hero2-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.hero2-card { display: flex; flex-direction: column; gap: 8px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 16px; padding: 12px; text-decoration: none; color: var(--color-text); transition: transform .15s ease, box-shadow .15s ease; }
+.hero2-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px -14px rgba(16,24,40,.25); }
+.hero2-card-im { aspect-ratio: 5 / 4; border-radius: 11px; background: #fff; border: 1px solid var(--color-border); display: grid; place-items: center; overflow: hidden; }
+.hero2-card-im img { width: 78%; height: 78%; object-fit: contain; }
+.hero2-card-nm { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+.hero2-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.hero2-badge { font-size: 12.5px; font-weight: 600; color: var(--color-text-muted); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 999px; padding: 7px 12px; }
+@media (max-width: 900px) { .hero2 { grid-template-columns: 1fr; } .hero2-right { margin-top: 6px; } }
+.hero2m { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; padding: 22px 0 6px; }
+.hero2m .hero2-label { align-self: flex-start; }
+.hero2m-title { margin: 0; font-size: clamp(24px, 7vw, 30px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.2; color: var(--color-text); }
+.hero2m-desc { margin: 0; font-size: 15px; line-height: 1.55; color: var(--color-text-muted); }
+.hero2m .hl-cta { width: 100%; margin-top: 4px; }
+.hero2m-badges { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 4px; }
+`;
+
 export function HomeLanding() {
   return (
     <main className="bc-page">
+      <style dangerouslySetInnerHTML={{ __html: heroCss }} />
       <div className="home-mobile bc-mobile-only">
-        <section className="hero-light-m" aria-label="Build us Care 소개">
-          <div className="hl-logo">
-            <img
-              src="/assets/bc-logo-hero.png"
-              alt="Build us Care"
-              decoding="async"
-              style={{ width: "min(64%, 238px)", maxWidth: "238px", height: "auto", display: "block" }}
-            />
-          </div>
-          <p className="hl-sub">오래된 수전·변기·환풍기, 바꿀 수 있는 것부터.</p>
+        <section className="hero2m" aria-label="Build us Care 소개">
+          <span className="hero2-label"><ShieldCheckIcon /> {heroLabelText}</span>
+          <h1 className="hero2m-title">집 전체 공사 말고,<br />낡아 보이는 것부터 교체하세요.</h1>
+          <p className="hero2m-desc">사진으로 교체 가능 여부를 먼저 확인하고,<br />제품값과 시공비를 나눠 보고 예약할 수 있어요.</p>
           <div className="hl-cta">
             <div className="hl-row">
               <Link className="hl-btn hl-pri" href="/photo-check">사진으로 확인하기</Link>
@@ -95,8 +128,10 @@ export function HomeLanding() {
               <KakaoIcon /> 카카오로 문의하기
             </a>
           </div>
-          <div className="hl-trust">
-            <ShieldCheckIcon /> 사진 확인 · 정찰가 안내 · A/S 접수
+          <div className="hero2m-badges">
+            {heroBadges.map((b) => (
+              <span key={b} className="hero2-badge">{b}</span>
+            ))}
           </div>
         </section>
 
@@ -141,24 +176,37 @@ export function HomeLanding() {
       </div>
 
       <div className="wrap home-wrap home-desktop bc-desktop-only">
-        <section className="hero-light" aria-label="Build us Care 소개">
-          <div className="hero-logo">
-            <img
-              src="/assets/bc-logo-hero.png"
-              alt="Build us Care"
-              decoding="async"
-              style={{ width: "min(58vw, 560px)", maxWidth: "560px", height: "auto", display: "block" }}
-            />
+        <section className="hero2" aria-label="Build us Care 소개">
+          <div className="hero2-left">
+            <span className="hero2-label"><ShieldCheckIcon /> {heroLabelText}</span>
+            <h1 className="hero2-title">집 전체 공사 말고,<br />낡아 보이는 것부터 교체하세요.</h1>
+            <p className="hero2-desc">사진으로 교체 가능 여부를 먼저 확인하고,<br />제품값과 시공비를 나눠 보고 예약할 수 있어요.</p>
+            <div className="hero2-cta">
+              <Link className="web-btn pri" href="/photo-check">사진으로 확인하기</Link>
+              <Link className="web-btn outline" href="/products">바꿀 수 있는 제품 보기</Link>
+              <a className="web-btn kkbtn" href="https://pf.kakao.com/_PxkzsX" target="_blank" rel="noreferrer">
+                <KakaoIcon /> 카카오로 문의하기
+              </a>
+            </div>
           </div>
-          <p className="hero-sub">오래된 수전·변기·환풍기, 바꿀 수 있는 것부터.</p>
-          <div className="hero-cta">
-            <Link className="web-btn pri" href="/photo-check">사진으로 확인하기</Link>
-            <Link className="web-btn outline" href="/products">바꿀 수 있는 제품 보기</Link>
-          </div>
-          <div className="hero-kakao">
-            <a className="web-btn kkbtn" href="https://pf.kakao.com/_PxkzsX" target="_blank" rel="noreferrer">
-              <KakaoIcon /> 카카오로 문의하기
-            </a>
+          <div className="hero2-right" aria-hidden="true">
+            <div className="hero2-visual">
+              <div className="hero2-cards">
+                {heroItems.map((it) => (
+                  <Link key={it.slug} className="hero2-card" href={`/products/${it.slug}`}>
+                    <span className="hero2-card-im">
+                      <img src={BUILDUSCARE_LINEUP_IMAGES[it.slug] ?? ""} alt="" loading="lazy" decoding="async" />
+                    </span>
+                    <span className="hero2-card-nm">{it.label}</span>
+                  </Link>
+                ))}
+              </div>
+              <div className="hero2-badges">
+                {heroBadges.map((b) => (
+                  <span key={b} className="hero2-badge">{b}</span>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
 
