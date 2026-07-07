@@ -102,15 +102,17 @@ function cashReceiptTextFromOrder(order: Record<string, any>) {
 }
 
 export async function POST(request: Request) {
+  const onlyDigits = (value: unknown) => String(value ?? "").replace(/\D/g, "");
   const body = await readJson(request);
   const orderNumber = normalizeText(body?.orderNumber).toUpperCase();
-  const name = normalizeText(body?.name);
+  const phone = normalizeText(body?.phone);
+  const phoneDigits = onlyDigits(phone);
 
   if (!orderNumber) return fail("BAD_REQUEST", "주문번호를 입력해주세요.", 400);
-  if (!name) return fail("BAD_REQUEST", "예약자 성함을 입력해주세요.", 400);
+  if (phoneDigits.length < 8) return fail("BAD_REQUEST", "전화번호를 정확히 입력해주세요.", 400);
 
   if (!hasSupabaseEnv()) {
-    const localOrder = matchLocalBuildusOrderByLookup(request, { orderNumber, customerName: name });
+    const localOrder = matchLocalBuildusOrderByLookup(request, { orderNumber });
     if (localOrder) {
       return ok({
         order: localBuildusOrderToLookupOrder(localOrder),
@@ -125,7 +127,7 @@ export async function POST(request: Request) {
     });
   }
 
-  const rateLimit = checkRateLimit(`builduscare-lookup:${getClientIp(request.headers)}:${orderNumber}:${name}`, {
+  const rateLimit = checkRateLimit(`builduscare-lookup:${getClientIp(request.headers)}:${orderNumber}:${phoneDigits}`, {
     limit: LOOKUP_LIMIT,
     windowMs: LOOKUP_WINDOW_MS
   });
@@ -134,17 +136,6 @@ export async function POST(request: Request) {
   }
 
   const supabase = getSupabaseAdmin();
-  const { data: customers, error: customerError } = await supabase
-    .from("customers")
-    .select("id,name,phone,address_full,address_apt")
-    .ilike("name", name);
-
-  if (customerError) return fail("internal_error", customerError.message, 500);
-  if (!customers?.length) {
-    return ok({ order: null, message: "입력하신 정보와 일치하는 주문을 찾지 못했어요." });
-  }
-
-  const customerIds = customers.map((customer) => customer.id);
   const { data: order, error: orderError } = await supabase
     .from("orders")
     .select(
@@ -158,15 +149,14 @@ export async function POST(request: Request) {
     `
     )
     .eq("order_number", orderNumber)
-    .in("customer_id", customerIds)
     .maybeSingle();
 
   if (orderError) return fail("internal_error", orderError.message, 500);
-  if (!order) {
+  const customer = order ? (Array.isArray(order.customers) ? order.customers[0] : order.customers) : null;
+  // 주문번호로 주문을 찾은 뒤, 전화번호가 일치해야만 조회를 허용 (이름 대신 전화번호로 인증)
+  if (!order || onlyDigits(customer?.phone) !== phoneDigits) {
     return ok({ order: null, message: "입력하신 정보와 일치하는 주문을 찾지 못했어요." });
   }
-
-  const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers;
   const payment = latest(order.payments, ["paid_at", "approved_at", "created_at"]);
   const job = latest(order.jobs, ["scheduled_at", "created_at"]);
   const address = compactAddress(order);
@@ -190,13 +180,12 @@ export async function POST(request: Request) {
     order: {
       id: order.id,
       orderNumber: order.order_number,
-      accessToken: order.access_token,
       status: order.status,
       statusUrl: `/orders/${order.id}?accessToken=${order.access_token}`,
       transferUrl: transferParams ? `/payment/transfer?${transferParams.toString()}` : null,
       serviceName: formatServiceName(order.service_type_code),
       serviceCode: order.service_type_code,
-      customerName: customer?.name ?? name,
+      customerName: customer?.name ?? "",
       phone: customer?.phone ?? "",
       roadAddress: address.roadAddress,
       detailAddress: address.detailAddress,

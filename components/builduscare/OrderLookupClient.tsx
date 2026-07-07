@@ -353,7 +353,7 @@ function orderStatusSummary(order: LookupOrder, hasProducts: boolean) {
 
 export function OrderLookupClient() {
   const [orderNumber, setOrderNumber] = useState("");
-  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [order, setOrder] = useState<LookupOrder | null>(null);
@@ -367,44 +367,44 @@ export function OrderLookupClient() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const fromQuery = params.get("orderNumber") ?? params.get("orderNo") ?? params.get("order") ?? params.get("receipt") ?? params.get("orderId") ?? "";
-    const fromName = params.get("name") ?? params.get("customerName") ?? "";
+    const fromPhone = params.get("phone") ?? params.get("tel") ?? "";
     const storedOrderNumber = window.localStorage.getItem("builduscare:lastOrderNumber") ?? "";
-    const storedName = window.localStorage.getItem("builduscare:lastCustomerName") ?? "";
+    const storedPhone = window.localStorage.getItem("builduscare:lastPhone") ?? "";
     setOrderNumber((fromQuery || storedOrderNumber).toUpperCase());
-    setName(fromName || storedName);
-    setShouldAutoLookup(Boolean(fromQuery && fromName));
+    setPhone(fromPhone || storedPhone);
+    setShouldAutoLookup(Boolean(fromQuery && fromPhone));
     setInitialQueryReady(true);
   }, []);
 
   useEffect(() => {
     if (!initialQueryReady || !shouldAutoLookup) return;
-    if (!orderNumber.trim() || !name.trim()) return;
+    if (!orderNumber.trim() || !phone.trim()) return;
     setShouldAutoLookup(false);
     void lookup();
-  }, [initialQueryReady, name, orderNumber, shouldAutoLookup]);
+  }, [initialQueryReady, phone, orderNumber, shouldAutoLookup]);
 
   async function lookup() {
     setMessage("");
     setOrder(null);
-    if (!orderNumber.trim() || !name.trim()) {
-      setMessage("주문번호와 예약자 성함을 입력해주세요.");
+    if (!orderNumber.trim() || !phone.trim()) {
+      setMessage("주문번호와 전화번호를 입력해주세요.");
       return;
     }
     setLoading(true);
     try {
       const normalizedOrderNumber = orderNumber.trim().toUpperCase();
-      const customerName = name.trim();
+      const customerPhone = phone.trim();
       const response = await fetch("/api/builduscare/orders/lookup", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ orderNumber: normalizedOrderNumber, name: customerName })
+        body: JSON.stringify({ orderNumber: normalizedOrderNumber, phone: customerPhone })
       });
       const json = await response.json().catch(() => null);
       if (!response.ok || !json?.ok) {
         throw new Error(json?.error?.message ?? json?.message ?? "주문 조회에 실패했어요.");
       }
       if (!json.data?.order) {
-        const storedOrder = readStoredLookupOrder(normalizedOrderNumber, customerName);
+        const storedOrder = readStoredLookupOrder(normalizedOrderNumber, "");
         if (storedOrder) {
           setOrder(storedOrder);
           return;
@@ -412,7 +412,7 @@ export function OrderLookupClient() {
         setMessage(json.data?.message ?? "입력하신 정보와 일치하는 주문을 찾지 못했어요.");
         return;
       }
-      const storedOrder = readStoredLookupOrder(normalizedOrderNumber, customerName);
+      const storedOrder = readStoredLookupOrder(normalizedOrderNumber, "");
       if (json.data?.localMode && storedOrder) {
         setOrder({
           ...json.data.order,
@@ -428,7 +428,7 @@ export function OrderLookupClient() {
       }
       setOrder(json.data.order);
     } catch (error) {
-      const storedOrder = readStoredLookupOrder(orderNumber, name);
+      const storedOrder = readStoredLookupOrder(orderNumber, "");
       if (storedOrder) {
         setOrder(storedOrder);
         return;
@@ -444,7 +444,7 @@ export function OrderLookupClient() {
       <MobileAppBar title="주문 조회" backHref="/" showBack={false} showChat />
       <div className="wrap narrow">
         <h1 className="web-h2">주문 조회</h1>
-        <p className="web-lede" style={{ fontSize: 16, marginTop: 6 }}>주문번호와 예약자 성함을 입력하면 주문 내용을 확인할 수 있어요.</p>
+        <p className="web-lede" style={{ fontSize: 16, marginTop: 6 }}>주문번호와 전화번호를 입력하면 주문 내용을 확인할 수 있어요.</p>
 
         <section className="bcard pad order-lookup-card" style={{ padding: 24, marginTop: 22 }}>
           <div className="field">
@@ -452,8 +452,8 @@ export function OrderLookupClient() {
             <input className="input" value={orderNumber} onChange={(event) => setOrderNumber(event.target.value.toUpperCase())} placeholder="BC-000000-000" />
           </div>
           <div className="field" style={{ marginTop: 14 }}>
-            <label>예약자 성함</label>
-            <input className="input" value={name} onChange={(event) => setName(event.target.value)} placeholder="홍길동" />
+            <label>전화번호</label>
+            <input className="input" type="tel" inputMode="numeric" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="010-1234-5678" />
           </div>
           {message && <div className="note" style={{ marginTop: 14, background: "#FDECEC", color: "#B42318", display: "flex", gap: 9, padding: "13px 15px", borderRadius: 14, fontSize: 13 }}><div>{message}</div></div>}
           <button className="web-btn pri lg block" style={{ marginTop: 18 }} type="button" aria-disabled={loading ? "true" : "false"} disabled={loading} onClick={lookup}>
