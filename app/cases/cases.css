@@ -32,7 +32,15 @@
   margin-top: 20px;
 }
 @media (max-width: 900px) { .cases-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 520px) { .cases-grid { grid-template-columns: 1fr; } }
+/* 모바일에서도 한 줄에 2개 (카드가 너무 커지지 않게) */
+@media (max-width: 520px) {
+  .cases-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .case-card-body { padding: 11px 12px 13px; }
+  .case-card-body h3 { font-size: 13.5px; }
+  .case-card-body .region { font-size: 11.5px; margin-bottom: 7px; }
+  .case-card-body .price { font-size: 15px; }
+  .case-card-body .price small { font-size: 10.5px; }
+}
 .case-card {
   display: block;
   background: var(--color-surface);
