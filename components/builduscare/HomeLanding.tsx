@@ -83,6 +83,17 @@ const heroBadges = ["사진 확인 후 교체 가능", "제품값 먼저 확인"
 
 const heroLabelText = "투명하고 숨김 없는 견적 · 추가금 없이 끝까지 그대로";
 
+const heroAreaCities = "수원, 용인, 동탄, 군포, 의왕, 성남(분당구), 안양(동안구)";
+
+function PinIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  );
+}
+
 const heroCss = `
 .hero2 { display: grid; grid-template-columns: 55% 45%; gap: clamp(24px, 4vw, 48px); align-items: center; padding: clamp(36px, 5vw, 64px) 0 clamp(28px, 4vw, 44px); }
 .hero2-left { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; }
@@ -91,6 +102,10 @@ const heroCss = `
 .hero2-title { margin: 0; font-size: clamp(30px, 3.6vw, 46px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.16; color: var(--color-text); }
 .hero2-desc { margin: 0; font-size: clamp(15px, 1.35vw, 18px); line-height: 1.6; color: var(--color-text-muted); }
 .hero2-cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+.hero2-area { display: flex; align-items: flex-start; gap: 6px; margin: 2px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--color-text-faint); }
+.hero2-area svg { width: 14px; height: 14px; flex: none; margin-top: 1px; }
+.hero2-area b { font-weight: 700; color: var(--color-text-muted); }
+.hero2-area .exp { color: var(--color-text-faint); }
 .hero2-right { min-width: 0; }
 .hero2-visual { background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: 24px; padding: 20px; }
 .hero2-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -133,6 +148,10 @@ export function HomeLanding() {
               <span key={b} className="hero2-badge">{b}</span>
             ))}
           </div>
+          <p className="hero2-area">
+            <PinIcon />
+            <span><b>서비스 가능지역</b> {heroAreaCities} <span className="exp">· 추후 확장 예정</span></span>
+          </p>
         </section>
 
         <section className="home-mobile-section">
@@ -188,6 +207,10 @@ export function HomeLanding() {
                 <KakaoIcon /> 카카오로 문의하기
               </a>
             </div>
+            <p className="hero2-area">
+              <PinIcon />
+              <span><b>서비스 가능지역</b> {heroAreaCities} <span className="exp">· 추후 확장 예정</span></span>
+            </p>
           </div>
           <div className="hero2-right" aria-hidden="true">
             <div className="hero2-visual">
