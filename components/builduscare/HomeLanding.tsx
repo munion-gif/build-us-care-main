@@ -72,13 +72,6 @@ function ShieldCheckIcon() {
   );
 }
 
-const heroItems = [
-  { slug: "faucet", label: "수전" },
-  { slug: "toilet", label: "양변기" },
-  { slug: "washbasin", label: "세면대" },
-  { slug: "ventilation", label: "환풍기" }
-];
-
 const heroBadges = ["사진 확인 후 교체 가능", "제품값 먼저 확인", "시공비 별도 안내"];
 
 const heroLabelText = "투명하고 숨김 없는 견적 · 추가금 없이 끝까지 그대로";
@@ -95,8 +88,8 @@ function PinIcon() {
 }
 
 const heroCss = `
-.hero2 { display: grid; grid-template-columns: 55% 45%; gap: clamp(24px, 4vw, 48px); align-items: center; padding: clamp(36px, 5vw, 64px) 0 clamp(28px, 4vw, 44px); }
-.hero2-left { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; }
+.hero2 { padding: clamp(40px, 6vw, 76px) 0 clamp(32px, 4vw, 52px); }
+.hero2-left { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; max-width: 760px; }
 .hero2-label { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--color-primary); background: var(--color-primary-highlight); padding: 8px 14px; border-radius: 999px; line-height: 1.3; }
 .hero2-label svg { width: 15px; height: 15px; flex: none; }
 .hero2-title { margin: 0; font-size: clamp(30px, 3.6vw, 46px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.16; color: var(--color-text); }
@@ -211,25 +204,6 @@ export function HomeLanding() {
               <PinIcon />
               <span><b>서비스 가능지역</b> {heroAreaCities} <span className="exp">· 추후 확장 예정</span></span>
             </p>
-          </div>
-          <div className="hero2-right" aria-hidden="true">
-            <div className="hero2-visual">
-              <div className="hero2-cards">
-                {heroItems.map((it) => (
-                  <Link key={it.slug} className="hero2-card" href={`/products/${it.slug}`}>
-                    <span className="hero2-card-im">
-                      <img src={BUILDUSCARE_LINEUP_IMAGES[it.slug] ?? ""} alt="" loading="lazy" decoding="async" />
-                    </span>
-                    <span className="hero2-card-nm">{it.label}</span>
-                  </Link>
-                ))}
-              </div>
-              <div className="hero2-badges">
-                {heroBadges.map((b) => (
-                  <span key={b} className="hero2-badge">{b}</span>
-                ))}
-              </div>
-            </div>
           </div>
         </section>
 
