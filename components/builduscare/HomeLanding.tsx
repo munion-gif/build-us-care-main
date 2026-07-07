@@ -144,8 +144,12 @@ const heroCss = `
 .hero-iconstrip-im img { width: 72%; height: 72%; object-fit: contain; display: block; }
 .hero-iconstrip-nm { font-size: 11.5px; font-weight: 600; color: var(--color-text-muted); white-space: nowrap; letter-spacing: -0.02em; }
 
+/* '하면 쉬운 이유' 섹션에 '바꿀 수 있는 9가지'와 같은 회색 배경 밴드 (웹·모바일) */
+.home-desktop .why-sec { background: #F5F5F7; margin: 32px calc(50% - 50vw + 96px) 0; padding: 56px max(24px, calc(50vw - 528px)) 64px; }
+.home-mobile .home-mobile-section { background: #F5F5F7; margin: 24px -20px 0; padding: 24px 20px 24px; }
+
 /* 교체사례 미리보기 (안 A · '하면 쉬운 이유' 카드 디자인 — 각 사례가 개별 카드) */
-.ctz-sec { padding: 8px 0 4px; }
+.ctz-sec { padding: 8px 0 4px; margin-top: 28px; }
 .ctz-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
 /* '바꿀 수 있는 9가지' 섹션 제목(.eyebrow / .web-h2)과 폰트·크기·굵기 동일하게 */
 .ctz-eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: var(--brand-700); margin-bottom: 6px; }
@@ -165,7 +169,7 @@ const heroCss = `
 .ctz-cat { display: inline-block; font-size: 12px; font-weight: 700; color: var(--color-primary); background: var(--color-primary-highlight); padding: 4px 10px; border-radius: 999px; }
 .ctz-rg { display: block; font-size: 13.5px; color: var(--color-text-muted); margin-top: 9px; }
 .ctz-pr { display: block; font-size: 17px; font-weight: 800; margin-top: 3px; }
-.home-mobile .ctz-sec { padding: 6px 0 4px; }
+.home-mobile .ctz-sec { padding: 6px 0 4px; margin-top: 30px; }
 .home-mobile .ctz-head { padding: 0 20px; margin-bottom: 12px; }
 .home-mobile .ctz-scroll { padding: 4px 20px 16px; gap: 12px; }
 .home-mobile .ctz-title { font-size: 25px; letter-spacing: -0.018em; line-height: 1.32; }
