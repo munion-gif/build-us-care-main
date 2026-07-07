@@ -122,7 +122,7 @@ export function HomeLanding() {
           <div className="hl-cta">
             <div className="hl-row">
               <Link className="hl-btn hl-pri" href="/photo-check">사진으로 확인하기</Link>
-              <Link className="hl-btn hl-out" href="/products">바꿀 수 있는 제품 보기</Link>
+              <Link className="hl-btn hl-out" href="/products">바로 견적확인하기</Link>
             </div>
             <a className="hl-btn hl-kk" href="https://pf.kakao.com/_PxkzsX" target="_blank" rel="noreferrer">
               <KakaoIcon /> 카카오로 문의하기
@@ -183,7 +183,7 @@ export function HomeLanding() {
             <p className="hero2-desc">사진으로 교체 가능 여부를 먼저 확인하고,<br />제품값과 시공비를 나눠 보고 예약할 수 있어요.</p>
             <div className="hero2-cta">
               <Link className="web-btn pri" href="/photo-check">사진으로 확인하기</Link>
-              <Link className="web-btn outline" href="/products">바꿀 수 있는 제품 보기</Link>
+              <Link className="web-btn outline" href="/products">바로 견적확인하기</Link>
               <a className="web-btn kkbtn" href="https://pf.kakao.com/_PxkzsX" target="_blank" rel="noreferrer">
                 <KakaoIcon /> 카카오로 문의하기
               </a>
