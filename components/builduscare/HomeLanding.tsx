@@ -120,11 +120,18 @@ const heroCss = `
 .hero2-icon img { width: auto; height: auto; max-width: 74%; max-height: 74%; object-fit: contain; display: block; }
 .hero2-badge { font-size: 12.5px; font-weight: 600; color: var(--color-text-muted); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 999px; padding: 7px 12px; }
 @media (max-width: 900px) { .hero2 { grid-template-columns: 1fr; } .hero2-right { margin-top: 4px; } }
-.hero2m { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; padding: 22px 0 6px; }
+.hero2m { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; padding: 24px 20px 10px; }
 .hero2m .hero2-label { align-self: flex-start; }
 .hero2m-title { margin: 0; font-size: clamp(24px, 7vw, 30px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.2; color: var(--color-text); }
 .hero2m-desc { margin: 0; font-size: 15px; line-height: 1.55; color: var(--color-text-muted); }
-.hero2m .hl-cta { width: 100%; margin-top: 4px; }
+/* 모바일 히어로 버튼 — 웹과 동일한 채움 스타일(파랑/외곽선/카카오) */
+.hero2m .hl-cta { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 4px; }
+.hero2m .hl-row { display: flex; gap: 10px; }
+.hero2m .hl-btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 50px; padding: 0 10px; border-radius: 14px; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; text-decoration: none; border: 1px solid transparent; white-space: nowrap; }
+.hero2m .hl-pri { background: var(--color-primary); color: #fff; }
+.hero2m .hl-out { background: #fff; color: var(--color-primary); border-color: var(--color-primary); }
+.hero2m .hl-kk { width: 100%; background: var(--color-kakao); color: var(--color-kakao-text); }
+.hero2m .hl-kk svg { width: 18px; height: 18px; flex: none; }
 .hero2m-badges { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 4px; }
 `;
 
