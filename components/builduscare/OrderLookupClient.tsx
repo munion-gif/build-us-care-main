@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Calendar, Check, ChevronLeft, Headphones, Info, MessageCircle, Package, Truck, Wallet, Wrench } from "lucide-react";
 import { useEffect, useState } from "react";
 import { MobileAppBar, MobileBottomNav } from "@/components/builduscare/MobileAppChrome";
+import { CopyOrderNumber } from "@/components/builduscare/CopyOrderNumber";
 import { BUILDUSCARE_CATEGORIES } from "@/lib/builduscare-public-routes";
 import { getBuilduscarePublicCatalog } from "@/lib/builduscare-public-products";
 import { isSiliconeLaborService } from "@/lib/builduscare-labor";
@@ -473,7 +474,7 @@ export function OrderLookupClient() {
             <section className="bcard pad" style={{ padding: 24, marginTop: 18 }}>
               <div className="between">
                 <span className="badge badge-warning dot">{paymentStatusLabel(order)}</span>
-                <span className="p-sm strong" style={{ color: "var(--gray-600)" }}>{order.orderNumber}</span>
+                <CopyOrderNumber value={order.orderNumber} className="p-sm" />
               </div>
               <div style={{ marginTop: 14, padding: "13px 14px", borderRadius: 16, background: "rgba(36,95,255,.07)", textAlign: "left" }}>
                 <div className="p-sm strong" style={{ color: "var(--gray-900)" }}>{statusSummary.title}</div>

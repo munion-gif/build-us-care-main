@@ -28,6 +28,7 @@ import { useRouter } from "next/navigation";
 import { AddressModal, type AddressSelection } from "@/components/common/AddressModal";
 import { openEstimatePreviewWindow } from "@/components/builduscare/estimate-preview-storage";
 import { MobileAppBar } from "@/components/builduscare/MobileAppChrome";
+import { CopyOrderNumber } from "@/components/builduscare/CopyOrderNumber";
 import { appendOptimizedPhotos, optimizePhotoFile } from "@/components/builduscare/photo-upload-utils";
 import type { ProductSelection } from "@/components/builduscare/product-types";
 import {
@@ -1073,7 +1074,7 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
                   : "주문 내용을 확인하고 방문 일정을 순차적으로 안내해 드릴게요."}
             </p>
             <div className="bcard pad" style={{ padding: 22, textAlign: "left", maxWidth: 440, margin: "22px auto 0" }}>
-              <div className="between"><div className="p-sm strong" style={{ color: "var(--gray-700)" }}>접수번호</div><div className="p-sm strong">{completeOrderNumber}</div></div>
+              <div className="between"><div className="p-sm strong" style={{ color: "var(--gray-700)" }}>접수번호</div><div className="p-sm strong"><CopyOrderNumber value={completeOrderNumber} /></div></div>
               <div className="between" style={{ marginTop: 8 }}><div className="p-sm strong" style={{ color: "var(--gray-700)" }}>현재 상태</div><span className="badge badge-warning dot">{statusLabel(orderResult)}</span></div>
               {completeDepositAmount > 0 && (
                 <div className="between" style={{ marginTop: 10, alignItems: "baseline" }}>

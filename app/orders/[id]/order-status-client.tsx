@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { FeedbackModal } from "@/components/orders/FeedbackModal";
+import { CopyOrderNumber } from "@/components/builduscare/CopyOrderNumber";
 import { NextActionCard } from "@/components/orders/NextActionCard";
 import { OrderCurrentStatusPanel } from "@/components/orders/OrderCurrentStatusPanel";
 import { QuoteSummary } from "@/components/orders/QuoteSummary";
@@ -631,7 +632,7 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
     <main className="order-status-page">
       <style>{orderStatusCss}</style>
       <section className="order-header">
-        <p>주문번호: {order.order_number}</p>
+        <p>주문번호: <CopyOrderNumber value={order.order_number} /></p>
         <h1>{serviceName(order)}</h1>
         <span>접수일: {dateLabel(order.created_at)}</span>
       </section>
@@ -689,7 +690,7 @@ export function OrderStatusClient({ orderId, accessToken, kakaoUrl, servicePhone
       <section className="order-card">
         <h2>주문 기본 정보</h2>
         <dl className="summary-list">
-          <div><dt>주문번호</dt><dd>{order.order_number}</dd></div>
+          <div><dt>주문번호</dt><dd><CopyOrderNumber value={order.order_number} /></dd></div>
           <div><dt>서비스</dt><dd>{serviceName(order)}</dd></div>
           <div><dt>주소</dt><dd>{order.home?.address_full ?? "주소 확인 중"}</dd></div>
           <div><dt>접수일</dt><dd>{formatKRDateTime(order.created_at)}</dd></div>
