@@ -121,8 +121,10 @@ const heroCss = `
 .hero2m .hero2-label { align-self: flex-start; }
 .hero2m-title { margin: 0; font-size: clamp(24px, 7vw, 30px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.2; color: var(--color-text); }
 .hero2m-desc { margin: 0; font-size: 15px; line-height: 1.55; color: var(--color-text-muted); }
-/* 모바일 버튼은 웹과 동일한 .hero2-cta / .web-btn 재사용 (알약 모양, 내용 크기) */
-.hero2m .hero2-cta { margin-top: 6px; }
+/* 모바일 버튼은 웹과 동일한 .hero2-cta / .web-btn 재사용 (알약 모양, 내용 크기) — 모바일에선 더 작게 */
+.hero2m .hero2-cta { margin-top: 6px; gap: 8px; }
+.hero2m .web-btn { padding: 7px 15px !important; font-size: 13px !important; font-weight: 600 !important; }
+.hero2m .web-btn svg { width: 15px !important; height: 15px !important; }
 `;
 
 export function HomeLanding() {
