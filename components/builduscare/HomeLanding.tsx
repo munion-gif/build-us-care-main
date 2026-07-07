@@ -104,6 +104,7 @@ const heroCss = `
 .hero2-label { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--color-primary); background: var(--color-primary-highlight); padding: 8px 14px; border-radius: 999px; line-height: 1.3; }
 .hero2-label svg { width: 15px; height: 15px; flex: none; }
 .hero2-title { margin: 0; font-size: clamp(30px, 3.6vw, 46px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.16; color: var(--color-text); }
+.hero2-subline { margin: 0; font-size: 17px; font-weight: 700; line-height: 1.4; letter-spacing: -0.01em; color: var(--color-text); }
 .hero2-desc { margin: 0; font-size: clamp(15px, 1.35vw, 18px); line-height: 1.6; color: var(--color-text-muted); }
 .hero2-cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
 .hero2-area { display: flex; align-items: flex-start; gap: 6px; margin: 2px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--color-text-faint); }
@@ -120,6 +121,7 @@ const heroCss = `
 .hero2m { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; padding: 24px 20px 10px; }
 .hero2m .hero2-label { align-self: flex-start; }
 .hero2m-title { margin: 0; font-size: clamp(24px, 7vw, 30px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.2; color: var(--color-text); }
+.hero2m-subline { margin: 0; font-size: 14.5px; font-weight: 700; line-height: 1.4; letter-spacing: -0.01em; color: var(--color-text); }
 .hero2m-desc { margin: 0; font-size: 15px; line-height: 1.55; color: var(--color-text-muted); }
 /* 모바일 버튼은 웹과 동일한 .hero2-cta / .web-btn 재사용 (알약 모양, 내용 크기) — 모바일에선 더 작게 */
 .hero2m .hero2-cta { margin-top: 6px; gap: 8px; }
@@ -135,6 +137,7 @@ export function HomeLanding() {
         <section className="hero2m" aria-label="Build us Care 소개">
           <span className="hero2-label"><ShieldCheckIcon /> {heroLabelText}</span>
           <h1 className="hero2m-title">집 전체 공사 말고,<br />낡아 보이는 것부터 교체하세요.</h1>
+          <p className="hero2m-subline">세면대, 양변기, 환풍기, 수전, 문손잡이 등<br />쉽고 빠르게 교체하세요.</p>
           <p className="hero2m-desc">사진으로 교체 가능 여부를 먼저 확인하고,<br />제품값과 시공비를 나눠 보고 예약할 수 있어요.</p>
           <div className="hero2-cta">
             <Link className="web-btn pri" href="/photo-check">사진으로 확인하기</Link>
@@ -194,6 +197,7 @@ export function HomeLanding() {
           <div className="hero2-left">
             <span className="hero2-label"><ShieldCheckIcon /> {heroLabelText}</span>
             <h1 className="hero2-title">집 전체 공사 말고,<br />낡아 보이는 것부터 교체하세요.</h1>
+            <p className="hero2-subline">세면대, 양변기, 환풍기, 수전, 문손잡이 등<br />쉽고 빠르게 교체하세요.</p>
             <p className="hero2-desc">사진으로 교체 가능 여부를 먼저 확인하고,<br />제품값과 시공비를 나눠 보고 예약할 수 있어요.</p>
             <div className="hero2-cta">
               <Link className="web-btn pri" href="/photo-check">사진으로 확인하기</Link>
