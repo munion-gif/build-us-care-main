@@ -145,8 +145,9 @@ const heroCss = `
 .hero-iconstrip-nm { font-size: 11.5px; font-weight: 600; color: var(--color-text-muted); white-space: nowrap; letter-spacing: -0.02em; }
 
 /* '하면 쉬운 이유' 섹션에 '바꿀 수 있는 9가지'와 같은 회색 배경 밴드 (웹·모바일) */
-.home-desktop .why-sec { background: #F5F5F7; margin: 32px calc(50% - 50vw + 96px) 0; padding: 56px max(24px, calc(50vw - 528px)) 64px; }
-.home-mobile .home-mobile-section { background: #F5F5F7; margin: 24px -20px 0; padding: 24px 20px 24px; }
+.home-desktop .why-sec { background: #F5F5F7 !important; margin: 24px calc(50% - 50vw + 96px) 0 !important; padding: 56px max(24px, calc(50vw - 528px)) 64px !important; }
+/* 모바일: 배경만 화면 꽉 차게(풀블리드) + 내용 좌우 20px 여백 유지 */
+.home-mobile .home-mobile-section { background: #F5F5F7 !important; margin: 24px calc(50% - 50vw) 0 !important; padding: 24px 20px 24px !important; }
 
 /* 교체사례 미리보기 (안 A · '하면 쉬운 이유' 카드 디자인 — 각 사례가 개별 카드) */
 .ctz-sec { padding: 8px 0 4px; margin-top: 28px; }
