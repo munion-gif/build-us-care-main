@@ -28,6 +28,123 @@ export type CaseItem = {
 
 export const CASES: CaseItem[] = [
   {
+    slug: "pangyo-hillstate-washbasin-set",
+    title: "성남시 분당구 판교원마을 힐스테이트 세면대·수전 교체",
+    category: "세면대·수전",
+    region: "경기 성남시 분당구 판교원마을 힐스테이트",
+    costTotal: 329000,
+    costBreakdown: [
+      { label: "세면대 제품가", amount: 141000 },
+      { label: "세면수전 제품가", amount: 56000 },
+      { label: "시공비 (세면대+수전)", amount: 132000 }
+    ],
+    durationMin: 40,
+    date: "2026-07-05",
+    cover: "/case-photos/pangyo-hillstate/after-1.jpg",
+    summary: "깨진 곳을 메워 쓰던 낡은 세면대를, 인기 모델 세면대와 어울리는 수전까지 함께 교체해 새 욕실처럼 바꿨습니다.",
+    body: [
+      {
+        kind: "text",
+        heading: "이런 경우, 교체가 답이에요",
+        text: "세면대가 깨진 곳을 메워서 쓰면 아무리 청소해도 그 틈으로 금방 때가 끼고, 욕실 전체가 낡고 오래돼 보입니다. 세면대를 바꾸는 김에 수전까지 함께 교체하면 분위기가 확 달라져요."
+      },
+      {
+        kind: "text",
+        heading: "시공 전 상태",
+        text: "판교원마을 힐스테이트. 기존 세면대는 깨진 곳을 메워 그대로 사용 중이었고, 그 틈이 금방 더러워져 낡고 오래된 인상을 주고 있었습니다."
+      },
+      {
+        kind: "photos",
+        label: "시공 전",
+        urls: ["/case-photos/pangyo-hillstate/before-1.jpg", "/case-photos/pangyo-hillstate/before-2.jpg"]
+      },
+      {
+        kind: "text",
+        heading: "시공 과정",
+        text: "가장 인기 있는 심플한 대림바스 CL-370 발다리 일체형 세면대를 고르셨고, 세면대와 어울리는 같은 브랜드의 대림바스 DL-L2210 세면수전을 추천드려 함께 교체했습니다."
+      },
+      {
+        kind: "photos",
+        label: "시공 중",
+        urls: ["/case-photos/pangyo-hillstate/during.jpg"]
+      },
+      {
+        kind: "text",
+        heading: "시공 후 모습",
+        text: "낡은 세면대를 떼어내고 새 세면대와 수전으로 교체하니, 세면대 하나로 새 욕실처럼 분위기가 바뀌었다며 아주 만족하셨습니다."
+      },
+      {
+        kind: "photos",
+        label: "시공 완료",
+        urls: [
+          "/case-photos/pangyo-hillstate/after-1.jpg",
+          "/case-photos/pangyo-hillstate/after-2.jpg",
+          "/case-photos/pangyo-hillstate/after-3.jpg"
+        ]
+      }
+    ],
+    highlights: [
+      "깨진 곳 메워 쓰던 낡은 세면대 → 대림바스 CL-370 발다리 일체형 세면대 교체",
+      "세면대와 어울리는 대림바스 DL-L2210 세면수전 함께 교체",
+      "세면대·수전 한 번에 바꿔 새 욕실처럼",
+      "약 40분 만에 당일 완료"
+    ]
+  },
+  {
+    slug: "bundang-maehwa-washbasin-faucet",
+    title: "성남시 분당구 매화마을2단지 세면수전 교체",
+    category: "세면수전",
+    region: "경기 성남시 분당구 매화마을2단지",
+    costTotal: 102000,
+    costLabor: 44000,
+    costProduct: 58000,
+    durationMin: 20,
+    date: "2026-07-05",
+    cover: "/case-photos/bundang-maehwa/after-1.jpg",
+    summary: "도금이 다 벗겨진 검은색 세면수전을, 밝게 빛나는 크롬 수전으로 교체해 화장실 분위기를 환하게 바꿨습니다.",
+    body: [
+      {
+        kind: "text",
+        heading: "한 부분만 바꿔도 이렇게 달라져요",
+        text: "수전 도금이 벗겨지기 시작하면 아무리 청소해도 원래대로 돌아오지 않고, 주변과 색이 안 맞으면 화장실 전체가 어두워 보입니다. 수전 하나만 바꿔도 분위기가 확 달라져요."
+      },
+      {
+        kind: "text",
+        heading: "시공 전 상태",
+        text: "분당 매화마을2단지. 검은색 세면수전의 도금이 모두 벗겨져 청소로도 회복되지 않았고, 주변과 어울리지 않아 늘 고민이셨습니다."
+      },
+      {
+        kind: "photos",
+        label: "시공 전",
+        urls: [
+          "/case-photos/bundang-maehwa/before-1.jpg",
+          "/case-photos/bundang-maehwa/before-2.jpg",
+          "/case-photos/bundang-maehwa/before-3.jpg"
+        ]
+      },
+      {
+        kind: "text",
+        heading: "시공 후 모습",
+        text: "밝게 빛나는 크롬 세면수전(아메리칸스탠다드 CUBE-P)으로 교체했습니다. 검은색에서 크롬으로 바꾸니 화장실이 한결 밝아졌고, 수전 하나 교체로 분위기가 달라졌다며 좋아하셨습니다."
+      },
+      {
+        kind: "photos",
+        label: "시공 완료",
+        urls: [
+          "/case-photos/bundang-maehwa/after-1.jpg",
+          "/case-photos/bundang-maehwa/after-2.jpg",
+          "/case-photos/bundang-maehwa/after-3.jpg"
+        ]
+      }
+    ],
+    highlights: [
+      "도금 벗겨진 검은색 세면수전 → 아메리칸스탠다드 CUBE-P 크롬 수전 교체",
+      "크롬으로 바꿔 화장실이 한결 밝아짐",
+      "수전 하나 교체로 분위기 전환",
+      "약 20분 만에 당일 완료"
+    ]
+  },
+  {
     slug: "dongtan-parkprugio-yangbyungi",
     title: "화성시 동탄 파크푸르지오 양변기 교체",
     category: "양변기",
