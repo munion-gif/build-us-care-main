@@ -127,6 +127,13 @@ const heroCss = `
 .hero2m .hero2-cta { margin-top: 6px; gap: 8px; }
 .hero2m .web-btn { padding: 7px 15px !important; font-size: 13px !important; font-weight: 600 !important; }
 .hero2m .web-btn svg { width: 15px !important; height: 15px !important; }
+/* 모바일 전용 — 품목 아이콘 가로 스크롤 줄 */
+.hero-iconstrip { display: flex; gap: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 6px 20px 16px; margin: 0; scrollbar-width: none; }
+.hero-iconstrip::-webkit-scrollbar { display: none; }
+.hero-iconstrip-item { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 56px; text-decoration: none; color: var(--color-text); }
+.hero-iconstrip-im { width: 58px; height: 58px; display: grid; place-items: center; background: var(--color-surface-2); border-radius: 16px; }
+.hero-iconstrip-im img { width: 72%; height: 72%; object-fit: contain; display: block; }
+.hero-iconstrip-nm { font-size: 11.5px; font-weight: 600; color: var(--color-text-muted); white-space: nowrap; letter-spacing: -0.02em; }
 `;
 
 export function HomeLanding() {
@@ -151,6 +158,17 @@ export function HomeLanding() {
             <span><b>서비스 가능지역</b> {heroAreaCities} <span className="exp">· 추후 확장 예정</span></span>
           </p>
         </section>
+
+        <nav className="hero-iconstrip" aria-label="교체 품목 바로가기">
+          {heroIcons.map((it) => (
+            <Link key={it.slug} className="hero-iconstrip-item" href={`/products/${it.slug}`}>
+              <span className="hero-iconstrip-im">
+                <img src={`/assets/hero-icons/${it.slug}.png`} alt="" loading="lazy" decoding="async" />
+              </span>
+              <span className="hero-iconstrip-nm">{it.label}</span>
+            </Link>
+          ))}
+        </nav>
 
         <section className="home-mobile-section">
           <div className="h-md" style={{ fontSize: 25 }}>Build us Care에서<br />하면 쉬운 이유.</div>
