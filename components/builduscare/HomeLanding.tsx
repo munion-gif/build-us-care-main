@@ -1,6 +1,15 @@
 import Link from "next/link";
 import { BUILDUSCARE_CATEGORIES } from "@/lib/builduscare-public-routes";
 import { BUILDUSCARE_LINEUP_IMAGES } from "@/lib/builduscare-lineup-assets";
+import { getAllCases, getCoverImage, formatWon } from "@/lib/cases-data";
+
+// 지역 문자열에서 "시 구"만 짧게 (예: "경기 성남시 분당구 판교원마을 힐스테이트" → "성남시 분당구")
+function shortRegion(region: string): string {
+  const tokens = region.replace(/^경기\s*/, "").split(/\s+/);
+  const si = tokens.find((t) => t.endsWith("시")) ?? tokens[0] ?? "";
+  const gu = tokens.find((t) => t.endsWith("구"));
+  return gu ? `${si} ${gu}` : si;
+}
 
 const whyItems = [
   {
@@ -134,9 +143,58 @@ const heroCss = `
 .hero-iconstrip-im { width: 58px; height: 58px; display: grid; place-items: center; background: var(--color-surface-2); border-radius: 16px; }
 .hero-iconstrip-im img { width: 72%; height: 72%; object-fit: contain; display: block; }
 .hero-iconstrip-nm { font-size: 11.5px; font-weight: 600; color: var(--color-text-muted); white-space: nowrap; letter-spacing: -0.02em; }
+
+/* 교체사례 미리보기 (안 A · '하면 쉬운 이유' 카드 디자인 — 각 사례가 개별 카드) */
+.ctz-sec { padding: 8px 0 20px; }
+.ctz-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.ctz-eyebrow { font-size: 13px; font-weight: 700; color: var(--color-primary); margin-bottom: 6px; }
+.ctz-title { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.25; margin: 0; }
+.ctz-more { flex: none; font-size: 15px; font-weight: 600; color: var(--color-text-muted); text-decoration: none; white-space: nowrap; }
+.ctz-scroll { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: none; }
+.ctz-scroll::-webkit-scrollbar { display: none; }
+.ctz-card { flex: 0 0 auto; width: 230px; background: #fff; border-radius: 18px; box-shadow: var(--bc-soft); overflow: hidden; text-decoration: none; color: var(--color-text); transition: transform .2s ease, box-shadow .2s ease; }
+.ctz-card:hover { transform: translateY(-3px); box-shadow: 0 14px 34px -16px rgba(16,24,40,.28); }
+.ctz-im { display: block; aspect-ratio: 4 / 3; background: var(--color-surface-2); overflow: hidden; }
+.ctz-im img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ctz-body { display: block; padding: 13px 15px 15px; }
+.ctz-cat { display: inline-block; font-size: 12px; font-weight: 700; color: var(--color-primary); background: var(--color-primary-highlight); padding: 4px 10px; border-radius: 999px; }
+.ctz-rg { display: block; font-size: 13.5px; color: var(--color-text-muted); margin-top: 9px; }
+.ctz-pr { display: block; font-size: 17px; font-weight: 800; margin-top: 3px; }
+.home-mobile .ctz-sec { padding: 6px 0 8px; }
+.home-mobile .ctz-head { padding: 0 20px; margin-bottom: 14px; }
+.home-mobile .ctz-scroll { padding: 0 20px 8px; gap: 12px; }
+.home-mobile .ctz-title { font-size: 22px; }
+.home-mobile .ctz-more { font-size: 13px; }
+.home-mobile .ctz-card { width: 200px; }
 `;
 
 export function HomeLanding() {
+  const teaserCases = getAllCases().slice(0, 8);
+  const casesTeaser = (
+    <section className="ctz ctz-sec" aria-label="교체 사례">
+      <div className="ctz-head">
+        <div>
+          <div className="ctz-eyebrow">교체사례</div>
+          <h2 className="ctz-title">교체 사례를 보고<br />우리집과 비교해 보세요</h2>
+        </div>
+        <Link className="ctz-more" href="/cases">전체 보기 ›</Link>
+      </div>
+      <div className="ctz-scroll">
+        {teaserCases.map((c) => (
+          <Link key={c.slug} className="ctz-card" href={`/cases/${c.slug}`}>
+            <span className="ctz-im">
+              <img src={getCoverImage(c) ?? ""} alt="" loading="lazy" decoding="async" />
+            </span>
+            <span className="ctz-body">
+              <span className="ctz-cat">{c.category}</span>
+              <span className="ctz-rg">{shortRegion(c.region)}</span>
+              <span className="ctz-pr">{formatWon(c.costTotal)}</span>
+            </span>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
   return (
     <main className="bc-page">
       <style dangerouslySetInnerHTML={{ __html: heroCss }} />
@@ -186,6 +244,8 @@ export function HomeLanding() {
             ))}
           </div>
         </section>
+
+        {casesTeaser}
 
         <section className="lineup-band-m" aria-label="교체 가능 품목">
           <div className="h-md" style={{ fontSize: 25 }}>지금 바로<br />바꿀 수 있는 9가지</div>
@@ -260,6 +320,8 @@ export function HomeLanding() {
             ))}
           </div>
         </section>
+
+        {casesTeaser}
 
         <section className="lineup-band" aria-label="교체 가능 품목">
           <div className="between" style={{ marginTop: 0 }}>
