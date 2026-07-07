@@ -449,7 +449,7 @@ export function OrderLookupClient() {
         <section className="bcard pad order-lookup-card" style={{ padding: 24, marginTop: 22 }}>
           <div className="field">
             <label>주문번호</label>
-            <input className="input" value={orderNumber} onChange={(event) => setOrderNumber(event.target.value.toUpperCase())} placeholder="BC-000000-000" />
+            <input className="input" value={orderNumber} onChange={(event) => setOrderNumber(event.target.value.toUpperCase())} placeholder="BO-00000000-000000" />
           </div>
           <div className="field" style={{ marginTop: 14 }}>
             <label>전화번호</label>
