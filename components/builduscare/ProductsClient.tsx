@@ -410,6 +410,7 @@ export function ProductsClient({
   const [quickChoice, setQuickChoice] = useState<BuilduscarePublicProduct | null>(null);
   const [storageReady, setStorageReady] = useState(false);
   const [isMobileList, setIsMobileList] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false); // 모바일 예상견적 시트 열림
   const selectionsRef = useRef(selections);
   const selfDisposalRef = useRef(selfDisposal);
   const storageReadyRef = useRef(storageReady);
@@ -853,6 +854,28 @@ export function ProductsClient({
 
   return (
     <main className="bc-page products-category-page">
+      <style dangerouslySetInnerHTML={{ __html: `
+/* 모바일: 예상 견적(장바구니)을 하단 시트로 표시 — 데스크톱 EstimatePanel 재사용 */
+.cartsheet-close { display: none; }
+.cartsheet-open .cartsheet-close { display: inline-flex; align-items: center; gap: 4px; margin: 2px 2px 0 auto; padding: 8px 6px; background: transparent; border: none; color: var(--gray-500, #667085); font-size: 14px; font-weight: 600; cursor: pointer; }
+.cartsheet-backdrop { display: none; }
+@media (max-width: 560px) {
+  .cartsheet-backdrop { display: block; position: fixed; inset: 0; background: rgba(16,24,40,.45); z-index: 1199; }
+  .products-category-page .sticky-side.cartsheet-open {
+    display: block !important;
+    position: fixed !important;
+    top: auto !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+    width: auto !important; max-width: none !important; margin: 0 !important;
+    max-height: 88vh; overflow-y: auto; z-index: 1200;
+    background: #fff; border-radius: 20px 20px 0 0;
+    box-shadow: 0 -12px 40px -12px rgba(16,24,40,.3);
+    padding: 6px 14px calc(18px + env(safe-area-inset-bottom));
+    animation: cartsheet-up .22s ease;
+  }
+  .sticky-side.cartsheet-open .bcard { box-shadow: none !important; border: none !important; padding-top: 4px !important; }
+  @keyframes cartsheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+}
+      ` }} />
       <MobileAppBar title={activeCategory.title} subtitle={activeCategory.english} backHref="/products" showSearch />
       <div className="wrap">
         <div className="stepline" aria-label="진행 단계">
@@ -954,6 +977,8 @@ export function ProductsClient({
               categoryTitleByService={categoryTitleByService}
               onOpenEstimate={openEstimatePreview}
               onOpenOrderForm={openReservationFlow}
+              sheetOpen={cartOpen}
+              onCloseSheet={() => setCartOpen(false)}
             />
         </div>
 
@@ -969,6 +994,9 @@ export function ProductsClient({
 
       </div>
 
+      {cartOpen && (
+        <div className="cartsheet-backdrop bc-mobile-only" role="presentation" onClick={() => setCartOpen(false)} />
+      )}
       <div className="bc-mobile-only cartbar mobile-estimate-bar" id="mCartbar" aria-live="polite">
         <div className="grow">
           <b>{selections.length}개 선택</b>
@@ -979,9 +1007,9 @@ export function ProductsClient({
           type="button"
           aria-disabled={selections.length === 0}
           disabled={selections.length === 0}
-          onClick={openReservationFlow}
+          onClick={() => setCartOpen(true)}
         >
-          예약 정보 입력
+          예상 견적 보기
         </button>
       </div>
 

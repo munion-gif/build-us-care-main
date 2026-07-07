@@ -24,6 +24,8 @@ type EstimatePanelProps = {
   onRemoveSelection: (key: string) => void;
   onOpenEstimate: () => void;
   onOpenOrderForm: () => void;
+  sheetOpen?: boolean; // 모바일에서 하단 시트로 열렸는지
+  onCloseSheet?: () => void; // 모바일 시트 닫기
 };
 
 function KakaoIcon() {
@@ -50,7 +52,9 @@ export function EstimatePanel({
   onToggleSelfDisposal,
   onRemoveSelection,
   onOpenEstimate,
-  onOpenOrderForm
+  onOpenOrderForm,
+  sheetOpen,
+  onCloseSheet
 }: EstimatePanelProps) {
   const hasSelections = selections.length > 0;
   const hasSiliconeSelection = selections.some((item) => isSiliconeLaborService(item.product.serviceCode));
@@ -58,7 +62,12 @@ export function EstimatePanel({
   const laborUnitSummary = onlySiliconeSelection ? laborQtyText("silicone_repair", units) : hasSiliconeSelection ? "품목별" : `×${units}`;
 
   return (
-    <aside className="sticky-side" style={{ position: "sticky", top: 92, alignSelf: "start", height: "max-content" }}>
+    <aside className={`sticky-side${sheetOpen ? " cartsheet-open" : ""}`} style={{ position: "sticky", top: 92, alignSelf: "start", height: "max-content" }}>
+      {onCloseSheet ? (
+        <button type="button" className="cartsheet-close" onClick={onCloseSheet} aria-label="견적 닫기">
+          ✕ 닫기
+        </button>
+      ) : null}
       <div className="bcard pad" id="wEstimate">
         <h2 className="h-md">예상 견적</h2>
         <div style={{ marginTop: 14 }}>
