@@ -145,27 +145,32 @@ const heroCss = `
 .hero-iconstrip-nm { font-size: 11.5px; font-weight: 600; color: var(--color-text-muted); white-space: nowrap; letter-spacing: -0.02em; }
 
 /* 교체사례 미리보기 (안 A · '하면 쉬운 이유' 카드 디자인 — 각 사례가 개별 카드) */
-.ctz-sec { padding: 8px 0 20px; }
-.ctz-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.ctz-sec { padding: 8px 0 4px; }
+.ctz-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
 .ctz-eyebrow { font-size: 13px; font-weight: 700; color: var(--color-primary); margin-bottom: 6px; }
 .ctz-title { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.25; margin: 0; }
 .ctz-more { flex: none; font-size: 15px; font-weight: 600; color: var(--color-text-muted); text-decoration: none; white-space: nowrap; }
-.ctz-scroll { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: none; }
+/* 상하 여백을 줘서 hover로 살짝 떠도 잘리지 않게 */
+.ctz-scroll { display: flex; gap: 16px; overflow-x: auto; padding: 10px 4px 26px; scrollbar-width: none; }
 .ctz-scroll::-webkit-scrollbar { display: none; }
 .ctz-card { flex: 0 0 auto; width: 230px; background: #fff; border-radius: 18px; box-shadow: var(--bc-soft); overflow: hidden; text-decoration: none; color: var(--color-text); transition: transform .2s ease, box-shadow .2s ease; }
-.ctz-card:hover { transform: translateY(-3px); box-shadow: 0 14px 34px -16px rgba(16,24,40,.28); }
+/* hover 효과는 마우스가 있는 기기(웹)에서만 */
+@media (hover: hover) {
+  .ctz-card:hover { transform: translateY(-4px); box-shadow: 0 16px 36px -18px rgba(16,24,40,.28); }
+}
 .ctz-im { display: block; aspect-ratio: 4 / 3; background: var(--color-surface-2); overflow: hidden; }
 .ctz-im img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ctz-body { display: block; padding: 13px 15px 15px; }
 .ctz-cat { display: inline-block; font-size: 12px; font-weight: 700; color: var(--color-primary); background: var(--color-primary-highlight); padding: 4px 10px; border-radius: 999px; }
 .ctz-rg { display: block; font-size: 13.5px; color: var(--color-text-muted); margin-top: 9px; }
 .ctz-pr { display: block; font-size: 17px; font-weight: 800; margin-top: 3px; }
-.home-mobile .ctz-sec { padding: 6px 0 8px; }
-.home-mobile .ctz-head { padding: 0 20px; margin-bottom: 14px; }
-.home-mobile .ctz-scroll { padding: 0 20px 8px; gap: 12px; }
+.home-mobile .ctz-sec { padding: 6px 0 4px; }
+.home-mobile .ctz-head { padding: 0 20px; margin-bottom: 12px; }
+.home-mobile .ctz-scroll { padding: 4px 20px 16px; gap: 12px; }
 .home-mobile .ctz-title { font-size: 22px; }
 .home-mobile .ctz-more { font-size: 13px; }
-.home-mobile .ctz-card { width: 200px; }
+/* 모바일: 커지는 애니메이션 제거 */
+.home-mobile .ctz-card { width: 200px; transition: none; transform: none !important; }
 `;
 
 export function HomeLanding() {
