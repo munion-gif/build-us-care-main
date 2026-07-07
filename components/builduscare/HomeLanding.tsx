@@ -78,6 +78,19 @@ const heroLabelText = "투명하고 숨김 없는 견적 · 추가금 없이 끝
 
 const heroAreaCities = "수원, 용인, 동탄, 군포, 의왕, 성남(분당구), 안양(동안구)";
 
+// 히어로 우측 카드에 3×3으로 들어가는 제품 아이콘 (교체 품목 9종)
+const heroIcons = [
+  { slug: "toilet", label: "양변기" },
+  { slug: "washbasin", label: "세면대" },
+  { slug: "faucet", label: "수전" },
+  { slug: "bidet", label: "비데" },
+  { slug: "ventilation", label: "환풍기" },
+  { slug: "window-handle", label: "창호 손잡이" },
+  { slug: "door-handle", label: "도어 손잡이" },
+  { slug: "silicone", label: "실리콘" },
+  { slug: "bath-accessory", label: "욕실 액세서리" }
+];
+
 function PinIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -88,8 +101,8 @@ function PinIcon() {
 }
 
 const heroCss = `
-.hero2 { padding: clamp(40px, 6vw, 76px) 0 clamp(32px, 4vw, 52px); }
-.hero2-left { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; max-width: 760px; }
+.hero2 { display: grid; grid-template-columns: 55% 45%; gap: clamp(24px, 4vw, 48px); align-items: center; padding: clamp(36px, 5vw, 64px) 0 clamp(28px, 4vw, 44px); }
+.hero2-left { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; max-width: 640px; }
 .hero2-label { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--color-primary); background: var(--color-primary-highlight); padding: 8px 14px; border-radius: 999px; line-height: 1.3; }
 .hero2-label svg { width: 15px; height: 15px; flex: none; }
 .hero2-title { margin: 0; font-size: clamp(30px, 3.6vw, 46px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.16; color: var(--color-text); }
@@ -100,16 +113,13 @@ const heroCss = `
 .hero2-area b { font-weight: 700; color: var(--color-text-muted); }
 .hero2-area .exp { color: var(--color-text-faint); }
 .hero2-right { min-width: 0; }
-.hero2-visual { background: var(--color-surface-2); border: 1px solid var(--color-border); border-radius: 24px; padding: 20px; }
-.hero2-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.hero2-card { display: flex; flex-direction: column; gap: 8px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 16px; padding: 12px; text-decoration: none; color: var(--color-text); transition: transform .15s ease, box-shadow .15s ease; }
-.hero2-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px -14px rgba(16,24,40,.25); }
-.hero2-card-im { aspect-ratio: 5 / 4; border-radius: 11px; background: #fff; border: 1px solid var(--color-border); display: grid; place-items: center; overflow: hidden; }
-.hero2-card-im img { width: 78%; height: 78%; object-fit: contain; }
-.hero2-card-nm { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
-.hero2-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+/* '하면 쉬운 이유' 카드와 동일한 톤: 흰 배경 + 둥근 모서리 + 부드러운 그림자 */
+.hero2-iconcard { background: #fff; border-radius: 18px; box-shadow: var(--bc-soft); padding: clamp(16px, 2.2vw, 26px); }
+.hero2-icongrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(8px, 1.4vw, 16px); }
+.hero2-icon { aspect-ratio: 1 / 1; display: grid; place-items: center; border-radius: 14px; background: var(--color-surface-2); }
+.hero2-icon img { width: 66%; height: 66%; object-fit: contain; display: block; }
 .hero2-badge { font-size: 12.5px; font-weight: 600; color: var(--color-text-muted); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 999px; padding: 7px 12px; }
-@media (max-width: 900px) { .hero2 { grid-template-columns: 1fr; } .hero2-right { margin-top: 6px; } }
+@media (max-width: 900px) { .hero2 { grid-template-columns: 1fr; } .hero2-right { margin-top: 4px; } }
 .hero2m { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; padding: 22px 0 6px; }
 .hero2m .hero2-label { align-self: flex-start; }
 .hero2m-title { margin: 0; font-size: clamp(24px, 7vw, 30px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.2; color: var(--color-text); }
@@ -204,6 +214,17 @@ export function HomeLanding() {
               <PinIcon />
               <span><b>서비스 가능지역</b> {heroAreaCities} <span className="exp">· 추후 확장 예정</span></span>
             </p>
+          </div>
+          <div className="hero2-right" aria-hidden="true">
+            <div className="hero2-iconcard">
+              <div className="hero2-icongrid">
+                {heroIcons.map((it) => (
+                  <span key={it.slug} className="hero2-icon">
+                    <img src={`/assets/hero-icons/${it.slug}.png`} alt="" loading="lazy" decoding="async" />
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
         </section>
 
