@@ -147,8 +147,9 @@ const heroCss = `
 /* 교체사례 미리보기 (안 A · '하면 쉬운 이유' 카드 디자인 — 각 사례가 개별 카드) */
 .ctz-sec { padding: 8px 0 4px; }
 .ctz-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
-.ctz-eyebrow { font-size: 13px; font-weight: 700; color: var(--color-primary); margin-bottom: 6px; }
-.ctz-title { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.25; margin: 0; }
+/* '바꿀 수 있는 9가지' 섹션 제목(.eyebrow / .web-h2)과 폰트·크기·굵기 동일하게 */
+.ctz-eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: var(--brand-700); margin-bottom: 6px; }
+.ctz-title { font-size: 34px; font-weight: 600; letter-spacing: -0.022em; line-height: 1.1; margin: 0; }
 .ctz-more { flex: none; font-size: 15px; font-weight: 600; color: var(--color-text-muted); text-decoration: none; white-space: nowrap; }
 /* 상하 여백을 줘서 hover로 살짝 떠도 잘리지 않게 */
 .ctz-scroll { display: flex; gap: 16px; overflow-x: auto; padding: 10px 4px 26px; scrollbar-width: none; }
@@ -167,7 +168,7 @@ const heroCss = `
 .home-mobile .ctz-sec { padding: 6px 0 4px; }
 .home-mobile .ctz-head { padding: 0 20px; margin-bottom: 12px; }
 .home-mobile .ctz-scroll { padding: 4px 20px 16px; gap: 12px; }
-.home-mobile .ctz-title { font-size: 22px; }
+.home-mobile .ctz-title { font-size: 25px; letter-spacing: -0.018em; line-height: 1.32; }
 .home-mobile .ctz-more { font-size: 13px; }
 /* 모바일: 커지는 애니메이션 제거 */
 .home-mobile .ctz-card { width: 200px; transition: none; transform: none !important; }
