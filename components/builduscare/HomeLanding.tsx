@@ -116,8 +116,8 @@ const heroCss = `
 /* '하면 쉬운 이유' 카드와 동일한 톤: 흰 배경 + 둥근 모서리 + 부드러운 그림자 */
 .hero2-iconcard { background: #fff; border-radius: 18px; box-shadow: var(--bc-soft); padding: clamp(16px, 2.2vw, 26px); }
 .hero2-icongrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(8px, 1.4vw, 16px); }
-.hero2-icon { aspect-ratio: 1 / 1; display: grid; place-items: center; border-radius: 14px; background: var(--color-surface-2); }
-.hero2-icon img { width: 66%; height: 66%; object-fit: contain; display: block; }
+.hero2-icon { aspect-ratio: 1 / 1; display: grid; place-items: center; }
+.hero2-icon img { width: 74%; height: 74%; object-fit: contain; display: block; }
 .hero2-badge { font-size: 12.5px; font-weight: 600; color: var(--color-text-muted); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 999px; padding: 7px 12px; }
 @media (max-width: 900px) { .hero2 { grid-template-columns: 1fr; } .hero2-right { margin-top: 4px; } }
 .hero2m { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; padding: 22px 0 6px; }
