@@ -101,7 +101,7 @@ function PinIcon() {
 }
 
 const heroCss = `
-.hero2 { display: grid; grid-template-columns: 55% 45%; gap: clamp(24px, 4vw, 48px); align-items: center; padding: clamp(36px, 5vw, 64px) 0 clamp(28px, 4vw, 44px); }
+.hero2 { display: grid; grid-template-columns: 55% 45%; gap: clamp(24px, 4vw, 48px); align-items: stretch; padding: clamp(36px, 5vw, 64px) 0 clamp(28px, 4vw, 44px); }
 .hero2-left { display: flex; flex-direction: column; align-items: flex-start; gap: 18px; max-width: 640px; }
 .hero2-label { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--color-primary); background: var(--color-primary-highlight); padding: 8px 14px; border-radius: 999px; line-height: 1.3; }
 .hero2-label svg { width: 15px; height: 15px; flex: none; }
@@ -112,12 +112,12 @@ const heroCss = `
 .hero2-area svg { width: 14px; height: 14px; flex: none; margin-top: 1px; }
 .hero2-area b { font-weight: 700; color: var(--color-text-muted); }
 .hero2-area .exp { color: var(--color-text-faint); }
-.hero2-right { min-width: 0; }
-/* '하면 쉬운 이유' 카드와 동일한 톤: 흰 배경 + 둥근 모서리 + 부드러운 그림자 */
-.hero2-iconcard { background: #fff; border-radius: 18px; box-shadow: var(--bc-soft); padding: clamp(16px, 2.2vw, 26px); }
-.hero2-icongrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(8px, 1.4vw, 16px); }
-.hero2-icon { aspect-ratio: 1 / 1; display: grid; place-items: center; }
-.hero2-icon img { width: 74%; height: 74%; object-fit: contain; display: block; }
+.hero2-right { min-width: 0; display: flex; min-height: 0; }
+/* '하면 쉬운 이유' 카드와 동일한 톤: 흰 배경 + 둥근 모서리 + 부드러운 그림자. 왼쪽 텍스트 높이에 맞춰 늘어남 */
+.hero2-iconcard { flex: 1; display: flex; flex-direction: column; min-height: 0; background: #fff; border-radius: 18px; box-shadow: var(--bc-soft); padding: clamp(16px, 2.2vw, 26px); }
+.hero2-icongrid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: clamp(8px, 1.4vw, 16px); }
+.hero2-icon { min-height: 0; display: grid; place-items: center; }
+.hero2-icon img { width: auto; height: auto; max-width: 74%; max-height: 74%; object-fit: contain; display: block; }
 .hero2-badge { font-size: 12.5px; font-weight: 600; color: var(--color-text-muted); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 999px; padding: 7px 12px; }
 @media (max-width: 900px) { .hero2 { grid-template-columns: 1fr; } .hero2-right { margin-top: 4px; } }
 .hero2m { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; padding: 22px 0 6px; }
