@@ -155,7 +155,7 @@ const heroCss = `
 /* '바꿀 수 있는 9가지' 섹션 제목(.eyebrow / .web-h2)과 폰트·크기·굵기 동일하게 */
 .ctz-eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.02em; color: var(--brand-700); margin-bottom: 6px; }
 .ctz-title { font-size: 34px; font-weight: 600; letter-spacing: -0.022em; line-height: 1.1; margin: 0; }
-.ctz-more { flex: none; font-size: 15px; font-weight: 600; color: var(--color-text-muted); text-decoration: none; white-space: nowrap; }
+.ctz-more { flex: none; font-size: 15px; font-weight: 600; color: var(--color-primary); text-decoration: none; white-space: nowrap; }
 /* 상하 여백을 줘서 hover로 살짝 떠도 잘리지 않게 */
 .ctz-scroll { display: flex; gap: 16px; overflow-x: auto; padding: 10px 4px 26px; scrollbar-width: none; }
 .ctz-scroll::-webkit-scrollbar { display: none; }
