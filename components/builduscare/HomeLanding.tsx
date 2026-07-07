@@ -72,8 +72,6 @@ function ShieldCheckIcon() {
   );
 }
 
-const heroBadges = ["사진 확인 후 교체 가능", "제품값 먼저 확인", "시공비 별도 안내"];
-
 const heroLabelText = "투명하고 숨김 없는 견적 · 추가금 없이 끝까지 그대로";
 
 const heroAreaCities = "수원, 용인, 동탄, 군포, 의왕, 성남(분당구), 안양(동안구)";
@@ -118,21 +116,13 @@ const heroCss = `
 .hero2-icongrid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: clamp(8px, 1.4vw, 16px); }
 .hero2-icon { min-height: 0; display: grid; place-items: center; }
 .hero2-icon img { width: auto; height: auto; max-width: 74%; max-height: 74%; object-fit: contain; display: block; }
-.hero2-badge { font-size: 12.5px; font-weight: 600; color: var(--color-text-muted); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 999px; padding: 7px 12px; }
 @media (max-width: 900px) { .hero2 { grid-template-columns: 1fr; } .hero2-right { margin-top: 4px; } }
 .hero2m { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; padding: 24px 20px 10px; }
 .hero2m .hero2-label { align-self: flex-start; }
 .hero2m-title { margin: 0; font-size: clamp(24px, 7vw, 30px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.2; color: var(--color-text); }
 .hero2m-desc { margin: 0; font-size: 15px; line-height: 1.55; color: var(--color-text-muted); }
-/* 모바일 히어로 버튼 — 웹과 동일한 채움 스타일(파랑/외곽선/카카오) */
-.hero2m .hl-cta { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 4px; }
-.hero2m .hl-row { display: flex; gap: 10px; }
-.hero2m .hl-btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 50px; padding: 0 10px; border-radius: 14px; font-size: 15px; font-weight: 700; letter-spacing: -0.01em; text-decoration: none; border: 1px solid transparent; white-space: nowrap; }
-.hero2m .hl-pri { background: var(--color-primary); color: #fff; }
-.hero2m .hl-out { background: #fff; color: var(--color-primary); border-color: var(--color-primary); }
-.hero2m .hl-kk { width: 100%; background: var(--color-kakao); color: var(--color-kakao-text); }
-.hero2m .hl-kk svg { width: 18px; height: 18px; flex: none; }
-.hero2m-badges { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 4px; }
+/* 모바일 버튼은 웹과 동일한 .hero2-cta / .web-btn 재사용 (알약 모양, 내용 크기) */
+.hero2m .hero2-cta { margin-top: 6px; }
 `;
 
 export function HomeLanding() {
@@ -144,19 +134,12 @@ export function HomeLanding() {
           <span className="hero2-label"><ShieldCheckIcon /> {heroLabelText}</span>
           <h1 className="hero2m-title">집 전체 공사 말고,<br />낡아 보이는 것부터 교체하세요.</h1>
           <p className="hero2m-desc">사진으로 교체 가능 여부를 먼저 확인하고,<br />제품값과 시공비를 나눠 보고 예약할 수 있어요.</p>
-          <div className="hl-cta">
-            <div className="hl-row">
-              <Link className="hl-btn hl-pri" href="/photo-check">사진으로 확인하기</Link>
-              <Link className="hl-btn hl-out" href="/products">바로 견적확인하기</Link>
-            </div>
-            <a className="hl-btn hl-kk" href="https://pf.kakao.com/_PxkzsX" target="_blank" rel="noreferrer">
+          <div className="hero2-cta">
+            <Link className="web-btn pri" href="/photo-check">사진으로 확인하기</Link>
+            <Link className="web-btn outline" href="/products">바로 견적확인하기</Link>
+            <a className="web-btn kkbtn" href="https://pf.kakao.com/_PxkzsX" target="_blank" rel="noreferrer">
               <KakaoIcon /> 카카오로 문의하기
             </a>
-          </div>
-          <div className="hero2m-badges">
-            {heroBadges.map((b) => (
-              <span key={b} className="hero2-badge">{b}</span>
-            ))}
           </div>
           <p className="hero2-area">
             <PinIcon />
