@@ -555,7 +555,8 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
   const customerLookupUrl = `${siteUrl()}/order-lookup?${lookupParams.toString()}`;
 
   return (
-    <>
+    <div className="odx">
+      <style>{ODX_CSS}</style>
       <header className="adm-page-header">
         <h1 className="adm-page-title">{order.order_number}</h1>
         <p className="adm-page-sub">
@@ -821,6 +822,45 @@ export default async function AdminOrderDetailPage({ params }: PageProps) {
           </div>
         </details>
       </div>
-    </>
+    </div>
   );
 }
+
+const ODX_CSS = `
+.odx { --p:#245fff; --pd:#1647d7; --psoft:#eff4ff; }
+.odx .adm-page-header { padding: 26px clamp(16px,2.4vw,34px) 0; }
+.odx .adm-page-title { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; color: #101828; }
+.odx .adm-content { padding: 18px clamp(16px,2.4vw,34px) 48px; }
+.odx .adm-stack { display: grid; gap: 14px; }
+/* 카드 통일: 흰 배경, 부드러운 테두리, 라운드 */
+.odx .adm-card { background: #fff !important; border: 1px solid #e5e7eb !important; border-radius: 16px !important; box-shadow: none !important; }
+.odx .adm-card-title { font-size: 15px !important; font-weight: 800 !important; color: #101828 !important; }
+.odx .adm-muted { color: #98a2b3 !important; font-size: 12.5px !important; }
+/* 버튼: 브랜드 파랑으로 통일(청록 제거) */
+.odx .adm-btn { border-radius: 10px !important; font-weight: 800 !important; }
+.odx .adm-btn-primary { background: var(--p) !important; border-color: var(--p) !important; color: #fff !important; }
+.odx .adm-btn-primary:hover { background: var(--pd) !important; }
+.odx .adm-btn-secondary { background: #f2f4f7 !important; border: 1px solid #e5e7eb !important; color: #667085 !important; }
+/* 배지 통일 */
+.odx .adm-badge { border-radius: 999px !important; font-weight: 800 !important; }
+.odx .adm-badge-blue, .odx .adm-badge-sky { background: var(--psoft) !important; color: var(--pd) !important; }
+/* 상단 콜아웃 */
+.odx .adm-current-action { display: flex; align-items: center; gap: 14px; border-left: 3px solid var(--p) !important; }
+.odx .adm-current-action h2 { font-size: 15px; font-weight: 800; margin: 0; color: #101828; }
+.odx .adm-current-action p { margin: 3px 0 0; color: #667085; font-size: 13px; }
+/* 3-요약 카드 */
+.odx .adm-order-brief-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.odx .adm-brief-card span { color: #98a2b3; font-size: 12px; font-weight: 700; }
+.odx .adm-brief-card strong { color: #101828; font-size: 16px; }
+.odx .adm-brief-card small { color: #667085; }
+/* 9-지표 요약: 더 촘촘하고 가볍게 */
+.odx .adm-buildus-metrics { display: grid !important; grid-template-columns: repeat(4, 1fr) !important; gap: 10px !important; }
+.odx .adm-buildus-metrics span { background: #f9fafb !important; border: 1px solid #eef1f5 !important; border-radius: 11px !important; padding: 11px 12px !important; }
+.odx .adm-buildus-metrics b { color: #98a2b3 !important; font-size: 11.5px !important; font-weight: 700 !important; }
+.odx .adm-buildus-metrics strong { color: #101828 !important; font-size: 14px !important; }
+.odx .adm-buildus-metrics small { color: #98a2b3 !important; font-size: 10.5px !important; }
+/* 상태 변경 pills / 입력 */
+.odx .adm-input, .odx textarea, .odx select { border: 1px solid #e5e7eb !important; border-radius: 10px !important; }
+.odx .adm-input:focus, .odx textarea:focus { border-color: var(--p) !important; }
+.odx details > summary { cursor: pointer; }
+`;
