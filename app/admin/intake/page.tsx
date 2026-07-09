@@ -159,7 +159,7 @@ export default async function AdminIntakePage({ searchParams }: PageProps) {
                 </div>
 
                 {quoteEditor ? (
-                  <div className="it-panel">
+                  <div className="it-panel it-quote">
                     <div className="it-panel-h"><h3>견적서 작성</h3><span className="it-meta">사이트 견적서와 동일 · 저장 후 카톡 발송</span></div>
                     {quoteEditor}
                   </div>
@@ -226,4 +226,22 @@ const intakeCss = `
   .it-split { grid-template-columns: 1fr; }
   .it-photos { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* 견적 편집기 재스타일 (사진접수 화면 안에서만 — 색·모서리·버튼 위주, 레이아웃 유지) */
+.it-quote .adm-input,
+.it-quote select,
+.it-quote textarea { border: 1px solid #e4e8ee !important; border-radius: 10px !important; background: #fff !important; color: #0f1729 !important; }
+.it-quote .adm-btn { border-radius: 11px !important; font-weight: 800 !important; }
+.it-quote .adm-btn-primary { background: #245fff !important; border-color: #245fff !important; color: #fff !important; }
+.it-quote .adm-btn-secondary { background: #f5f7fa !important; border: 1px solid #e4e8ee !important; color: #5b6472 !important; }
+.it-quote .adm-quote-summary-strip,
+.it-quote .adm-quote-builder-card,
+.it-quote .adm-quote-schedule-card,
+.it-quote .adm-quote-option-card,
+.it-quote .adm-quote-lines-table { border: 1px solid #e4e8ee !important; border-radius: 12px !important; background: #fff !important; }
+.it-quote .adm-quote-summary-strip { background: #f5f7fa !important; }
+.it-quote .adm-quote-line-name { font-weight: 800 !important; }
+.it-quote .adm-quote-line-amount { font-weight: 800 !important; color: #0f1729 !important; }
+.it-quote .adm-quote-calendar-day,
+.it-quote .adm-quote-calendar-blank { border-radius: 9px !important; }
 `;
