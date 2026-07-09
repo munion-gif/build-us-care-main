@@ -553,3 +553,97 @@ export async function downloadQuotePdf(fileName: string, html: string) {
 export async function downloadQuoteDocument(input: QuoteDocumentInput) {
   await downloadQuotePdf(quoteDownloadFileName(input.orderNumber), buildQuoteDocumentHtml(input));
 }
+
+/* ===== 폴더 선택 저장 (PDF / JPG) ===== */
+
+// html 문자열을 숨은 iframe에 그려 html2canvas 캔버스로 캡처
+async function renderQuoteCanvas(html: string): Promise<HTMLCanvasElement> {
+  const { default: html2canvas } = await import("html2canvas");
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.cssText = "position:fixed;left:-10000px;top:0;width:1024px;height:1400px;border:0;";
+  document.body.appendChild(iframe);
+  try {
+    await new Promise<void>((resolve) => {
+      iframe.onload = () => resolve();
+      iframe.srcdoc = html;
+    });
+    const frameDocument = iframe.contentDocument;
+    const target = frameDocument?.querySelector<HTMLElement>(".sheet");
+    if (!frameDocument || !target) throw new Error("견적서 화면을 준비하지 못했어요.");
+    await waitForQuoteDocumentImages(frameDocument);
+    await frameDocument.fonts?.ready;
+    try {
+      return (await captureQuoteCanvas(html2canvas, target)).canvas;
+    } catch {
+      replaceQuoteDocumentImagesWithFallback(frameDocument);
+      return (await captureQuoteCanvas(html2canvas, target)).canvas;
+    }
+  } finally {
+    iframe.remove();
+  }
+}
+
+// 저장 폴더를 사용자가 고르게 함(지원 브라우저). 미지원 시 일반 다운로드로 폴백.
+async function saveBlobWithPicker(blob: Blob, suggestedName: string, mime: string, ext: string) {
+  const picker = (window as any).showSaveFilePicker;
+  if (typeof picker === "function") {
+    try {
+      const handle = await picker.call(window, {
+        suggestedName,
+        types: [{ description: suggestedName, accept: { [mime]: [ext] } }]
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return true;
+    } catch (error) {
+      if ((error as { name?: string })?.name === "AbortError") return false;
+      // 폴백으로 진행
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = suggestedName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  return true;
+}
+
+function quoteBaseName(orderNumber?: string | null) {
+  return quoteDownloadFileName(orderNumber).replace(/\.pdf$/, "");
+}
+
+export async function saveQuoteAsPdf(input: QuoteDocumentInput) {
+  if (typeof document === "undefined") return;
+  const { jsPDF } = await import("jspdf");
+  const canvas = await renderQuoteCanvas(buildQuoteDocumentHtml(input));
+  const imageData = canvas.toDataURL("image/png");
+  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const imageHeight = (canvas.height * pageWidth) / canvas.width;
+  let heightLeft = imageHeight;
+  let position = 0;
+  pdf.addImage(imageData, "PNG", 0, position, pageWidth, imageHeight);
+  heightLeft -= pageHeight;
+  while (heightLeft > 0) {
+    position = heightLeft - imageHeight;
+    pdf.addPage();
+    pdf.addImage(imageData, "PNG", 0, position, pageWidth, imageHeight);
+    heightLeft -= pageHeight;
+  }
+  const blob = pdf.output("blob") as Blob;
+  await saveBlobWithPicker(blob, `${quoteBaseName(input.orderNumber)}.pdf`, "application/pdf", ".pdf");
+}
+
+export async function saveQuoteAsImage(input: QuoteDocumentInput) {
+  if (typeof document === "undefined") return;
+  const canvas = await renderQuoteCanvas(buildQuoteDocumentHtml(input));
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b), "image/jpeg", 0.95));
+  if (!blob) throw new Error("이미지를 만들지 못했어요.");
+  await saveBlobWithPicker(blob, `${quoteBaseName(input.orderNumber)}.jpg`, "image/jpeg", ".jpg");
+}

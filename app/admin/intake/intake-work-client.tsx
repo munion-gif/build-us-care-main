@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { formatKRW } from "@/lib/format";
-import { PRODUCT_DISPOSAL_FEE, HEAVY_PRODUCT_DISPOSAL_FEE, productDisposalFee } from "@/lib/builduscare-disposal";
-import { productShippingEntriesTotal } from "@/lib/builduscare-shipping";
+import { productDisposalFee } from "@/lib/builduscare-disposal";
+import { productShippingEntriesTotal, productShippingEntryAmounts } from "@/lib/builduscare-shipping";
 import { quoteSubtotalAmount, quoteVatIncludedAmount, quoteVatIncludedLaborAmount } from "@/lib/quote-totals";
+import { buildQuoteDocumentHtml, saveQuoteAsImage, saveQuoteAsPdf, type QuoteDocumentInput } from "@/lib/quote-document";
 
 /* ===== 타입 ===== */
 export type CatalogProduct = {
@@ -89,8 +90,11 @@ export function IntakeWork(props: Props) {
   });
   const [slotDays, setSlotDays] = useState<Record<string, SlotDay>>({});
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerCat, setPickerCat] = useState<string>(catalog[0]?.serviceCode ?? "");
   const [saving, setSaving] = useState<"send" | "draft" | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [docHtml, setDocHtml] = useState<string | null>(null);
+  const [docBusy, setDocBusy] = useState<"pdf" | "jpg" | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -187,6 +191,74 @@ export function IntakeWork(props: Props) {
     }
   }
 
+  function buildDocInput(): QuoteDocumentInput | null {
+    if (resolved.length === 0) return null;
+    const shippingAmounts = productShippingEntryAmounts(resolved, {
+      serviceCode: (e: any) => e.item.serviceCode,
+      qty: (e: any) => e.item.qty,
+      product: (e: any) => e.product
+    });
+    const rows = resolved.map((e, i) => {
+      const p = e.product!;
+      const lineMaterial = quoteVatIncludedAmount(p.price) * e.item.qty;
+      const lineLabor = quoteVatIncludedLaborAmount(p.laborPrice) * e.item.qty;
+      const lineShipping = shippingAmounts[i] ?? 0;
+      return {
+        id: `${e.item.productId}-${i}`,
+        image: p.image || null,
+        productName: p.label,
+        sku: p.sku,
+        serviceCode: e.item.serviceCode,
+        categoryLabel: p.categoryName,
+        qty: e.item.qty,
+        price: lineMaterial,
+        labor: lineLabor,
+        shipping: lineShipping,
+        finalPrice: lineMaterial + lineLabor + lineShipping
+      };
+    });
+    const visitText = scheduleDate && scheduleTime
+      ? `${scheduleDate} ${scheduleTime === "morning" ? "오전" : "오후"}`
+      : "방문일 조율 중";
+    return {
+      orderNumber: orderNumber || "견적서",
+      customerName,
+      customerPhone,
+      serviceName: resolved[0].item.serviceCode,
+      rows,
+      address: address || "주소 확인 중",
+      visitText,
+      productTotal: totals.productTotal,
+      laborTotal: totals.laborTotal,
+      shippingTotal: totals.shippingTotal,
+      subtotalTotal: totals.finalTotal,
+      finalTotal: totals.finalTotal,
+      transferAmount: totals.productTotal + totals.shippingTotal,
+      onsiteAmount: Math.max(0, totals.laborTotal + visitFee),
+      productCatalogMode: true,
+      cashReceiptText: "미정"
+    } as QuoteDocumentInput;
+  }
+
+  function openDoc() {
+    const input = buildDocInput();
+    if (!input) { setMsg("견적에 담을 제품을 최소 1개 추가하세요."); return; }
+    setDocHtml(buildQuoteDocumentHtml(input));
+  }
+  async function saveDoc(kind: "pdf" | "jpg") {
+    const input = buildDocInput();
+    if (!input) return;
+    setDocBusy(kind);
+    try {
+      if (kind === "pdf") await saveQuoteAsPdf(input);
+      else await saveQuoteAsImage(input);
+    } catch {
+      setMsg("저장 중 오류가 생겼어요. 다시 시도해주세요.");
+    } finally {
+      setDocBusy(null);
+    }
+  }
+
   // 달력 렌더
   const firstDay = new Date(cal.year, cal.month - 1, 1).getDay();
   const daysInMonth = new Date(cal.year, cal.month, 0).getDate();
@@ -270,17 +342,26 @@ export function IntakeWork(props: Props) {
           <button type="button" className="addp" onClick={() => setPickerOpen((v) => !v)}>+ 제품 추가 / 변경</button>
           {pickerOpen ? (
             <div className="picker">
-              {catalog.map((svc) => (
-                <div key={svc.serviceCode}>
-                  <div className="pick-cat">{svc.label}</div>
-                  {svc.groups.flatMap((g) => g.products).map((p) => (
-                    <button type="button" key={p.id} className="pick-item" onClick={() => addProduct(svc.serviceCode, p.id)}>
-                      <span><b>{p.label}</b>{p.sku ? <small> · {p.sku}</small> : null}</span>
-                      <span className="num">{formatKRW(quoteVatIncludedAmount(p.price))}</span>
-                    </button>
-                  ))}
-                </div>
-              ))}
+              <div className="pick-cats">
+                {catalog.map((svc) => (
+                  <button type="button" key={svc.serviceCode} className={`pick-chip ${pickerCat === svc.serviceCode ? "on" : ""}`} onClick={() => setPickerCat(svc.serviceCode)}>
+                    {svc.label}
+                  </button>
+                ))}
+              </div>
+              <div className="pick-body">
+                {(catalog.find((s) => s.serviceCode === pickerCat)?.groups ?? []).map((g) => (
+                  <div key={g.id}>
+                    {(catalog.find((s) => s.serviceCode === pickerCat)?.groups ?? []).length > 1 ? <div className="pick-group">{g.name}</div> : null}
+                    {g.products.map((p) => (
+                      <button type="button" key={p.id} className="pick-item" onClick={() => addProduct(pickerCat, p.id)}>
+                        <span><b>{p.label}</b>{p.sku ? <small> · {p.sku}</small> : null}</span>
+                        <span className="num">{formatKRW(quoteVatIncludedAmount(p.price))}</span>
+                      </button>
+                    ))}
+                  </div>
+                ))}
+              </div>
             </div>
           ) : null}
 
@@ -343,6 +424,7 @@ export function IntakeWork(props: Props) {
             <button type="button" className="btn btn-pri" onClick={() => save(true)} disabled={Boolean(saving)}>
               {saving === "send" ? "보내는 중…" : "견적서 보내기 (카카오톡) →"}
             </button>
+            <button type="button" className="btn btn-ghost" onClick={openDoc}>👁 견적서 보기</button>
             <button type="button" className="btn btn-ghost" onClick={() => save(false)} disabled={Boolean(saving)}>
               {saving === "draft" ? "저장 중…" : "임시저장"}
             </button>
@@ -360,6 +442,23 @@ export function IntakeWork(props: Props) {
           ) : null}
         </section>
       </div>
+
+      {docHtml ? (
+        <div className="doc-overlay" onClick={(e) => { if (e.target === e.currentTarget) setDocHtml(null); }}>
+          <div className="doc-modal">
+            <div className="doc-bar">
+              <b>견적서 미리보기</b>
+              <div className="doc-actions">
+                <button type="button" className="btn2" onClick={() => saveDoc("pdf")} disabled={Boolean(docBusy)}>{docBusy === "pdf" ? "저장 중…" : "📄 PDF 저장"}</button>
+                <button type="button" className="btn2" onClick={() => saveDoc("jpg")} disabled={Boolean(docBusy)}>{docBusy === "jpg" ? "저장 중…" : "🖼 JPG 저장"}</button>
+                <button type="button" className="btn2 x" onClick={() => setDocHtml(null)}>닫기</button>
+              </div>
+            </div>
+            <iframe className="doc-frame" srcDoc={docHtml} title="견적서" />
+            <div className="doc-hint">💾 저장 시 <b>폴더를 직접 고를 수 있어요</b> (지원 브라우저). 안 되면 다운로드 폴더에 저장돼요.</div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -397,11 +496,29 @@ const IW_CSS = `
 .line .del:hover { color: var(--red); }
 .line-empty { padding: 18px 0; text-align: center; color: var(--text-faint); font-size: 13px; }
 .addp { margin-top: 10px; width: 100%; border: 1px dashed var(--border-strong); background: transparent; color: var(--accent-text); font-weight: 800; font-size: 13px; padding: 10px; border-radius: 11px; cursor: pointer; }
-.picker { margin-top: 8px; border: 1px solid var(--border); border-radius: 11px; overflow: auto; max-height: 300px; }
-.pick-cat { position: sticky; top: 0; background: var(--surface-2); font-size: 11px; font-weight: 800; color: var(--text-faint); padding: 6px 12px; border-bottom: 1px solid var(--border); }
+.picker { margin-top: 8px; border: 1px solid var(--border); border-radius: 11px; overflow: hidden; }
+.pick-cats { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+.pick-chip { border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); font-weight: 700; font-size: 12.5px; padding: 6px 12px; border-radius: 999px; cursor: pointer; }
+.pick-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.pick-body { max-height: 300px; overflow: auto; }
+.pick-group { position: sticky; top: 0; background: var(--surface-2); font-size: 11px; font-weight: 800; color: var(--text-faint); padding: 6px 12px; border-bottom: 1px solid var(--border); }
 .pick-item { display: flex; justify-content: space-between; gap: 10px; width: 100%; border: none; background: var(--surface); padding: 10px 12px; border-bottom: 1px solid var(--border); cursor: pointer; font-size: 13px; text-align: left; color: var(--text); }
 .pick-item:hover { background: var(--accent-soft); }
 .pick-item small { color: var(--text-faint); }
+
+/* 견적서 미리보기 모달 */
+.doc-overlay { position: fixed; inset: 0; background: rgba(16,24,40,.55); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.doc-modal { background: var(--surface); border-radius: 16px; width: min(860px, 96vw); max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px -20px rgba(0,0,0,.5); }
+.doc-bar { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--border); }
+.doc-bar b { font-size: 14px; font-weight: 800; }
+.doc-actions { margin-left: auto; display: flex; gap: 8px; }
+.btn2 { border: 1px solid var(--border); background: var(--surface-2); color: var(--text-muted); font-weight: 800; font-size: 12.5px; padding: 8px 13px; border-radius: 9px; cursor: pointer; }
+.btn2:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
+.btn2.x { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn2:disabled { opacity: .55; cursor: default; }
+.doc-frame { flex: 1; width: 100%; border: none; background: #fffaf1; min-height: 420px; }
+.doc-hint { padding: 9px 16px; font-size: 11.5px; color: var(--text-faint); border-top: 1px solid var(--border); }
+.doc-hint b { color: var(--text-muted); }
 .sums { margin-top: 14px; display: flex; flex-direction: column; gap: 7px; font-size: 13px; }
 .sums .row { display: flex; justify-content: space-between; color: var(--text-muted); }
 .sums .row .num { color: var(--text); font-weight: 700; }
