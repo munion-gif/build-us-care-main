@@ -7,16 +7,14 @@ import {
   CalendarDays,
   Camera,
   ClipboardList,
-  FileText,
-  ListChecks,
+  Settings,
 } from "lucide-react";
 
 const menus = [
-  [Camera, "사진확인 접수", "/admin/diagnoses"],
-  [ClipboardList, "제품 주문", "/admin/orders"],
-  [FileText, "견적서", "/admin/quotes"],
-  [ListChecks, "견적서 목록", "/admin/quotes/list"],
-  [CalendarDays, "일정관리", "/admin/slots"]
+  [Camera, "사진접수", "/admin/intake"],
+  [ClipboardList, "예약·주문", "/admin/orders"],
+  [CalendarDays, "일정", "/admin/slots"],
+  [Settings, "설정", "/admin/settings"]
 ] as const;
 
 function isMenuActive(pathname: string, href: string) {
@@ -72,7 +70,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="adm-shell">
       <aside className="adm-sidebar">
-        <Link className="adm-sidebar-logo" href="/admin/diagnoses">
+        <Link className="adm-sidebar-logo" href="/admin/intake">
           buildus care
         </Link>
         <nav className="adm-sidebar-nav">
@@ -82,7 +80,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
               {label}
               {href === "/admin/orders" && unassignedCount > 0 && <b className="adm-nav-badge">{unassignedCount}</b>}
               {href === "/admin/orders" && cancelRequestedCount > 0 && <b className="adm-nav-badge adm-nav-badge-warn">{cancelRequestedCount}</b>}
-              {href === "/admin/diagnoses" && pendingDiagnosisCount > 0 && <b className="adm-nav-badge">{pendingDiagnosisCount}</b>}
+              {href === "/admin/intake" && pendingDiagnosisCount > 0 && <b className="adm-nav-badge">{pendingDiagnosisCount}</b>}
             </Link>
           ))}
         </nav>
@@ -100,7 +98,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                 {label}
                 {href === "/admin/orders" && unassignedCount > 0 && <b className="adm-nav-badge">{unassignedCount}</b>}
                 {href === "/admin/orders" && cancelRequestedCount > 0 && <b className="adm-nav-badge adm-nav-badge-warn">{cancelRequestedCount}</b>}
-                {href === "/admin/diagnoses" && pendingDiagnosisCount > 0 && <b className="adm-nav-badge">{pendingDiagnosisCount}</b>}
+                {href === "/admin/intake" && pendingDiagnosisCount > 0 && <b className="adm-nav-badge">{pendingDiagnosisCount}</b>}
               </Link>
             ))}
           </nav>
