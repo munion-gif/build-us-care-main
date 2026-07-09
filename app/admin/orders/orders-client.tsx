@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { QuoteDocModal } from "./quote-doc-modal";
+import { ORDER_TRANSITIONS } from "@/lib/status";
+import { formatOrderStatus } from "@/lib/format";
 import type { OrderCard, OrdersOverview } from "@/lib/admin-orders-data";
 
 export function OrdersClient({ overview }: { overview: OrdersOverview }) {
@@ -16,6 +18,19 @@ export function OrdersClient({ overview }: { overview: OrdersOverview }) {
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [noticeMemo, setNoticeMemo] = useState("");
   const [noticeBusy, setNoticeBusy] = useState(false);
+  const [statusOpen, setStatusOpen] = useState(false);
+
+  async function changeStatus(target: string) {
+    if (!sel) return;
+    if (!hasDb) { flash("미리보기 모드 — 실제 변경은 프로덕션에서 됩니다."); return; }
+    setBusy(true);
+    try {
+      const r = await fetch(`/api/admin/orders/${sel.id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: target }) });
+      if (r.ok) { flash(`단계를 "${formatOrderStatus(target)}"(으)로 바꿨어요.`); setSel(null); router.refresh(); }
+      else { const b = await r.json().catch(() => ({})); flash(b?.error?.message ?? "단계 변경에 실패했어요."); }
+    } catch { flash("처리 중 오류가 생겼어요"); }
+    finally { setBusy(false); }
+  }
 
   async function sendNotice() {
     const m = noticeMemo.trim();
@@ -62,7 +77,7 @@ export function OrdersClient({ overview }: { overview: OrdersOverview }) {
 
   function Card({ c }: { c: OrderCard }) {
     return (
-      <div className={`oc ${c.buttonAction !== "detail" ? "at" : ""}`} onClick={() => { setSel(c); setNoticeOpen(false); setNoticeMemo(""); }}>
+      <div className={`oc ${c.buttonAction !== "detail" ? "at" : ""}`} onClick={() => { setSel(c); setNoticeOpen(false); setNoticeMemo(""); setStatusOpen(false); }}>
         <div>
           <span className={`stg ${c.stage}`}><span className="d" />{c.stageText}</span>
           <div className="ono num">{c.orderNumber ?? "-"}</div>
@@ -143,9 +158,26 @@ export function OrdersClient({ overview }: { overview: OrdersOverview }) {
             <div className="mactions">
               <button className={`btn ${sel.buttonTone}`} style={{ flex: 1, minWidth: 130 }} onClick={() => doAction(sel)} disabled={busy}>{sel.buttonLabel}</button>
               <button className="btn b-ghost" onClick={() => setDocCard(sel)}>👁 견적서 보기</button>
+              <button className="btn b-ghost" onClick={() => setStatusOpen((v) => !v)}>🔀 단계 변경</button>
               <button className="btn b-ghost" onClick={() => setNoticeOpen((v) => !v)}>📢 주문 진행 안내</button>
               <Link className="btn b-ghost" href={`/admin/orders/${sel.id}`}>전체 관리 →</Link>
             </div>
+            {statusOpen ? (
+              <div className="statusbox">
+                <div className="statusbox-t">현재 <b>{formatOrderStatus(sel.rawStatus)}</b> · 바꿀 단계를 누르세요</div>
+                <div className="statusbox-btns">
+                  {(((ORDER_TRANSITIONS as any)[sel.rawStatus] ?? []) as string[]).length ? (
+                    (((ORDER_TRANSITIONS as any)[sel.rawStatus] ?? []) as string[]).map((t) => (
+                      <button key={t} className={`stbtn ${t === "canceled" || t === "cancel_requested" ? "danger" : ""}`} onClick={() => changeStatus(t)} disabled={busy}>
+                        {formatOrderStatus(t)}
+                      </button>
+                    ))
+                  ) : (
+                    <span className="statusbox-none">여기서 바꿀 수 있는 다음 단계가 없어요. (완료/취소 등) 자세한 변경은 “전체 관리”에서요.</span>
+                  )}
+                </div>
+              </div>
+            ) : null}
             {noticeOpen ? (
               <div className="noticebox">
                 <div className="noticebox-t">고객에게 <b>주문 진행 상황</b>을 카카오톡으로 안내해요 (알림톡: 주문 진행 안내)</div>
@@ -229,6 +261,16 @@ const ORD_CSS = `
 .noticebox textarea { width: 100%; min-height: 68px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; font-family: inherit; resize: vertical; outline: none; box-sizing: border-box; }
 .noticebox textarea:focus { border-color: var(--accent); }
 .noticebox-a { display: flex; gap: 8px; margin-top: 9px; }
+.statusbox { margin-top: 12px; border: 1px solid var(--border); border-radius: 12px; padding: 13px; background: var(--surface-2); }
+.statusbox-t { font-size: 12.5px; color: var(--text-muted); margin-bottom: 9px; }
+.statusbox-t b { color: var(--text); }
+.statusbox-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.stbtn { border: 1px solid var(--border); background: var(--surface); color: var(--accent-text); font-weight: 800; font-size: 13px; padding: 9px 14px; border-radius: 999px; cursor: pointer; }
+.stbtn:hover { border-color: var(--accent); background: var(--accent-soft); }
+.stbtn.danger { color: var(--red); }
+.stbtn.danger:hover { border-color: var(--red); background: var(--red-soft); }
+.stbtn:disabled { opacity: .5; cursor: default; }
+.statusbox-none { font-size: 12.5px; color: var(--text-faint); }
 .ord-toast { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); background: #101828; color: #fff; font-size: 13px; font-weight: 700; padding: 12px 20px; border-radius: 999px; z-index: 70; box-shadow: 0 10px 30px -10px rgba(0,0,0,.5); }
 @media (max-width: 900px) { .pipe { grid-template-columns: repeat(2, 1fr); } .oc { grid-template-columns: 1fr; gap: 10px; } .oc .ac { align-items: flex-start; } }
 `;
