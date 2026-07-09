@@ -179,8 +179,14 @@ export function IntakeWork(props: Props) {
         return;
       }
       if (send) {
-        const k = await fetch(`/api/admin/orders/${orderId}/quote-alimtalk`, { method: "POST" });
-        setMsg(k.ok ? "견적서를 저장하고 카카오톡으로 보냈어요." : "견적은 저장됐지만 카톡 발송은 실패했어요. 알림톡 설정을 확인하세요.");
+        const k = await fetch(`/api/admin/orders/${orderId}/quote-alimtalk`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+        if (k.ok) {
+          setMsg("견적서를 저장하고 카카오톡으로 보냈어요.");
+        } else {
+          const kb = await k.json().catch(() => ({}));
+          const reason = kb?.error?.message ?? kb?.message ?? `발송 오류 (HTTP ${k.status})`;
+          setMsg(`견적은 저장됐어요. 카톡 발송 실패: ${reason}`);
+        }
       } else {
         setMsg("임시저장했어요.");
       }
