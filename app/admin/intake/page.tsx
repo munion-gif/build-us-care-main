@@ -8,7 +8,7 @@ import {
   customerName as quoteCustomerName,
   customerPhone as quoteCustomerPhone,
   firstServiceCode,
-  getQuoteOrders,
+  getQuoteOrderById,
   initialQuoteItems,
   latestQuote,
   orderScheduleDate,
@@ -52,9 +52,7 @@ export default async function AdminIntakePage({ searchParams }: PageProps) {
   // 견적 편집기 임베드 — quotes 페이지와 동일한 방식으로 props 구성 (검증된 로직 재사용)
   let quoteEditor: ReactNode = null;
   if (detail?.orderId) {
-    const { quoteTargets, quotedOrders, localMode } = await getQuoteOrders();
-    const allOrders = [...(((quoteTargets as any[]) ?? [])), ...(((quotedOrders as any[]) ?? []))];
-    const selectedOrder = allOrders.find((o: any) => o.id === detail.orderId) ?? null;
+    const selectedOrder = (await getQuoteOrderById(detail.orderId)) as any;
     if (selectedOrder) {
       const catalogs = buildAdminQuoteCatalogs();
       const svc = isProductSelectionService(firstServiceCode(selectedOrder))
@@ -78,7 +76,7 @@ export default async function AdminIntakePage({ searchParams }: PageProps) {
           customerPhone={quoteCustomerPhone(selectedOrder)}
           addressText={home?.address_full ?? null}
           editableCustomerFields
-          localMode={localMode}
+          localMode={false}
         />
       );
     }

@@ -377,3 +377,56 @@ export async function getQuoteOrders() {
     quotedOrders: visible.filter((order) => !quoteNeeded(order))
   };
 }
+
+// 주문 ID로 단건 조회 (getQuoteOrders의 80건 제한을 우회 — 사진접수 화면에서 오래된 주문도 견적 작성 가능)
+export async function getQuoteOrderById(orderId: string | null | undefined) {
+  if (!orderId || !hasSupabaseEnv()) return null;
+  const { data } = await getSupabaseAdmin()
+    .from("orders")
+    .select(`
+      id,
+      order_number,
+      access_token,
+      status,
+      service_type_code,
+      reason,
+      total_amount,
+      created_at,
+      visit_fee,
+      customers(name,phone),
+      homes(address_full),
+      quotes(
+        id,
+        version,
+        items,
+        total_material,
+        total_labor,
+        visit_fee,
+        discount,
+        total_final,
+        accepted_at,
+        created_at
+      ),
+      payments(
+        id,
+        status,
+        amount,
+        provider,
+        online_payment_amount,
+        onsite_payment_amount,
+        total_amount,
+        created_at
+      ),
+      jobs(
+        id,
+        status,
+        scheduled_at,
+        scheduled_date,
+        created_at
+      ),
+      skus
+    `)
+    .eq("id", orderId)
+    .maybeSingle();
+  return data ?? null;
+}
