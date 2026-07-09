@@ -177,10 +177,20 @@ export async function getOrdersOverview(): Promise<OrdersOverview> {
     else if (["cancel_requested", "canceled", "cancelled", "issue", "warranty"].includes(s)) pipe.issue++;
   }
 
-  const cards = await Promise.all(orders.map((o: any) => toCard(supabase, o)));
-  const isTodo = (c: OrderCard) => c.buttonAction !== "detail" || c.stage === "s-q";
-  const todo = cards.filter((c) => ["s-q", "s-p", "s-c"].includes(c.stage) || (c.stage === "s-v" && c.buttonAction === "confirm-reservation")).filter(isTodo);
-  const active = cards.filter((c) => c.stage === "s-v" && c.buttonAction === "detail");
+  // 화면에 실제로 보이는 카드만 무겁게 처리(견적서 계산 + 사진 서명) — 속도 개선
+  const todoOrders: any[] = [];
+  const activeOrders: any[] = [];
+  for (const o of orders) {
+    const status = String(o.status ?? "");
+    const { stage } = stageOf(status);
+    const act = actionOf(o, status);
+    if (["s-q", "s-p", "s-c"].includes(stage) || (stage === "s-v" && act.buttonAction === "confirm-reservation")) todoOrders.push(o);
+    else if (stage === "s-v" && act.buttonAction === "detail") activeOrders.push(o);
+  }
+  const [todo, active] = await Promise.all([
+    Promise.all(todoOrders.map((o) => toCard(supabase, o))),
+    Promise.all(activeOrders.map((o) => toCard(supabase, o)))
+  ]);
 
   return { hasDb: true, pipe, todo, active };
 }
