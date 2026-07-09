@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
+  LayoutDashboard,
   CalendarDays,
   Camera,
   ClipboardList,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 
 const menus = [
+  [LayoutDashboard, "홈", "/admin/dashboard"],
   [Camera, "사진접수", "/admin/intake"],
   [ClipboardList, "예약·주문", "/admin/orders"],
   [CalendarDays, "일정", "/admin/slots"],
@@ -70,7 +72,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="adm-shell">
       <aside className="adm-sidebar">
-        <Link className="adm-sidebar-logo" href="/admin/intake">
+        <Link className="adm-sidebar-logo" href="/admin/dashboard">
           buildus care
         </Link>
         <nav className="adm-sidebar-nav">
