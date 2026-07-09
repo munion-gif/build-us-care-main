@@ -101,7 +101,7 @@ function actionOf(order: any, status: string): Pick<OrderCard, "nextAction" | "b
     return { nextAction: "입금 들어왔으면 확인", buttonLabel: "입금 확인 ✓", buttonTone: "b-warn", buttonAction: "confirm-payment", cancellationId: null };
   }
   if (["paid", "product_paid"].includes(status)) {
-    return { nextAction: "기사·시간 확인 후 방문 확정", buttonLabel: "방문 확정 →", buttonTone: "b-pri", buttonAction: "confirm-reservation", cancellationId: null };
+    return { nextAction: "방문 일정 확인 후 확정", buttonLabel: "방문 확정 →", buttonTone: "b-pri", buttonAction: "confirm-reservation", cancellationId: null };
   }
   if (["quoted"].includes(status)) {
     return { nextAction: "견적 확인 · 입금 안내", buttonLabel: "상세 →", buttonTone: "b-ghost", buttonAction: "detail", cancellationId: null };
@@ -207,7 +207,7 @@ const SAMPLE_OVERVIEW: OrdersOverview = {
   pipe: { quote: 2, payment: 2, visit: 3, done: 12, issue: 1 },
   todo: [
     { id: "o1", orderNumber: "BO-20260709-3JWZ7A", name: "김민서", phone: "010-3921-7744", address: "경기 성남시 분당구", stage: "s-p", stageText: "입금 확인", productSummary: "세면대 반다리 CL-370 · 1개", amountText: "259,000원", payText: "입금 대기 (계좌이체)", scheduleText: "", nextAction: "입금 들어왔으면 확인", buttonLabel: "입금 확인 ✓", buttonTone: "b-warn", buttonAction: "confirm-payment", cancellationId: null, photos: [], doc: sampleDoc("김민서", "대림바스 반다리 CL-370", "CL-370", 141000, 88000, 259000) },
-    { id: "o2", orderNumber: "BO-20260708-1PWW2X", name: "이준호", phone: "010-5510-2093", address: "경기 용인시 수지구", stage: "s-v", stageText: "방문 확정 대기", productSummary: "양변기 CC-724 투피스 · 1개", amountText: "356,000원", payText: "결제완료 · 희망 7/11 오전", scheduleText: "2026-07-11 오전", nextAction: "기사·시간 확인 후 방문 확정", buttonLabel: "방문 확정 →", buttonTone: "b-pri", buttonAction: "confirm-reservation", cancellationId: null, photos: [], doc: sampleDoc("이준호", "대림바스 CC-724 투피스", "CC-724", 246000, 100000, 356000) },
+    { id: "o2", orderNumber: "BO-20260708-1PWW2X", name: "이준호", phone: "010-5510-2093", address: "경기 용인시 수지구", stage: "s-v", stageText: "방문 확정 대기", productSummary: "양변기 CC-724 투피스 · 1개", amountText: "356,000원", payText: "결제완료 · 희망 7/11 오전", scheduleText: "2026-07-11 오전", nextAction: "방문 일정 확인 후 확정", buttonLabel: "방문 확정 →", buttonTone: "b-pri", buttonAction: "confirm-reservation", cancellationId: null, photos: [], doc: sampleDoc("이준호", "대림바스 CC-724 투피스", "CC-724", 246000, 100000, 356000) },
     { id: "o3", orderNumber: "BO-20260708-6HN0LK", name: "한도윤", phone: "010-8842-1177", address: "경기 화성시 동탄", stage: "s-c", stageText: "취소 요청", productSummary: "세면수전 크롬 · 1개", amountText: "102,000원", payText: "취소 요청", scheduleText: "", nextAction: "취소 승인/거절", buttonLabel: "취소 처리", buttonTone: "b-dan", buttonAction: "cancel", cancellationId: "c1", photos: [], doc: sampleDoc("한도윤", "대림바스 세면수전 크롬", "DL-L2210", 58000, 44000, 102000) }
   ],
   active: [
