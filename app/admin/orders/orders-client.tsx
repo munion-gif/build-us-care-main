@@ -168,7 +168,7 @@ export function OrdersClient({ overview }: { overview: OrdersOverview }) {
 }
 
 const ORD_CSS = `
-.ord { --bg:#eef1f6; --surface:#fff; --surface-2:#f5f7fa; --surface-3:#eef2f7; --text:#0f1729; --text-muted:#5b6472; --text-faint:#8b95a6; --border:#e4e8ee; --accent:#245fff; --accent-soft:#eaf0ff; --accent-text:#1a49cc; --green:#178a4c; --green-soft:#e6f6ec; --amber:#b7791f; --amber-soft:#fdf3e2; --red:#cf3838; --red-soft:#fdeceb; --violet:#6d5bd0; --violet-soft:#efecfb; color:var(--text); }
+.ord { --bg:#f5f5f7; --surface:#fff; --surface-2:#f2f4f7; --surface-3:#f2f4f7; --text:#101828; --text-muted:#667085; --text-faint:#98a2b3; --border:#e5e7eb; --accent:#245fff; --accent-soft:#eff4ff; --accent-text:#1647d7; --green:#178a4c; --green-soft:#e6f6ec; --amber:#b7791f; --amber-soft:#fdf3e2; --red:#cf3838; --red-soft:#fdeceb; --violet:#6d5bd0; --violet-soft:#efecfb; color:var(--text); padding: 26px clamp(16px, 2.4vw, 34px) 48px; }
 .ord .num { font-variant-numeric: tabular-nums; }
 .ord .ph { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
 .ord .ph h1 { font-size: 23px; font-weight: 800; letter-spacing: -0.03em; margin: 0; }
@@ -187,9 +187,9 @@ const ORD_CSS = `
 .sh .c { background: var(--accent); color: #fff; font-size: 11px; font-weight: 800; padding: 1px 8px; border-radius: 999px; }
 .sh .hint { margin-left: auto; font-size: 12px; color: var(--text-faint); }
 .list { display: flex; flex-direction: column; gap: 10px; }
-.empty { background: var(--surface); border: 1px dashed #d3d9e2; border-radius: 13px; padding: 26px; text-align: center; color: var(--text-faint); font-size: 13px; }
+.empty { background: var(--surface); border: 1px dashed #d0d5dd; border-radius: 13px; padding: 26px; text-align: center; color: var(--text-faint); font-size: 13px; }
 .oc { display: grid; grid-template-columns: 150px 1fr auto; gap: 16px; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 15px 17px; cursor: pointer; border-left: 3px solid transparent; }
-.oc:hover { border-color: #d3d9e2; }
+.oc:hover { border-color: #d0d5dd; }
 .oc.at { border-left-color: var(--accent); }
 .oc .ono { color: var(--text-faint); font-size: 11.5px; font-weight: 700; margin-top: 8px; }
 .oc .who { font-size: 15px; font-weight: 800; }
@@ -229,6 +229,6 @@ const ORD_CSS = `
 .noticebox textarea { width: 100%; min-height: 68px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; font-family: inherit; resize: vertical; outline: none; box-sizing: border-box; }
 .noticebox textarea:focus { border-color: var(--accent); }
 .noticebox-a { display: flex; gap: 8px; margin-top: 9px; }
-.ord-toast { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); background: #0f1729; color: #fff; font-size: 13px; font-weight: 700; padding: 12px 20px; border-radius: 999px; z-index: 70; box-shadow: 0 10px 30px -10px rgba(0,0,0,.5); }
+.ord-toast { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); background: #101828; color: #fff; font-size: 13px; font-weight: 700; padding: 12px 20px; border-radius: 999px; z-index: 70; box-shadow: 0 10px 30px -10px rgba(0,0,0,.5); }
 @media (max-width: 900px) { .pipe { grid-template-columns: repeat(2, 1fr); } .oc { grid-template-columns: 1fr; gap: 10px; } .oc .ac { align-items: flex-start; } }
 `;

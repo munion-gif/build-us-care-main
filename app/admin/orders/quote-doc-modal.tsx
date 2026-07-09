@@ -56,14 +56,14 @@ export function QuoteDocModal({ doc, onClose }: { doc: QuoteDocumentInput; onClo
 const QD_CSS = `
 .qd-overlay { position: fixed; inset: 0; background: rgba(16,24,40,.55); z-index: 60; display: flex; align-items: center; justify-content: center; padding: 24px; }
 .qd-modal { background: #fff; border-radius: 16px; width: 96vw; height: 94vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px -20px rgba(0,0,0,.5); }
-.qd-bar { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-bottom: 1px solid #e4e8ee; }
-.qd-bar b { font-size: 14px; font-weight: 800; color: #0f1729; }
+.qd-bar { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-bottom: 1px solid #e5e7eb; }
+.qd-bar b { font-size: 14px; font-weight: 800; color: #101828; }
 .qd-actions { margin-left: auto; display: flex; gap: 8px; }
-.qd-btn { border: 1px solid #e4e8ee; background: #f5f7fa; color: #5b6472; font-weight: 800; font-size: 12.5px; padding: 8px 13px; border-radius: 9px; cursor: pointer; }
-.qd-btn:hover { background: #eaf0ff; border-color: #245fff; color: #1a49cc; }
+.qd-btn { border: 1px solid #e5e7eb; background: #f2f4f7; color: #667085; font-weight: 800; font-size: 12.5px; padding: 8px 13px; border-radius: 9px; cursor: pointer; }
+.qd-btn:hover { background: #eff4ff; border-color: #245fff; color: #1647d7; }
 .qd-btn.x { background: #245fff; color: #fff; border-color: #245fff; }
 .qd-btn:disabled { opacity: .55; cursor: default; }
 .qd-frame { flex: 1; width: 100%; border: none; background: #fffaf1; }
-.qd-hint { padding: 9px 16px; font-size: 11.5px; color: #8b95a6; border-top: 1px solid #e4e8ee; }
-.qd-hint b { color: #5b6472; }
+.qd-hint { padding: 9px 16px; font-size: 11.5px; color: #98a2b3; border-top: 1px solid #e5e7eb; }
+.qd-hint b { color: #667085; }
 `;

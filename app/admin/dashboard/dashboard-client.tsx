@@ -91,7 +91,7 @@ export function DashboardClient({ d }: { d: Dashboard }) {
 }
 
 const DASH_CSS = `
-.dash { display: flex !important; flex-direction: column !important; align-items: stretch !important; --surface:#fff; --surface-2:#f5f7fa; --text:#0f1729; --text-muted:#5b6472; --text-faint:#8b95a6; --border:#e4e8ee; --accent:#245fff; --accent-soft:#eaf0ff; --accent-text:#1a49cc; --green:#178a4c; --green-soft:#e6f6ec; --amber:#b7791f; --amber-soft:#fdf3e2; --violet:#6d5bd0; --violet-soft:#efecfb; color:var(--text); }
+.dash { display: flex !important; flex-direction: column !important; align-items: stretch !important; --surface:#fff; --surface-2:#f2f4f7; --text:#101828; --text-muted:#667085; --text-faint:#98a2b3; --border:#e5e7eb; --accent:#245fff; --accent-soft:#eff4ff; --accent-text:#1647d7; --green:#178a4c; --green-soft:#e6f6ec; --amber:#b7791f; --amber-soft:#fdf3e2; --violet:#6d5bd0; --violet-soft:#efecfb; color:var(--text); padding: 26px clamp(16px, 2.4vw, 34px) 48px; }
 .dash .num { font-variant-numeric: tabular-nums; }
 .d-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
 .d-head h1 { font-size: 24px; font-weight: 800; letter-spacing: -0.03em; margin: 0; }

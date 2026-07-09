@@ -120,7 +120,7 @@ export function SettingsPanel({ localMode = false }: { localMode?: boolean }) {
 }
 
 const SET_CSS = `
-.setw { --surface:#fff; --surface-2:#f5f7fa; --surface-3:#eef2f7; --text:#0f1729; --text-muted:#5b6472; --text-faint:#8b95a6; --border:#e4e8ee; --accent:#245fff; --accent-soft:#eaf0ff; --accent-text:#1a49cc; --green:#178a4c; color:var(--text); }
+.setw { --surface:#fff; --surface-2:#f2f4f7; --surface-3:#f2f4f7; --text:#101828; --text-muted:#667085; --text-faint:#98a2b3; --border:#e5e7eb; --accent:#245fff; --accent-soft:#eff4ff; --accent-text:#1647d7; --green:#178a4c; color:var(--text); padding: 26px clamp(16px, 2.4vw, 34px) 48px; }
 .setw .num { font-variant-numeric: tabular-nums; }
 .setw .ph { margin-bottom: 18px; }
 .setw .ph h1 { font-size: 23px; font-weight: 800; letter-spacing: -0.03em; margin: 0; }
@@ -153,6 +153,6 @@ const SET_CSS = `
 .dbtn:hover { border-color: var(--accent); color: var(--accent-text); }
 .cardlink { display: block; margin-top: 10px; font-size: 12px; color: var(--text-faint); text-decoration: none; }
 .cardlink:hover { color: var(--accent-text); }
-.set-toast { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); background: #0f1729; color: #fff; font-size: 13px; font-weight: 700; padding: 12px 20px; border-radius: 999px; z-index: 70; }
+.set-toast { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); background: #101828; color: #fff; font-size: 13px; font-weight: 700; padding: 12px 20px; border-radius: 999px; z-index: 70; }
 @media (max-width: 900px) { .setgrid { grid-template-columns: 1fr; } }
 `;

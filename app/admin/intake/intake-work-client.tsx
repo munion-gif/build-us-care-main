@@ -524,7 +524,7 @@ export function IntakeWork(props: Props) {
 }
 
 const IW_CSS = `
-.iwrap { --bg:#eef1f6; --surface:#fff; --surface-2:#f5f7fa; --surface-3:#eef2f7; --text:#0f1729; --text-muted:#5b6472; --text-faint:#8b95a6; --border:#e4e8ee; --border-strong:#d3d9e2; --accent:#245fff; --accent-soft:#eaf0ff; --accent-text:#1a49cc; --green:#178a4c; --green-soft:#e6f6ec; --amber:#b7791f; --amber-soft:#fdf3e2; --red:#cf3838; --violet:#6d5bd0; --violet-soft:#efecfb; --shadow:0 1px 2px rgba(16,24,40,.04),0 10px 26px -16px rgba(16,24,40,.2); color:var(--text); }
+.iwrap { --bg:#f5f5f7; --surface:#fff; --surface-2:#f2f4f7; --surface-3:#f2f4f7; --text:#101828; --text-muted:#667085; --text-faint:#98a2b3; --border:#e5e7eb; --border-strong:#d0d5dd; --accent:#245fff; --accent-soft:#eff4ff; --accent-text:#1647d7; --green:#178a4c; --green-soft:#e6f6ec; --amber:#b7791f; --amber-soft:#fdf3e2; --red:#cf3838; --violet:#6d5bd0; --violet-soft:#efecfb; --shadow:0 1px 2px rgba(16,24,40,.04),0 10px 26px -16px rgba(16,24,40,.2); color:var(--text); }
 .iwrap .num { font-variant-numeric: tabular-nums; }
 .iw-head .who { font-size: 22px; font-weight: 800; letter-spacing: -0.03em; }
 .iw-head .info { color: var(--text-muted); font-size: 13.5px; margin-top: 5px; display: flex; gap: 6px 14px; flex-wrap: wrap; }

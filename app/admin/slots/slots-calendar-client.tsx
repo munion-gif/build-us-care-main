@@ -178,7 +178,7 @@ export function SlotsCalendar({ localMode = false }: { localMode?: boolean }) {
 }
 
 const SCH_CSS = `
-.sch { --surface:#fff; --surface-2:#f5f7fa; --surface-3:#eef2f7; --text:#0f1729; --text-muted:#5b6472; --text-faint:#8b95a6; --border:#e4e8ee; --accent:#245fff; --accent-soft:#eaf0ff; --accent-text:#1a49cc; --green:#178a4c; --green-soft:#e6f6ec; --amber:#b7791f; --red:#cf3838; --red-soft:#fdeceb; color:var(--text); }
+.sch { --surface:#fff; --surface-2:#f2f4f7; --surface-3:#f2f4f7; --text:#101828; --text-muted:#667085; --text-faint:#98a2b3; --border:#e5e7eb; --accent:#245fff; --accent-soft:#eff4ff; --accent-text:#1647d7; --green:#178a4c; --green-soft:#e6f6ec; --amber:#b7791f; --red:#cf3838; --red-soft:#fdeceb; color:var(--text); padding: 26px clamp(16px, 2.4vw, 34px) 48px; }
 .sch .num { font-variant-numeric: tabular-nums; }
 .sch .ph { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
 .sch .ph h1 { font-size: 23px; font-weight: 800; letter-spacing: -0.03em; margin: 0; }
