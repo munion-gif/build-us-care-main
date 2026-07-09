@@ -258,6 +258,28 @@ export function IntakeWork(props: Props) {
       setDocBusy(null);
     }
   }
+  // 견적서 팝업: 전체가 한눈에 보이도록 자동 축소 맞춤
+  function fitDocFrame(e: React.SyntheticEvent<HTMLIFrameElement>) {
+    const iframe = e.currentTarget;
+    try {
+      const doc = iframe.contentDocument;
+      const sheet = doc?.querySelector<HTMLElement>(".sheet");
+      if (!doc || !sheet) return;
+      doc.documentElement.style.background = "#fffaf1";
+      doc.body.style.margin = "0";
+      doc.body.style.display = "block";
+      const padW = 40;
+      const padH = 28;
+      const scale = Math.min(
+        (iframe.clientWidth - padW) / sheet.scrollWidth,
+        (iframe.clientHeight - padH) / sheet.scrollHeight,
+        1
+      );
+      (doc.body.style as any).zoom = String(Math.max(0.3, scale));
+    } catch {
+      // 크로스 프레임 접근 실패 시 기본 스크롤 유지
+    }
+  }
 
   // 달력 렌더
   const firstDay = new Date(cal.year, cal.month - 1, 1).getDay();
@@ -454,7 +476,7 @@ export function IntakeWork(props: Props) {
                 <button type="button" className="btn2 x" onClick={() => setDocHtml(null)}>닫기</button>
               </div>
             </div>
-            <iframe className="doc-frame" srcDoc={docHtml} title="견적서" />
+            <iframe className="doc-frame" srcDoc={docHtml} title="견적서" onLoad={fitDocFrame} />
             <div className="doc-hint">💾 저장 시 <b>폴더를 직접 고를 수 있어요</b> (지원 브라우저). 안 되면 다운로드 폴더에 저장돼요.</div>
           </div>
         </div>
@@ -508,7 +530,7 @@ const IW_CSS = `
 
 /* 견적서 미리보기 모달 */
 .doc-overlay { position: fixed; inset: 0; background: rgba(16,24,40,.55); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 24px; }
-.doc-modal { background: var(--surface); border-radius: 16px; width: min(860px, 96vw); max-height: 92vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px -20px rgba(0,0,0,.5); }
+.doc-modal { background: var(--surface); border-radius: 16px; width: 96vw; height: 94vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px -20px rgba(0,0,0,.5); }
 .doc-bar { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--border); }
 .doc-bar b { font-size: 14px; font-weight: 800; }
 .doc-actions { margin-left: auto; display: flex; gap: 8px; }
