@@ -148,7 +148,19 @@ export async function sendQuoteAlimtalk(payload: QuoteAlimtalkPayload): Promise<
   });
 
   const raw = await response.json().catch(() => ({}));
-  if (response.ok) return { ok: true, providerResponse: raw };
+  if (response.ok) {
+    // 솔라피는 HTTP 200을 주면서도 실제 접수는 실패할 수 있음(statusCode 2000=정상). 코드 확인.
+    const statusCode = String((raw as any).statusCode ?? "");
+    const failedCount = Number((raw as any).groupInfo?.count?.registeredFailed ?? 0);
+    if ((statusCode && statusCode !== "2000") || failedCount > 0) {
+      return {
+        ok: false,
+        error: text((raw as any).statusMessage) || `카카오 알림톡 접수 실패 (코드 ${statusCode || "확인필요"})`,
+        providerResponse: raw
+      };
+    }
+    return { ok: true, providerResponse: raw };
+  }
 
   const errorMessage =
     text((raw as any).errorMessage) ||
