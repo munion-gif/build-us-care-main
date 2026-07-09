@@ -1,5 +1,19 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { getIntakeList, getIntakeDetail } from "@/lib/admin-intake-data";
+import { OrderQuoteEditor } from "../orders/order-quote-editor-client";
+import { isProductSelectionService } from "@/lib/replacement-products";
+import {
+  buildAdminQuoteCatalogs,
+  customerName as quoteCustomerName,
+  customerPhone as quoteCustomerPhone,
+  firstServiceCode,
+  getQuoteOrders,
+  initialQuoteItems,
+  latestQuote,
+  orderScheduleDate,
+  orderScheduleTime
+} from "../quotes/quote-page-data";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +48,41 @@ export default async function AdminIntakePage({ searchParams }: PageProps) {
   const { items, hasDb } = await getIntakeList();
   const selectedId = id ?? items[0]?.id ?? null;
   const detail = selectedId ? await getIntakeDetail(selectedId) : null;
+
+  // 견적 편집기 임베드 — quotes 페이지와 동일한 방식으로 props 구성 (검증된 로직 재사용)
+  let quoteEditor: ReactNode = null;
+  if (detail?.orderId) {
+    const { quoteTargets, quotedOrders, localMode } = await getQuoteOrders();
+    const allOrders = [...(((quoteTargets as any[]) ?? [])), ...(((quotedOrders as any[]) ?? []))];
+    const selectedOrder = allOrders.find((o: any) => o.id === detail.orderId) ?? null;
+    if (selectedOrder) {
+      const catalogs = buildAdminQuoteCatalogs();
+      const svc = isProductSelectionService(firstServiceCode(selectedOrder))
+        ? String(firstServiceCode(selectedOrder))
+        : "toilet_replace";
+      const currentQuote = latestQuote(selectedOrder);
+      const home = Array.isArray(selectedOrder.homes) ? selectedOrder.homes[0] : selectedOrder.homes;
+      quoteEditor = (
+        <OrderQuoteEditor
+          orderId={selectedOrder.id}
+          orderNumber={selectedOrder.order_number ?? null}
+          catalogs={catalogs as any}
+          initialItems={initialQuoteItems(selectedOrder, svc) as any}
+          initialVisitFee={Number((selectedOrder as any).visit_fee ?? (currentQuote as any)?.visit_fee ?? 0)}
+          initialDiscount={Number(currentQuote?.discount ?? 0)}
+          initialScheduleDate={orderScheduleDate(selectedOrder)}
+          initialScheduleTime={orderScheduleTime(selectedOrder) as any}
+          initialServiceCode={svc}
+          currentQuoteVersion={currentQuote?.version ?? null}
+          customerName={quoteCustomerName(selectedOrder)}
+          customerPhone={quoteCustomerPhone(selectedOrder)}
+          addressText={home?.address_full ?? null}
+          editableCustomerFields
+          localMode={localMode}
+        />
+      );
+    }
+  }
 
   return (
     <div className="intake-wrap">
@@ -109,10 +158,21 @@ export default async function AdminIntakePage({ searchParams }: PageProps) {
                     <div className="it-row"><span className="k">주소</span><span className="v">{detail.address}</span></div>
                     <div className="it-row"><span className="k">접수시각</span><span className="v">{shortTime(detail.createdAt) || "-"}</span></div>
                   </div>
-                  <div className="it-next">
-                    다음 단계에서 여기 아래에 <b>견적서 작성·PDF 저장·카톡 발송·일정 선택</b>이 붙어요.
-                  </div>
                 </div>
+
+                {quoteEditor ? (
+                  <div className="it-panel">
+                    <div className="it-panel-h"><h3>견적서 작성</h3><span className="it-meta">사이트 견적서와 동일 · 저장 후 카톡 발송</span></div>
+                    {quoteEditor}
+                  </div>
+                ) : detail.orderId ? (
+                  <div className="it-note">
+                    이 접수의 주문을 견적 목록에서 못 찾았어요.{" "}
+                    <a href={`/admin/quotes?orderId=${encodeURIComponent(detail.orderId)}`}>기존 견적서 페이지에서 작성 →</a>
+                  </div>
+                ) : (
+                  <div className="it-note">아직 주문이 연결되지 않은 접수예요. 기존 사진접수 화면에서 &lsquo;견적으로 전환&rsquo; 후 작성해주세요.</div>
+                )}
               </>
             ) : (
               <div className="it-placeholder">왼쪽에서 접수를 선택하세요.</div>

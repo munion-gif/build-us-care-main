@@ -60,6 +60,7 @@ function resultLabel(result?: string | null): { text: string; tone: "new" | "sen
 
 export type IntakeItem = {
   id: string;
+  orderId: string | null;
   orderNumber: string | null;
   name: string | null;
   phone: string | null;
@@ -76,6 +77,7 @@ export type IntakeDetail = IntakeItem & { photos: string[] };
 function toItem(d: any): IntakeItem {
   return {
     id: String(d.id),
+    orderId: d.order_id ?? relatedOrder(d)?.id ?? null,
     orderNumber: orderNumberOf(d),
     name: customerName(d),
     phone: customerPhone(d),
