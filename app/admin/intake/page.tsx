@@ -124,6 +124,7 @@ export default async function AdminIntakePage({ searchParams }: PageProps) {
             {detail ? (
               <IntakeWork
                 orderId={hasDb ? detail.orderId : null}
+                intakeId={detail.id}
                 orderNumber={detail.orderNumber}
                 customerName={detail.name}
                 customerPhone={detail.phone}

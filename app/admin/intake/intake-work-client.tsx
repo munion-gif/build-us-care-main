@@ -27,6 +27,7 @@ type SlotDay = { blocked?: boolean; beforeMinDate?: boolean; allFull?: boolean; 
 
 type Props = {
   orderId: string | null;
+  intakeId: string;
   orderNumber: string | null;
   customerName: string | null;
   customerPhone: string | null;
@@ -67,7 +68,7 @@ function slotText(s?: SlotInfo) {
 
 export function IntakeWork(props: Props) {
   const {
-    orderId, orderNumber, customerName, customerPhone, address, createdAtText, channelText,
+    orderId, intakeId, orderNumber, customerName, customerPhone, address, createdAtText, channelText,
     photos, photoLabels = [], memo, catalog, initialItems, initialScheduleDate, initialScheduleTime,
     stage, versions = [], localMode = false
   } = props;
@@ -95,6 +96,9 @@ export function IntakeWork(props: Props) {
   const [msg, setMsg] = useState<string | null>(null);
   const [docHtml, setDocHtml] = useState<string | null>(null);
   const [docBusy, setDocBusy] = useState<"pdf" | "jpg" | null>(null);
+  const [reqOpen, setReqOpen] = useState(false);
+  const [reqMemo, setReqMemo] = useState("");
+  const [reqBusy, setReqBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -244,6 +248,23 @@ export function IntakeWork(props: Props) {
       productCatalogMode: true,
       cashReceiptText: "미정"
     } as QuoteDocumentInput;
+  }
+
+  async function sendPhotoRequest() {
+    const m = reqMemo.trim();
+    if (!m) return;
+    if (localMode) { setMsg("미리보기 모드 — 실제 발송은 프로덕션에서 됩니다."); return; }
+    setReqBusy(true);
+    try {
+      const r = await fetch(`/api/admin/diagnoses/${intakeId}/photo-request-alimtalk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memo: m })
+      });
+      if (r.ok) { setMsg("추가 사진 요청을 카카오톡으로 보냈어요."); setReqOpen(false); setReqMemo(""); }
+      else { const b = await r.json().catch(() => ({})); setMsg(`추가 사진 요청 실패: ${b?.error?.message ?? `HTTP ${r.status}`}`); }
+    } catch { setMsg("처리 중 오류가 생겼어요."); }
+    finally { setReqBusy(false); }
   }
 
   function openDoc() {
@@ -453,10 +474,21 @@ export function IntakeWork(props: Props) {
               {saving === "send" ? "보내는 중…" : "견적서 보내기 (카카오톡) →"}
             </button>
             <button type="button" className="btn btn-ghost" onClick={openDoc}>👁 견적서 보기</button>
+            <button type="button" className="btn btn-ghost" onClick={() => setReqOpen((v) => !v)}>📷 추가 사진 요청</button>
             <button type="button" className="btn btn-ghost" onClick={() => save(false)} disabled={Boolean(saving)}>
               {saving === "draft" ? "저장 중…" : "임시저장"}
             </button>
           </div>
+          {reqOpen ? (
+            <div className="reqbox">
+              <div className="reqbox-t">고객에게 <b>추가 사진</b>을 카카오톡으로 요청해요 (알림톡: 추가 자료 요청)</div>
+              <textarea value={reqMemo} onChange={(e) => setReqMemo(e.target.value)} placeholder="예: 배관 연결부와 바닥 상태가 보이는 사진을 추가로 보내주세요." />
+              <div className="reqbox-a">
+                <button type="button" className="btn btn-pri" onClick={sendPhotoRequest} disabled={reqBusy || !reqMemo.trim()}>{reqBusy ? "보내는 중…" : "카톡으로 요청 보내기"}</button>
+                <button type="button" className="btn btn-ghost" onClick={() => setReqOpen(false)}>닫기</button>
+              </div>
+            </div>
+          ) : null}
           {msg ? <div className="iw-msg">{msg}</div> : null}
 
           {versions.length ? (
@@ -577,6 +609,13 @@ const IW_CSS = `
 .btn-pri:disabled { opacity: .6; }
 .btn-ghost { background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border); }
 .iw-msg { margin-top: 10px; font-size: 12.5px; color: var(--accent-text); background: var(--accent-soft); padding: 9px 12px; border-radius: 10px; }
+.reqbox { margin-top: 12px; border: 1px solid var(--border); border-radius: 12px; padding: 13px; background: var(--surface-2); }
+.reqbox-t { font-size: 12.5px; color: var(--text-muted); margin-bottom: 8px; }
+.reqbox-t b { color: var(--text); }
+.reqbox textarea { width: 100%; min-height: 70px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; font-family: inherit; resize: vertical; outline: none; }
+.reqbox textarea:focus { border-color: var(--accent); }
+.reqbox-a { display: flex; gap: 8px; margin-top: 9px; }
+.reqbox-a .btn { padding: 10px 15px; font-size: 13px; }
 .versions { margin-top: 14px; font-size: 12.5px; }
 .versions .vr { display: flex; align-items: center; gap: 9px; padding: 7px 0; color: var(--text-muted); }
 .versions .vr .vt { background: var(--surface-3); color: var(--text-muted); font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 6px; }

@@ -13,6 +13,22 @@ export function OrdersClient({ overview }: { overview: OrdersOverview }) {
   const [docCard, setDocCard] = useState<OrderCard | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [noticeOpen, setNoticeOpen] = useState(false);
+  const [noticeMemo, setNoticeMemo] = useState("");
+  const [noticeBusy, setNoticeBusy] = useState(false);
+
+  async function sendNotice() {
+    const m = noticeMemo.trim();
+    if (!m || !sel) return;
+    if (!hasDb) { flash("미리보기 모드 — 실제 발송은 프로덕션에서 됩니다."); return; }
+    setNoticeBusy(true);
+    try {
+      const r = await fetch(`/api/admin/orders/${sel.id}/notice-alimtalk`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ memo: m }) });
+      if (r.ok) { flash("주문 진행 안내를 카카오톡으로 보냈어요."); setNoticeOpen(false); setNoticeMemo(""); }
+      else { const b = await r.json().catch(() => ({})); flash(`안내 발송 실패: ${b?.error?.message ?? `HTTP ${r.status}`}`); }
+    } catch { flash("처리 중 오류가 생겼어요"); }
+    finally { setNoticeBusy(false); }
+  }
 
   function flash(m: string) {
     setToast(m);
@@ -46,7 +62,7 @@ export function OrdersClient({ overview }: { overview: OrdersOverview }) {
 
   function Card({ c }: { c: OrderCard }) {
     return (
-      <div className={`oc ${c.buttonAction !== "detail" ? "at" : ""}`} onClick={() => setSel(c)}>
+      <div className={`oc ${c.buttonAction !== "detail" ? "at" : ""}`} onClick={() => { setSel(c); setNoticeOpen(false); setNoticeMemo(""); }}>
         <div>
           <span className={`stg ${c.stage}`}><span className="d" />{c.stageText}</span>
           <div className="ono num">{c.orderNumber ?? "-"}</div>
@@ -127,8 +143,19 @@ export function OrdersClient({ overview }: { overview: OrdersOverview }) {
             <div className="mactions">
               <button className={`btn ${sel.buttonTone}`} style={{ flex: 1, minWidth: 130 }} onClick={() => doAction(sel)} disabled={busy}>{sel.buttonLabel}</button>
               <button className="btn b-ghost" onClick={() => setDocCard(sel)}>👁 견적서 보기</button>
+              <button className="btn b-ghost" onClick={() => setNoticeOpen((v) => !v)}>📢 주문 진행 안내</button>
               <Link className="btn b-ghost" href={`/admin/orders/${sel.id}`}>전체 관리 →</Link>
             </div>
+            {noticeOpen ? (
+              <div className="noticebox">
+                <div className="noticebox-t">고객에게 <b>주문 진행 상황</b>을 카카오톡으로 안내해요 (알림톡: 주문 진행 안내)</div>
+                <textarea value={noticeMemo} onChange={(e) => setNoticeMemo(e.target.value)} placeholder="예: 제품이 입고되어 7/12 오전 방문 예정입니다. 변경 원하시면 회신 주세요." />
+                <div className="noticebox-a">
+                  <button className="btn b-pri" onClick={sendNotice} disabled={noticeBusy || !noticeMemo.trim()}>{noticeBusy ? "보내는 중…" : "카톡으로 안내 보내기"}</button>
+                  <button className="btn b-ghost" onClick={() => setNoticeOpen(false)}>닫기</button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -196,6 +223,12 @@ const ORD_CSS = `
 .mphoto { aspect-ratio: 1; border-radius: 11px; overflow: hidden; border: 1px solid var(--border); background: var(--surface-2); }
 .mphoto img { width: 100%; height: 100%; object-fit: cover; }
 .mactions { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+.noticebox { margin-top: 12px; border: 1px solid var(--border); border-radius: 12px; padding: 13px; background: var(--surface-2); }
+.noticebox-t { font-size: 12.5px; color: var(--text-muted); margin-bottom: 8px; }
+.noticebox-t b { color: var(--text); }
+.noticebox textarea { width: 100%; min-height: 68px; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13.5px; font-family: inherit; resize: vertical; outline: none; box-sizing: border-box; }
+.noticebox textarea:focus { border-color: var(--accent); }
+.noticebox-a { display: flex; gap: 8px; margin-top: 9px; }
 .ord-toast { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); background: #0f1729; color: #fff; font-size: 13px; font-weight: 700; padding: 12px 20px; border-radius: 999px; z-index: 70; box-shadow: 0 10px 30px -10px rgba(0,0,0,.5); }
 @media (max-width: 900px) { .pipe { grid-template-columns: repeat(2, 1fr); } .oc { grid-template-columns: 1fr; gap: 10px; } .oc .ac { align-items: flex-start; } }
 `;
