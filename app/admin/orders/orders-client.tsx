@@ -8,6 +8,29 @@ import { ORDER_TRANSITIONS } from "@/lib/status";
 import { formatOrderStatus } from "@/lib/format";
 import type { OrderCard, OrdersOverview } from "@/lib/admin-orders-data";
 
+// 단계 이름을 관리자용 쉬운 말로 (실제 상태값은 그대로, 표시만 변경)
+const STAGE_LABEL: Record<string, string> = {
+  inquiry: "접수확인중",
+  quoted: "접수확인중",
+  payment_pending: "접수확인",
+  pending_product_payment: "접수확인",
+  paid: "입금 완료",
+  product_paid: "입금 완료",
+  scheduled: "방문 확정",
+  in_progress: "시공중",
+  installation_completed: "교체완료",
+  completed: "교체완료",
+  done: "교체완료",
+  cancel_requested: "취소 요청",
+  canceled: "취소",
+  cancelled: "취소",
+  issue: "문제/AS",
+  warranty: "AS"
+};
+function stageLabel(status: string) {
+  return STAGE_LABEL[status] ?? formatOrderStatus(status);
+}
+
 export function OrdersClient({ overview }: { overview: OrdersOverview }) {
   const router = useRouter();
   const { pipe, todo, active, hasDb } = overview;
@@ -26,7 +49,7 @@ export function OrdersClient({ overview }: { overview: OrdersOverview }) {
     setBusy(true);
     try {
       const r = await fetch(`/api/admin/orders/${sel.id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: target }) });
-      if (r.ok) { flash(`단계를 "${formatOrderStatus(target)}"(으)로 바꿨어요.`); setSel(null); router.refresh(); }
+      if (r.ok) { flash(`단계를 "${stageLabel(target)}"(으)로 바꿨어요.`); setSel(null); router.refresh(); }
       else { const b = await r.json().catch(() => ({})); flash(b?.error?.message ?? "단계 변경에 실패했어요."); }
     } catch { flash("처리 중 오류가 생겼어요"); }
     finally { setBusy(false); }
@@ -164,12 +187,12 @@ export function OrdersClient({ overview }: { overview: OrdersOverview }) {
             </div>
             {statusOpen ? (
               <div className="statusbox">
-                <div className="statusbox-t">현재 <b>{formatOrderStatus(sel.rawStatus)}</b> · 바꿀 단계를 누르세요</div>
+                <div className="statusbox-t">현재 <b>{stageLabel(sel.rawStatus)}</b> · 바꿀 단계를 누르세요</div>
                 <div className="statusbox-btns">
                   {(((ORDER_TRANSITIONS as any)[sel.rawStatus] ?? []) as string[]).length ? (
                     (((ORDER_TRANSITIONS as any)[sel.rawStatus] ?? []) as string[]).map((t) => (
                       <button key={t} className={`stbtn ${t === "canceled" || t === "cancel_requested" ? "danger" : ""}`} onClick={() => changeStatus(t)} disabled={busy}>
-                        {formatOrderStatus(t)}
+                        {stageLabel(t)}
                       </button>
                     ))
                   ) : (
