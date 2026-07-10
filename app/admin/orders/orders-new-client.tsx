@@ -43,6 +43,21 @@ function inTab(order: AdminOrderRow, tab: string): boolean {
   return orderStage(order) === (tab as Stage);
 }
 
+// 관리자가 직접 고르는 3단계 상태 (접수확인 → 기사배정완료 → 시공완료)
+const SIMPLE_STATUS = [
+  { key: "received", label: "접수확인", backend: "paid", cls: "s-new" },
+  { key: "assigned", label: "기사배정완료", backend: "scheduled", cls: "s-booked" },
+  { key: "done", label: "시공완료", backend: "done", cls: "s-done" }
+] as const;
+
+function simpleStatusKey(order: AdminOrderRow): "received" | "assigned" | "done" | "cancel" {
+  const stage = orderStage(order);
+  if (stage === "cancel") return "cancel";
+  if (stage === "done") return "done";
+  if (stage === "booked") return "assigned";
+  return "received";
+}
+
 function nextActionHint(order: AdminOrderRow): string {
   const s = order.status ?? "";
   if (s === "cancel_requested") return "취소 승인/거절";
@@ -168,6 +183,19 @@ export default function OrdersClient() {
     setSelectedIds(new Set());
     toast(done === ids.length ? `${done}건을 휴지통으로 옮겼어요` : `${done}건 이동, ${ids.length - done}건 실패`, done === ids.length ? "info" : "err");
     await load();
+  }
+
+  async function changeSimpleStatus(o: AdminOrderRow, key: string) {
+    const target = SIMPLE_STATUS.find((s) => s.key === key);
+    if (!target) return;
+    await act(
+      () =>
+        adminFetch(`/api/admin/orders/${o.id}/status`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: target.backend, force: true })
+        }),
+      `상태를 "${target.label}"로 변경했어요`
+    );
   }
 
   async function confirmPayment(o: AdminOrderRow) {
@@ -531,8 +559,24 @@ export default function OrdersClient() {
                           onChange={() => toggleSelect(o.id)}
                         />
                       </td>
-                      <td>
-                        <span className={`pill ${STAGE_META[st].pill}`}>{stageLabel(o)}</span>
+                      <td onClick={(e) => e.stopPropagation()} style={{ cursor: "default" }}>
+                        {simpleStatusKey(o) === "cancel" ? (
+                          <span className={`pill ${STAGE_META[st].pill}`}>{stageLabel(o)}</span>
+                        ) : (
+                          <select
+                            className={`pill-select ${SIMPLE_STATUS.find((s) => s.key === simpleStatusKey(o))?.cls ?? "s-new"}`}
+                            value={simpleStatusKey(o)}
+                            disabled={busy}
+                            aria-label="주문 상태 변경"
+                            onChange={(e) => changeSimpleStatus(o, e.target.value)}
+                          >
+                            {SIMPLE_STATUS.map((s) => (
+                              <option key={s.key} value={s.key}>
+                                {s.label}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </td>
                       <td>
                         <div className="cust">{o.customers?.name ?? "고객"}</div>
