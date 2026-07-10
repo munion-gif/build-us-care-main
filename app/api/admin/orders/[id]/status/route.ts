@@ -50,7 +50,9 @@ export async function PATCH(request: Request, context: Context) {
     return fail("not_found", "Order not found.", 404);
   }
 
-  if (!canTransitionOrder(order.status as OrderStatus, parsed.data.status)) {
+  // 관리자 수동 단계 변경(force)은 순서 규칙을 건너뛴다.
+  const force = Boolean(body && typeof body === "object" && (body as Record<string, unknown>).force === true);
+  if (!force && !canTransitionOrder(order.status as OrderStatus, parsed.data.status)) {
     logOperation({ requestId, endpoint: "/api/admin/orders/:id/status", method: "PATCH", adminKeyId, identifiers: { order_id: orderId.data }, success: false, errorCode: "INVALID_TRANSITION" });
     const allowed = ORDER_TRANSITIONS[order.status as OrderStatus] ?? [];
     return fail("conflict", `Invalid transition from ${order.status} to ${parsed.data.status}. Allowed: ${allowed.join(", ") || "none"}.`, 409);

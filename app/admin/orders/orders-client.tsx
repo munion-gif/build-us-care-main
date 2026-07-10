@@ -46,7 +46,7 @@ export function OrdersClient({ overview }: { overview: OrdersOverview }) {
     if (!hasDb) { flash("미리보기 모드 — 실제 변경은 프로덕션에서 됩니다."); return; }
     setBusy(true);
     try {
-      const r = await fetch(`/api/admin/orders/${sel.id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: target }) });
+      const r = await fetch(`/api/admin/orders/${sel.id}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: target, force: true }) });
       if (r.ok) { flash(`단계를 "${stageLabel(target)}"(으)로 바꿨어요.`); setSel(null); router.refresh(); }
       else { const b = await r.json().catch(() => ({})); flash(b?.error?.message ?? "단계 변경에 실패했어요."); }
     } catch { flash("처리 중 오류가 생겼어요"); }
@@ -201,7 +201,7 @@ export function OrdersClient({ overview }: { overview: OrdersOverview }) {
                 <div style={{ marginTop: 10 }}>
                   <button className={`stage-pill cancel ${currentStageKey(sel.rawStatus) === "cancel" ? "on" : ""}`} onClick={() => changeStatus("canceled")} disabled={busy}>취소 처리</button>
                 </div>
-                <div className="statusbox-hint">일부 단계는 순서상 바로 못 바꿀 수 있어요 (그때 안내가 떠요). 되돌리기는 “전체 관리”에서요.</div>
+                <div className="statusbox-hint">아무 단계나 눌러 바로 바꿀 수 있어요. (관리자 수동 변경)</div>
               </div>
             ) : null}
             {noticeOpen ? (
