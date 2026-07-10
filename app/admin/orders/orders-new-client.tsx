@@ -73,6 +73,7 @@ export default function OrdersClient() {
   const [assignDate, setAssignDate] = useState("");
 
   const [trashOrders, setTrashOrders] = useState<AdminOrderRow[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     const [o, t, tr] = await Promise.all([
@@ -139,6 +140,34 @@ export default function OrdersClient() {
     toast(okMsg);
     await load();
     return true;
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function bulkTrash() {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    if (!window.confirm(`선택한 주문 ${ids.length}건을 휴지통으로 이동할까요?\n방문 일정이 있으면 홈페이지·관리자 달력에서 함께 빠져요.`)) return;
+    setBusy(true);
+    let done = 0;
+    for (const id of ids) {
+      const res = await adminFetch(`/api/admin/orders/${id}/trash`, {
+        method: "POST",
+        body: JSON.stringify({ reason: "관리자 일괄 삭제" })
+      });
+      if (res.ok) done += 1;
+    }
+    setBusy(false);
+    setSelectedIds(new Set());
+    toast(done === ids.length ? `${done}건을 휴지통으로 옮겼어요` : `${done}건 이동, ${ids.length - done}건 실패`, done === ids.length ? "info" : "err");
+    await load();
   }
 
   async function confirmPayment(o: AdminOrderRow) {
@@ -349,7 +378,10 @@ export default function OrdersClient() {
             role="tab"
             aria-selected={tab === t.key}
             className={tab === t.key ? "on" : ""}
-            onClick={() => setTab(t.key)}
+            onClick={() => {
+              setTab(t.key);
+              setSelectedIds(new Set());
+            }}
           >
             {t.label} <span className="n">{counts.get(t.key) ?? 0}</span>
           </button>
@@ -371,6 +403,11 @@ export default function OrdersClient() {
             />
           </div>
           <span className="sp" />
+          {selectedIds.size > 0 && tab !== "trash" && (
+            <button className="btn danger" disabled={busy} onClick={bulkTrash}>
+              선택 {selectedIds.size}건 삭제
+            </button>
+          )}
           <a className="btn" href="/api/admin/orders/export" target="_blank" rel="noreferrer">
             엑셀 내보내기
           </a>
@@ -446,6 +483,16 @@ export default function OrdersClient() {
           <table>
             <thead>
               <tr>
+                <th style={{ width: 34 }}>
+                  <input
+                    type="checkbox"
+                    aria-label="전체 선택"
+                    checked={visible.length > 0 && visible.every((o) => selectedIds.has(o.id))}
+                    onChange={(e) => {
+                      setSelectedIds(e.target.checked ? new Set(visible.map((o) => o.id)) : new Set());
+                    }}
+                  />
+                </th>
                 <th>상태</th>
                 <th>고객</th>
                 <th>품목</th>
@@ -459,13 +506,13 @@ export default function OrdersClient() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="empty-cell">
+                  <td colSpan={9} className="empty-cell">
                     불러오는 중…
                   </td>
                 </tr>
               ) : visible.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="empty-cell">
+                  <td colSpan={9} className="empty-cell">
                     해당하는 주문이 없어요
                   </td>
                 </tr>
@@ -476,6 +523,14 @@ export default function OrdersClient() {
                   const hint = nextActionHint(o);
                   return (
                     <tr key={o.id} className={o.id === selId ? "sel" : ""} onClick={() => setSelId(o.id)}>
+                      <td onClick={(e) => e.stopPropagation()} style={{ cursor: "default" }}>
+                        <input
+                          type="checkbox"
+                          aria-label="주문 선택"
+                          checked={selectedIds.has(o.id)}
+                          onChange={() => toggleSelect(o.id)}
+                        />
+                      </td>
                       <td>
                         <span className={`pill ${STAGE_META[st].pill}`}>{stageLabel(o)}</span>
                       </td>
