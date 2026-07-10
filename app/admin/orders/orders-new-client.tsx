@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { adminFetch, useToast, won, fmtDate } from "../_lib/ui";
+import { adminFetch, getCache, setCache, useToast, won, fmtDate } from "../_lib/ui";
 import {
   AdminOrderRow,
   Stage,
@@ -77,9 +77,9 @@ export default function OrdersClient() {
   const router = useRouter();
   const params = useSearchParams();
   const toast = useToast();
-  const [orders, setOrders] = useState<AdminOrderRow[]>([]);
-  const [technicians, setTechnicians] = useState<Technician[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState<AdminOrderRow[]>(() => getCache<AdminOrderRow[]>("orders") ?? []);
+  const [technicians, setTechnicians] = useState<Technician[]>(() => getCache<Technician[]>("technicians") ?? []);
+  const [loading, setLoading] = useState(() => !getCache("orders"));
   const [tab, setTab] = useState(params.get("tab") ?? "todo");
   const [query, setQuery] = useState("");
   const [selId, setSelId] = useState<string | null>(params.get("open"));
@@ -87,20 +87,40 @@ export default function OrdersClient() {
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignDate, setAssignDate] = useState("");
 
-  const [trashOrders, setTrashOrders] = useState<AdminOrderRow[]>([]);
+  const [trashOrders, setTrashOrders] = useState<AdminOrderRow[]>(() => getCache<AdminOrderRow[]>("trash") ?? []);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const load = useCallback(async () => {
-    const [o, t, tr] = await Promise.all([
-      adminFetch<{ orders: AdminOrderRow[] }>("/api/admin/orders?limit=300"),
-      adminFetch<{ technicians: Technician[] }>("/api/admin/technicians"),
-      adminFetch<{ orders: AdminOrderRow[] }>("/api/admin/orders?trash=1&limit=100")
-    ]);
-    if (o.ok && o.data) setOrders((o.data.orders ?? []).filter((x) => !x.deleted_at && !x.is_test));
-    if (t.ok && t.data) setTechnicians((t.data.technicians ?? []).filter((x) => x.is_active !== false));
-    if (tr.ok && tr.data) setTrashOrders(tr.data.orders ?? []);
+  // 주문 목록만 재조회 (액션 후 빠른 갱신용)
+  const loadOrders = useCallback(async () => {
+    const o = await adminFetch<{ orders: AdminOrderRow[] }>("/api/admin/orders?limit=300");
+    if (o.ok && o.data) {
+      const rows = (o.data.orders ?? []).filter((x) => !x.deleted_at && !x.is_test);
+      setOrders(rows);
+      setCache("orders", rows);
+    }
     setLoading(false);
   }, []);
+
+  const loadTrash = useCallback(async () => {
+    const tr = await adminFetch<{ orders: AdminOrderRow[] }>("/api/admin/orders?trash=1&limit=100");
+    if (tr.ok && tr.data) {
+      setTrashOrders(tr.data.orders ?? []);
+      setCache("trash", tr.data.orders ?? []);
+    }
+  }, []);
+
+  const load = useCallback(async () => {
+    const [, , t] = await Promise.all([
+      loadOrders(),
+      loadTrash(),
+      adminFetch<{ technicians: Technician[] }>("/api/admin/technicians")
+    ]);
+    if (t.ok && t.data) {
+      const rows = (t.data.technicians ?? []).filter((x) => x.is_active !== false);
+      setTechnicians(rows);
+      setCache("technicians", rows);
+    }
+  }, [loadOrders, loadTrash]);
 
   useEffect(() => {
     load();
@@ -144,7 +164,11 @@ export default function OrdersClient() {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  async function act(fn: () => Promise<{ ok: boolean; message?: string }>, okMsg: string) {
+  async function act(
+    fn: () => Promise<{ ok: boolean; message?: string }>,
+    okMsg: string,
+    opts?: { trash?: boolean }
+  ) {
     setBusy(true);
     const res = await fn();
     setBusy(false);
@@ -153,7 +177,8 @@ export default function OrdersClient() {
       return false;
     }
     toast(okMsg);
-    await load();
+    // 필요한 목록만 재조회해서 빠르게 반영
+    await Promise.all([loadOrders(), opts?.trash ? loadTrash() : Promise.resolve()]);
     return true;
   }
 
@@ -182,20 +207,26 @@ export default function OrdersClient() {
     setBusy(false);
     setSelectedIds(new Set());
     toast(done === ids.length ? `${done}건을 휴지통으로 옮겼어요` : `${done}건 이동, ${ids.length - done}건 실패`, done === ids.length ? "info" : "err");
-    await load();
+    await Promise.all([loadOrders(), loadTrash()]);
   }
 
   async function changeSimpleStatus(o: AdminOrderRow, key: string) {
     const target = SIMPLE_STATUS.find((s) => s.key === key);
     if (!target) return;
-    await act(
-      () =>
-        adminFetch(`/api/admin/orders/${o.id}/status`, {
-          method: "PATCH",
-          body: JSON.stringify({ status: target.backend, force: true })
-        }),
-      `상태를 "${target.label}"로 변경했어요`
-    );
+    // 화면에 먼저 반영(낙관적 업데이트) → 서버 저장은 백그라운드
+    const prev = orders;
+    setOrders((rows) => rows.map((r) => (r.id === o.id ? { ...r, status: target.backend } : r)));
+    const res = await adminFetch(`/api/admin/orders/${o.id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: target.backend, force: true })
+    });
+    if (!res.ok) {
+      setOrders(prev);
+      toast(res.message ?? "상태 변경에 실패했어요", "err");
+      return;
+    }
+    toast(`상태를 "${target.label}"로 변경했어요`);
+    void loadOrders();
   }
 
   async function confirmPayment(o: AdminOrderRow) {
@@ -481,7 +512,8 @@ export default function OrdersClient() {
                             onClick={() =>
                               act(
                                 () => adminFetch(`/api/admin/orders/${o.id}/trash`, { method: "PATCH" }),
-                                "주문을 복원했어요 — 방문일이 있으면 달력 자리도 다시 차지해요"
+                                "주문을 복원했어요 — 방문일이 있으면 달력 자리도 다시 차지해요",
+                                { trash: true }
                               )
                             }
                           >
@@ -494,7 +526,8 @@ export default function OrdersClient() {
                               if (!window.confirm("완전히 삭제할까요? 되돌릴 수 없어요.")) return;
                               act(
                                 () => adminFetch(`/api/admin/orders/${o.id}/trash`, { method: "DELETE" }),
-                                "완전히 삭제했어요"
+                                "완전히 삭제했어요",
+                                { trash: true }
                               );
                             }}
                           >
@@ -709,7 +742,8 @@ export default function OrdersClient() {
                             method: "POST",
                             body: JSON.stringify({ reason: "관리자 삭제" })
                           }),
-                        "주문을 휴지통으로 옮겼어요"
+                        "주문을 휴지통으로 옮겼어요",
+                        { trash: true }
                       );
                       closeDrawer();
                     }}

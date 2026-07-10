@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { adminFetch, won } from "./_lib/ui";
+import { adminFetch, getCache, setCache, won } from "./_lib/ui";
 import {
   AdminOrderRow,
   orderJob,
@@ -34,9 +34,9 @@ const REVENUE_START = new Date("2026-07-10T00:00:00+09:00");
 
 export default function AdminHomePage() {
   const router = useRouter();
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [orders, setOrders] = useState<AdminOrderRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<Stats | null>(() => getCache<Stats>("stats") ?? null);
+  const [orders, setOrders] = useState<AdminOrderRow[]>(() => getCache<AdminOrderRow[]>("orders") ?? []);
+  const [loading, setLoading] = useState(() => !getCache("orders"));
   const [tip, setTip] = useState<{ x: number; y: number; text: string; sub: string } | null>(null);
 
   useEffect(() => {
@@ -45,8 +45,15 @@ export default function AdminHomePage() {
         adminFetch<Stats>("/api/admin/stats"),
         adminFetch<{ orders: AdminOrderRow[] }>("/api/admin/orders?limit=300")
       ]);
-      if (s.ok && s.data) setStats(s.data);
-      if (o.ok && o.data) setOrders((o.data.orders ?? []).filter((x) => !x.deleted_at && !x.is_test));
+      if (s.ok && s.data) {
+        setStats(s.data);
+        setCache("stats", s.data);
+      }
+      if (o.ok && o.data) {
+        const rows = (o.data.orders ?? []).filter((x) => !x.deleted_at && !x.is_test);
+        setOrders(rows);
+        setCache("orders", rows);
+      }
       setLoading(false);
     })();
   }, []);

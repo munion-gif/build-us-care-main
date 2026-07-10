@@ -23,6 +23,15 @@ export async function adminFetch<T = any>(
   }
 }
 
+/* ---------- 화면 간 메모리 캐시 (탭 이동 시 이전 데이터 즉시 표시 → 백그라운드 갱신) ---------- */
+const memCache = new Map<string, unknown>();
+export function getCache<T>(key: string): T | undefined {
+  return memCache.get(key) as T | undefined;
+}
+export function setCache(key: string, value: unknown) {
+  memCache.set(key, value);
+}
+
 /* ---------- 토스트 ---------- */
 type ToastFn = (message: string, kind?: "info" | "err") => void;
 const ToastContext = createContext<ToastFn>(() => {});

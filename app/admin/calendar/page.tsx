@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { adminFetch, useToast } from "../_lib/ui";
+import { adminFetch, getCache, setCache, useToast } from "../_lib/ui";
 import { KR_HOLIDAYS } from "../_lib/holidays";
 import { AdminOrderRow, orderJob, orderStage, orderItemsSummary, shortRegion } from "../_lib/orders-shared";
 
@@ -24,9 +24,9 @@ export default function AdminCalendarPage() {
   const now = new Date();
   const [calY, setCalY] = useState(now.getFullYear());
   const [calM, setCalM] = useState(now.getMonth());
-  const [slots, setSlots] = useState<SlotsData | null>(null);
-  const [configs, setConfigs] = useState<SlotConfig[]>([]);
-  const [orders, setOrders] = useState<AdminOrderRow[]>([]);
+  const [slots, setSlots] = useState<SlotsData | null>(() => getCache<SlotsData>(`slots:${now.getFullYear()}-${now.getMonth()}`) ?? null);
+  const [configs, setConfigs] = useState<SlotConfig[]>(() => getCache<SlotConfig[]>("slot-configs") ?? []);
+  const [orders, setOrders] = useState<AdminOrderRow[]>(() => getCache<AdminOrderRow[]>("orders") ?? []);
   const [busyDate, setBusyDate] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -35,9 +35,19 @@ export default function AdminCalendarPage() {
       adminFetch<{ configs: SlotConfig[] }>("/api/admin/slot-configs"),
       adminFetch<{ orders: AdminOrderRow[] }>("/api/admin/orders?limit=300")
     ]);
-    if (slotRes.ok && slotRes.data) setSlots(slotRes.data);
-    if (cfgRes.ok && cfgRes.data) setConfigs(cfgRes.data.configs ?? []);
-    if (ordRes.ok && ordRes.data) setOrders((ordRes.data.orders ?? []).filter((x) => !x.deleted_at && !x.is_test));
+    if (slotRes.ok && slotRes.data) {
+      setSlots(slotRes.data);
+      setCache(`slots:${calY}-${calM}`, slotRes.data);
+    }
+    if (cfgRes.ok && cfgRes.data) {
+      setConfigs(cfgRes.data.configs ?? []);
+      setCache("slot-configs", cfgRes.data.configs ?? []);
+    }
+    if (ordRes.ok && ordRes.data) {
+      const rows = (ordRes.data.orders ?? []).filter((x) => !x.deleted_at && !x.is_test);
+      setOrders(rows);
+      setCache("orders", rows);
+    }
   }, [calY, calM]);
 
   useEffect(() => {
