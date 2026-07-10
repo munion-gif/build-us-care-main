@@ -25,7 +25,8 @@ const TABS: Array<{ key: string; label: string }> = [
   { key: "booked", label: "예약 확정" },
   { key: "done", label: "완료" },
   { key: "cancel", label: "취소·A/S" },
-  { key: "all", label: "전체" }
+  { key: "all", label: "전체" },
+  { key: "trash", label: "휴지통" }
 ];
 
 function isTodo(order: AdminOrderRow): boolean {
@@ -71,13 +72,17 @@ export default function OrdersClient() {
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignDate, setAssignDate] = useState("");
 
+  const [trashOrders, setTrashOrders] = useState<AdminOrderRow[]>([]);
+
   const load = useCallback(async () => {
-    const [o, t] = await Promise.all([
+    const [o, t, tr] = await Promise.all([
       adminFetch<{ orders: AdminOrderRow[] }>("/api/admin/orders?limit=300"),
-      adminFetch<{ technicians: Technician[] }>("/api/admin/technicians")
+      adminFetch<{ technicians: Technician[] }>("/api/admin/technicians"),
+      adminFetch<{ orders: AdminOrderRow[] }>("/api/admin/orders?trash=1&limit=100")
     ]);
     if (o.ok && o.data) setOrders((o.data.orders ?? []).filter((x) => !x.deleted_at && !x.is_test));
     if (t.ok && t.data) setTechnicians((t.data.technicians ?? []).filter((x) => x.is_active !== false));
+    if (tr.ok && tr.data) setTrashOrders(tr.data.orders ?? []);
     setLoading(false);
   }, []);
 
@@ -90,11 +95,12 @@ export default function OrdersClient() {
     for (const t of TABS) map.set(t.key, 0);
     for (const o of orders) {
       for (const t of TABS) {
-        if (inTab(o, t.key)) map.set(t.key, (map.get(t.key) ?? 0) + 1);
+        if (t.key !== "trash" && inTab(o, t.key)) map.set(t.key, (map.get(t.key) ?? 0) + 1);
       }
     }
+    map.set("trash", trashOrders.length);
     return map;
-  }, [orders]);
+  }, [orders, trashOrders]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -370,6 +376,73 @@ export default function OrdersClient() {
           </a>
         </div>
         <div className="tbl-wrap">
+          {tab === "trash" ? (
+            <table>
+              <thead>
+                <tr>
+                  <th>상태</th>
+                  <th>고객</th>
+                  <th>품목</th>
+                  <th className="r">금액</th>
+                  <th>삭제일</th>
+                  <th>처리</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trashOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="empty-cell">
+                      휴지통이 비어 있어요
+                    </td>
+                  </tr>
+                ) : (
+                  trashOrders.map((o) => (
+                    <tr key={o.id} style={{ cursor: "default" }}>
+                      <td>
+                        <span className="pill p-done">삭제됨</span>
+                      </td>
+                      <td>
+                        <div className="cust">{o.customers?.name ?? "고객"}</div>
+                        <div className="ord-no">{o.order_number ?? o.id.slice(0, 8)}</div>
+                      </td>
+                      <td className="item-l">{orderItemsSummary(o)}</td>
+                      <td className="amt">{won(o.total_amount)}</td>
+                      <td className="item-l">{o.deleted_at ? fmtDate(o.deleted_at) : "—"}</td>
+                      <td>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button
+                            className="btn"
+                            disabled={busy}
+                            onClick={() =>
+                              act(
+                                () => adminFetch(`/api/admin/orders/${o.id}/trash`, { method: "PATCH" }),
+                                "주문을 복원했어요 — 방문일이 있으면 달력 자리도 다시 차지해요"
+                              )
+                            }
+                          >
+                            복원
+                          </button>
+                          <button
+                            className="btn danger"
+                            disabled={busy}
+                            onClick={() => {
+                              if (!window.confirm("완전히 삭제할까요? 되돌릴 수 없어요.")) return;
+                              act(
+                                () => adminFetch(`/api/admin/orders/${o.id}/trash`, { method: "DELETE" }),
+                                "완전히 삭제했어요"
+                              );
+                            }}
+                          >
+                            완전 삭제
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          ) : (
           <table>
             <thead>
               <tr>
@@ -434,6 +507,7 @@ export default function OrdersClient() {
               )}
             </tbody>
           </table>
+          )}
         </div>
       </div>
 
