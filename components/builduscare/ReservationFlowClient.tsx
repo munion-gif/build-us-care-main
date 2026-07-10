@@ -480,6 +480,35 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
   const [selections, setSelections] = useState<ProductSelection[]>([]);
   const [photos, setPhotos] = useState<ReservationPhoto[]>(() => reservationPhotoStore);
   const [orderResult, setOrderResult] = useState<OrderResult | null>(null);
+  const [kakaoNotify, setKakaoNotify] = useState<"idle" | "sending" | "sent">("idle");
+  const [kakaoNotifyMsg, setKakaoNotifyMsg] = useState("");
+  const orderAccess = useMemo(() => {
+    const m = String(orderResult?.statusUrl ?? "").match(/\/orders\/([^/?]+)\?accessToken=([^&]+)/);
+    return m ? { orderId: m[1], accessToken: m[2] } : null;
+  }, [orderResult?.statusUrl]);
+  async function requestKakaoQuoteNotify() {
+    if (!orderAccess || kakaoNotify !== "idle") return;
+    setKakaoNotify("sending");
+    setKakaoNotifyMsg("");
+    try {
+      const res = await fetch(`/api/orders/${orderAccess.orderId}/notify-quote`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessToken: orderAccess.accessToken })
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || json?.ok === false) {
+        setKakaoNotify("idle");
+        setKakaoNotifyMsg(json?.error?.message ?? "알림톡 발송에 실패했어요. 잠시 후 다시 시도해주세요.");
+        return;
+      }
+      setKakaoNotify("sent");
+      setKakaoNotifyMsg("예약하신 번호로 카카오톡 알림을 보냈어요. 카카오톡을 확인해주세요.");
+    } catch {
+      setKakaoNotify("idle");
+      setKakaoNotifyMsg("네트워크 오류로 발송하지 못했어요. 잠시 후 다시 시도해주세요.");
+    }
+  }
   const [slotDays, setSlotDays] = useState<Record<string, SlotDayInfo>>({});
   const [slotLoading, setSlotLoading] = useState(false);
   const [slotError, setSlotError] = useState("");
@@ -1115,21 +1144,46 @@ export function ReservationFlowClient({ step, initial }: ReservationFlowClientPr
                   <FileText aria-hidden="true" style={{ width: 18, height: 18 }} /> 최종 견적서 보기
                 </button>
               )}
-              <a className="web-btn kkbtn lg block" href="https://pf.kakao.com/_PxkzsX" target="_blank" rel="noreferrer"><MessageCircle aria-hidden="true" style={{ width: 18, height: 18 }} /> 카카오톡으로 결과 알림 받기</a>
+              {orderAccess ? (
+                <button className="web-btn kkbtn lg block" type="button" onClick={requestKakaoQuoteNotify} disabled={kakaoNotify !== "idle"}>
+                  <MessageCircle aria-hidden="true" style={{ width: 18, height: 18 }} /> {kakaoNotify === "sent" ? "카카오톡 알림 전송 완료" : kakaoNotify === "sending" ? "전송 중…" : "카카오톡으로 결과 알림 받기"}
+                </button>
+              ) : (
+                <a className="web-btn kkbtn lg block" href="https://pf.kakao.com/_PxkzsX" target="_blank" rel="noreferrer"><MessageCircle aria-hidden="true" style={{ width: 18, height: 18 }} /> 카카오톡으로 결과 알림 받기</a>
+              )}
+              {kakaoNotifyMsg && <p className="p-sm" style={{ textAlign: "center", color: "var(--gray-500)", margin: 0 }}>{kakaoNotifyMsg}</p>}
               {!standaloneCompleteFallback && !photoCheckComplete && (orderResult?.orderNumber || draft.orderNumber) && (
                 <Link className="web-btn pri lg block" href={`/order-lookup${orderResult?.orderNumber || draft.orderNumber ? `?orderNumber=${encodeURIComponent(orderResult?.orderNumber || draft.orderNumber)}&name=${encodeURIComponent(orderResult?.customerName || draft.customerName)}` : ""}`}>주문 현황 보기</Link>
               )}
               <Link className="web-btn sec lg block" href="/">홈으로</Link>
             </div>
             <div className="bc-mobile-only reservation-complete-mobile-actions">
-              <a className="reservation-complete-kakao-card" href="https://pf.kakao.com/_PxkzsX" target="_blank" rel="noreferrer">
-                <span className="reservation-complete-kakao-icon"><MessageCircle aria-hidden="true" style={{ width: 20, height: 20 }} /></span>
-                <span className="reservation-complete-kakao-copy">
-                  <b>카카오톡으로 결과 알림 받기</b>
-                  <small>추가 질문도 톡으로 편하게</small>
-                </span>
-                <ChevronRight aria-hidden="true" style={{ width: 18, height: 18 }} />
-              </a>
+              {orderAccess ? (
+                <button
+                  className="reservation-complete-kakao-card"
+                  type="button"
+                  onClick={requestKakaoQuoteNotify}
+                  disabled={kakaoNotify !== "idle"}
+                  style={{ width: "100%", textAlign: "left", font: "inherit", cursor: "pointer" }}
+                >
+                  <span className="reservation-complete-kakao-icon"><MessageCircle aria-hidden="true" style={{ width: 20, height: 20 }} /></span>
+                  <span className="reservation-complete-kakao-copy">
+                    <b>{kakaoNotify === "sent" ? "카카오톡 알림 전송 완료" : kakaoNotify === "sending" ? "전송 중…" : "카카오톡으로 결과 알림 받기"}</b>
+                    <small>{kakaoNotify === "sent" ? "카카오톡을 확인해주세요" : "예약하신 번호로 견적 알림을 보내드려요"}</small>
+                  </span>
+                  <ChevronRight aria-hidden="true" style={{ width: 18, height: 18 }} />
+                </button>
+              ) : (
+                <a className="reservation-complete-kakao-card" href="https://pf.kakao.com/_PxkzsX" target="_blank" rel="noreferrer">
+                  <span className="reservation-complete-kakao-icon"><MessageCircle aria-hidden="true" style={{ width: 20, height: 20 }} /></span>
+                  <span className="reservation-complete-kakao-copy">
+                    <b>카카오톡으로 결과 알림 받기</b>
+                    <small>추가 질문도 톡으로 편하게</small>
+                  </span>
+                  <ChevronRight aria-hidden="true" style={{ width: 18, height: 18 }} />
+                </a>
+              )}
+              {kakaoNotifyMsg && <p className="p-sm" style={{ textAlign: "center", color: "var(--gray-500)", margin: "6px 0 0" }}>{kakaoNotifyMsg}</p>}
               {!standaloneCompleteFallback && !photoCheckComplete && (orderResult?.orderNumber || draft.orderNumber) && (
                 <Link className="web-btn sec lg block" href={`/order-lookup${orderResult?.orderNumber || draft.orderNumber ? `?orderNumber=${encodeURIComponent(orderResult?.orderNumber || draft.orderNumber)}&name=${encodeURIComponent(orderResult?.customerName || draft.customerName)}` : ""}`}>주문 현황 보기</Link>
               )}
