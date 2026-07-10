@@ -11,8 +11,6 @@ type Technician = {
   region?: string | null;
 };
 
-type SettingRow = { key: string; value: string | null };
-
 export default function AdminSettingsPage() {
   const toast = useToast();
   const [technicians, setTechnicians] = useState<Technician[]>([]);
@@ -26,17 +24,14 @@ export default function AdminSettingsPage() {
   const load = useCallback(async () => {
     const [t, s] = await Promise.all([
       adminFetch<{ technicians: Technician[] }>("/api/admin/technicians"),
-      adminFetch<{ settings: SettingRow[] } | SettingRow[] | Record<string, unknown>>("/api/admin/settings")
+      adminFetch<{ settings: Record<string, string | null> }>("/api/admin/settings")
     ]);
     if (t.ok && t.data) setTechnicians(t.data.technicians ?? []);
     if (s.ok && s.data) {
-      const rows: SettingRow[] = Array.isArray(s.data)
-        ? (s.data as SettingRow[])
-        : Array.isArray((s.data as any).settings)
-          ? (s.data as any).settings
-          : [];
       const map: Record<string, string> = {};
-      for (const row of rows) if (row?.key) map[row.key] = row.value ?? "";
+      for (const [key, value] of Object.entries(s.data.settings ?? {})) {
+        map[key] = value == null ? "" : String(value);
+      }
       setSettings(map);
       setSlotCap(map.slot_cap ?? "");
     }
