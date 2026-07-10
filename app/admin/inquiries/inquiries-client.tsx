@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { IntakeItem } from "@/lib/admin-intake-data";
-import { timeAgo } from "../_lib/ui";
+import { adminFetch, timeAgo, useToast } from "../_lib/ui";
 
 const TABS = [
   { key: "wait", label: "답장 대기" },
@@ -32,7 +32,27 @@ function hoursSince(iso: string | null) {
 
 export default function InquiriesClient({ items }: { items: IntakeItem[] }) {
   const router = useRouter();
+  const toast = useToast();
   const [tab, setTab] = useState<string>("wait");
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  async function deleteInquiry(it: IntakeItem) {
+    if (!window.confirm(`${it.name ?? "고객"}님의 문의를 삭제할까요?\n삭제하면 되돌릴 수 없어요.`)) return;
+    setBusyId(it.id);
+    const res = await adminFetch(`/api/admin/diagnoses/${it.id}`, { method: "DELETE" });
+    setBusyId(null);
+    if (!res.ok) {
+      toast(
+        res.message?.includes("주문") || res.message?.includes("order")
+          ? "이 문의는 이미 주문으로 이어져 있어요 — 예약 주문에서 해당 주문을 삭제하면 일정까지 함께 정리됩니다."
+          : (res.message ?? "삭제에 실패했어요"),
+        "err"
+      );
+      return;
+    }
+    toast("문의를 삭제했어요");
+    router.refresh();
+  }
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { wait: 0, progress: 0, closed: 0, all: items.length };
@@ -100,6 +120,16 @@ export default function InquiriesClient({ items }: { items: IntakeItem[] }) {
                       }}
                     >
                       견적 보내기
+                    </button>
+                    <button
+                      className="btn danger"
+                      disabled={busyId === it.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteInquiry(it);
+                      }}
+                    >
+                      {busyId === it.id ? "삭제 중…" : "삭제"}
                     </button>
                     <span className="next-hint">사진 {it.photoCount}장</span>
                     <span className={`age ${old ? "hot" : ""}`}>{timeAgo(it.createdAt)}</span>

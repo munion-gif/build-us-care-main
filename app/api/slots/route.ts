@@ -68,7 +68,7 @@ async function fetchTestOrderIds(supabase: ReturnType<typeof getSupabaseAdmin>, 
   const uniqueOrderIds = [...new Set(orderIds.filter(Boolean) as string[])];
   if (uniqueOrderIds.length === 0) return new Set<string>();
 
-  const { data, error } = await supabase.from("orders").select("id,is_test").in("id", uniqueOrderIds);
+  const { data, error } = await supabase.from("orders").select("id,is_test,deleted_at").in("id", uniqueOrderIds);
   if (error) {
     if (isMissingColumnError(error, "is_test")) {
       skipTestOrderLookup = true;
@@ -78,7 +78,10 @@ async function fetchTestOrderIds(supabase: ReturnType<typeof getSupabaseAdmin>, 
     throw error;
   }
 
-  return new Set((data ?? []).filter((order) => order.is_test === true).map((order) => order.id));
+  // 테스트 주문 + 휴지통(삭제)으로 이동한 주문은 예약 슬롯 점유에서 제외
+  return new Set(
+    (data ?? []).filter((order: any) => order.is_test === true || order.deleted_at != null).map((order: any) => order.id)
+  );
 }
 
 function monthRange(year: number, month: number) {
