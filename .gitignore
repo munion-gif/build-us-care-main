@@ -40,3 +40,4 @@ supabase/.temp/
 # Local HTML captures
 local-*.html
 gg*.html
+.vercel

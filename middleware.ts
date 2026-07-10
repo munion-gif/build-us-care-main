@@ -113,7 +113,7 @@ export async function middleware(req: NextRequest) {
     );
     const bypassLogin = localDevBypass || (allowedByIp && isAdminIpBypassEnabled(process.env.ADMIN_IP_BYPASS_LOGIN));
     if (bypassLogin && req.nextUrl.pathname === "/admin/login") {
-      return NextResponse.redirect(new URL("/admin/dashboard", req.url));
+      return NextResponse.redirect(new URL("/admin", req.url));
     }
 
     if (!bypassLogin && req.nextUrl.pathname.startsWith("/admin") && req.nextUrl.pathname !== "/admin/login") {

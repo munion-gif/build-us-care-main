@@ -16,27 +16,36 @@ export default function AdminLoginPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ password })
     });
-    const payload = await response.json().catch(() => null);
+    await response.json().catch(() => null);
     setLoading(false);
     if (!response.ok) {
       setMessage("비밀번호가 올바르지 않아요");
       return;
     }
-    if (payload?.data?.localMode) {
-      setMessage("로컬 확인 모드에서는 로그인 없이 관리자 화면을 확인할 수 있어요.");
-    }
     window.location.href = "/admin";
   }
 
   return (
-    <main className="admin-login-page">
-      <form className="adm-card" onSubmit={submit}>
-        <p className="adm-muted">Buildus Care Admin</p>
-        <h1 className="adm-page-title">관리자 로그인</h1>
-        <input className="adm-input" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="비밀번호" autoComplete="current-password" autoFocus />
-        {message && <span className="adm-badge adm-badge-red">{message}</span>}
-        <button className="adm-btn adm-btn-primary" type="submit" disabled={loading}>
-          로그인
+    <main className="login-wrap">
+      <form className="login-card" onSubmit={submit}>
+        <div className="logo">
+          <div className="word">
+            BUILD US <em>CARE</em>
+          </div>
+        </div>
+        <h1>관리자 로그인</h1>
+        <p className="sub">관리자 비밀번호를 입력해주세요.</p>
+        <input
+          type="password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder="비밀번호"
+          autoComplete="current-password"
+          autoFocus
+        />
+        {message && <p className="login-err">{message}</p>}
+        <button className="cta" type="submit" disabled={loading}>
+          {loading ? "확인 중…" : "로그인"}
         </button>
       </form>
     </main>

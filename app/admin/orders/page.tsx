@@ -1,9 +1,10 @@
-import { getOrdersOverview } from "@/lib/admin-orders-data";
-import { OrdersClient } from "./orders-client";
+import { Suspense } from "react";
+import OrdersClient from "./orders-new-client";
 
-export const dynamic = "force-dynamic";
-
-export default async function AdminOrdersPage() {
-  const overview = await getOrdersOverview();
-  return <OrdersClient overview={overview} />;
+export default function AdminOrdersPage() {
+  return (
+    <Suspense fallback={<div className="spin" />}>
+      <OrdersClient />
+    </Suspense>
+  );
 }

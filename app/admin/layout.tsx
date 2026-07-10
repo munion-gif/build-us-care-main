@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { AdminShell } from "./admin-shell";
-import "./admin.css";
+import { AdminShell } from "./_lib/shell";
+import "./admin-new.css";
 
 export const metadata: Metadata = {
+  title: "Build us Care 관리자",
   robots: {
     index: false,
     follow: false

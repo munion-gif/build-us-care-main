@@ -1,9 +1,6 @@
-import { getDashboard } from "@/lib/admin-dashboard-data";
-import { DashboardClient } from "./dashboard-client";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-export default async function AdminDashboardPage() {
-  const d = await getDashboard();
-  return <DashboardClient d={d} />;
+// 예전 관리자 주소(/admin/dashboard) 북마크 호환용
+export default function LegacyDashboardRedirect() {
+  redirect("/admin");
 }
