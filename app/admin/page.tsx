@@ -29,6 +29,9 @@ function startOfWeek(d: Date) {
   return x;
 }
 
+// 실매출 집계 시작일 — 이 날짜 이전 주문은 네이버 블로그 체험단(무상 시공)이라 매출 집계에서 제외
+const REVENUE_START = new Date("2026-07-10T00:00:00+09:00");
+
 export default function AdminHomePage() {
   const router = useRouter();
   const [stats, setStats] = useState<Stats | null>(null);
@@ -80,7 +83,7 @@ export default function AdminHomePage() {
       const stage = orderStage(o);
       if (!["assign", "booked", "done"].includes(stage)) continue;
       const t = o.created_at ? new Date(o.created_at) : null;
-      if (!t) continue;
+      if (!t || t < REVENUE_START) continue;
       for (const w of list) {
         if (t >= w.start && t < w.end) {
           w.sum += Number(o.total_amount ?? 0);
@@ -99,7 +102,7 @@ export default function AdminHomePage() {
     const itemCounts = new Map<string, number>();
     for (const o of orders) {
       const t = o.created_at ? new Date(o.created_at) : null;
-      if (!t || t < start) continue;
+      if (!t || t < start || t < REVENUE_START) continue;
       const stage = orderStage(o);
       if (!["assign", "booked", "done"].includes(stage)) continue;
       revenue += Number(o.total_amount ?? 0);
