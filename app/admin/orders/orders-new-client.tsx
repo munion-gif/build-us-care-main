@@ -92,7 +92,7 @@ export default function OrdersClient() {
 
   // 주문 목록만 재조회 (액션 후 빠른 갱신용)
   const loadOrders = useCallback(async () => {
-    const o = await adminFetch<{ orders: AdminOrderRow[] }>("/api/admin/orders?limit=300");
+    const o = await adminFetch<{ orders: AdminOrderRow[] }>("/api/admin/orders?limit=100");
     if (o.ok && o.data) {
       const rows = (o.data.orders ?? []).filter((x) => !x.deleted_at && !x.is_test);
       setOrders(rows);
@@ -177,8 +177,9 @@ export default function OrdersClient() {
       return false;
     }
     toast(okMsg);
-    // 필요한 목록만 재조회해서 빠르게 반영
-    await Promise.all([loadOrders(), opts?.trash ? loadTrash() : Promise.resolve()]);
+    // 재조회는 백그라운드로 — 클릭 즉시 다음 동작 가능
+    void loadOrders();
+    if (opts?.trash) void loadTrash();
     return true;
   }
 
@@ -207,7 +208,10 @@ export default function OrdersClient() {
     setBusy(false);
     setSelectedIds(new Set());
     toast(done === ids.length ? `${done}건을 휴지통으로 옮겼어요` : `${done}건 이동, ${ids.length - done}건 실패`, done === ids.length ? "info" : "err");
-    await Promise.all([loadOrders(), loadTrash()]);
+    // 화면에서 먼저 제거하고 서버 목록은 백그라운드 동기화
+    setOrders((rows) => rows.filter((r) => !selectedIds.has(r.id)));
+    void loadOrders();
+    void loadTrash();
   }
 
   async function changeSimpleStatus(o: AdminOrderRow, key: string) {

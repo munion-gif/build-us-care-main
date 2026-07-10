@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { adminFetch } from "./ui";
+import { adminFetch, getCache, setCache } from "./ui";
 
 const ICONS: Record<string, React.ReactNode> = {
   home: (
@@ -73,6 +73,22 @@ export function AdminSidebar() {
       window.removeEventListener("focus", load);
     };
   }, [pathname]);
+
+  // 첫 진입 시 주요 데이터 미리 받아두기 → 첫 메뉴 클릭이 즉시 뜸
+  useEffect(() => {
+    if (getCache("orders")) return;
+    (async () => {
+      const [o, s] = await Promise.all([
+        adminFetch<{ orders: any[] }>("/api/admin/orders?limit=100"),
+        adminFetch("/api/admin/stats")
+      ]);
+      if (o.ok && o.data && !getCache("orders")) {
+        setCache("orders", (o.data.orders ?? []).filter((x: any) => !x.deleted_at && !x.is_test));
+      }
+      if (s.ok && s.data && !getCache("stats")) setCache("stats", s.data);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function logout() {
     await adminFetch("/api/admin/logout", { method: "POST" });

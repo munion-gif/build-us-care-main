@@ -33,7 +33,7 @@ export default function AdminCalendarPage() {
     const [slotRes, cfgRes, ordRes] = await Promise.all([
       adminFetch<SlotsData>(`/api/slots?year=${calY}&month=${calM + 1}`),
       adminFetch<{ configs: SlotConfig[] }>("/api/admin/slot-configs"),
-      adminFetch<{ orders: AdminOrderRow[] }>("/api/admin/orders?limit=300")
+      adminFetch<{ orders: AdminOrderRow[] }>("/api/admin/orders?limit=100")
     ]);
     if (slotRes.ok && slotRes.data) {
       setSlots(slotRes.data);

@@ -43,7 +43,7 @@ export default function AdminHomePage() {
     (async () => {
       const [s, o] = await Promise.all([
         adminFetch<Stats>("/api/admin/stats"),
-        adminFetch<{ orders: AdminOrderRow[] }>("/api/admin/orders?limit=300")
+        adminFetch<{ orders: AdminOrderRow[] }>("/api/admin/orders?limit=100")
       ]);
       if (s.ok && s.data) {
         setStats(s.data);
