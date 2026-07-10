@@ -4,31 +4,29 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { QuoteDocModal } from "./quote-doc-modal";
-import { ORDER_TRANSITIONS } from "@/lib/status";
 import { formatOrderStatus } from "@/lib/format";
 import type { OrderCard, OrdersOverview } from "@/lib/admin-orders-data";
 
-// 단계 이름을 관리자용 쉬운 말로 (실제 상태값은 그대로, 표시만 변경)
-const STAGE_LABEL: Record<string, string> = {
-  inquiry: "접수확인중",
-  quoted: "접수확인중",
-  payment_pending: "접수확인",
-  pending_product_payment: "접수확인",
-  paid: "입금 완료",
-  product_paid: "입금 완료",
-  scheduled: "방문 확정",
-  in_progress: "시공중",
-  installation_completed: "교체완료",
-  completed: "교체완료",
-  done: "교체완료",
-  cancel_requested: "취소 요청",
-  canceled: "취소",
-  cancelled: "취소",
-  issue: "문제/AS",
-  warranty: "AS"
-};
+// 목업의 단계 스테퍼: 접수 › 견적 › 입금확인 › 방문확정 › 방문완료 (+ 취소)
+const FLOW: { key: string; label: string; target: string }[] = [
+  { key: "reception", label: "접수", target: "inquiry" },
+  { key: "quote", label: "견적", target: "quoted" },
+  { key: "payment", label: "입금확인", target: "paid" },
+  { key: "visit", label: "방문확정", target: "scheduled" },
+  { key: "done", label: "방문완료", target: "completed" }
+];
+function currentStageKey(status: string): string {
+  if (["completed", "done", "installation_completed"].includes(status)) return "done";
+  if (["cancel_requested", "canceled", "cancelled", "issue", "warranty"].includes(status)) return "cancel";
+  if (["scheduled", "in_progress"].includes(status)) return "visit";
+  if (["paid", "product_paid", "payment_pending", "pending_product_payment"].includes(status)) return "payment";
+  if (["quoted"].includes(status)) return "quote";
+  return "reception";
+}
 function stageLabel(status: string) {
-  return STAGE_LABEL[status] ?? formatOrderStatus(status);
+  const k = currentStageKey(status);
+  if (k === "cancel") return "취소";
+  return FLOW.find((f) => f.key === k)?.label ?? formatOrderStatus(status);
 }
 
 export function OrdersClient({ overview }: { overview: OrdersOverview }) {
@@ -187,18 +185,23 @@ export function OrdersClient({ overview }: { overview: OrdersOverview }) {
             </div>
             {statusOpen ? (
               <div className="statusbox">
-                <div className="statusbox-t">현재 <b>{stageLabel(sel.rawStatus)}</b> · 바꿀 단계를 누르세요</div>
-                <div className="statusbox-btns">
-                  {(((ORDER_TRANSITIONS as any)[sel.rawStatus] ?? []) as string[]).length ? (
-                    (((ORDER_TRANSITIONS as any)[sel.rawStatus] ?? []) as string[]).map((t) => (
-                      <button key={t} className={`stbtn ${t === "canceled" || t === "cancel_requested" ? "danger" : ""}`} onClick={() => changeStatus(t)} disabled={busy}>
-                        {stageLabel(t)}
-                      </button>
-                    ))
-                  ) : (
-                    <span className="statusbox-none">여기서 바꿀 수 있는 다음 단계가 없어요. (완료/취소 등) 자세한 변경은 “전체 관리”에서요.</span>
-                  )}
+                <div className="statusbox-t">진행 단계를 눌러 바꾸세요</div>
+                <div className="stagesel">
+                  {FLOW.map((f, i) => {
+                    const cur = currentStageKey(sel.rawStatus);
+                    const on = cur === f.key;
+                    return (
+                      <span key={f.key} style={{ display: "contents" }}>
+                        <button className={`stage-pill ${on ? "on" : ""}`} onClick={() => changeStatus(f.target)} disabled={busy || on}>{f.label}</button>
+                        {i < FLOW.length - 1 ? <span className="arw">›</span> : null}
+                      </span>
+                    );
+                  })}
                 </div>
+                <div style={{ marginTop: 10 }}>
+                  <button className={`stage-pill cancel ${currentStageKey(sel.rawStatus) === "cancel" ? "on" : ""}`} onClick={() => changeStatus("canceled")} disabled={busy}>취소 처리</button>
+                </div>
+                <div className="statusbox-hint">일부 단계는 순서상 바로 못 바꿀 수 있어요 (그때 안내가 떠요). 되돌리기는 “전체 관리”에서요.</div>
               </div>
             ) : null}
             {noticeOpen ? (
@@ -287,13 +290,15 @@ const ORD_CSS = `
 .statusbox { margin-top: 12px; border: 1px solid var(--border); border-radius: 12px; padding: 13px; background: var(--surface-2); }
 .statusbox-t { font-size: 12.5px; color: var(--text-muted); margin-bottom: 9px; }
 .statusbox-t b { color: var(--text); }
-.statusbox-btns { display: flex; flex-wrap: wrap; gap: 8px; }
-.stbtn { border: 1px solid var(--border); background: var(--surface); color: var(--accent-text); font-weight: 800; font-size: 13px; padding: 9px 14px; border-radius: 999px; cursor: pointer; }
-.stbtn:hover { border-color: var(--accent); background: var(--accent-soft); }
-.stbtn.danger { color: var(--red); }
-.stbtn.danger:hover { border-color: var(--red); background: var(--red-soft); }
-.stbtn:disabled { opacity: .5; cursor: default; }
-.statusbox-none { font-size: 12.5px; color: var(--text-faint); }
+.stagesel { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.stage-pill { font-size: 12.5px; font-weight: 800; padding: 8px 13px; border-radius: 999px; border: 1.5px solid var(--border); background: var(--surface); color: var(--text-muted); cursor: pointer; }
+.stage-pill:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-text); }
+.stage-pill.on { border-color: transparent; color: #fff; background: var(--accent); box-shadow: 0 2px 8px -2px var(--accent); }
+.stage-pill.cancel { color: var(--red); }
+.stage-pill.cancel.on { background: var(--red); border-color: transparent; color: #fff; box-shadow: 0 2px 8px -2px var(--red); }
+.stage-pill:disabled { cursor: default; }
+.stagesel .arw { color: var(--text-faint); font-weight: 800; font-size: 14px; }
+.statusbox-hint { margin-top: 10px; font-size: 11px; color: var(--text-faint); line-height: 1.5; }
 .ord-toast { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); background: #101828; color: #fff; font-size: 13px; font-weight: 700; padding: 12px 20px; border-radius: 999px; z-index: 70; box-shadow: 0 10px 30px -10px rgba(0,0,0,.5); }
 @media (max-width: 900px) { .pipe { grid-template-columns: repeat(2, 1fr); } .oc { grid-template-columns: 1fr; gap: 10px; } .oc .ac { align-items: flex-start; } }
 `;
